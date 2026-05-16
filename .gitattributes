@@ -1,0 +1,11 @@
+# Force LF on shell scripts and Dockerfile so they work on Linux when this
+# repo is checked out on Windows. Without this rule, Windows' default CRLF
+# would break `bash` on the VPS.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+
+# systemd unit files are parsed by systemd on the Linux host; CRLF causes
+# "Failed to parse" at install time.
+*.service text eol=lf
+*.timer text eol=lf
