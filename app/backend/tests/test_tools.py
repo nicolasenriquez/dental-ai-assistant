@@ -96,7 +96,14 @@ async def test_execute_search_hybrid_happy_path(monkeypatch) -> None:
     assert result["ok"] is True
     assert "How RAG Works" in result["text"]
     assert "at 00:00" in result["text"]
-    assert result["chunks"] == _FAKE_CHUNKS
+    assert "video_id: v1" in result["text"]  # internal id surfaced for get_video_transcript
+    # Chunks are projected onto the canonical shape (_normalize_chunk_shape adds
+    # source_type / lesson_url / chunk_index), so assert field-wise rather than
+    # exact-equality against the raw fixture.
+    assert len(result["chunks"]) == 1
+    assert result["chunks"][0]["chunk_id"] == "c1"
+    assert result["chunks"][0]["video_id"] == "v1"
+    assert result["chunks"][0]["video_title"] == "How RAG Works"
 
 
 @pytest.mark.asyncio
@@ -167,6 +174,20 @@ async def test_search_empty_results_returns_canned_message(monkeypatch) -> None:
     assert result["ok"] is True
     assert "No relevant chunks found" in result["text"]
     assert result["chunks"] == []
+
+
+def test_format_search_results_exposes_video_id() -> None:
+    """Regression: search-result text must surface the internal video_id.
+
+    Before this fix the result showed only the title and the ``[c:]`` chunk
+    marker, so when the model wanted a full transcript it guessed the video_id
+    — usually the YouTube id lifted from the URL — and get_video_transcript's
+    whitelist rejected it, leaving the transcript tool effectively unusable.
+    """
+    text = _format_search_results(_FAKE_CHUNKS)
+    assert "video_id: v1" in text  # internal id is now copyable by the model
+    assert "[c:c1]" in text  # citation marker still present
+    assert "How RAG Works" in text
 
 
 # --- Per-video diversity cap ----------------------------------------------
