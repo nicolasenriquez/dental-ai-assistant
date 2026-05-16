@@ -106,6 +106,8 @@ The app runs Alembic migrations automatically on startup, so a fresh Postgres da
 ```
 ai-tutor/
 ├── CLAUDE.md                # Code conventions + rules for AI coding agents
+├── .claude/                 # The installed AI Layer — skills, subagents, references
+├── .mcp.json                # MCP server config (Atlassian, PostHog)
 ├── app/
 │   ├── start.sh / start.bat # Bootstrap both dev servers
 │   ├── backend/             # Python + FastAPI — API, RAG pipeline, auth, ingestion
