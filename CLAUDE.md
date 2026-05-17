@@ -328,7 +328,7 @@ Any PR that adds or modifies an external-API integration must ship with **mocked
 
 Existing quirks in the repo — fix them when an issue covers them, but don't depend on the broken behavior:
 
-1. **Port mismatch in `vite.config.ts`.** The dev server / API proxy ports in `vite.config.ts` and the values in `config.py` (`FRONTEND_PORT`, backend port) can disagree. If you touch either file, make them agree.
+1. **Seed data uses synthesised YouTube IDs.** `data/seed.py` (enabled with `SEED_ENABLE=true`) seeds 10 mock videos with fake YouTube ids (`AgntBld001a`, etc.). Citation deep-links and the embedded-player modal will not resolve for seeded videos — seed data is for local dev only. Real data comes from `POST /api/channels/sync`.
 2. **Runtime dependencies are unpinned in `pyproject.toml`** but pinned in `uv.lock`. Don't add upper bounds to `[project].dependencies` — the lockfile handles reproducibility.
 3. **SSE tokens are JSON-encoded** (wrapped in quotes, escaped newlines). Non-standard but intentional — it safely handles tokens containing newlines. The parser in `useStreamingResponse.ts` expects this exact format.
 
