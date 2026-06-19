@@ -10,6 +10,17 @@ argument-hint: [path-to-plan]
 
 Read plan file: `$ARGUMENTS`
 
+## Before you start — work on a feature branch
+
+A ticket gets built on its own branch, so it can become one PR. Detect the base branch (don't hardcode `main`):
+`git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'` (fallback `main`).
+
+- **On the base branch, clean** → create one: `git checkout -b feature/<plan-slug>`.
+- **Already on a feature branch or in a worktree** → use it.
+- **On the base branch with uncommitted changes** → STOP: commit or stash first.
+
+(One branch per ticket is also what makes parallel worktrees clean later.)
+
 ## Execution Instructions
 
 ### 1. Read and Understand
@@ -70,29 +81,39 @@ Before completing:
 - ✅ Code follows project conventions
 - ✅ Documentation added/updated as needed
 
-## Output Report
+## Output — write an implementation report
 
-Provide summary:
+Write a short report to `.claude/reports/<plan-slug>-report.md` (and print the summary). This is what the PR body
+and the `review-pr` gate read — especially the **deviations** (a documented deviation is an *intentional*
+decision the reviewer should not flag):
 
-### Completed Tasks
-- List of all tasks completed
-- Files created (with paths)
-- Files modified (with paths)
+```markdown
+# Implementation Report — <feature>
 
-### Tests Added
-- Test files created
-- Test cases implemented
-- Test results
+**Plan**: <path>   **Branch**: <feature/...>   **Status**: COMPLETE | PARTIAL
 
-### Validation Results
-```bash
-# Output from each validation command
+## Summary
+{What was built, 2-4 sentences.}
+
+## Tasks completed
+- [task] → `path/to/file` (CREATE/UPDATE)
+
+## Tests added
+{Test files + cases + results.}
+
+## Validation results
+{Type-check / lint / tests / build — pass/fail with counts.}
+
+## Deviations from the plan
+{What changed vs the plan and WHY — or "none". This is the reviewer's signal of intent.}
+
+## Issues encountered
+{Anything notable, or "none".}
 ```
 
-### Ready for Commit
-- Confirm all changes are complete
-- Confirm all validations pass
-- Ready for the `commit` skill
+### Ready for the next step
+- Confirm all changes are complete and validations pass.
+- Next: `commit` the work, then `create-pr` to open the PR (the report fills the PR body), then `review-pr`.
 
 ## Notes
 
