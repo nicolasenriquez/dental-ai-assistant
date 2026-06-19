@@ -33,6 +33,11 @@ dependencies = [
     "pyjwt",
     "email-validator",
     "supadata",
+    # SQLAlchemy's async engine (used by Alembic in alembic/env.py) needs
+    # greenlet. SQLAlchemy only auto-declares it on certain platforms and its
+    # marker omits macOS Apple Silicon (platform_machine == 'arm64'), so we
+    # depend on it explicitly to install everywhere.
+    "greenlet",
 ]
 
 [project.optional-dependencies]
