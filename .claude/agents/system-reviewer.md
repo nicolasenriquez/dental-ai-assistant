@@ -1,6 +1,6 @@
 ---
 name: system-reviewer
-description: Use this agent to analyze an execution report against the original implementation plan after a feature is complete. It classifies divergences as good (justified) vs bad (problematic), traces their root causes, and recommends concrete improvements to the AI Layer (CLAUDE.md, plan/execute skills, new skills, validation steps). Trigger this agent when an execution report exists and you want a meta-level review of the process — not a code review.
+description: Use this agent to analyze an execution report against the original implementation plan after a feature is complete. It classifies divergences as good (justified) vs bad (problematic), traces their root causes, and recommends concrete improvements to the AI Layer (CLAUDE.md, plan/piv-implement skills, new skills, validation steps). Trigger this agent when an execution report exists and you want a meta-level review of the process — not a code review.
 tools: Read, Glob, Grep
 model: sonnet
 ---
@@ -18,8 +18,8 @@ You will be given (or must locate):
 
 - **The plan** — what the agent was SUPPOSED to do.
 - **The execution report** — what the agent ACTUALLY did and why.
-- **The plan skill** (`.claude/skills/plan-feature/SKILL.md`) — the instructions that guide planning.
-- **The execute skill** (`.claude/skills/execute/SKILL.md`) — the instructions that guide execution.
+- **The plan skill** (`.claude/skills/piv-plan-implementation/SKILL.md`) — the instructions that guide planning.
+- **The execute skill** (`.claude/skills/piv-implement/SKILL.md`) — the instructions that guide execution.
 - Optionally **CLAUDE.md** and project references for documented patterns.
 
 Read all of them before analyzing.
