@@ -186,6 +186,20 @@ So that <benefit/value>
 **Primary Systems Affected**: [List of main components/services]
 **Dependencies**: [External libraries or services required]
 
+## Related Work
+
+<Links between this plan and the work around it. Distinct from CONTEXT REFERENCES below (which lists files/docs to read for *this* implementation) — this is the plan's place in the larger graph.>
+
+**Implements**: <ticket id / link>   ·   **Epic**: <engineering-plan.md path or epic link — if this ticket inherits an epic's engineering plan (see Mission), record it here>
+
+**Back-references** (plans this builds on or inherits decisions from):
+
+- `.claude/plans/<prior-plan>.md` - Why: shares the auth seam / reuses the X service
+
+**Forward-references** (plans that extend or supersede this — append as follow-ups get created):
+
+- (none yet)
+
 ---
 
 ## CONTEXT REFERENCES
@@ -229,6 +243,8 @@ So that <benefit/value>
 
 ## IMPLEMENTATION PLAN
 
+Phases run **top to bottom by default** — each assumes the phase above it is done. Where that is NOT the true dependency, make it explicit with a `**Depends on:**` line under the phase header, and a `**Independent of:**` line where two phases don't block each other. Independent phases are candidates to run in **parallel** (e.g. separate worktrees / parallel loops). Only annotate where it changes execution order or unlocks parallelism — skip the obvious sequential case.
+
 ### Phase 1: Foundation
 
 <Describe foundational work needed before main implementation>
@@ -240,6 +256,8 @@ So that <benefit/value>
 - Create foundational utilities or helpers
 
 ### Phase 2: Core Implementation
+
+**Depends on:** Phase 1 (needs the base schemas/types)
 
 <Describe the main implementation work>
 
@@ -383,9 +401,15 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 
 <Surface anything still uncertain instead of silently guessing. List the assumptions this plan makes, and any question that — if answered differently — would change the plan. Flag unresolved critical questions for the user before execution.>
 
-## NOTES
+## NOTES (open canvas)
 
-<Additional context, design decisions, trade-offs>
+<No fixed shape. Reason freely here: alternatives you weighed and rejected and why, a tradeoff matrix, a sequencing or rollout risk, a data-flow sketch, open threads, links — whatever serves the plan. The sections above template the plan's *shape* so the trifecta and the implementation agent can consume it; this section keeps your *reasoning* unconstrained. Prose, lists, tables, code blocks all welcome.>
+
+## AMENDMENTS
+
+<Append-only history of changes made to this plan AFTER it was first approved/executed. Leave empty at creation; newest entry at the bottom. Each entry: date — what changed and why.>
+
+- <ISO date> — <what changed and why, e.g. "scope cut: deferred bulk-import to a follow-up ticket after AC review">
 ```
 
 ## Output Format

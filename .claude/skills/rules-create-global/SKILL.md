@@ -8,13 +8,22 @@ argument-hint: [prd-path | analysis-path]
 
 ## What global rules are (30-second intro)
 
-Your global rules (`CLAUDE.md` / `AGENTS.md`) are the **always-on steering document** — read on every
-task. Two things earn that always-on slot:
+Your global rules — **`CLAUDE.md`** (Claude-native) or **`AGENTS.md`** (the open cross-tool standard) — are the
+**always-on steering document**, read on every task. Four kinds of content earn that always-on slot:
 1. **A map of the codebase** — the dirs/files that matter, each with a one-line *what it is + why it lives there*.
 2. **Ground rules** — the *specific conventions* this project follows (how you do type safety, your error
    philosophy, your git workflow). State the choice, not a slogan.
+3. **Commands the agent should run itself** — the real lint / type-check / test / tooling CLIs (with their flags),
+   so it can check its own work. (Not slash-commands — those are *skills*.)
+4. **Working principles (agent steering)** — how you want the agent to *operate* here: its thinking/reasoning
+   posture (plan before non-trivial work, ask when ambiguous instead of guessing, keep scope tight) and the
+   engineering primitives you hold (fail fast, explicit errors, single responsibility, simplest thing that
+   works). **These don't live in the code — you state them.** They're the part deriving-from-the-codebase can
+   never produce — and the part an agent won't reliably follow unless you make it explicit.
 
-Everything else loads **on demand** (references/skills) or belongs in a per-task **plan** — not here.
+**It's all composition.** Rules, references, and skills are just markdown the agent loads when it needs them — so
+any of the above can live always-on *or* in an on-demand `references/` doc *or* in a skill; you choose where each
+piece lives. Everything not needed every task loads **on demand**, or belongs in a per-task **plan** — not here.
 
 ## Two situations, one motion
 
@@ -41,21 +50,31 @@ Global rules encode **technical** truth — so you derive them from technical de
 > you want to keep. Even better, **feed it in as input** — point the skill at it ("read my existing
 > `CLAUDE.md` first") so the derivation *builds on* what's already there instead of starting from scratch.
 
-## Required reading (do this first)
+## Required reading (do this first) — and pick the file
 
-Read the current Anthropic guidance so best practices stay fresh — don't rely on a snapshot:
-- **Memory / CLAUDE.md:** https://code.claude.com/docs/en/memory
-- **Best practices:** https://code.claude.com/docs/en/best-practices
+**First, which rules file does this project use?** Detect it, then read the matching guidance (don't rely on a snapshot):
+- **`CLAUDE.md`** (Claude Code's native file) → Anthropic memory + best practices:
+  https://code.claude.com/docs/en/memory · https://code.claude.com/docs/en/best-practices
+- **`AGENTS.md`** (the open cross-tool standard, read by dozens of agents) → the AGENTS.md spec: https://agents.md
+- **Both present?** Usually the shared content lives in **`AGENTS.md`** and `CLAUDE.md` is a single line —
+  `@AGENTS.md` — so Claude Code auto-loads AGENTS.md and there's one source of truth. In that case, write to AGENTS.md.
+- **Neither yet?** `CLAUDE.md` for a Claude-Code-only project; `AGENTS.md` if the team is multi-tool.
 
-Then use the course's **`.claude/CLAUDE.md.template`** as the output structure.
+Content + structure are ~90% identical either way — everything below is **"your rules file,"** not one vendor's.
+Use the course's **`.claude/CLAUDE.md.template`** as the structure (it works as an AGENTS.md too).
 
 ## The methodology (bake this in)
 
-- **What goes always-on:** only the **map** + **ground rules** (specific conventions). Everything true
-  *project-wide, every task*.
+- **What goes always-on:** the **map** + **ground rules** (specific conventions) + the **working principles**
+  (agent steering). Everything true *project-wide, every task*.
+- **Working principles are *elicited*, not derived.** The map + ground rules come from the code/decisions; the
+  working principles come from **you** — so **ask**: "how should the agent work here — plan-first? clarify before
+  coding? scope discipline? which engineering primitives do you hold?" Keep only the ones that actually *change
+  behavior* and reflect *your* stance — not a generic lecture the model already follows.
 - **The four destinations** — sort every candidate line:
   - **Keep always-on** → map / ground rules.
-  - **Push to on-demand** → a recurring but task-*type*-specific pattern → `.claude/references/<topic>.md` (or a skill).
+  - **Push to on-demand** → a recurring but task-*type*-specific pattern → an on-demand reference
+    (`.claude/references/<topic>.md` on Claude Code; anywhere your tool looks — e.g. `.agent/` — it's just markdown) or a skill.
   - **Move to a plan** → task-specific "what to build next" content → it was never a rule.
   - **Delete** → redundant, or a slogan the model already follows ("write clean code", "KISS/DRY").
 - **State the choice, not the slogan:** "derive types with `z.infer`", not "type safety is critical".
@@ -82,6 +101,10 @@ Fill the template's sections, sourced from the input:
 - **Architecture map** — the tree of dirs/files that matter, one-line what/why each.
 - **Ground rules** — the specific conventions (greenfield: chosen in the PRD; brownfield: *observed in the
   code*, each traceable to a file).
+- **Working principles (agent steering)** — **ask the user** (this can't be derived from code): how should the
+  agent operate here? Capture the thinking/reasoning posture (plan-first, clarify-don't-guess, scope discipline,
+  verify against the *real* suite) + the engineering primitives they hold (fail fast, explicit errors, single
+  responsibility, simplest-thing-that-works). State the project's *actual* stance; keep it lean.
 - **Commands** — the few you actually run (install / test / type-check / lint / run).
 - **On-demand pointers** — where detail loads when needed.
 Don't dump the PRD or the analysis in. Link to them.
@@ -110,6 +133,8 @@ evidence. Apply the per-line test: *would removing this cause a mistake? If not,
 
 - ✅ Root `CLAUDE.md` is a **map + ground rules**, not documentation or a PRD/analysis copy.
 - ✅ Every ground rule is a **specific choice** (brownfield: traceable to a file) — no slogans.
+- ✅ A **working-principles / agent-steering** section exists — *elicited from the user* (plan / clarify / scope
+  posture + engineering primitives), lean and behavior-changing, not generic filler.
 - ✅ Recurring task-type detail lives in `.claude/references/`, not always-on.
 - ✅ Lean enough that nothing earns its slot without paying rent.
 

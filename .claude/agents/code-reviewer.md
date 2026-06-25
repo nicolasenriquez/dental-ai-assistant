@@ -1,6 +1,25 @@
 ---
 name: code-reviewer
-description: Use this agent when you want to review newly written code or features before committing them to the repository. This agent checks code against the project's standards including type safety (MyPy/Pyright strict mode), FastAPI/SQLAlchemy patterns, vertical slice architecture compliance, structured logging standards, and adherence to KISS/YAGNI principles. Trigger this agent after completing a logical chunk of code or a full feature implementation.\n\nExample 1:\nContext: User has written a new service file for a product feature.\nUser: "I've implemented the product creation service with validation and logging. Can you review it?"\nAssistant: "I'll use the code-reviewer agent to evaluate your implementation against our project standards."\n<function call to code-reviewer agent>\n\nExample 2:\nContext: User has created a new API route with database operations.\nUser: "Here's the new order endpoint with pagination support."\nAssistant: "Let me use the code-reviewer agent to check the type safety, error handling, and logging patterns."\n<function call to code-reviewer agent>\n\nExample 3:\nContext: User modifies existing code and wants feedback.\nUser: "I refactored the query service to use async/await properly."\nAssistant: "I'll review your changes using the code-reviewer agent to ensure they meet our strict type checking and architecture standards."\n<function call to code-reviewer agent>
+description: |
+  Use this agent when you want to review newly written code or features before committing them to the
+  repository. It checks code against the project's standards — type safety (MyPy/Pyright strict mode),
+  FastAPI/SQLAlchemy patterns, vertical-slice architecture compliance, structured logging, and KISS/YAGNI.
+  Trigger it after completing a logical chunk of code or a full feature.
+
+  Example 1
+  Context - the user has written a new service file for a product feature.
+  User - "I've implemented the product creation service with validation and logging. Can you review it?"
+  Assistant - "I'll use the code-reviewer agent to evaluate your implementation against our standards."
+
+  Example 2
+  Context - the user has created a new API route with database operations.
+  User - "Here's the new order endpoint with pagination support."
+  Assistant - "Let me use the code-reviewer agent to check type safety, error handling, and logging."
+
+  Example 3
+  Context - the user refactored existing code and wants feedback.
+  User - "I refactored the query service to use async/await properly."
+  Assistant - "I'll review your changes with the code-reviewer agent to ensure they meet our standards."
 model: sonnet
 color: red
 ---

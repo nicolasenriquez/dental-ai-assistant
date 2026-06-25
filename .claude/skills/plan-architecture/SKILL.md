@@ -55,8 +55,9 @@ explore:
 - **Greenfield** (a new build): explore the *solution space* — approaches, the web for current best practices and
   stack options, first principles. The architecture is what you *decide*.
 - **Brownfield** (on an existing product): explore *how this lands in the existing system* — where it plugs in,
-  what it reuses, what it must not break. (Run `/prime-codebase` first so you know the lay of the land.) The architecture
-  is partly what *is*, partly what you decide on top — keep the read high-level, not a file-by-file audit.
+  what it reuses, what it must not break. **Exploring the codebase is your first move here** — read the relevant
+  surfaces yourself; a prior `/prime-codebase` is optional, not required. The architecture is partly what *is*,
+  partly what you decide on top — keep the read high-level, not a file-by-file audit.
 
 ## What to explore (interactively)
 

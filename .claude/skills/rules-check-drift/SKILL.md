@@ -1,23 +1,24 @@
 ---
 name: rules-check-drift
-description: Check whether CLAUDE.md still matches the codebase after recent changes — run before a merge, or fold into your code-review pass. Reports stale/now-false rules, drifted architecture-map entries, and any new invariant worth adding, each with the minimal edit. Advisory and anti-bloat: it keeps CLAUDE.md true, never longer than it needs to be.
+description: Check whether your rules file (CLAUDE.md or AGENTS.md) still matches the codebase after recent changes — run before a merge, or fold into your code-review pass. Reports stale/now-false rules, drifted architecture-map entries, and any new invariant worth adding, each with the minimal edit. Advisory and anti-bloat: it keeps the rules file true, never longer than it needs to be.
 argument-hint: "[optional diff range, e.g. main...HEAD]"
 ---
 
-# /rules-check-drift — keep CLAUDE.md true, not longer
+# /rules-check-drift — keep your rules file true, not longer
 
-CLAUDE.md is a **steering document, not documentation** — your ground rules, your conventions, and a current
-**map of where things live**. Its only failure mode that matters is being **wrong**: a stale rule or a
-drifted map actively misleads the agent on every future run. This skill checks CLAUDE.md against what just
-changed and proposes the **smallest** edit that keeps it true.
+Your rules file — **`CLAUDE.md`** or **`AGENTS.md`** — is a **steering document, not documentation**: your ground
+rules, your conventions, and a current **map of where things live**. Its only failure mode that matters is being
+**wrong**: a stale rule or a drifted map actively misleads the agent on every future run. This skill checks the
+rules file against what just changed and proposes the **smallest** edit that keeps it true.
 
-> **Wrong rules are worse than missing rules. A longer CLAUDE.md is worse than a lean one.** Most changes
-> need *no* CLAUDE.md edit at all — adding a wrong or verbose line makes it worse.
+> **Wrong rules are worse than missing rules. A longer rules file is worse than a lean one.** Most changes
+> need *no* edit at all — adding a wrong or verbose line makes it worse.
 
 ## Input
 - `$1` — optional diff range. Default: uncommitted + staged (`git diff HEAD`); fall back to `main...HEAD`.
-- **Scope: `CLAUDE.md` only** — the root file and any package-level `CLAUDE.md`s. Ignore README, `docs/`,
-  and `.claude/` agent/command/skill files. This skill exists to keep the *rules* honest, nothing else.
+- **Scope: the project's rules file(s)** — `CLAUDE.md` and/or `AGENTS.md`, the root file + any package-level
+  ones. (If `CLAUDE.md` is just a `@AGENTS.md` import, check `AGENTS.md`.) Ignore README, `docs/`, and `.claude/`
+  agent/command/skill files. This skill exists to keep the *rules* honest, nothing else.
 
 ## Process
 
@@ -25,8 +26,8 @@ changed and proposes the **smallest** edit that keeps it true.
 `git diff <range>` + `git status`. Note: moved/renamed/removed files, new modules, changed conventions,
 and any new invariant the change establishes.
 
-### 2. Read CLAUDE.md as it is now
-Load the project's CLAUDE.md (and any package-scoped ones). Hold each claim against the change set.
+### 2. Read the rules file as it is now
+Load the project's rules file — `CLAUDE.md` or `AGENTS.md` (and any package-scoped ones). Hold each claim against the change set.
 
 ### 3. Flag ONLY these three things
 1. **A stated rule or fact is now false** — e.g. "routes live in `src/routes/`" but they moved. → fix it.
@@ -47,7 +48,7 @@ background/rationale/prose that doesn't steer future work.
 
 ## Output
 ```
-## CLAUDE.md drift check — range: <range>
+## Rules-file drift check — range: <range>
 
 ### Fix (now false)
 | Where | What's wrong | Minimal fix |
@@ -60,10 +61,10 @@ background/rationale/prose that doesn't steer future work.
 ### Checked, still true — no edit
 - <areas you verified need no change>
 ```
-If nothing drifted: **"CLAUDE.md is still accurate for these changes — no edits needed."**
+If nothing drifted: **"The rules file is still accurate for these changes — no edits needed."**
 
 ## Rules
 - **Advisory.** Report the drift; only apply/piv-commit edits if the caller explicitly asks.
-- **CLAUDE.md only.** Not README, not docs.
+- **Rules file only** (`CLAUDE.md` / `AGENTS.md`). Not README, not docs.
 - **Lean by default.** When in doubt, suggest nothing.
 - **Run it before every merge** (or as part of `/piv-review-changes`) so your rules never drift behind the code.

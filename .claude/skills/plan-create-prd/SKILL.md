@@ -86,7 +86,10 @@ over-invest feasibility and under-invest value — and value means wanting it *m
 
 ## Generate the PRD
 
-Write to `$ARGUMENTS` (default `PRD.md`). Product sections only, scannable:
+Write to an **idea-derived filename** so a second PRD never overwrites the first: **`<kebab-slug>.prd.md`**, where
+the slug comes from the epic/product title or the core idea (e.g. `pluggable-ingestion.prd.md`). Put it in `docs/`
+if that exists, else the repo root. (Only write to a literal path if the user passed one in `$ARGUMENTS`.)
+**Never hardcode `PRD.md`.** Product sections only, scannable:
 
 1. **Problem Statement** — who has what problem, and the cost of not solving it.
 2. **Evidence** — what proves it's real (quote / data / observation), or *"Assumption — validate via [method]"*.
@@ -100,8 +103,8 @@ Write to `$ARGUMENTS` (default `PRD.md`). Product sections only, scannable:
 
 ## Output + hand off
 
-- Confirm the path; 3–5 line summary leading with the **thesis** and **hypothesis**; show what's evidenced vs
-  assumed and the open-questions count.
+- Confirm the path (the **idea-derived filename**, not `PRD.md`); 3–5 line summary leading with the **thesis**
+  and **hypothesis**; show what's evidenced vs assumed and the open-questions count.
 - **Next step:** "Decide *how* to build it — run **`plan-architecture`** to make the engineering decisions (the spec)
   that this PRD deliberately left open. That's what `rules-create-global` then turns into your global rules."
 
