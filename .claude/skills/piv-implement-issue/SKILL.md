@@ -1,22 +1,22 @@
 ---
-name: piv-implement-bugfix
-description: Implements a bug fix for a GitHub issue based on its RCA document, adds regression tests, and validates. Use after an RCA document exists and you are ready to fix the issue.
+name: piv-implement-issue
+description: Implement the fix for a GitHub issue from its RCA artifact (created by piv-investigate-issue) — drift-check the plan, branch, implement, add regression tests, and validate. Use after the investigation artifact exists and you're ready to fix the issue.
 argument-hint: [github-issue-id]
 allowed-tools: Read, Write, Edit, Bash(ruff:*), Bash(mypy:*), Bash(pytest:*), Bash(npm:*), Bash(bun:*)
 ---
 
-# Implement Fix: GitHub Issue #$ARGUMENTS
+# Implement Issue Fix: GitHub Issue #$ARGUMENTS
 
 ## Prerequisites
 
 **This skill implements fixes for GitHub issues based on RCA documents:**
 - Working in a local Git repository with GitHub origin
-- RCA document exists at `docs/system-root-cause-analysis/issue-$ARGUMENTS.md`
+- RCA document exists at `docs/issues/issue-$ARGUMENTS.md`
 - GitHub CLI installed and authenticated (optional, for status updates)
 
 ## RCA Document to Reference
 
-Read RCA: `docs/system-root-cause-analysis/issue-$ARGUMENTS.md`
+Read RCA: `docs/issues/issue-$ARGUMENTS.md`
 
 **Optional - View GitHub issue for context:**
 ```bash
@@ -34,12 +34,22 @@ gh issue view $ARGUMENTS
 - Note all files to modify
 - Review testing requirements
 
-### 2. Verify Current State
+### 2. Verify Current State — and check for drift
 
 Before making changes:
-- Confirm the issue still exists
-- Check current state of affected files
-- Review any recent changes to those files
+- Confirm the issue still exists.
+- **Drift check:** read each file the RCA names and compare against the RCA's "current code" snippets / line refs.
+  If the code has **changed materially** since the RCA, **stop** — surface the drift and suggest re-running
+  `piv-investigate-issue` for issue #$ARGUMENTS rather than implementing a stale plan.
+- Confirm the proposed fix still addresses the root cause — don't silently deviate.
+
+### 2b. Get on the right branch
+
+- **In a worktree?** Use it (it was created for this work).
+- **On the base branch, clean tree?** Create a fix branch — `git checkout -b fix/issue-$ARGUMENTS-<slug>` (detect
+  the base with `git symbolic-ref refs/remotes/origin/HEAD`; never hardcode `main`).
+- **Already on a feature/fix branch?** Use it (warn if its name doesn't reference #$ARGUMENTS).
+- **Dirty tree on the base branch?** Stop — ask the user to commit or stash first.
 
 ### 3. Implement the Fix
 
@@ -61,6 +71,9 @@ Following the "Proposed Fix" section of the RCA:
 - Update any related code affected by the fix
 - Ensure consistency across the codebase
 - Update imports if needed
+
+**Stay on plan:** implement what the RCA specifies — don't refactor unrelated code or add unplanned
+"improvements." If you must deviate, note what changed and why, and surface it in the report (and the PR).
 
 ### 4. Add/Update Tests
 
@@ -176,6 +189,10 @@ If needed:
 - ✅ No new issues introduced
 - ✅ Original functionality preserved
 
+### Deviations from the RCA
+
+[None — implemented as specified | List each deviation from the RCA + why]
+
 ### Files Summary
 
 **Total Changes:**
@@ -218,7 +235,7 @@ gh issue close $ARGUMENTS --comment "Fixed and merged."
 
 ## Notes
 
-- If the RCA document is missing or incomplete, request it be created first with the `system-root-cause-analysis` skill for issue #$ARGUMENTS
+- If the RCA document is missing or incomplete, request it be created first with the `piv-investigate-issue` skill for issue #$ARGUMENTS
 - If you discover the RCA analysis was incorrect, document findings and update the RCA
 - If additional issues are found during implementation, note them for separate GitHub issues and RCAs
 - Follow project coding standards exactly
