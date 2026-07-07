@@ -1,7 +1,7 @@
 ---
 name: piv-slice-epic
-description: Slice an epic (with its architecture decisions) into PIV-sized tickets with a dependency graph. Turns a large strategic doc into the discrete units of work that the PIV loop consumes.
-argument-hint: "[path to the epic / architecture doc / PRD]"
+description: Slice an epic (with its architecture decisions) into PIV-sized tickets with a dependency graph, then create them in your tracker (Jira via the Atlassian MCP, or GitHub/Linear/local). Accepts the epic and its architecture as one doc or as an epic plus a separate linked architecture page. Turns a large strategic doc into the discrete units of work that the PIV loop consumes.
+argument-hint: "[epic + its linked architecture page (paths or Confluence/Jira URLs); a PRD for greenfield]"
 ---
 
 # /piv-slice-epic — Slice an Epic into PIV-Sized Tickets
@@ -10,14 +10,25 @@ The bridge between a strategic doc and the PIV loop. The epic doc is the destina
 
 ## Input
 
-- `$1` — path to the architected epic doc (brownfield — carrying its `## Architecture` decisions from `plan-architecture`), or PRD (greenfield). **This is the load-bearing input:** the architecture names the seams, data model, and missing pieces the slices must respect.
-- **Not prime-dependent.** A primed session helps, but isn't required — if the codebase surface isn't loaded, this skill orients itself (Step 2) before slicing.
+- `$ARGUMENTS` — the **epic** to slice **and its architecture decisions**. These arrive as **one doc or two**:
+  - a single architected epic that carries its own `## Architecture` section, **or**
+  - an **epic plus a separate, linked architecture page** (the common case when the architecture lives beside the
+    epic — e.g. a Confluence epic page and its linked architecture page, both passed as URLs). **Read both.**
+  - greenfield: a PRD stands in for the epic.
+  When the inputs are tracker references (Confluence/Jira URLs or keys), fetch them from the source via the
+  Atlassian MCP. **This is the load-bearing input:** the architecture names the seams, data model, and missing
+  pieces the slices must respect.
+- **Not prime-dependent.** A primed session helps, but isn't required. If the codebase surface isn't loaded, this
+  skill orients itself (Step 2) before slicing.
 
 ## Process
 
-### Step 1 — Read the destination
+### Step 1 — Read the sources
 
-Read the epic fully: its goal, user stories, acceptance criteria, out-of-scope, and the `## Architecture` decisions (the approach, stack, data model, missing pieces, spikes) — the slicing has to respect those calls.
+Read the epic fully (goal, user stories, acceptance criteria, out-of-scope) **and its architecture decisions,
+whether they are an `## Architecture` section on the epic or a separate linked page** (the approach, stack, data
+model, missing pieces, spikes). If the architecture is a separate page, fetch and read it too. The slicing has to
+respect those calls.
 
 ### Step 2 — Orient on the code surface (if not already primed)
 

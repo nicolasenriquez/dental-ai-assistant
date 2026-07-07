@@ -1,12 +1,24 @@
 ---
 name: piv-plan-implementation
-description: Creates a comprehensive, context-rich implementation plan through deep codebase analysis and external research. Use when you have a feature request and need a one-pass-ready plan before writing any code.
-argument-hint: [feature-description]
+description: Creates a comprehensive, context-rich implementation plan through deep codebase analysis and external research. Accepts a tracker ticket (a Jira/Linear/GitHub key or URL, fetched from the tracker) or a free-form feature request. Use when you have a ticket or feature and need a one-pass-ready plan before writing any code.
+argument-hint: "[ticket key/URL (fetched from your tracker), or a free-form feature description]"
 ---
 
 # Plan a new task
 
 ## Feature: $ARGUMENTS
+
+## Resolve the input first
+
+`$ARGUMENTS` is either a **tracker ticket** (a key like `ACC-30`, or a Jira / Linear / GitHub issue URL) or a
+**free-form feature description**. Tell them apart and handle each:
+
+- **A ticket** (a key such as `ABC-123`, or an issue URL): **fetch it from the tracker before you plan** (Jira via
+  the Atlassian MCP, GitHub via `gh issue view`, etc.). Read its summary, acceptance criteria, and per-ticket
+  context. Then **follow its links up to the epic and the epic's linked architecture page** (Confluence via the
+  Atlassian MCP) and inherit those decisions (see "Inherit, don't re-decide" below). Never plan from the bare key;
+  the ticket body plus its epic and architecture are the real input.
+- **A free-form description**: plan directly from it (greenfield or ad-hoc), asking clarifying questions as needed.
 
 ## Mission
 
@@ -16,7 +28,7 @@ Transform a feature request into a **comprehensive implementation plan** through
 
 **Key Philosophy**: Context is King. The plan must contain ALL information needed for implementation - patterns, mandatory reading, documentation, validation commands - so the execution agent succeeds on the first attempt.
 
-**Inherit, don't re-decide**: This is a **per-ticket** plan. If the ticket belongs to an epic that already has an engineering plan (an `## Engineering` section on the epic, or an `engineering-plan.md` from the `plan-architecture` skill), **read it first** and treat its cross-cutting calls — stack & versions, data model, security boundaries, the seams new code plugs into — as **already decided**. Inherit them; don't reopen them. Plan only what's left at the ticket level: the specific files, the local patterns to mirror, the tests. If a ticket genuinely needs to break an epic-level decision, flag it in Open Questions rather than silently diverging.
+**Inherit, don't re-decide**: This is a **per-ticket** plan. If the ticket belongs to an epic that already has architecture decisions — a **linked architecture page** (e.g. a Confluence page from the `plan-architecture` skill, reached from the ticket's epic), an `## Architecture` / `## Engineering` section on the epic, or a local `architecture.md` / `engineering-plan.md` — **read it first** and treat its cross-cutting calls (stack & versions, data model, security boundaries, the seams new code plugs into) as **already decided**. Inherit them; don't reopen them. Plan only what's left at the ticket level: the specific files, the local patterns to mirror, the tests. If a ticket genuinely needs to break an epic-level decision, flag it in Open Questions rather than silently diverging.
 
 ## Planning Process
 
