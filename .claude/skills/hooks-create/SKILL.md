@@ -6,6 +6,12 @@ argument-hint: [what-the-hook-should-do]
 
 # Create Hook: Turn an Idea Into a Working Claude Code Hook
 
+**What the user wants the hook to do**: $ARGUMENTS
+
+If that is filled in, treat it as the behavior spec and start from it. Don't re-ask what they already told you;
+only ask to pin down the gaps (the exact paths / commands / patterns, and whether it must *block*). If it is
+blank, start by asking what the hook should guarantee or do (Workflow step 1).
+
 ## What a hook is (30-second intro)
 
 A **hook** is deterministic code that fires automatically on a Claude Code **lifecycle event** — before a tool
@@ -69,8 +75,9 @@ canonical events in the table above and **say so** in your report so the user ca
 
 ## Workflow
 
-### 1. Understand the idea (ask — the user may not be technical)
-Pin down two things in plain language:
+### 1. Understand the idea (start from `$ARGUMENTS`; ask only to fill gaps)
+Start from what the user already described in `$ARGUMENTS` (the user may not be technical). Pin down two things in
+plain language, asking only for what is missing:
 - **What** should happen or be prevented, and **when** (before/after an action, at finish, at session start)?
 - **How precisely** should it match? ("any `.env` file", "the `migrations/` folder", "`rm -rf`", "my test
   command exits non-zero"). Get the concrete file paths / commands / patterns — the guarantee is only as good as

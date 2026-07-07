@@ -44,12 +44,16 @@ Pin the **type** before applying the craft — the guidance is proportional, not
 A skill can blend types — apply the union of what fits. Never force a workflow's machinery (phases, loops, output
 skeletons) onto a knowledge skill. Full detail: `references/skill-standards.md` → Skill types.
 
-## Step 0 — pick the mode
-- **Create** a new skill → follow `references/creating-skills.md`.
-- **Refactor / trim** an existing skill → follow `references/refactoring-skills.md`.
-- Both obey the same craft rules → read `references/skill-standards.md` first.
+## Step 0 — pick the mode (from `$ARGUMENTS`)
 
-If the argument is blank, **ask** which mode and what the skill/target is. Don't guess.
+Parse **`$ARGUMENTS`** to pick the mode and the target:
+- Starts with **`create [<name>]`** (or is clearly a new-skill ask) → **create** mode; use `<name>` as the skill
+  name if one was given → follow `references/creating-skills.md`.
+- Starts with **`refactor <path/to/SKILL.md>`** (or points at an existing skill) → **refactor** mode on that
+  path → follow `references/refactoring-skills.md`.
+- **Blank or unclear** → ask which mode and what the skill/target is. Don't guess.
+
+Both modes obey the same craft rules → read `references/skill-standards.md` first.
 
 ## Create — quick spine (full detail: `references/creating-skills.md`)
 1. **Gather context** — the literal phrases that should trigger it, the task start-to-finish, the gotchas, the
