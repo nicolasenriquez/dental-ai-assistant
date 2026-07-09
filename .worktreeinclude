@@ -1,0 +1,7 @@
+# Gitignored files copied into new worktrees created with `claude --worktree`.
+# Uses .gitignore syntax; only files that match a pattern AND are gitignored are
+# copied, so tracked files are never duplicated. The /worktree-create skill copies
+# the same class of files for non-Claude agents.
+app/backend/.env
+app/frontend/.env
+app/frontend/.env.local
