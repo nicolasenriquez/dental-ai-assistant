@@ -1,204 +1,65 @@
 ---
 name: worktree-merge
-description: Merges two feature branches from worktrees through a safe integration branch with full testing and validation at each step. Use when parallel worktree development is done and the features need to be integrated.
-argument-hint: [branch-1] [branch-2]
+description: Integrate any number of feature branches from parallel worktrees through one safe integration branch, validating after each merge and running the project's full check suite before touching the main line. Use when parallel worktree development is done and the branches need to be merged, or when the user says "merge my worktrees", "integrate these branches", or invokes /worktree-merge.
+argument-hint: "[branch ...]  (two or more branch names; blank = ask)"
 ---
 
-# Merge Worktrees
+# Worktree Merge
 
-Merge two feature branches from worktrees with full testing and validation.
+Integrate **any number** of feature branches into your working branch through a single throwaway integration
+branch, so nothing lands on the main line until every branch is merged and the whole suite passes. Validation
+commands are **detected from the repo**, never assumed.
 
-## Parameters
+## Input
 
-- Branch 1: $1 (e.g., "test1")
-- Branch 2: $2 (e.g., "test2")
+`$ARGUMENTS` is the list of branches to integrate.
+
+- **Fewer than two** → ask which branches to integrate. Don't guess.
+- **Two or more** → integrate them in the given order.
+
+## Detect the validation commands ONCE
+
+Find the commands that prove this project works, preferring **what CI already runs**: read `.github/workflows/*`, a
+`Makefile`, or the manifest's test/lint scripts, and reuse those exact commands (test runner, type checker,
+linter). Do not hardcode `pytest`/`mypy`/`pyright` — use whatever this repo actually uses.
 
 ## Steps
 
-### 1. Verify Preconditions
+1. **Preconditions.** Confirm you're at the repository root, not inside `worktrees/`
+   (`[[ $(pwd) =~ /worktrees/ ]]` → error). Store the current branch. Verify every branch in the list exists
+   (`git rev-parse --verify <branch>`). Abort early with a clear message if any check fails.
 
-```bash
-# Check we're in the repository root
-pwd
+2. **Create one integration branch** off the current branch, named for the set (e.g. `integration-<first>`, with a
+   short suffix if there are several — keep it filesystem-safe). This is where merges are tested; the main line
+   stays untouched until the end.
 
-# Store current branch
-CURRENT_BRANCH=$(git branch --show-current)
+3. **Merge each branch in order**, `--no-ff`. After **each** merge, run the detected **test** command so a break
+   is localized to the branch that caused it.
+   - **On conflict:** stop, name the conflicting branch and files, and give resolution steps (resolve →
+     `git add` → `git commit` → re-run the skill). Don't attempt automatic resolution.
+   - **On test failure:** stop, report which tests failed, and give the rollback (`git checkout <original>` →
+     `git branch -D <integration>`).
 
-# Verify both branches exist
-git rev-parse --verify $1
-git rev-parse --verify $2
+4. **Full validation** once all branches are merged: run the project's complete detected suite (tests + type
+   checks + lint). Any failure → report it and roll back; nothing reaches the main line red.
 
-# Ensure we're not in a worktree subdirectory
-[[ $(pwd) =~ /worktrees/ ]] && echo "ERROR: Must run from main worktree" && exit 1
-```
+5. **Merge the integration branch into the original branch** (`--no-ff`), then delete the integration branch.
 
-### 2. Create Integration Branch
-
-```bash
-git checkout -b integration-$1-$2
-```
-
-### 3. Merge First Feature
-
-```bash
-git merge $1 --no-ff -m "merge: integrate $1"
-```
-
-**If conflicts occur:**
-
-- Stop execution
-- Report conflict details
-- Provide instructions:
-  ```
-  Conflicts detected in merge of $1
-  Please resolve manually:
-  1. Fix conflicts in the listed files
-  2. git add .
-  3. git commit
-  4. Re-run this skill
-  ```
-
-### 4. Test First Merge
-
-```bash
-uv run pytest -v
-```
-
-**If tests fail:**
-
-- Report which tests failed
-- Abort merge process
-- Provide rollback instructions:
-  ```bash
-  git checkout $CURRENT_BRANCH
-  git branch -D integration-$1-$2
-  ```
-
-### 5. Merge Second Feature
-
-```bash
-git merge $2 --no-ff -m "merge: integrate $2"
-```
-
-**If conflicts occur:**
-
-- Same conflict handling as step 3
-
-### 6. Run Full Validation Suite
-
-Run all checks in parallel if possible:
-
-```bash
-# Run tests
-uv run pytest -v
-
-# Run type checkers
-uv run mypy app/
-uv run pyright app/
-```
-
-**If any validation fails:**
-
-- Report which check failed with details
-- Abort process
-- Provide rollback instructions
-
-### 7. Merge to Original Branch
-
-```bash
-git checkout $CURRENT_BRANCH
-git merge integration-$1-$2 --no-ff -m "merge: integrate features from $1 and $2"
-```
-
-### 8. Cleanup Integration Branch
-
-```bash
-git branch -d integration-$1-$2
-```
-
-### 9. Ask About Worktree Cleanup
-
-Use AskUserQuestion tool:
-
-```
-Question: "Remove worktrees and delete feature branches?"
-Options:
-  - "Yes, clean up everything" → Remove worktrees and branches
-  - "No, keep them for now" → Skip cleanup
-```
-
-**If user chooses yes:**
-
-```bash
-# Remove worktrees
-git worktree remove worktrees/$1
-git worktree remove worktrees/$2
-
-# Delete branches
-git branch -d $1 $2
-```
+6. **Offer cleanup** with AskUserQuestion: remove the N worktrees and delete their feature branches, or keep them.
+   On yes, for each branch: `git worktree remove worktrees/<branch>` and `git branch -d <branch>`.
 
 ## Report
 
-### Success Output
-
-```
-✓ Integration branch created: integration-{branch1}-{branch2}
-✓ Merged {branch1} → integration branch
-✓ Tests passed after first merge (X tests, Xs)
-✓ Merged {branch2} → integration branch
-✓ All validation passed:
-  - pytest: X tests passed in Xs
-  - mypy: no errors
-  - pyright: no errors
-✓ Merged to {original_branch}
-✓ Cleaned up integration branch
-
-[If worktrees kept]
-Worktrees still active:
-  - worktrees/{branch1} (branch: {branch1})
-  - worktrees/{branch2} (branch: {branch2})
-
-To clean up manually:
-  git worktree remove worktrees/{branch1} worktrees/{branch2}
-  git branch -d {branch1} {branch2}
-
-[If worktrees removed]
-✓ Removed worktrees and deleted branches
-
-Both features successfully integrated into {original_branch}!
-```
-
-### Failure Output
-
-```
-✗ Merge failed at step: {step_name}
-
-Error: {error_details}
-
-Current state:
-  - On branch: integration-{branch1}-{branch2}
-  - Original branch: {original_branch}
-
-To rollback:
-  git checkout {original_branch}
-  git branch -D integration-{branch1}-{branch2}
-
-To continue after fixing:
-  1. Resolve the issue
-  2. Re-run the worktree-merge skill with {branch1} {branch2}
-```
-
-## Error Handling
-
-- **Conflict during merge**: Stop, provide resolution instructions, allow retry
-- **Missing branch**: Verify branches exist before starting
-- **Wrong directory**: Check not running from inside worktrees/
+- **Success:** the integration branch used, each branch merged (with its post-merge test result), the full
+  validation result, the merge into `<original>`, and cleanup status (worktrees kept or removed, with the manual
+  cleanup commands if kept).
+- **Failure:** the step and branch that failed, the current branch state, and exact rollback commands
+  (`git checkout <original>` → `git branch -D <integration>`), plus how to continue after fixing (re-run with the
+  same branch list).
 
 ## Notes
 
-- Uses `--no-ff` (no fast-forward) to preserve feature branch history
-- Creates temporary integration branch for safe testing
-- Original branch only updated after all validations pass
-- Worktrees can be kept for continued development
-- All validation must pass before merge is finalized
+- `--no-ff` preserves each feature branch's history.
+- The integration branch is disposable — the original branch only moves after every merge and the full suite pass.
+- Prefer opening a PR per branch (the reviewed path from V9) when you're on a team; this skill is for fast local
+  integration when you own the merge.

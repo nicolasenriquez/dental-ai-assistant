@@ -1,172 +1,69 @@
 ---
 name: worktree-create
-description: Sets up one or two git worktrees with dependency sync and health-check verification, running parallel setup with two agents when two branches are given. Use when starting parallel feature development in isolated worktrees.
-argument-hint: [branch-1] [branch-2]
+description: Create one or more git worktrees for parallel development, each on its own branch with gitignored config copied in, dependencies installed, and a health check, by fanning out a setup subagent per worktree. Use when starting isolated parallel work, running several PIV loops at once, or when the user says "set up worktrees", "create a worktree", "spin up parallel branches", or invokes /worktree-create.
+argument-hint: "[branch ...]  (one or more branch names; blank = ask)"
 ---
 
-# New Worktree
+# Worktree Create
 
-Quick worktree setup with health check verification. Supports parallel creation with 2 agents.
+Stand up **any number** of isolated git worktrees from a list of branches — each created off the right base, given
+its gitignored config, its dependencies, and a health check — by fanning out one setup subagent per worktree so
+they run in parallel. The per-worktree work is app-agnostic and **detected from the repo**, never hardcoded.
 
-## Parameters
+## Input
 
-- Branch 1: $1 (e.g., "feature/search")
-- Branch 2 (optional): $2 (e.g., "feature/export")
+`$ARGUMENTS` is the list of branches to create.
 
-## Logic
+- **None given** → ask which branches to create (or offer to derive them from the tickets in play). Don't guess.
+- **One** → set up a single worktree inline (a fan-out of one is unnecessary).
+- **Two or more** → fan out one subagent per branch, in parallel.
 
-**If only $1 provided:**
+## Detect the project setup ONCE, before fanning out
 
-- Create single worktree sequentially
+Read `references/worktree-setup.md` — it is the general checklist of everything a fresh worktree needs plus how to
+detect each piece. Determine from **this** repo (not from assumptions), one time:
 
-**If both $1 and $2 provided:**
+- the **install command(s)** (monorepo → one per package),
+- the **gitignored env/config files to copy** (or the repo's `.worktreeinclude`),
+- the **verification/health-check command** (a health endpoint if the app exposes one, else a build/test smoke —
+  prefer whatever CI runs),
+- a **base port**, only if the health check starts a service.
 
-- Spawn 2 agents in parallel using Task tool
-- Each agent sets up their own worktree independently
-- Combine results from both agents
-- Ensure you start the server on a different port to avoid conflicts: worktree 1 dedicated port 8124, worktree 2 dedicated port 8125
+Pick a worktree root (`worktrees/<branch>`, gitignored) and, if services get started, assign each worktree a
+distinct port = `base + index` so parallel servers don't collide.
 
-## Steps
+## Fan out one setup subagent per branch (parallel)
 
-### Single Worktree (when only $1 provided)
-
-1. **Create worktree**
-
-   ```bash
-   git worktree add worktrees/$1 -b $1
-   ```
-
-2. **Navigate to worktree**
-
-   ```bash
-   cd worktrees/$1
-   ```
-
-3. **Sync dependencies**
-
-   ```bash
-   uv sync
-   ```
-
-4. **Start server in background**
-
-   ```bash
-   uv run uvicorn app.main:app --host 0.0.0.0 --port 8124 &
-   SERVER_PID=$!
-   ```
-
-5. **Wait for server to be ready**
-
-   ```bash
-   sleep 3
-   ```
-
-6. **Test health endpoint — make sure you use the correct port**
-
-   ```bash
-   curl -f http://localhost:8124/health || echo "Health check failed"
-   ```
-
-7. **Kill server**
-
-   ```bash
-   kill $SERVER_PID
-   ```
-
-8. **Report ready**
-
-### Parallel Worktrees (when both $1 and $2 provided)
-
-1. **Spawn Agent 1 using Task tool**
-
-   Prompt for Agent 1:
-
-   ```
-   Set up worktree for branch: $1
-
-   Steps:
-   1. Create worktree: git worktree add worktrees/$1 -b $1
-   2. Navigate: cd worktrees/$1
-   3. Sync dependencies: uv sync
-   4. Start server: uv run uvicorn app.main:app --host 0.0.0.0 --port 8124 &
-   5. Wait 3 seconds: sleep 3
-   6. Test health: curl -f http://localhost:8124/health
-   7. Kill server (find PID and kill it)
-
-   Report:
-   - Worktree path
-   - Branch name
-   - Health check result (PASS/FAIL)
-   - Any errors encountered
-   ```
-
-2. **Spawn Agent 2 using Task tool (simultaneously with Agent 1)**
-
-   Prompt for Agent 2:
-
-   ```
-   Set up worktree for branch: $2
-
-   Steps:
-   1. Create worktree: git worktree add worktrees/$2 -b $2
-   2. Navigate: cd worktrees/$2
-   3. Sync dependencies: uv sync
-   4. Start server: uv run uvicorn app.main:app --host 0.0.0.0 --port 8125 &
-      (Note: Use port 8125 to avoid conflict with Agent 1)
-   5. Wait 3 seconds: sleep 3
-   6. Test health: curl -f http://localhost:8125/health
-   7. Kill server (find PID and kill it)
-
-   Report:
-   - Worktree path
-   - Branch name
-   - Health check result (PASS/FAIL)
-   - Any errors encountered
-   ```
-
-3. **Wait for both agents to complete**
-
-4. **Combine and report results from both agents**
-
-## Report
-
-### Single Worktree Output:
+Spawn all subagents at once with the Task tool. Give every subagent the same prompt, substituting only `BRANCH`
+and `PORT`:
 
 ```
-✓ Worktree initialized
-  Path: worktrees/feature-search
-  Branch: feature/search
+Set up a git worktree for branch: BRANCH   (assigned port: PORT, only relevant if you start a service)
 
-✓ Dependencies synced (uv sync)
-✓ Health check passed (http://localhost:8124/health)
-✓ Server stopped
+Follow the checklist in .claude/skills/worktree-create/references/worktree-setup.md. Concretely:
+1. Create the worktree off the base branch:  git worktree add worktrees/BRANCH -b BRANCH
+2. Copy the gitignored config/secrets the project needs into worktrees/BRANCH
+   (the env/config files detected for this repo; verify each with `git check-ignore` before copying).
+3. Install dependencies with the project's detected package manager (every package, for a monorepo).
+4. Run any generate/build step the app needs to boot (skip if none).
+5. Verify: run the detected health check (start + hit the health endpoint on PORT if there is one,
+   else a build/typecheck/test smoke). Then stop any server you started.
 
-Ready for development!
+Report exactly: worktree path · branch · deps installed (yes/no) · health check (PASS/FAIL) · any errors.
 ```
 
-### Parallel Worktrees Output:
+Fill the detected commands (install, env-file list, health check) into the template. For a single branch, run the
+steps directly instead of spawning.
 
-```
-✓ 2 worktrees initialized in parallel
+## Aggregate and report
 
-Agent 1 (feature/search):
-  Path: worktrees/feature-search
-  Branch: feature/search
-  ✓ Dependencies synced
-  ✓ Health check passed (port 8124)
-  ✓ Server stopped
+Collect the reports and print a per-worktree summary (path · branch · deps · health · port), a combined
+`N worktree(s) ready` line, the next step (open each worktree / start a PIV loop in it), and the cleanup reminder:
+`git worktree remove worktrees/<branch>` once a branch is merged.
 
-Agent 2 (feature/export):
-  Path: worktrees/feature-export
-  Branch: feature/export
-  ✓ Dependencies synced
-  ✓ Health check passed (port 8125)
-  ✓ Server stopped
+If any worktree failed its health check, surface it clearly and do **not** report it ready.
 
-Both worktrees ready for parallel development!
-```
+## Resources
 
-## Notes
-
-- Exact ports and the server entry point may differ per project — check `pyproject.toml` and the
-  project README for project-specific values.
+- `references/worktree-setup.md` — the general, app-agnostic checklist of everything a fresh worktree needs, and
+  how to detect each piece per project. Read it before detecting the setup.
