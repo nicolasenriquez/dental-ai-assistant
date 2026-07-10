@@ -12,8 +12,11 @@ Read plan file: `$ARGUMENTS`
 
 ## Before you start — work on a feature branch
 
-A ticket gets built on its own branch, so it can become one PR. Detect the base branch (don't hardcode `main`):
-`git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'` (fallback `main`).
+A ticket gets built on its own branch, so it can become one PR. **Ideally you're already on that branch — cut it
+before planning — so the plan commit you made is on it and rides into the PR; a plan committed on the base branch
+won't be in this branch's PR.** If you're still on base, this step creates the branch now. Detect the base branch
+(don't hardcode `main`): `git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'`
+(fallback `main`).
 
 - **On the base branch, clean** → create one: `git checkout -b feature/<plan-slug>`.
 - **Already on a feature branch or in a worktree** → use it.
