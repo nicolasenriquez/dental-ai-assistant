@@ -1,6 +1,6 @@
 ---
 name: rules-check-drift
-description: Check whether your rules file (CLAUDE.md or AGENTS.md) still matches the codebase after recent changes — run before a merge, or fold into your code-review pass. Reports stale/now-false rules, drifted architecture-map entries, and any new invariant worth adding, each with the minimal edit. Advisory and anti-bloat: it keeps the rules file true, never longer than it needs to be.
+description: "Check whether your rules file (CLAUDE.md or AGENTS.md) still matches the codebase after recent changes — run before a merge, or fold into your code-review pass. Reports stale/now-false rules, drifted architecture-map entries, and any new invariant worth adding, each with the minimal edit. Advisory and anti-bloat: it keeps the rules file true, never longer than it needs to be."
 argument-hint: "[optional diff range, e.g. main...HEAD]"
 ---
 

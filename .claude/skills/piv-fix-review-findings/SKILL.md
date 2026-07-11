@@ -1,7 +1,7 @@
 ---
 name: piv-fix-review-findings
 description: Triage code-review findings (manual or AI), fix the ones you choose one at a time with tests, defer/log the rest, then validate — and if the work is on a PR, commit and push so the PR reflects the fixes. Use after a review has produced a list of issues or a review file.
-argument-hint: [code-review-file-or-issues] [scope / what to fix now vs defer]
+argument-hint: "[code-review-file-or-issues] [scope / what to fix now vs defer]"
 ---
 
 # Fix Review Findings

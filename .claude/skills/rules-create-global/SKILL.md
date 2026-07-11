@@ -1,6 +1,6 @@
 ---
 name: rules-create-global
-description: Set up your project's global rules, a lean and well-structured root CLAUDE.md (plus a starter .claude/), following the course methodology. Greenfield: pass your PRD and/or architecture-spec path and it derives rules from your engineering decisions (a PRD alone is product context). Brownfield: leave it blank to derive from your primed codebase (run /prime-codebase first), or pass a codebase-analysis doc for a large repo. Use when initializing or re-deriving the AI Layer's rules, onboarding a codebase, or replacing a generic /init output. The customizable replacement for /init.
+description: "Set up your project's global rules, a lean and well-structured root CLAUDE.md (plus a starter .claude/), following the course methodology. Greenfield: pass your PRD and/or architecture-spec path and it derives rules from your engineering decisions (a PRD alone is product context). Brownfield: leave it blank to derive from your primed codebase (run /prime-codebase first), or pass a codebase-analysis doc for a large repo. Use when initializing or re-deriving the AI Layer's rules, onboarding a codebase, or replacing a generic /init output. The customizable replacement for /init."
 argument-hint: "[prd-path] [architecture-path]  (greenfield; brownfield: blank + prime first, or pass a codebase-analysis)"
 ---
 
