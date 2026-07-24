@@ -123,6 +123,19 @@ ai-tutor/
 
 ---
 
+## On-Demand References
+
+Deep, task-type-specific detail lives in `.claude/references/` and loads **only when the work calls for it** — it is not always-on. When a task matches, read the guide before implementing:
+
+- **Backend tests** (`app/backend/tests/`) → `.claude/references/testing.md` — the pytest harness: the autouse DB stub, mocking external APIs at the boundary, fixture conventions.
+- **RAG / ingestion** (`rag/`, `ingest/`, `services/`, `llm/`) → `.claude/references/rag-pipeline.md` — the end-to-end chunk → embed → retrieve → cite flow and its gotchas. (The **RAG Pipeline Invariants** section below is the contract; this is the how.)
+- **Structural / architecture decisions** → `.claude/references/architecture-patterns.md` — why the file structure is shaped the way it is.
+- **Adding a new feature area / slice** → `.claude/references/vertical-slice-architecture.md` — the vertical-slice pattern this repo follows.
+
+These are **pointers, not `@`-imports**: the guide is pulled in on demand when you're doing that kind of work, so the always-on rules stay lean. (An `@`-import would load the file into context every session — always-on, not on-demand.)
+
+---
+
 ## Running the App
 
 Install and start everything (backend venv + deps, frontend deps, both dev servers):
