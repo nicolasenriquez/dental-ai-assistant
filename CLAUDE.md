@@ -131,6 +131,7 @@ Deep, task-type-specific detail lives in `.claude/references/` and loads **only 
 - **RAG / ingestion** (`rag/`, `ingest/`, `services/`, `llm/`) → `.claude/references/rag-pipeline.md` — the end-to-end chunk → embed → retrieve → cite flow and its gotchas. (The **RAG Pipeline Invariants** section below is the contract; this is the how.)
 - **Structural / architecture decisions** → `.claude/references/architecture-patterns.md` — why the file structure is shaped the way it is.
 - **Adding a new feature area / slice** → `.claude/references/vertical-slice-architecture.md` — the vertical-slice pattern this repo follows.
+- **Deployment / external-API integration** (`deploy/`, Supadata, OpenRouter) → `.claude/references/deployment.md` — the compose stack, the blue/green invariant, and the mocked-boundary testing pattern.
 
 These are **pointers, not `@`-imports**: the guide is pulled in on demand when you're doing that kind of work, so the always-on rules stay lean. (An `@`-import would load the file into context every session — always-on, not on-demand.)
 
@@ -173,31 +174,14 @@ The app requires a Postgres database (`DATABASE_URL`). Alembic migrations run au
 
 ## Testing
 
-The repo has an established test suite — a backend pytest suite under `app/backend/tests/` and a frontend Vitest suite. Add tests for every bug fix (a regression test) and every new feature.
-
-**Python backend:**
+Backend pytest (`app/backend/tests/`) + frontend Vitest. Add a test for every bug fix (a regression test) and every new feature.
 
 ```bash
-cd app/backend
-uv run pytest tests -xvs
+cd app/backend && uv run pytest tests -xvs     # backend (run from app/backend/ so pyproject config is picked up)
+cd app/frontend && bun run test                # frontend (Vitest, not Jest)
 ```
 
-All backend tool invocations run from `app/backend/` so that `pyproject.toml` (which holds ruff, mypy, pytest config) is picked up. Running the tools from `app/` with `--project backend` works for package resolution but mypy/pytest **do not** auto-discover config from a non-cwd project.
-
-- Test directory: `app/backend/tests/`
-- Use `pytest-asyncio` for async tests (`asyncio_mode = "auto"` is set, so plain `async def` test functions work)
-- Use `httpx.AsyncClient` against a test FastAPI app for integration tests
-
-**TypeScript frontend:**
-
-```bash
-cd app/frontend
-bun run test
-```
-
-- Test directory: `app/frontend/src/__tests__/` or co-located `*.test.tsx` files
-- Use Vitest (not Jest — Vite-native, faster)
-- Mock `fetch` with `vi.stubGlobal('fetch', ...)` for hook tests
+Harness detail — the autouse DB stub, mocking external APIs at the boundary, fixture conventions, `httpx.AsyncClient` integration tests — is on-demand in **`.claude/references/testing.md`**.
 
 ---
 
@@ -302,38 +286,7 @@ When adding configurability, add the constant to `config.py` with a sensible def
 
 ## Deployment
 
-The AI Tutor ships via Docker Compose to a Digital Ocean VPS, fronted by Caddy at `chat.dynamous.ai`. The compose stack lives in `deploy/` (see `deploy/README.md` for the first-time-setup runbook). The real `.env` lives only on the production host (root-owned, mode 600) and is never committed.
-
-### Services (`deploy/docker-compose.yml`)
-
-| Service | Image | Purpose |
-|---|---|---|
-| Caddy | `caddy:2.8-alpine` | TLS termination + reverse proxy; auto-provisions Let's Encrypt |
-| Postgres | `pgvector/pgvector:pg16` | Primary database (loopback-only, no public exposure) |
-| App (blue/green) | app `Dockerfile` | FastAPI backend + frontend static bundle |
-
-### Caddy routing
-
-`/api/*` → backend; everything else → frontend static assets.
-
-### Blue/green redeploy
-
-Deploy is pull-based: a systemd timer on the VPS pulls `main`, builds the **inactive** color, polls its `HEALTHCHECK`, and only flips Caddy's upstream once the new color is healthy — so production never 502s during a deploy. Any change to `deploy/` must preserve this property: both `app-blue` and `app-green` defined identically except `container_name`, each with a real `HEALTHCHECK`, neither publishing a host port, `deploy/upstream.conf` as the single source of which color is live.
-
-### YouTube ingestion (Supadata)
-
-Production transcript fetching uses **Supadata** (`SUPADATA_API_KEY`), not `youtube-transcript-api` — Digital Ocean IPs are blocked by YouTube's scraping defenses. Supadata client rules:
-1. Always pass the `lang` parameter (Supadata 500s on non-English-only videos without it).
-2. Back off on 429 — the free tier is generous but not infinite.
-3. Read the key from `SUPADATA_API_KEY` in `config.py`; never inline it.
-
-### Testing external APIs (Supadata, OpenRouter, anything with a secret)
-
-Any PR that adds or modifies an external-API integration must ship with **mocked-boundary tests**, not live-key tests:
-1. Record real responses once into `app/backend/tests/fixtures/<service>/<scenario>.json` and check the fixtures into git.
-2. In tests, use `httpx.MockTransport` / `respx` or `pytest` `monkeypatch` to short-circuit the HTTP client. Never hit the real API from a test.
-3. Cover the happy path, a rate-limit (429), a transient 5xx, and service-specific quirks.
-4. If a test needs a secret to exist in `os.environ`, set a fake value in `conftest.py`.
+Docker Compose → Digital Ocean VPS, Caddy at `chat.dynamous.ai`, blue/green pull-based deploy (never 502s mid-deploy). Production `.env` lives only on the host, never committed. **Never add `ports:` to the app service** (the signup IP-trust boundary depends on it). Full detail — services, Caddy routing, the blue/green invariant, Supadata rules, and the mocked-boundary pattern for external-API PRs — is on-demand in **`.claude/references/deployment.md`**; read it before touching `deploy/` or adding a networked integration.
 
 ---
 
