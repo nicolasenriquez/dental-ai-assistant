@@ -15,6 +15,11 @@ from supadata import SupadataError
 
 from backend.services.supadata import get_transcript
 
+# The retry tests assert the retry *behaviour* (how many attempts, what is
+# raised), not the wall-clock delay. Production backs off 2s then 4s, which cost
+# these two tests a real 8 seconds of sleeping. Patch the base down instead.
+FAST_BACKOFF_BASE = 0.001
+
 
 class MockTranscriptChunk:
     """Mimics the TranscriptChunk segment returned by the Supadata SDK."""
@@ -208,7 +213,10 @@ async def test_get_transcript_429_triggers_backoff_and_succeeds():
     mock_client = MagicMock()
     mock_client.transcript.side_effect = transcript_side_effect
 
-    with patch("backend.services.supadata._get_client", return_value=mock_client):
+    with (
+        patch("backend.services.supadata._get_client", return_value=mock_client),
+        patch("backend.services.supadata.RETRY_BACKOFF_BASE_SECONDS", FAST_BACKOFF_BASE),
+    ):
         result = await get_transcript("dQw4w9WgXcQ", lang="en")
 
     assert call_count == 2
@@ -229,6 +237,7 @@ async def test_get_transcript_429_all_retries_exhausted_raises():
 
     with (
         patch("backend.services.supadata._get_client", return_value=mock_client),
+        patch("backend.services.supadata.RETRY_BACKOFF_BASE_SECONDS", FAST_BACKOFF_BASE),
         pytest.raises(SupadataError) as exc_info,
     ):
         await get_transcript("dQw4w9WgXcQ", lang="en")

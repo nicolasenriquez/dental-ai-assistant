@@ -68,6 +68,17 @@ class _FakeStream:
             yield chunk
 
 
+# Scaled-down timings. Production waits 5s between keepalives and these tests
+# used to burn a real 12s silent window (12 chunks x 1s) to cross it — ~42s of
+# pure sleeping across the class. The assertions only care about *crossing the
+# threshold*, not the wall-clock values, so we patch the interval down and scale
+# the stream delay by the same factor. The ratio is identical to production
+# (12 x delay = 2.4x the heartbeat interval), so behaviour under test is
+# unchanged; it just runs ~100x faster.
+FAST_HEARTBEAT_SECONDS = 0.05
+FAST_CHUNK_DELAY = 0.01  # 12 chunks * 0.01s = 0.12s window > 0.05s interval
+
+
 class TestSseKeepaliveDuringToolCalls:
     async def _collect(self, delay_per_chunk: float, tool_exec_delay: float):
         """Drive `stream_chat` end-to-end with a canned two-round flow.
@@ -119,6 +130,9 @@ class TestSseKeepaliveDuringToolCalls:
         with (
             patch("backend.llm.openrouter._get_async_client", return_value=fake_client),
             patch(
+                "backend.llm.openrouter.HEARTBEAT_INTERVAL_SECONDS", FAST_HEARTBEAT_SECONDS
+            ),
+            patch(
                 "backend.llm.openrouter.build_system_prompt",
                 new=AsyncMock(return_value=[{"type": "text", "text": "system"}]),
             ),
@@ -133,11 +147,12 @@ class TestSseKeepaliveDuringToolCalls:
         return emitted
 
     async def test_keepalive_emitted_while_model_streams_tool_call_args(self) -> None:
-        """With 12 tool_call fragments spaced 1s apart (12s total silent
-        window), at least one `: keepalive` comment must appear before the
+        """With 12 tool_call fragments spaced far enough apart to cross the
+        heartbeat interval (production: 12s window vs a 5s interval; here the
+        same ratio, scaled down), at least one `: keepalive` comment must appear before the
         content tokens. Without the heartbeat, this window would be zero
         bytes and browsers would idle-timeout around 60s in prod."""
-        emitted = await self._collect(delay_per_chunk=1.0, tool_exec_delay=0.0)
+        emitted = await self._collect(delay_per_chunk=FAST_CHUNK_DELAY, tool_exec_delay=0.0)
 
         # Must contain at least one keepalive, emitted before the first
         # content token.
@@ -205,7 +220,7 @@ class TestSseKeepaliveDuringToolCalls:
         line (including ':' comments) is silently ignored. If the format
         changes, frontend rendering is unaffected because the comment is
         not a data line."""
-        emitted = await self._collect(delay_per_chunk=1.0, tool_exec_delay=0.0)
+        emitted = await self._collect(delay_per_chunk=FAST_CHUNK_DELAY, tool_exec_delay=0.0)
 
         for chunk in emitted:
             if chunk.startswith(":"):
@@ -217,7 +232,7 @@ class TestSseKeepaliveDuringToolCalls:
         """Status events are additive — keepalives must still be emitted
         alongside them. Verify both event types appear and that the first
         status event precedes the first content token."""
-        emitted = await self._collect(delay_per_chunk=1.0, tool_exec_delay=0.0)
+        emitted = await self._collect(delay_per_chunk=FAST_CHUNK_DELAY, tool_exec_delay=0.0)
 
         keepalive_count = sum(1 for c in emitted if c.startswith(": keepalive"))
         status_count = sum(1 for c in emitted if c.startswith("event: status\n"))

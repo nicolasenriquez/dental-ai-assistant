@@ -31,6 +31,17 @@ from backend.rag import catalog
 
 logger = logging.getLogger(__name__)
 
+# Heartbeat cadence for the SSE keepalive. Kimi K2.6 regularly goes 60-140s of
+# silent tool-call streaming + tool execution before emitting the first
+# user-visible text token. Browsers and reverse proxies idle-timeout SSE
+# connections after ~60s of no bytes. Emitting SSE comment lines
+# (`: <text>\n\n`) every few seconds keeps the socket warm. Comments are
+# spec-valid SSE that clients ignore, so the frontend is unaffected.
+#
+# Module-level so tests can patch it down instead of sleeping real seconds to
+# cross the threshold.
+HEARTBEAT_INTERVAL_SECONDS = 5.0
+
 _async_client: AsyncOpenAI | None = None
 
 
@@ -203,13 +214,6 @@ async def stream_chat(
     tool_calls_made = 0
     tokens_yielded = 0
     round_num = 0
-    # Heartbeat cadence: Kimi K2.6 regularly goes 60-140s of silent tool-call
-    # streaming + tool execution before emitting the first user-visible text
-    # token. Browsers and reverse proxies idle-timeout SSE connections after
-    # ~60s of no bytes. Emitting SSE comment lines (`: <text>\n\n`) every few
-    # seconds keeps the socket warm. Comments are spec-valid SSE that clients
-    # ignore, so the frontend is unaffected.
-    HEARTBEAT_INTERVAL_SECONDS = 5.0
     last_heartbeat_at = time.monotonic()
 
     def _heartbeat_due() -> bool:

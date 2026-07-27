@@ -16,6 +16,11 @@ from backend.config import SUPADATA_API_KEY
 
 logger = logging.getLogger(__name__)
 
+# Base delay for the 429 retry backoff: attempt N sleeps BASE * 2**N seconds
+# (so 2s, then 4s). Module-level so tests can patch it down instead of actually
+# sleeping 6 real seconds per retry case.
+RETRY_BACKOFF_BASE_SECONDS = 2.0
+
 # ---------------------------------------------------------------------------
 # Client (module-level singleton — re-used across calls)
 # ---------------------------------------------------------------------------
@@ -77,7 +82,7 @@ async def get_channel_video_ids(
             )
         except SupadataError as exc:
             if exc.status == 429 and attempt < 2:
-                delay = 2.0 * (2**attempt)
+                delay = RETRY_BACKOFF_BASE_SECONDS * (2**attempt)
                 logger.warning(
                     "Supadata rate limit (429), retrying in %ds (attempt %d)", delay, attempt + 1
                 )
@@ -127,7 +132,7 @@ async def get_transcript(video_id: str, lang: str = "en") -> str | None:
             return None
         except SupadataError as exc:
             if exc.status == 429 and attempt < 2:
-                delay = 2.0 * (2**attempt)
+                delay = RETRY_BACKOFF_BASE_SECONDS * (2**attempt)
                 logger.warning("Supadata transcript rate limit (429), retrying in %ds", delay)
                 await asyncio.sleep(delay)
                 continue
