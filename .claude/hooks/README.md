@@ -14,7 +14,20 @@ A hook is the one the agent never chooses: it fires automatically on a lifecycle
 | `pre_tool_use.py` | **PreToolUse** | Blocks reading/writing/searching a real env file (committed `.env.example` templates are allowed) and blocks `rm -rf`. Prints the reason to stderr and `exit(2)` → the tool is stopped and the agent is told why, so it adapts. | **Yes** — this is the guarantee |
 | `post_tool_use.py` | **PostToolUse** | Appends every tool call to `logs/post_tool_use.json` — a full audit trail of what the agent did. | No — the tool already ran; observe only |
 
-Both are wired in `../settings.json`. That split *is* the mental model: **pre = gate, post = log.**
+That split *is* the mental model: **pre = gate, post = log.**
+
+## Turning them on
+
+Hooks are the one primitive that does something the moment it exists, so the pack ships the wiring as a
+**template** rather than a live file (same idea as `.claude/CLAUDE.md.template`). Copy it in your project:
+
+```bash
+cp .claude/settings.json.example .claude/settings.json
+```
+
+`.claude/settings.json` is gitignored here in the course repo so the hooks don't fire while you're reading the
+material. **In your own project, commit it** — that's how the whole team inherits the same guarantees.
+If you already have a `settings.json`, merge the `hooks` block in rather than overwriting it.
 
 ## Try it
 
@@ -53,8 +66,19 @@ Common ones worth adding:
 - **Hooks run real code, automatically, with your credentials, with no sandbox.** Review a hook the way you'd
   review a CI script. Only run hooks you have read and trust. This is the same caution as MCP servers.
 - **Coverage is yours.** The hook is guaranteed to *run*; what it *catches* is only as good as the check you
-  wrote. `pre_tool_use.py` blocks the obvious routes to a secret, not every conceivable one. It is the
-  enforcement point, not omniscience.
+  wrote. It is the enforcement point, not omniscience.
+
+  Concretely, `pre_tool_use.py` covers three routes to a secret: the **env file**, the **other credential
+  files** (ssh keys, `.pem`, `.aws/credentials`, `.netrc`, `credentials.json`), and the **process environment**
+  (the env-dumping shell builtins, a bare `env`, echoing a `*_KEY` / `*_TOKEN` variable, or code that reads the
+  environment map). That last route matters more than it looks — a guard that blocks the env *file* but not the
+  *environment* is mostly theatre, because the same values are sitting right there in the shell.
+
+  **What it deliberately does not cover: the two-step attack.** Nothing stops the agent *writing* a script that
+  reads the environment and then running it — the run looks innocent, because the secret-handling lives in a
+  file that was just created. Closing that means inspecting the **content** of `Write`/`Edit` calls, not just
+  the command, which is a genuinely different check and roughly triples the size of this file. If you are
+  guarding something that matters, that is the next thing to add.
 
 ## Portability
 

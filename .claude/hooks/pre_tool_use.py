@@ -11,8 +11,9 @@ reason to stderr and exit(2). Claude Code stops the tool and hands the reason
 back to the agent, so it adapts instead of doing the thing.
 
 Two guarantees ship here:
-  1. The agent can never read, write, or search a real env file (your secrets).
-     Committed `.env.example` templates are allowed through.
+  1. The agent can never reach your secrets — not the env file, not the other
+     credential files (ssh keys, .pem, .aws, .netrc, credentials.json), and not
+     by dumping the process environment. Committed `.env.example` is allowed.
   2. The agent can never run a destructive `rm -rf`.
 
 Everything else is allowed (exit 0). The hook FAILS OPEN: any unexpected error
@@ -36,31 +37,50 @@ import sys
 # different convention (e.g. add ".env.sample" or ".env.template").
 ENV_TEMPLATE_SUFFIXES = (".env.example",)
 
-# Anything that looks like an env file, except the committed templates above.
-ENV_PATTERN = re.compile(r"\.env\b(?!\.example)")
+# Secrets do not only live in `.env` — these are the other usual homes.
+SECRET_PATH = re.compile(
+    r"\.env\b|\.pem$|\.key$|id_rsa|id_ed25519|\.ssh/|\.aws/credentials|\.netrc|credentials\.json",
+    re.IGNORECASE,
+)
+
+# ...and they do not only live in FILES. Each of these reads them straight out of
+# the process environment, which a file-only guard waves right through.
+ENV_DUMP = (
+    re.compile(r"\bprintenv\b", re.IGNORECASE),
+    re.compile(r"^\s*env\s*(\||>|$)", re.IGNORECASE),            # bare `env`, maybe piped
+    re.compile(r"\becho\b.*\$\{?[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)", re.IGNORECASE),
+    re.compile(r"os.environ|process\.env|ENV\[", re.IGNORECASE),
+)
 
 BLOCKED_ENV_MESSAGE = (
-    "BLOCKED: access to env files is not allowed (they hold secrets).\n"
+    "BLOCKED: access to secrets is not allowed.\n"
     "Read a committed .env.example template instead."
 )
 BLOCKED_RM_MESSAGE = "BLOCKED: refusing to run a recursive-force delete (rm -rf)."
 
 
-def is_env_file_access(tool_name: str, tool_input: dict) -> bool:
-    """True if the call would touch a real env file (templates are fine)."""
+def _is_template(path: str) -> bool:
+    return path.endswith(ENV_TEMPLATE_SUFFIXES)
+
+
+def is_secret_access(tool_name: str, tool_input: dict) -> bool:
+    """True if the call would reach a credential — by file OR by environment."""
     # File tools: check the path argument.
     if tool_name in ("Read", "Edit", "MultiEdit", "Write", "NotebookEdit"):
         path = tool_input.get("file_path", "").replace("\\", "/")
-        return ".env" in path and not path.endswith(ENV_TEMPLATE_SUFFIXES)
+        return bool(SECRET_PATH.search(path)) and not _is_template(path)
 
     # Search tools: block reading secrets out via a pattern or a scoped path.
     if tool_name in ("Grep", "Glob"):
-        target = f"{tool_input.get('pattern', '')} {tool_input.get('path', '')}"
-        return bool(ENV_PATTERN.search(target.replace("\\", "/")))
+        target = f"{tool_input.get('pattern', '')} {tool_input.get('path', '')}".replace("\\", "/")
+        return bool(SECRET_PATH.search(target)) and ".env.example" not in target
 
-    # Bash: check the command text (but allow the committed templates).
+    # Bash: the command may name a credential file OR dump the environment.
     if tool_name == "Bash":
-        return bool(ENV_PATTERN.search(tool_input.get("command", "").replace("\\", "/")))
+        command = tool_input.get("command", "").replace("\\", "/")
+        if any(p.search(command) for p in ENV_DUMP):
+            return True
+        return bool(SECRET_PATH.search(command)) and ".env.example" not in command
 
     return False
 
@@ -85,7 +105,7 @@ def main() -> None:
         tool_name = data.get("tool_name", "")
         tool_input = data.get("tool_input", {})
 
-        if is_env_file_access(tool_name, tool_input):
+        if is_secret_access(tool_name, tool_input):
             # exit 2 = block the tool; stderr goes back to the agent as the reason.
             print(BLOCKED_ENV_MESSAGE, file=sys.stderr)
             sys.exit(2)
