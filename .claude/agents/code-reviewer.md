@@ -20,6 +20,7 @@ description: |
   Context - the user refactored existing code and wants feedback.
   User - "I refactored the query service to use async/await properly."
   Assistant - "I'll review your changes with the code-reviewer agent to ensure they meet our standards."
+tools: Read, Grep, Glob
 model: sonnet
 color: red
 ---

@@ -35,6 +35,9 @@ git log origin/{base}..HEAD --oneline
 
 ## Phase 2 — Gather context for the body
 
+- **Project conventions:** if `.claude/references/conventions.md` exists, read its `## pr` section — its rules
+  win over the default template below (sections, tone, what must be stated). That file is where a project's
+  specifics live; this skill stays general.
 - Commits: `git log origin/{base}..HEAD --pretty=format:"- %s"`
 - Files: `git diff --stat origin/{base}..HEAD`
 - **Implementation report** (if `piv-implement` wrote one — `.claude/reports/<…>-report.md`): pull the summary,

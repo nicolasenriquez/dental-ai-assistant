@@ -9,6 +9,9 @@ Create a new commit for all of our uncommitted changes.
 
 ## Process
 
+0. **Read this project's conventions.** If `.claude/references/conventions.md` exists, read its `## commit`
+   section and follow it — those rules win over the defaults below. That file is where a project's specifics
+   live; this skill stays general.
 1. Run `git status && git diff HEAD && git status --porcelain` to see what files are uncommitted.
 2. Add the untracked and changed files.
 3. Write an atomic commit message with an appropriate, descriptive summary.
