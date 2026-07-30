@@ -12,11 +12,11 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-# Dynamically locate the .env file:
-# config.py lives at app/backend/config.py
-# The .env file lives 3 levels up (app/ -> workspace/claude/ -> workspace/ ...
-# actually at C:/Users/colem/open-source/adversarial-dev/.env)
-# We traverse parents to find a .env that contains OPENROUTER_API_KEY
+# Dynamically locate the .env file.
+# config.py lives at app/backend/config.py, but the .env may sit at the backend
+# root, the repo root, or a parent workspace depending on how the project was
+# checked out. Rather than hard-coding a depth, walk up from this file and load
+# the first .env found. See app/backend/.env.example for the expected keys.
 
 
 def _find_and_load_env() -> None:
