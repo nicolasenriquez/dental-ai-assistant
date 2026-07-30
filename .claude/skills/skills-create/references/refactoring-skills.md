@@ -1,8 +1,17 @@
-# Refactoring a Skill (split & trim)
+# Split and Trim (the structural adapt pattern)
 
-Read `skill-standards.md` first. Use this when a `SKILL.md` has grown fat — a long body that loads (and costs
-tokens) on every use, when most of it is only sometimes needed. Refactoring is **progressive disclosure applied
-after the fact**: pull detail into `references/`/`templates/`, leave a lean spine of pointers.
+Read `skill-standards.md` first, and reach this from `adapting-skills.md`: **split-and-trim is one change pattern,
+not a mode.** Use it when the *shape* is the problem rather than the behavior, so when a `SKILL.md` has grown fat:
+a long body that loads (and costs tokens) on every use, when most of it is only sometimes needed. This is
+**progressive disclosure applied after the fact**: pull detail into `references/`/`templates/`, leave a lean spine
+of pointers.
+
+> If the complaint is about what the skill *does* (wrong commands, missing conventions, no interview, wrong
+> output shape), this is the wrong pattern. Go back to `adapting-skills.md` and route again. Splitting a skill
+> that misbehaves just gives you a well-organized misbehaving skill.
+>
+> Never combine a split with a behavior change in one pass. Split, verify behavior is unchanged, then change
+> behavior separately, or neither step is reviewable.
 
 ## Step 1 — Inventory
 

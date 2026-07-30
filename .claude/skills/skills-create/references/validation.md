@@ -28,10 +28,20 @@ grep -nE '`(references|templates|scripts|assets)/' .claude/skills/<name>/SKILL.m
 - Always-needed output formats have a **mandatory-read** pointer; sometimes-needed detail has a lazy pointer.
 - References are one level deep and all linked from a Resources section.
 
-## Gate 5 — Behavior preservation (refactors only — non-negotiable)
-- The trimmed skill + resources drives the SAME process and SAME output as the original.
-- At every point the original inlined content, the body now reaches the right pointer at the right time.
-- Nothing dropped, nothing duplicated. When uncertain, keep content in the body.
+## Gate 5 — Change verification (any edit to an existing skill — non-negotiable)
+
+Skip this gate only when the skill was created from scratch this session.
+
+**5a. The change is real.** Re-run the case the author named in the adapt interview ("how will we know it
+worked?") and confirm the specific new behavior happens. For a **retarget**, verify in a **fresh session** —
+leftover context from the editing session masks a description that doesn't actually trigger.
+
+**5b. Nothing else broke.** The behaviors the skill already got right still work. Over-reach is the #1 adapt
+failure, and this is where it gets caught.
+
+**5c. Split-and-trim only — behavior preservation.** The trimmed skill + resources drives the SAME process and
+SAME output as the original. At every point the original inlined content, the body now reaches the right pointer
+at the right time. Nothing dropped, nothing duplicated. When uncertain, keep content in the body.
 
 ## Gate 6 — Independent review
 Run the `code-reviewer` agent (or Claude Code's native `skill-reviewer`, if available) over the new skill for a
@@ -46,4 +56,5 @@ findings; ignore noise.
   will. Fold what you learn back in.
 
 ## Done
-All gates pass. For a refactor, **Gate 5 is non-negotiable** — a refactor that changes output is a regression.
+All gates pass. For any edit to an existing skill, **Gate 5 is non-negotiable** — an unverified change is a guess,
+and a split-and-trim that changes output is a regression.

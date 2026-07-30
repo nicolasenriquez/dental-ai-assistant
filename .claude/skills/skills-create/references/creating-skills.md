@@ -1,6 +1,10 @@
 # Creating a Skill
 
-Read `skill-standards.md` first. This is the full create runbook.
+Read `skill-standards.md` first. This is the full create runbook, for a capability that **does not exist yet**.
+
+> **Check before you build.** If a skill already covers this ground, even generically, adapting it beats adding a
+> rival: it is already wired into whatever runs it, and two skills competing for one trigger is worse than one
+> imperfect skill. Go to `adapting-skills.md` instead.
 
 ## Step 1 — Gather context (Context is King)
 
@@ -73,4 +77,5 @@ optimize second:** a port is behavior-preservation, not a redesign.
    `argument-hint`/`allowed-tools`/`model`.
 3. Remove the old command file so there's no duplicate `/name`.
 4. If the body's long, hand off to `refactoring-skills.md` to split it — a **separate** step, after the verbatim
-   port is proven.
+   port is proven. Any other post-port improvement goes through `adapting-skills.md`, also separately: the port
+   is behavior-preservation, and mixing a redesign into it makes both unreviewable.

@@ -54,8 +54,10 @@ changes upstream; gather at runtime what only exists in the moment.
 | Field | Required | Constraint | Notes |
 |-------|----------|------------|-------|
 | `name` | yes | ≤64 chars, lowercase-hyphen, **matches the directory** | the directory name is what becomes `/the-command` |
-| `description` | yes | ≤1024 chars, third person, non-empty | the trigger — WHAT it does + WHEN to use it + literal user phrases |
+| `description` | yes | third person, non-empty | the trigger — WHAT it does + WHEN to use it + literal user phrases. `description` + `when_to_use` are truncated together at ~1,536 chars in the listing, so **put the key use case first** |
+| `when_to_use` | no | string | extra trigger phrases / example requests, appended to `description` in the listing (same char cap) |
 | `argument-hint` | no | string | autocomplete hint, e.g. `<path/to/plan.md> [--base <branch>]` |
+| `arguments` | no | space-separated string or YAML list | **named** positional args: `arguments: [plan, report]` binds `$plan` / `$report` in the body, by position |
 | `allowed-tools` | no | string/list | tools usable without a prompt while active |
 | `model` / `effort` | no | model / level | per-skill execution override |
 | `disable-model-invocation` | no | bool | `true` = user-only (no auto-invoke) |
@@ -66,9 +68,28 @@ fully open (omit both flags). But a **distributed** skill (shipped in a plugin) 
 **side-effecting** action — commits, pushes, deletes — can surprise other people's agents; for those, set
 `disable-model-invocation: true` in the distributed copy. Match the openness to who runs it and what it does.
 
-Other optional fields exist (`when_to_use`, `disallowed-tools`, `paths`, `hooks`, `context: fork`, `shell`) —
-reach for them only when a skill needs one, and **confirm against the current Claude Code skills docs** (the field
-set evolves).
+Other optional fields exist (`disallowed-tools`, `effort`, `paths`, `hooks`, `context: fork` + `agent` +
+`background`, `shell`) — reach for them only when a skill needs one, and **confirm against the current Claude Code
+skills docs** (the field set evolves).
+
+## Arguments (get this right — it silently breaks)
+
+Three shapes, in order of preference:
+
+1. **`$ARGUMENTS`** — everything typed after the command, substituted into the body. If the body contains no
+   placeholder at all, the arguments are appended as a trailing `ARGUMENTS: <value>` line instead of being lost.
+2. **Named** — declare `arguments: [plan, report]` in the frontmatter and write `$plan` / `$report` in the body.
+   **Prefer this** whenever there are two or more arguments: it is self-documenting and cannot be off by one.
+3. **Positional `$0` / `$1`** — shorthand for `$ARGUMENTS[N]`, and **zero-indexed**: `$0` is the FIRST argument.
+   This is array indexing, not a shell positional parameter, and writing it shell-style is the single most common
+   authoring bug. Avoid it in new skills.
+
+Use **named** args when order carries meaning and the values don't identify themselves (two file paths). Use
+prose + the `ARGUMENTS:` fallback when args are optional, order-independent, or self-identifying (a ticket key
+versus a numeric page id), since binding those by position mis-assigns them when only one is passed.
+
+Also available in the body: `` !`cmd` `` pre-executes a shell command and injects its **output**, and `@path`
+pulls a file into context (it is *not* inlined into the skill body; the content arrives via file auto-attach).
 
 ## Progressive disclosure (the core mechanic)
 
@@ -87,6 +108,12 @@ goes in resources. *(This skill is its own example — a lean body, the detail d
 - **`description` → third person, with literal trigger phrases.**
   - Good: `Extract text and tables from PDFs… Use when the user mentions PDFs, forms, or document extraction.`
   - Bad: `Helps with documents.` (vague) · `Use this when you…` (wrong voice, no triggers)
+  - **Write it as a routing rule, not a summary.** It is the only part of the skill loaded at startup, so it
+    answers exactly one question: when should this fire?
+  - **Assume under-triggering.** Models reach for a skill less often than an author expects, so a description
+    that reads like a synopsis rarely fires. Be a little pushy where it matters: *"Use this whenever the user
+    mentions X, **even if they do not explicitly ask for Y**."* If a skill fires too often instead, add an
+    explicit exclusion (*"Do NOT use for …"*) rather than shortening the triggers.
 - **Body → imperative / infinitive, NOT second person.**
   - Good: `Validate the output before reporting.` · `To extract fields, run scripts/analyze.py.`
   - Bad: `You should run the script.` · `Claude will validate the output.`
