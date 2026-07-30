@@ -2,6 +2,7 @@
 name: rules-create-global
 description: "Set up your project's global rules, a lean and well-structured root CLAUDE.md (plus a starter .claude/), following the course methodology. Greenfield: pass your PRD and/or architecture-spec path and it derives rules from your engineering decisions (a PRD alone is product context). Brownfield: leave it blank to derive from your primed codebase (run /prime-codebase first), or pass a codebase-analysis doc for a large repo. Use when initializing or re-deriving the AI Layer's rules, onboarding a codebase, or replacing a generic /init output. The customizable replacement for /init."
 argument-hint: "[prd-path] [architecture-path]  (greenfield; brownfield: blank + prime first, or pass a codebase-analysis)"
+arguments: [path1, path2]
 ---
 
 # Create Rules: Set Up Your Project's Global Rules
@@ -9,8 +10,8 @@ argument-hint: "[prd-path] [architecture-path]  (greenfield; brownfield: blank +
 ## Inputs: wire the arguments first
 
 This skill takes **up to two optional paths** and uses them to pick your lane. Read whatever was passed and classify each by its content:
-- `$1`: the first path, if any.
-- `$2`: the second path, if any.
+- `$path1`: the first path, if any.
+- `$path2`: the second path, if any.
 
 | A passed path that is... | Lane | Use it as |
 |---|---|---|
@@ -19,7 +20,7 @@ This skill takes **up to two optional paths** and uses them to pick your lane. R
 | a **codebase-analysis doc** (a large-repo `/prime-codebase` + subagent fan-out) | brownfield | the source of "what is" |
 
 **Pick the lane from what you were given:**
-- **Greenfield** if a PRD and/or architecture path was passed, or the workspace is a bare scaffold: derive **what should be** from the **architecture decisions** (`$2`, or `$1` if that is where they live).
+- **Greenfield** if a PRD and/or architecture path was passed, or the workspace is a bare scaffold: derive **what should be** from the **architecture decisions** (`$path2`, or `$path1` if that is where they live).
 - **Brownfield** if no path was passed, or a codebase-analysis path was: derive **what is** from the analysis doc if one was passed, otherwise from the **primed codebase in this conversation**.
 
 > **Brownfield, not primed yet?** If no path was passed and this conversation has not been primed on the code, run **`/prime-codebase`** first (or offer to) so you derive from real files, then continue. Never invent rules from nothing.
@@ -49,7 +50,7 @@ Global rules encode **technical** truth — so you derive them from technical de
 
 | You have... | Derive rules from... | "Truth" is... |
 |-----------|--------------------|-------------|
-| **Greenfield**, a new project, mostly a scaffold | your **architecture decisions** (the technical "how" you settled with the AI), passed as `$2` | *what should be* |
+| **Greenfield**, a new project, mostly a scaffold | your **architecture decisions** (the technical "how" you settled with the AI), passed as `$path2` | *what should be* |
 | **Brownfield**, an existing codebase with no AI Layer | your **primed codebase** (`/prime-codebase`), or a **codebase-analysis** doc passed as a path for a large repo | *what is* |
 
 > **Greenfield note:** your rules come from your **architecture decisions** (the spec), not the PRD. The flow: discuss
@@ -104,9 +105,9 @@ Use the course's **`.claude/CLAUDE.md.template`** as the structure (it works as 
 ## Workflow
 
 ### 1. Read the inputs
-- **Greenfield:** read the **architecture / spec doc** you passed as `$2` (or `$1`, if that is where the
+- **Greenfield:** read the **architecture / spec doc** you passed as `$path2` (or `$path1`, if that is where the
   architecture lives): stack, patterns, directory structure, conventions, security choices, plus any scaffold
-  files. *(A PRD passed as `$1` is product context: read it for **what** you're building and why, not for the
+  files. *(A PRD passed as `$path1` is product context: read it for **what** you're building and why, not for the
   technical rules.)* No path passed but the workspace is a fresh scaffold? Ask for the architecture doc, or settle
   the decisions now with `plan-architecture` first.
 - **Brownfield:** derive from the **primed codebase** already loaded in this conversation (from `/prime-codebase`);
@@ -164,5 +165,5 @@ evidence. Apply the per-line test: *would removing this cause a mistake? If not,
 - Rules **evolve** — revisit `CLAUDE.md` as the project grows and after major model releases, and run
   `/rules-check-drift` before merges so the map never drifts.
 - Greenfield: run after you've settled the architecture with `plan-architecture` (and after `plan-create-prd`, if
-  you wrote a PRD for the product); pass those paths in as `$1` (PRD) and `$2` (architecture). Brownfield: run after
+  you wrote a PRD for the product); pass those paths in as `$path1` (PRD) and `$path2` (architecture). Brownfield: run after
   `/prime-codebase`, or after a large-repo fan-out produces a `codebase-analysis.md` you pass in.

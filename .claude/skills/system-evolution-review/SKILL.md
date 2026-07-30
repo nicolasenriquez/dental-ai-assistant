@@ -2,6 +2,7 @@
 name: system-evolution-review
 description: Performs a meta-level review of how well an implementation followed its plan, classifying divergences and recommending AI-Layer improvements. Use after an execution report exists to find bugs in the process, not the code.
 argument-hint: "[plan-file] [execution-report-file]"
+arguments: [plan, report]
 ---
 
 # System Review
@@ -35,7 +36,7 @@ Read this to understand the planning process and what instructions guide plan cr
 
 **Generated Plan:**
 Read this to understand what the agent was SUPPOSED to do.
-Plan file: $1
+Plan file: $plan
 
 **Execute Skill:**
 Read this to understand the execution process and what instructions guide implementation.
@@ -43,13 +44,13 @@ Read this to understand the execution process and what instructions guide implem
 
 **Execution Report:**
 Read this to understand what the agent ACTUALLY did and why.
-Execution report: $2
+Execution report: $report
 
 ## Analysis Workflow
 
 ### Step 1: Understand the Planned Approach
 
-Read the generated plan ($1) and extract:
+Read the generated plan ($plan) and extract:
 
 - What features were planned?
 - What architecture was specified?
@@ -58,7 +59,7 @@ Read the generated plan ($1) and extract:
 
 ### Step 2: Understand the Actual Implementation
 
-Read the execution report ($2) and extract:
+Read the execution report ($report) and extract:
 
 - What was implemented?
 - What diverged from the plan?
@@ -109,8 +110,8 @@ Save your analysis to: `.claude/system-reviews/[feature-name]-review.md`
 
 #### Meta Information
 
-- Plan reviewed: [path to $1]
-- Execution report: [path to $2]
+- Plan reviewed: [path to $plan]
+- Execution report: [path to $report]
 - Date: [current date]
 
 #### Overall Alignment Score: \_\_/10
@@ -155,7 +156,7 @@ Based on analysis, recommend specific actions:
 - [ ] Add anti-pattern warning for [Y]
 - [ ] Clarify [technology constraint Z]
 
-**Update Plan Skill ($1):**
+**Update Plan Skill ($plan):**
 
 - [ ] Add instruction for [missing step]
 - [ ] Clarify [ambiguous instruction]
