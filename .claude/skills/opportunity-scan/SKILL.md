@@ -23,10 +23,14 @@ the two separate.
 
 ## Inputs — ask for any that weren't given
 
-`$ARGUMENTS` may carry some of these; ask for whatever's missing, don't guess.
+`$ARGUMENTS` may carry some of these. Input 1 you work out for yourself. For 2 and 3, ask for whatever's
+missing rather than guessing — but ask **once**, in a single message, not one question at a time.
 
-1. **Where the agent's own docs live** — a URL or path to your agent's capability / extensibility docs, so the scan
-   knows what your agent *can become* (its real extension points). Don't assume Claude Code.
+1. **The agent's own capability docs** — so the scan knows what your agent *can become* (its real extension
+   points). **Work this out yourself; do not ask first.** Identify which agent you are running as and find its
+   own extensibility docs (for Claude Code that is `code.claude.com/docs`). Only ask the user if you genuinely
+   cannot determine it, or if they want you pointed somewhere specific. Never assume a fixed set of extension
+   points: read them from whatever docs you actually find.
 2. **What to scan** — exactly one of:
    - **A RUN (reactive)** — the artifacts one loop left behind: the plan, the implementation report, an RCA, the PR
      body, the review output, the commits/diff. Add that run's session log too if you can point at it. *These are
@@ -48,7 +52,8 @@ the two separate.
 
 ## Steps — keep them literal; this is the fragile part (meta-prompting)
 
-1. **Learn your own capabilities.** Read the agent docs from input 1. Write a short internal list of *this* agent's
+1. **Learn your own capabilities.** Determine which agent you are running as and read its capability docs (input
+   1, which you normally resolve yourself). Write a short internal list of *this* agent's
    extension points (rules, skill, hook, subagent, MCP/tool, automation/workflow, whatever the docs describe). Use
    what the docs say — do not assume a fixed set.
 2. **Read the target** — branch on what input 2 was:
