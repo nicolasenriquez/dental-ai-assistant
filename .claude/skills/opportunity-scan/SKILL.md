@@ -34,10 +34,17 @@ the two separate.
    - **A WINDOW OF LOGS (proactive)** — where your agent keeps session logs, plus how far back. Examples: Claude
      Code → `~/.claude/projects/` + `~/.claude/history.jsonl`; Codex → `~/.codex/sessions/`; PI → your extension's
      log dir. Default window: the last 2 weeks.
-3. **What you care about** *(optional — ask once, accept "nothing specific")* — where you want leverage right now,
-   in your words: the kind of work you want to stop doing by hand, a quality bar you keep enforcing, a part of the
-   loop that keeps costing you. This **steers what the scan pays attention to**; without it the proactive scan just
-   ranks by frequency, which is not the same as ranking by what matters to you.
+3. **Your steer** *(optional — ask once, accept "nothing specific")* — one input, whose meaning follows the
+   target:
+   - **Scanning a RUN:** the **symptom you noticed**, in your words — what the agent got wrong, what you had to
+     correct, what annoyed you. You were there; don't make the scan re-derive from the artifacts what you can
+     just say. *(This is the "you just did X" of the one-sentence outer loop — the tooled version accepts the
+     same X.)*
+   - **Scanning LOGS:** the **theme you care about** — the kind of work you want to stop doing by hand, a
+     quality bar you keep enforcing, a part of the loop that keeps costing you. Without it the scan just ranks
+     by frequency, which is not the same as ranking by what matters to you.
+
+   Either way: **you supply the steer, the target supplies the evidence.**
 
 ## Steps — keep them literal; this is the fragile part (meta-prompting)
 
@@ -45,9 +52,12 @@ the two separate.
    extension points (rules, skill, hook, subagent, MCP/tool, automation/workflow, whatever the docs describe). Use
    what the docs say — do not assume a fixed set.
 2. **Read the target** — branch on what input 2 was:
-   - **A RUN:** read the artifacts **in full** — they're small, and the detail is the point. Reconstruct what
-     actually happened: what was asked, what the agent did, where it went wrong, where it had to be corrected, what
-     it assumed, what it skipped. Read the diff last, as evidence rather than as the subject.
+   - **A RUN:** read the artifacts **in full** — they're small, and the detail is the point. If input 3 named a
+     symptom, **start there**: find it in the artifacts and verify it against what actually happened, rather than
+     re-deriving from scratch what the user already told you. Then reconstruct the rest of the run: what was
+     asked, what the agent did, where it went wrong, where it had to be corrected, what it assumed, what it
+     skipped — the named symptom is the entry point, not a blinder. Read the diff last, as evidence rather than
+     as the subject.
    - **A WINDOW OF LOGS:** pull out what you actually did — recurring commands, repeated multi-step sequences,
      repeated instructions/corrections, tools reached for, friction/retries. **Aggregate, don't ingest:** logs can
      be huge — prefer the prompt/command-history file over raw transcripts, and reduce with shell tools
@@ -67,8 +77,9 @@ the two separate.
      often it occurs × how much encoding it would save).
 
    **Both targets:** pick the **best-fit primitive** (from step 1's list) and say *why*. If input 3 was given,
-   **weight it** — surface what the user said they care about even when it isn't the most frequent pattern, and say
-   plainly when a high-frequency pattern is *not* worth encoding. And propose each change **in the house style of
+   **weight it** — on a run, the named symptom's prevention leads the report (and if the evidence says the symptom
+   was actually something else, say so plainly); on logs, surface what the user said they care about even when it
+   isn't the most frequent pattern, and say plainly when a high-frequency pattern is *not* worth encoding. And propose each change **in the house style of
    the artifacts that already exist**: skim a couple of the project's current rules/skills/agents first and shape
    the recommendation to look like them, so what it suggests is something the user would actually build. Examples
    of the mapping:
