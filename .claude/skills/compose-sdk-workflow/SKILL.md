@@ -1,17 +1,17 @@
 ---
 name: compose-sdk-workflow
-description: Use only when the user explicitly asks to build an automation or agent with the Claude Agent SDK, such as "build this with the Claude Agent SDK" or "let's automate this using the Agent SDK".
+description: Use only when the user explicitly asks to build an automation or agent with a coding agent's SDK, such as "build this with the Claude Agent SDK", "let's automate this using the Agent SDK", or the same request aimed at another agent's SDK.
 ---
 
 # Compose an Agent SDK Workflow
 
-Turn a real manual process into a runnable, bounded program built with the Claude Agent SDK. Resolve the purpose first, propose an ASCII concept for approval, then design each stage and handoff with the user before writing and testing the program.
+Turn a real manual process into a runnable, bounded program built on a coding agent's SDK. Resolve the purpose first, propose an ASCII concept for approval, then design each stage and handoff with the user before writing and testing the program.
 
 ## What this composition method is
 
-An Agent SDK workflow runs the agent loop inside the user's own Python or TypeScript process. The program can hold sessions, stream events, intercept tool calls as they happen, run deterministic code between agent turns, and expose application-specific state. Agent stages perform work that needs interpretation or judgment; ordinary code owns mechanics, evidence, and bounds.
+An Agent SDK workflow runs the agent loop inside the user's own process — Python or TypeScript for Claude's `claude-agent-sdk`, whichever languages the chosen agent's SDK supports otherwise. The program can hold sessions, stream events, intercept tool calls as they happen, run deterministic code between agent turns, and expose application-specific state. Agent stages perform work that needs interpretation or judgment; ordinary code owns mechanics, evidence, and bounds.
 
-The user has already selected the SDK by invoking this skill. Do not compare it against `claude -p`, hooks, CI, or an orchestrator unless the user asks. Do not turn the opening into a method-selection exercise.
+The user has already selected the SDK method by invoking this skill. Do not compare it against a headless CLI script (`claude -p` or another agent's equivalent), hooks, CI, or an orchestrator unless the user asks. Do not turn the opening into a method-selection exercise.
 
 ## Choose agents for meaning, code for mechanics
 
@@ -34,14 +34,26 @@ Examples:
 | Review a change for subtle logic errors | Agent | Open-ended semantic analysis |
 | Deny writes to a protected path | Deterministic SDK control | The policy is precise and must apply at tool-call time |
 
+## Resolve which agent first
+
+This is the one composition method with a hard prerequisite: the agent must ship a real **SDK** — a library that runs the agent loop inside your own process, loads the project's own agent layer, and exposes sessions, events, and tool control. Claude's is `claude-agent-sdk` (Python and TypeScript). That is a narrower field than the CLI-based methods, and some agents have no SDK at all. Settle this before looking anything up: every class name, session object, event field, and permission control below is that SDK's vocabulary.
+
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default when it ships an SDK. Ask only when the answer is genuinely open, and ask once:
+
+> **Recommendation:** build this on [the agent you are running in]'s SDK, since it is installed and authenticated here and already loads this project's agent layer. [Other agent]'s SDK is preferable when the program has to run inside a product that agent already lives in. Does that fit, or should we target a different agent?
+
+If the agent the user names has **no SDK**, say so plainly instead of improvising one. Shelling out to its CLI from `subprocess` is a headless workflow wearing a library's clothes: recommend `compose-headless-workflow`, or an agent that does ship an SDK. A plain HTTP model API is not an SDK either — no agent loop, no tools, no project-configuration layer, so none of the design below applies to it.
+
+Record the choice in the decision record: the language options, session API, streamed events, tool interception, and dependency vessel all follow from it.
+
 ## Get current before designing configuration
 
-Look up the current official Claude Agent SDK documentation before asking configuration-specific questions or writing the program.
+Look up the current official documentation for **the chosen agent's SDK** before asking configuration-specific questions or writing the program.
 
-1. Search the web for the current official Claude Agent SDK overview and the official documentation for both Python and TypeScript. Restrict configuration claims to official Anthropic documentation and official Anthropic repositories.
+1. Search the web for that SDK's current official overview and the official documentation for each language it supports (for Claude, `claude-agent-sdk` in Python and TypeScript). Restrict configuration claims to that vendor's official documentation and official repositories.
 2. Once the user chooses a language, read only that language's current SDK documentation, package metadata, examples, and public types needed for the design.
 3. Verify the current package name and version requirements, installation or single-file execution pattern, authentication, project-configuration loading, session/client APIs, one-shot queries, streaming events, model selection, tool and permission controls, callbacks or hooks, structured output, subagents, context/compaction behavior, errors, and limits relevant to this workflow.
-4. Treat live official docs and installed package types as authoritative. Do not rely on remembered class names, method signatures, event fields, defaults, model aliases, or billing behavior.
+4. Treat live official docs and installed package types as authoritative. Do not rely on remembered class names, method signatures, event fields, defaults, model aliases, or billing behavior, and never carry one agent's SDK shape across to another.
 5. Briefly name the official sources used and flag anything that could not be verified.
 
 Do not scan the user's repository, dependencies, skills, agents, hooks, or configuration during this step. If the user wants to reuse existing skills, ask them to name the skills or provide their paths. Offer to inspect or list candidates only when asked.
@@ -120,7 +132,7 @@ Ask the user to approve or iterate on the concept. Accept additions, removals, r
 
 ## Phase 3 — Choose the language and dependency vessel
 
-After concept approval, ask whether to build in **Python** or **TypeScript**. Always recommend one from information the user has supplied; do not scan the project to decide.
+After concept approval, ask which of the chosen SDK's supported languages to build in — for Claude's SDK, **Python** or **TypeScript**. Always recommend one from information the user has supplied; do not scan the project to decide. If the SDK supports only one language, say so and skip the question rather than offering a choice that does not exist.
 
 - Recommend the language already used by the surrounding product when the SDK program belongs inside it.
 - For a standalone automation with no surrounding-language constraint, recommend the language the user is most comfortable maintaining.
@@ -221,6 +233,8 @@ Ask for final design approval. If the user changes the design, update the flow a
 ## Phase 7 — Build the program
 
 Create the approved Python or TypeScript artifact using the current official SDK APIs and the approved dependency vessel. Preserve nearby user files and configuration.
+
+A complete worked example lives in `references/fix_issue.py` — read it before writing the program.
 
 Keep the program focused on:
 

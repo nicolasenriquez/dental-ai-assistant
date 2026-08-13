@@ -50,14 +50,31 @@ Make this the invariant of every generated orchestrator:
 
 Keep the control plane small. Give it the ability to invoke and observe approved capabilities, not generic access to everything.
 
+## Resolve which agent first
+
+The orchestrator's ideas travel; its mechanism may not. Naming capabilities, contracts, evidence, gates, and a digest are agent-independent. **Whether the orchestrator can launch a worker at all is not.** Claude Code can spawn subagents and observe them; some agents have no sub-agent surface whatsoever, and there an orchestrator has to launch each worker as a separate non-interactive CLI process and treat the artifact it leaves as the only evidence. Settle this before looking anything up.
+
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default — it is also where the capabilities the user already trusts are installed. Ask only when the answer is genuinely open, and ask once:
+
+> **Recommendation:** build the orchestrator for [the agent you are running in], since the skills, agents and commands it would coordinate already live there. [Other agent] is preferable when the capabilities you want to orchestrate belong to that one. Does that fit, or should we target a different agent?
+
+Then establish, from that agent's live documentation rather than from memory, what it can actually do:
+
+- Can it launch a worker at all — an in-process subagent, a background task, or only a separate CLI process?
+- Can it observe or be notified of completion, or must the orchestrator poll for an artifact?
+- Can it continue or steer a worker that is already running, or is respawning the only correction available?
+- Can workers invoke named skills, and does the project's context layer reach them?
+
+A capability the chosen agent does not have is not a design to work around — it is a route to leave out of version one. If the agent cannot steer a running worker, do not design steering; make each stage a bounded launch that leaves an artifact behind. Record the choice and these answers in the decision record: the route, the continuity decisions, and the evidence contracts below all follow from them.
+
 ## Get current before designing mechanics
 
-Look up current official documentation before asking tool-, agent-, context-, model-, isolation-, or permission-specific questions or writing the orchestrator.
+Look up current official documentation for **the chosen agent** before asking tool-, agent-, context-, model-, isolation-, or permission-specific questions or writing the orchestrator.
 
-1. Read the current official Claude Code documentation for skills, built-in tools, subagents, background execution, messaging or resumption, task state, permissions, and worktree isolation relevant to the approved concept.
-2. Distinguish current subagent behavior from agent teams or other coordination surfaces. Do not assume tools, nesting, context inheritance, lifecycle, availability, or experimental status.
+1. Read that agent's current official documentation for skills, built-in tools, subagents, background execution, messaging or resumption, task state, permissions, and worktree isolation relevant to the approved concept.
+2. Distinguish current subagent behavior from agent teams or other coordination surfaces. Do not assume tools, nesting, context inheritance, lifecycle, availability, or experimental status — and never assume one agent's coordination surface exists in another.
 3. Verify the current mechanism for invoking named skills from workers, launching work, continuing or steering the same worker, checking status, stopping work, isolating changes, and observing completion.
-4. Treat live official documentation and the installed Claude Code version as authoritative. Do not rely on remembered tool names, parameters, defaults, model aliases, limits, or permission behavior.
+4. Treat live official documentation and the installed agent version as authoritative. Do not rely on remembered tool names, parameters, defaults, model aliases, limits, or permission behavior.
 5. Briefly name the official sources used and flag anything that could not be verified.
 
 Do not inventory the user's agentic layer during this step. Ask the user to name the capabilities they want to expose or provide their paths. Offer to inspect or list candidates only when asked. Inspect only named capabilities until the concept is approved.
@@ -355,7 +372,9 @@ Ask for final design approval. If the user changes the design, update affected c
 
 ## Phase 8 — Build the orchestrator skill
 
-Confirm the target path and name, then create or update the orchestrator as a portable `SKILL.md` with only the resources the approved design needs. Preserve unrelated files and user changes.
+Confirm the target path and name, then create or update the orchestrator in whatever vessel the chosen agent loads by name — a portable `SKILL.md` for Claude Code, or that agent's equivalent instruction file — with only the resources the approved design needs. Preserve unrelated files and user changes.
+
+A complete worked example lives in `references/orchestrate-issues-SKILL.md` — read it before writing the orchestrator.
 
 Write the orchestrator in the user's language and terminology. Include:
 
@@ -397,7 +416,7 @@ Return:
 - the capability contracts and readiness classifications;
 - explicit current and deferred capabilities;
 - context continuity, evidence, gate, bound, and digest decisions;
-- the official documentation and installed Claude Code version used;
+- the chosen agent, the official documentation, and the installed agent version used;
 - validation and live tests performed with results;
 - anything unverified;
 - the next capability to consider only if current-run evidence justifies it.

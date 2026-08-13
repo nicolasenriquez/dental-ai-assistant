@@ -1,17 +1,17 @@
 ---
 name: compose-hook-workflow
-description: Use only when the user explicitly asks to compose or automate a workflow using Claude Code hooks, such as "build this workflow with hooks" or "use hooks to trigger the next step".
+description: Use only when the user explicitly asks to compose or automate a workflow using a coding agent's hooks, such as "build this workflow with hooks" or "use hooks to trigger the next step", whether the agent is Claude Code, Codex, Cursor, Gemini CLI, PI or another.
 ---
 
 # Compose a Hook Workflow
 
-Turn a desired outcome into a safe, observable event-driven workflow using Claude Code hooks. Resolve what each event should own, propose an ASCII event/state concept for approval, then design and implement one event responsibility at a time.
+Turn a desired outcome into a safe, observable event-driven workflow using a coding agent's hooks. Resolve what each event should own, propose an ASCII event/state concept for approval, then design and implement one event responsibility at a time.
 
 Own the complete composition. Do not invoke `hooks-create`, Anthropic's hook-development skill, or another hook generator to author the result. The point is to help the user decide how the workflow should behave **their way**, then build and prove exactly that behavior.
 
 ## What this composition method is
 
-A hook workflow runs because something happened in Claude Code. A lifecycle event is the invoker: a tool is about to run, an agent tries to stop, a task changes state, a file changes, or another currently supported event occurs. A matching handler observes the event and may react, gate a transition, or pass responsibility onward.
+A hook workflow runs because something happened inside the coding agent. A lifecycle event is the invoker: a tool is about to run, an agent tries to stop, a task changes state, a file changes, or another currently supported event occurs. A matching handler observes the event and may react, gate a transition, or pass responsibility onward.
 
 Design hook compositions as state transitions, not merely sequences:
 
@@ -49,13 +49,29 @@ Examples:
 | Ensure checks pass before completion | Command gate | Exit status is authoritative |
 | Notify a shared operations service | HTTP or MCP | The external system owns delivery |
 
+## Resolve which agent first
+
+Hooks are the most portable primitive in **shape** and the least portable in **spelling**. Most agents give you the same three moving parts: a handler the agent runs when a lifecycle event fires, the event payload delivered as JSON, and a way for the handler to block what was about to happen. Everything this skill teaches — which outcome an event owns, the eligibility guard, idempotence, the receipt, the recursion bound — is identical whichever agent you pick. What is **not** portable is the settings file the handler is registered in, what the events are called, and how a handler says no. Settle this before looking anything up.
+
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default — hooks only fire where the agent actually runs. Ask only when the answer is genuinely open, and ask once:
+
+> **Recommendation:** build these hooks for [the agent you are running in], since that is where the events fire and where the work you want to guard happens. [Other agent] is preferable when the behavior must guard work done in that one. Does that fit, or should we target a different agent?
+
+Roughly how the field splits today — treat this as orientation to verify against live docs in the next section, never as configuration:
+
+- **Claude Code, Codex, Cursor** — an executable handler, the event as JSON on stdin, and a non-zero exit (commonly `2`) to block, with stderr carried back as the reason.
+- **Gemini CLI** — a handler that returns a JSON decision object rather than signalling through exit status.
+- **PI, opencode** — in-process plugins registered in the agent's own configuration rather than shelled-out scripts.
+
+Record the choice in the decision record. Every event name, matcher, payload field, blocking mechanism, and configuration scope below follows from it, and one agent's event names are never evidence for another's.
+
 ## Get current before designing configuration
 
-Look up the current official Claude Code hook documentation before asking event- or handler-specific questions or writing configuration.
+Look up **the chosen agent's** current official hook documentation before asking event- or handler-specific questions or writing configuration.
 
-1. Read the current official hooks guide and hooks reference. Restrict configuration claims to official Anthropic documentation and official Anthropic repositories.
+1. Read that agent's current official hooks guide and hooks reference. Restrict configuration claims to that vendor's official documentation and official repositories (Anthropic's, for Claude Code).
 2. Discover the current lifecycle events, matcher behavior, handler types and support matrix, configuration scopes, input fields, decision outputs, blocking behavior, async behavior, concurrency rules, security guidance, debugging surfaces, and limits relevant to this composition.
-3. Treat live official docs and the installed Claude Code version as authoritative. Do not rely on remembered event names, schemas, exit behavior, handler support, defaults, caps, or experimental status.
+3. Treat live official docs and the installed agent version as authoritative. Do not rely on remembered event names, schemas, exit behavior, handler support, defaults, caps, or experimental status.
 4. Briefly name the official sources used and flag anything that could not be verified.
 
 Do not scan the user's repository, hooks, settings, skills, or agents during this step. Inspect existing configuration only after the concept is approved and implementation requires a safe merge, or when the user explicitly asks.
@@ -252,11 +268,13 @@ For each approved command handler, recommend the simplest maintainable vessel an
 
 For an agent handoff, design the complete invocation, permissions, input, context boundary, receipt, and bound. Do not delegate it to another creator skill.
 
-Confirm the configuration scope only now: user, project, local project, plugin, skill, agent, managed policy, or another currently supported scope. Recommend the narrowest scope that matches who should receive the behavior.
+Confirm the configuration scope only now, from the scopes the chosen agent actually supports and the settings file it actually reads. Claude Code's are user, project, local project, plugin, skill, agent, and managed policy; other agents expose fewer, and in-process plugin agents may expose only one. Recommend the narrowest scope that matches who should receive the behavior.
 
 ## Phase 6 — Build the composition
 
 Inspect the existing target configuration now and merge safely. Preserve all unrelated user hooks and settings.
+
+Complete worked examples live in `references/` — a react handler, a gate, a baton, and the settings block that registers all three; read them before writing the handlers.
 
 Implement using the current official event schemas and handler contracts. Create every required handler, guard, state marker, receipt path, agent handoff, and observability output. Keep behavior aligned with the approved ownership contracts.
 
@@ -267,7 +285,7 @@ Do not silently add events, handlers, retries, fallbacks, repository scans, perm
 Validate at three levels:
 
 1. **Handler:** feed representative current-schema payloads directly into each handler. Verify eligible, ineligible/no-op, success, failure, and malformed-input behavior.
-2. **Configuration:** validate JSON/frontmatter, inspect the hook in Claude Code's current hook browser or equivalent, and use the current debug surface to confirm matching and timing.
+2. **Configuration:** validate JSON/frontmatter, inspect the hook in whatever hook browser or listing the chosen agent currently provides, and use its current debug surface to confirm matching and timing.
 3. **Composition:** fire the real event cascade safely. Prove the action happens, fire it again to prove idempotence, trigger one deliberate failure, verify the bound, and confirm the expected receipt and observability.
 
 Obtain user approval before a live test that can incur material model cost, contact an external service, or mutate meaningful state. If a complete live run is unsafe or unavailable, validate everything possible and state precisely what remains unverified. Never report the composition as proven from inspection alone.
@@ -282,7 +300,7 @@ Return:
 - the final ASCII event/state composition;
 - each event's owned outcome, guard, executor, evidence, and bound;
 - what is observable live and what remains durable;
-- the official docs and installed Claude Code version used;
+- the chosen agent, the official docs, and the installed agent version used;
 - tests performed and their results;
 - anything unverified;
 - the few guards, commands, or paths the user is most likely to customize;

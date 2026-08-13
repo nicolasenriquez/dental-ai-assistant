@@ -1,6 +1,6 @@
 ---
 name: compose-headless-workflow
-description: Use only when the user explicitly asks to build a headless Claude Code script using `claude -p`, such as "build a headless Claude Code script for X" or "let's automate this with -p".
+description: Use only when the user explicitly asks to build a headless coding-agent script driven by a non-interactive CLI call, such as "build a headless Claude Code script for X", "automate this with claude -p", or the same request aimed at Codex, Gemini CLI, PI or another agent.
 ---
 
 # Compose a Headless Workflow
@@ -9,9 +9,9 @@ Turn a real manual process into a runnable, bounded headless workflow. Resolve t
 
 ## What this composition method is
 
-A headless workflow uses non-interactive Claude Code calls inside an ordinary script. The script starts stages, carries values or artifacts between them, runs objective checks, enforces bounds, and exposes useful runtime state. Agent stages perform work that needs interpretation or judgment.
+A headless workflow uses non-interactive coding-agent calls inside an ordinary script. The script starts stages, carries values or artifacts between them, runs objective checks, enforces bounds, and exposes useful runtime state. Agent stages perform work that needs interpretation or judgment.
 
-The only agent-specific prerequisite is an installed and authenticated Claude Code CLI. Do not require the Agent SDK, an API client, or a separate application framework. Default to a readable Bash script unless the user requests another host language.
+The only agent-specific prerequisite is an installed and authenticated CLI for whichever agent was chosen above. Do not require an SDK, an API client, or a separate application framework. Default to a readable Bash script unless the user requests another host language.
 
 ## Choose agents for meaning, code for mechanics
 
@@ -34,11 +34,23 @@ Examples:
 | Review a change for subtle logic errors | Agent | Open-ended semantic analysis |
 | Ensure a review artifact exists | Deterministic | A simple state check is sufficient |
 
+## Resolve which agent first
+
+Everything below is agent-shaped: the invocation form, session continuation, structured output, model selection and tool scoping all differ per agent. Settle this before looking anything up.
+
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default. Claude Code's is `claude -p`; Codex, Gemini CLI, PI, opencode and others each have their own non-interactive form. Ask only when the answer is genuinely open, and ask once:
+
+> **Recommendation:** build this for [the agent you are running in], since it is installed and authenticated here. [Other agent] is preferable when the workflow has to run somewhere that one already lives. Does that fit, or should we target a different agent?
+
+The chosen agent's non-interactive CLI is the **only** agent-specific prerequisite. Do not require an SDK, an API client, or a separate application framework. Record the choice in the decision record: every flag, session mechanism and output format below follows from it.
+
+If the user wants the workflow to be portable across agents, keep each invocation behind one small function (the `ask()` shape) so swapping agents is a one-function change rather than a rewrite.
+
 ## Get current before designing configuration
 
-Look up the current official documentation for Claude Code headless/non-interactive operation before asking configuration-specific questions or writing the script.
+Look up the current official documentation for **the chosen agent's** headless/non-interactive operation before asking configuration-specific questions or writing the script.
 
-1. Search the web for the current official Claude Code documentation covering headless or programmatic use. Restrict configuration claims to official Anthropic documentation and official Anthropic repositories.
+1. Search the web for that agent's current official documentation covering headless or programmatic use. Restrict configuration claims to that vendor's official documentation and official repositories.
 2. Confirm relevant behavior against the installed CLI's help when implementation begins. Do not inventory the user's wider setup.
 3. Verify the current forms of non-interactive invocation, session continuation, structured output, model selection, tool/permission scoping, authentication, limits, and exit behavior needed by this workflow.
 4. Treat live official docs and installed CLI help as authoritative. Do not rely on remembered flags, model aliases, JSON fields, defaults, or pricing behavior.
@@ -207,6 +219,8 @@ Ask for final design approval. If the user changes the design, update the flow a
 
 Confirm the output path, then create a readable Bash script by default. Use another host language only when requested. Preserve nearby user files and configuration.
 
+A complete worked example lives in `references/fix-issue.sh` — read it before writing the script.
+
 Implement using the syntax verified from current official docs and installed CLI help. Keep the script focused on:
 
 - validating inputs;
@@ -225,7 +239,7 @@ Do not silently add stages, retries, fallbacks, repository scans, or permissions
 
 Validate safely before reporting completion:
 
-1. Confirm the Claude Code CLI is installed and inspect its current help for every used flag.
+1. Confirm the chosen agent's CLI is installed and inspect its current help for every used flag.
 2. Run a shell syntax check.
 3. Exercise input validation without invoking a paid agent call when possible.
 4. Run the smallest safe representative workflow with the user's approval if it can incur material cost or mutate meaningful state.
