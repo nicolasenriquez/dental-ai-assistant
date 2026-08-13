@@ -761,7 +761,9 @@ class TestRefusalSourcesSuppressionIntegration:
                 final_text_out.append(refusal_text)
             yield done_chunk
 
-        async def mock_execute_tool(name, raw_args, video_id_whitelist=None, embedding_cache=None, is_member=False):
+        async def mock_execute_tool(
+            name, raw_args, video_id_whitelist=None, embedding_cache=None, is_member=False
+        ):
             return {"ok": True, "text": "context", "chunks": source_citations}
 
         test_user_id = str(uuid4())
@@ -858,7 +860,9 @@ class TestRefusalSourcesSuppressionIntegration:
                 final_text_out.append(refusal_text)
             yield done_chunk
 
-        async def mock_execute_tool(name, raw_args, video_id_whitelist=None, embedding_cache=None, is_member=False):
+        async def mock_execute_tool(
+            name, raw_args, video_id_whitelist=None, embedding_cache=None, is_member=False
+        ):
             return {"ok": True, "text": "context", "chunks": source_citations}
 
         from uuid import uuid4
@@ -956,7 +960,9 @@ class TestRefusalSourcesSuppressionIntegration:
                 final_text_out.append(answer_text)
             yield done_chunk
 
-        async def mock_execute_tool(name, raw_args, video_id_whitelist=None, embedding_cache=None, is_member=False):
+        async def mock_execute_tool(
+            name, raw_args, video_id_whitelist=None, embedding_cache=None, is_member=False
+        ):
             return {"ok": True, "text": "context", "chunks": source_citations}
 
         from uuid import uuid4
@@ -1068,7 +1074,9 @@ class TestChunkExpansionIntegration:
                 final_text_out.append("The video explains it works.")
             yield done_chunk
 
-        async def mock_execute_tool(name, raw_args, video_id_whitelist=None, embedding_cache=None, is_member=False):
+        async def mock_execute_tool(
+            name, raw_args, video_id_whitelist=None, embedding_cache=None, is_member=False
+        ):
             return {"ok": True, "text": "context", "chunks": source_citations}
 
         from uuid import uuid4

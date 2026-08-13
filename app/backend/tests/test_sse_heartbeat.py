@@ -129,9 +129,7 @@ class TestSseKeepaliveDuringToolCalls:
         emitted: list[str] = []
         with (
             patch("backend.llm.openrouter._get_async_client", return_value=fake_client),
-            patch(
-                "backend.llm.openrouter.HEARTBEAT_INTERVAL_SECONDS", FAST_HEARTBEAT_SECONDS
-            ),
+            patch("backend.llm.openrouter.HEARTBEAT_INTERVAL_SECONDS", FAST_HEARTBEAT_SECONDS),
             patch(
                 "backend.llm.openrouter.build_system_prompt",
                 new=AsyncMock(return_value=[{"type": "text", "text": "system"}]),
