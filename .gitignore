@@ -50,6 +50,16 @@ worktrees/
 logs/
 .claude/settings.local.json
 
+# Automation run artifacts — output of ./fix-issue.sh and its demo helpers.
+# The SCRIPT is tracked (it is the workflow); what one run happened to produce
+# is not. Reviews, logs and summaries are per-run and rewritten every time.
+fix-issue-run.log
+review-logic.md
+review-errors.md
+RUN-SUMMARY.md
+show-run.ps1
+.run-stages.txt
+
 # Runtime deploy state — rewritten by deploy.sh on every blue/green flip,
 # so keeping it tracked makes every host-side `git pull` abort with a dirty
 # working tree. The bootstrap path in deploy.sh writes the initial value
