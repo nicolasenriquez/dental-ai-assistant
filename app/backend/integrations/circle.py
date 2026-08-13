@@ -96,7 +96,7 @@ async def verify_paid_member(email: str) -> bool:
         return False
 
 
-def _extract_member(body: Any) -> dict[str, Any] | None:
+def _extract_member( body: Any ) -> dict[str, Any] | None:
     """Normalize the search response shape.
 
     Circle's `/community_members/search` historically returned the member object
