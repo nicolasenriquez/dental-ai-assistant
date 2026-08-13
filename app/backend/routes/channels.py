@@ -59,7 +59,7 @@ class SyncRunsResponse(BaseModel):
 
 
 @router.post("/channels/sync", response_model=SyncResponse)
-async def sync_channel(limit: int | None = None, force: bool = False) -> SyncResponse:
+async def sync_channel( limit: int | None = None,force: bool = False ) -> SyncResponse:
     """
     Enumerate videos from the configured YouTube channel via Supadata,
     ingest any new videos (idempotent by youtube_video_id), and record a
@@ -102,7 +102,7 @@ async def sync_channel(limit: int | None = None, force: bool = False) -> SyncRes
 
     # Enumerate channel videos from Supadata. Pass limit through so we don't
     # pull 5000 IDs when the caller only wants 20.
-    supadata_limit = limit if limit else 5000
+    supadata_limit = limit  if limit  else 5000
     try:
         channel_videos = await supadata.get_channel_video_ids(
             channel_id=YOUTUBE_CHANNEL_ID,
