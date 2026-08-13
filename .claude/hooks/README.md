@@ -23,7 +23,7 @@ Three **automation** hooks. They are a different job from the two above: those t
 | File | Event | Shape | What it does |
 |---|---|---|---|
 | `format-touched.sh` | PostToolUse `Edit\|Write` | **REACT** | Formats the `.py` file that was just touched |
-| `stop-gate.sh` | Stop | **GATE** | Refuses to let the session finish until the checks are green. Guards for a dirty worktree and `stop_hook_active`; translates checker exit 1 into block JSON |
+| `stop-gate.sh` | Stop | **GATE** | Refuses to let the session finish until the checks are green. Skips a clean worktree; converts a checker's exit 1 into the **exit 2** that actually blocks |
 | `baton.sh` | Stop (`async`) | **BATON** | Issue artifact present and fix output absent, so it launches the fix skill in a fresh `claude -p`. Keeps an in-flight marker on disk |
 
 `automation-hooks.settings.json` is the stanza that would wire them up. **It is not the live settings file** and merging it is a deliberate act.
@@ -31,6 +31,26 @@ Three **automation** hooks. They are a different job from the two above: those t
 > ⚠️ **Think before you merge that stanza.** Hooks fire on *every* session in the repo they are configured in, not just the one you had in mind. `stop-gate.sh` will stop you ending a session while checks are red, and `baton.sh` spawns a fresh `claude -p` on every Stop. That is the point of them, and it is also why they ship switched off. Merge the stanza when you want the behaviour, and remove it when you are done.
 
 The three shapes are the reason they are worth reading even switched off: **react** to something that happened, **gate** something from finishing, and **hand the baton** to the next agent. Together with the `pre = gate, post = log` pair above, that is the whole hook vocabulary.
+
+### Exit codes — the one thing to get right
+
+**Only `exit 2` blocks.** Not exit 1, which is what every linter, type checker and test runner returns on failure. Converting one into the other is most of what a gate hook does.
+
+| Exit | Meaning |
+|---|---|
+| `0` | success. stdout goes to the debug log (except on `UserPromptSubmit` / `SessionStart`, where it becomes context) |
+| **`2`** | **blocking error.** stderr is handed to the agent as the reason |
+| anything else | non-blocking error: noise, no effect |
+
+What `exit 2` blocks depends on the event, and these hooks sit on events with different answers:
+
+| Event | Does `exit 2` block? |
+|---|---|
+| `PreToolUse` | **yes** — the tool call is stopped (`pre_tool_use.py` relies on this) |
+| `Stop` | **yes** — the session is prevented from finishing (`stop-gate.sh` relies on this) |
+| `PostToolUse` | **no** — the tool already ran; stderr is merely shown, so `format-touched.sh` always exits 0 |
+
+`baton.sh` is `async`, which is fire-and-forget: its exit code is never read, so it exits 0 throughout.
 
 ## Turning them on
 
