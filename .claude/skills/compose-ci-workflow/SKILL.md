@@ -88,6 +88,10 @@ Use this pattern:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
+**Ask with your agent's question tool when it has one.** In Claude Code that is `AskUserQuestion`; other agents expose their own, and some have none. It suits this skill well, because a recommendation with one named alternative is already the shape those tools take: lead with the recommended choice as the first option, put the meaningful alternative second, and let the tool supply "other" rather than writing it yourself. Keep each question's header short and give every option a one-line consequence, so the user is choosing between outcomes rather than between labels.
+
+Reach for it on the decisions that genuinely fork the design (agent versus deterministic code for a stage, where a human gate belongs, whether a handoff is a file or a variable). Stay in prose for open questions like "what are you trying to automate?", which have no option set. If the agent has no such tool, ask in prose exactly as above; nothing else in this skill changes.
+
 ## Phase 1 — Resolve the why and trust boundary
 
 Ask a small initial set of plain-language questions. Avoid action inputs, YAML, model names, tool lists, checkout depth, authentication details, and exact permissions at this point.
