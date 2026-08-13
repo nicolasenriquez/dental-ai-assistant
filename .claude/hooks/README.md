@@ -16,6 +16,22 @@ A hook is the one the agent never chooses: it fires automatically on a lifecycle
 
 That split *is* the mental model: **pre = gate, post = log.**
 
+## Also here, and deliberately NOT switched on
+
+Three **automation** hooks. They are a different job from the two above: those two are always-on safety, these three drive a workflow. A hook only exists once it is wired into `.claude/settings.json`, so as files on disk these are **inert**.
+
+| File | Event | Shape | What it does |
+|---|---|---|---|
+| `format-touched.sh` | PostToolUse `Edit\|Write` | **REACT** | Formats the `.py` file that was just touched |
+| `stop-gate.sh` | Stop | **GATE** | Refuses to let the session finish until the checks are green. Guards for a dirty worktree and `stop_hook_active`; translates checker exit 1 into block JSON |
+| `baton.sh` | Stop (`async`) | **BATON** | Issue artifact present and fix output absent, so it launches the fix skill in a fresh `claude -p`. Keeps an in-flight marker on disk |
+
+`automation-hooks.settings.json` is the stanza that would wire them up. **It is not the live settings file** and merging it is a deliberate act.
+
+> ⚠️ **Think before you merge that stanza.** Hooks fire on *every* session in the repo they are configured in, not just the one you had in mind. `stop-gate.sh` will stop you ending a session while checks are red, and `baton.sh` spawns a fresh `claude -p` on every Stop. That is the point of them, and it is also why they ship switched off. Merge the stanza when you want the behaviour, and remove it when you are done.
+
+The three shapes are the reason they are worth reading even switched off: **react** to something that happened, **gate** something from finishing, and **hand the baton** to the next agent. Together with the `pre = gate, post = log` pair above, that is the whole hook vocabulary.
+
 ## Turning them on
 
 Hooks are the one primitive that does something the moment it exists, so the pack ships the wiring as a
