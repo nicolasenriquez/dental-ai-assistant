@@ -54,9 +54,9 @@ Keep the control plane small. Give it the ability to invoke and observe approved
 
 The orchestrator's ideas travel; its mechanism may not. Naming capabilities, contracts, evidence, gates, and a digest are agent-independent. **Whether the orchestrator can launch a worker at all is not.** Claude Code can spawn subagents and observe them; some agents have no sub-agent surface whatsoever, and there an orchestrator has to launch each worker as a separate non-interactive CLI process and treat the artifact it leaves as the only evidence. Settle this before looking anything up.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default — it is also where the capabilities the user already trusts are installed. Ask only when the answer is genuinely open, and ask once:
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default — it is also where the capabilities the user already trusts are installed. Ask only when the answer is genuinely open, and ask once: ask it with `AskUserQuestion` (options: the agent you are running in, recommended, versus the named alternative), not as a prose paragraph:
 
-> **Recommendation:** build the orchestrator for [the agent you are running in], since the skills, agents and commands it would coordinate already live there. [Other agent] is preferable when the capabilities you want to orchestrate belong to that one. Does that fit, or should we target a different agent?
+**Ask this with `AskUserQuestion`, not as a prose paragraph** — it is the first thing the user sees from this skill. First option: the agent you are running in, recommended. Second option: the named alternative, with the condition that would make it the better choice.
 
 Then establish, from that agent's live documentation rather than from memory, what it can actually do:
 
@@ -97,7 +97,14 @@ Do not inventory the user's agentic layer during this step. Ask the user to name
 - Keep a visible capability ledger, non-capability list, and evolving ASCII map.
 - Never use a mature example as a template to copy wholesale. Extract principles and fit them to the user's current system.
 
-Use this pattern:
+**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+
+- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this system]`.
+- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
+- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
+- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+
+Only if your agent has no question tool, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this system]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -226,7 +233,11 @@ NOT YET
 
 Ask the user to approve or iterate on the concept and boundary. Do not proceed until both are settled.
 
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+
 ## Phase 4 — Design one capability contract at a time
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 Resolve capabilities in causal order. Do not configure the whole orchestrator in one questionnaire.
 
@@ -375,6 +386,8 @@ Present the final ASCII map, capability ledger, explicit non-capabilities, diges
 - Deferred capabilities have not leaked into implementation.
 
 Ask for final design approval. If the user changes the design, update affected contracts and boundaries before building.
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 ## Phase 8 — Build the orchestrator skill
 

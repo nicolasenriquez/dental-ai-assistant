@@ -53,9 +53,9 @@ Examples:
 
 Hooks are the most portable primitive in **shape** and the least portable in **spelling**. Most agents give you the same three moving parts: a handler the agent runs when a lifecycle event fires, the event payload delivered as JSON, and a way for the handler to block what was about to happen. Everything this skill teaches — which outcome an event owns, the eligibility guard, idempotence, the receipt, the recursion bound — is identical whichever agent you pick. What is **not** portable is the settings file the handler is registered in, what the events are called, and how a handler says no. Settle this before looking anything up.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default — hooks only fire where the agent actually runs. Ask only when the answer is genuinely open, and ask once:
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default — hooks only fire where the agent actually runs. Ask only when the answer is genuinely open, and ask once: ask it with `AskUserQuestion` (options: the agent you are running in, recommended, versus the named alternative), not as a prose paragraph:
 
-> **Recommendation:** build these hooks for [the agent you are running in], since that is where the events fire and where the work you want to guard happens. [Other agent] is preferable when the behavior must guard work done in that one. Does that fit, or should we target a different agent?
+**Ask this with `AskUserQuestion`, not as a prose paragraph** — it is the first thing the user sees from this skill. First option: the agent you are running in, recommended. Second option: the named alternative, with the condition that would make it the better choice.
 
 Roughly how the field splits today — treat this as orientation to verify against live docs in the next section, never as configuration:
 
@@ -93,7 +93,14 @@ Do not scan the user's repository, hooks, settings, skills, or agents during thi
 - After concept approval, work through one event responsibility and its outgoing handoff at a time.
 - Keep a visible decision record and update the ASCII composition as decisions land.
 
-Use this recommendation pattern:
+**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+
+- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this workflow]`.
+- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
+- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
+- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+
+Only if your agent has no question tool, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -171,7 +178,11 @@ Explain:
 
 Explicitly call out anywhere deterministic logic would be brittle and an agent is the better fit. Ask the user to approve or iterate on the concept. Do not proceed until the event/state flow is settled.
 
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+
 ## Phase 3 — Design one event responsibility at a time
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 For each event in causal order, resolve its complete contract before moving to the next.
 
@@ -263,6 +274,8 @@ Present the final ASCII event/state flow plus a compact table of event responsib
 - Human gates sit at deliberate seams.
 
 Ask for final design approval. If the user changes the design, update the event flow and affected contracts before building.
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 ## Phase 5 — Choose implementation vessels
 

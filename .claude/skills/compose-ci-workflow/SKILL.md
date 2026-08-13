@@ -49,9 +49,9 @@ Examples:
 
 CI is the most portable of these composition methods. A runner is a container, and every coding agent worth automating ships a CLI that runs in one, so the whole composition below — the trigger, the trust gate, prepared inputs, the agent step, the evidence contract, the authority gate, the bounds — is unchanged whichever agent you pick. Two things are **not** portable: the **step that invokes the agent** and the **authentication secret** it reads. Settle this before looking anything up, because those two are precisely what the next section has to verify.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default. Ask only when the answer is genuinely open, and ask once:
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default. Ask only when the answer is genuinely open, and ask once: ask it with `AskUserQuestion` (options: the agent you are running in, recommended, versus the named alternative), not as a prose paragraph:
 
-> **Recommendation:** run this on [the agent you are running in], since it is the agent this repository's skills and rules are already written for. [Other agent] is preferable when the credential or subscription the organization already pays for in CI belongs to that one. Does that fit, or should we target a different agent?
+**Ask this with `AskUserQuestion`, not as a prose paragraph** — it is the first thing the user sees from this skill. First option: the agent you are running in, recommended. Second option: the named alternative, with the condition that would make it the better choice.
 
 What the choice actually changes:
 
@@ -90,7 +90,14 @@ Do not scan the user's repository, workflows, skills, agents, secrets, or settin
 - After concept approval, work through one responsibility and its outgoing handoff at a time.
 - Keep a visible decision record and update the ASCII flow as decisions land.
 
-Use this pattern:
+**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+
+- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this workflow]`.
+- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
+- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
+- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+
+Only if your agent has no question tool, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -181,7 +188,11 @@ Explain:
 
 Explicitly call out where deterministic logic would be brittle and an agent is the better fit. Also call out where an agent recommendation must not become authority. Ask the user to approve or iterate on the concept. Do not proceed until the conceptual flow is settled.
 
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+
 ## Phase 3 — Design one responsibility at a time
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 Resolve each responsibility in causal order. Start with the event and trust boundary, not with the step that invokes the agent.
 
@@ -312,6 +323,8 @@ Present the final ASCII flow plus a compact table of responsibility contracts. C
 - Human gates sit at deliberate seams.
 
 Ask for final design approval. If the user changes the design, update the flow and affected contracts before building.
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 ## Phase 6 — Build the workflow
 

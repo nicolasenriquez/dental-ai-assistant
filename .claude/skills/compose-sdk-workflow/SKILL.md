@@ -38,9 +38,9 @@ Examples:
 
 This is the one composition method with a hard prerequisite: the agent must ship a real **SDK** — a library that runs the agent loop inside your own process, loads the project's own agent layer, and exposes sessions, events, and tool control. Claude's is `claude-agent-sdk` (Python and TypeScript). That is a narrower field than the CLI-based methods, and some agents have no SDK at all. Settle this before looking anything up: every class name, session object, event field, and permission control below is that SDK's vocabulary.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default when it ships an SDK. Ask only when the answer is genuinely open, and ask once:
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default when it ships an SDK. Ask only when the answer is genuinely open, and ask once: ask it with `AskUserQuestion` (options: the agent you are running in, recommended, versus the named alternative), not as a prose paragraph:
 
-> **Recommendation:** build this on [the agent you are running in]'s SDK, since it is installed and authenticated here and already loads this project's agent layer. [Other agent]'s SDK is preferable when the program has to run inside a product that agent already lives in. Does that fit, or should we target a different agent?
+**Ask this with `AskUserQuestion`, not as a prose paragraph** — it is the first thing the user sees from this skill. First option: the agent you are running in, recommended. Second option: the named alternative, with the condition that would make it the better choice.
 
 If the agent the user names has **no SDK**, say so plainly instead of improvising one. Shelling out to its CLI from `subprocess` is a headless workflow wearing a library's clothes: recommend `compose-headless-workflow`, or an agent that does ship an SDK. A plain HTTP model API is not an SDK either — no agent loop, no tools, no project-configuration layer, so none of the design below applies to it.
 
@@ -75,7 +75,14 @@ Do not scan the user's repository, dependencies, skills, agents, hooks, or confi
 - After concept approval, work through one stage and its outgoing handoff at a time. Do not make the user configure every stage in one large questionnaire.
 - Keep a visible decision record and update the ASCII flow as decisions land.
 
-Use this recommendation pattern:
+**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+
+- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this workflow]`.
+- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
+- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
+- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+
+Only if your agent has no question tool, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -136,6 +143,8 @@ Explain why each node is agentic, deterministic, hybrid, or human-held. Explicit
 
 Ask the user to approve or iterate on the concept. Accept additions, removals, reordered stages, different gates, different session boundaries, and different observability. Do not proceed until the conceptual flow is settled.
 
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+
 ## Phase 3 — Choose the language and dependency vessel
 
 After concept approval, ask which of the chosen SDK's supported languages to build in — for Claude's SDK, **Python** or **TypeScript**. Always recommend one from information the user has supplied; do not scan the project to decide. If the SDK supports only one language, say so and skip the question rather than offering a choice that does not exist.
@@ -166,6 +175,8 @@ Recommend the smallest stable input contract. Prefer identifiers or paths over d
 Record the approved contract and update the flow.
 
 ## Phase 5 — Design one stage and handoff at a time
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 For each stage in order, resolve its stage contract before moving to the next.
 
@@ -235,6 +246,8 @@ Present the final ASCII flow plus a compact table of stage contracts. Check the 
 - Secrets never enter prompts, source literals, logs, or artifacts.
 
 Ask for final design approval. If the user changes the design, update the flow and affected stage contracts before building.
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 ## Phase 7 — Build the program
 

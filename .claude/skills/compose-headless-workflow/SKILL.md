@@ -38,9 +38,7 @@ Examples:
 
 Everything below is agent-shaped: the invocation form, session continuation, structured output, model selection and tool scoping all differ per agent. Settle this before looking anything up.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default. Claude Code's is `claude -p`; Codex, Gemini CLI, PI, opencode and others each have their own non-interactive form. Ask only when the answer is genuinely open, and ask once:
-
-> **Recommendation:** build this for [the agent you are running in], since it is installed and authenticated here. [Other agent] is preferable when the workflow has to run somewhere that one already lives. Does that fit, or should we target a different agent?
+**Work it out rather than asking first.** You are running inside a coding agent, and that is the default. Claude Code's is `claude -p`; Codex, Gemini CLI, PI, opencode and others each have their own non-interactive form. Ask only when the answer is genuinely open, and ask once. **This is the first thing the user sees from this skill, so ask it with `AskUserQuestion`, not as a prose paragraph.** First option: the agent you are running in, recommended, because it is installed and authenticated here. Second option: the named alternative, preferable when the workflow has to run where that one already lives.
 
 The chosen agent's non-interactive CLI is the **only** agent-specific prerequisite. Do not require an SDK, an API client, or a separate application framework. Record the choice in the decision record: every flag, session mechanism and output format below follows from it.
 
@@ -75,7 +73,14 @@ Do not scan the user's repository, skills, agents, hooks, or configuration durin
 - After concept approval, work through one stage and its outgoing handoff at a time. Do not make the user configure every stage in one large questionnaire.
 - Keep a visible decision record and update the ASCII flow as decisions land.
 
-Use this recommendation pattern:
+**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+
+- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this workflow]`.
+- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
+- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
+- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+
+Only if your agent has no question tool, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -139,6 +144,8 @@ Explain why each node is agentic, deterministic, hybrid, or human-held. Explicit
 
 Ask the user to approve or iterate on the concept. Accept additions, removals, reordered stages, different gates, and different observability. Do not proceed until the conceptual flow is settled.
 
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+
 ## Phase 3 — Design the input contract
 
 Start the detailed pass with the workflow boundary:
@@ -155,6 +162,8 @@ Recommend the smallest stable input contract. Prefer identifiers or paths over d
 Record the approved contract and update the flow.
 
 ## Phase 4 — Design one stage and handoff at a time
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 For each stage in order, resolve its stage contract before moving to the next.
 
@@ -220,6 +229,8 @@ Present the final ASCII flow plus a compact table of stage contracts. Check the 
 - Secrets never enter prompts, script literals, logs, or artifacts.
 
 Ask for final design approval. If the user changes the design, update the flow and affected stage contracts before building.
+
+> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
 
 ## Phase 6 — Build the script
 
