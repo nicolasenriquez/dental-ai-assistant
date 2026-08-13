@@ -78,7 +78,13 @@ Do not scan the user's repository, workflows, skills, agents, secrets, or settin
 - Ask only enough questions to make the next decision.
 - Preserve answers already supplied; never re-ask them.
 - Lead every material decision with a recommendation and a reason, then name the meaningful alternative.
-- Do not present an undecorated menu of events, auth methods, permissions, or action inputs.
+- **Use your agent's structured question tool for every decision that forks the design.** In Claude Code that is
+  `AskUserQuestion`. Put your recommendation first, the meaningful alternative second, and a one-line consequence
+  on each option; let the tool supply "other". If your agent has no such tool, ask the same thing in prose.
+- Never present an **undecorated** menu of events, auth methods, permissions, or action inputs. Options are good; bare labels are not. A choice is decidable
+  only when each option carries what it costs you.
+- Stay in prose for open questions ("what are you trying to automate?") — those have no option set, and a tool
+  with invented options would narrow the answer.
 - Separate the **outcome and trust concept** from implementation details.
 - Do not write files until the concept and detailed responsibilities are approved.
 - After concept approval, work through one responsibility and its outgoing handoff at a time.
@@ -87,10 +93,6 @@ Do not scan the user's repository, workflows, skills, agents, secrets, or settin
 Use this pattern:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
-
-**Ask with your agent's question tool when it has one.** In Claude Code that is `AskUserQuestion`; other agents expose their own, and some have none. It suits this skill well, because a recommendation with one named alternative is already the shape those tools take: lead with the recommended choice as the first option, put the meaningful alternative second, and let the tool supply "other" rather than writing it yourself. Keep each question's header short and give every option a one-line consequence, so the user is choosing between outcomes rather than between labels.
-
-Reach for it on the decisions that genuinely fork the design (agent versus deterministic code for a stage, where a human gate belongs, whether a handoff is a file or a variable). Stay in prose for open questions like "what are you trying to automate?", which have no option set. If the agent has no such tool, ask in prose exactly as above; nothing else in this skill changes.
 
 ## Phase 1 — Resolve the why and trust boundary
 
