@@ -1,6 +1,11 @@
 ---
 name: piv-review-changes
 description: Performs a technical code review of recently changed files for bugs, security issues, and standards compliance, then writes a report. Use before committing, as a pre-commit quality gate.
+# A reviewer needs to read, search, diff, and save its report — nothing more.
+# Declaring the grants here makes the skill the unit of automation: it carries
+# its own tool permissions wherever it runs (interactively, from a script, or
+# in CI, where a skill's allowed-tools are what Claude gets).
+allowed-tools: Read, Grep, Glob, Write, Bash(git *)
 ---
 
 # Code Review
