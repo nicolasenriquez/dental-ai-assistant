@@ -12,7 +12,6 @@ name: Daily Report
 on:
   schedule:
     - cron: "0 9 * * *"      # 09:00 UTC, every day — nobody asked, time did
-  workflow_dispatch: {}      # TEMP, for manual auth verification — reverted immediately after
 
 jobs:
   report:
