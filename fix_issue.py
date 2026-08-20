@@ -29,6 +29,12 @@ from claude_agent_sdk import (
     query,
 )
 
+# The default Windows console codepage can't encode the checkmark below or
+# any emoji pulled in from issue text — without this, the script crashes on
+# its own status output before it ever finishes. Harmless on platforms that
+# are already UTF-8.
+sys.stdout.reconfigure(encoding="utf-8")
+
 ISSUE = sys.argv[1] if len(sys.argv) > 1 else sys.exit("usage: fix_issue.py <issue>")
 
 CHECKS_DIR = "app/backend"   # where the checks' config lives — change this first

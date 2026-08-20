@@ -1,6 +1,6 @@
 ---
 name: compose-headless-workflow
-description: Use only when the user explicitly asks to build a headless coding-agent script driven by a non-interactive CLI call, such as "build a headless Claude Code script for X", "automate this with claude -p", or the same request aimed at Codex, Gemini CLI, PI or another agent.
+description: Use only when the user explicitly asks to build a headless coding-agent script driven by a non-interactive CLI call, such as "build a headless Claude Code script for X", "automate this with claude -p", or the same request aimed at Codex, Gemini CLI, PI, or another agent.
 ---
 
 # Compose a Headless Workflow
@@ -11,7 +11,7 @@ Turn a real manual process into a runnable, bounded headless workflow. Resolve t
 
 A headless workflow uses non-interactive coding-agent calls inside an ordinary script. The script starts stages, carries values or artifacts between them, runs objective checks, enforces bounds, and exposes useful runtime state. Agent stages perform work that needs interpretation or judgment.
 
-The only agent-specific prerequisite is an installed and authenticated CLI for whichever agent was chosen above. Do not require an SDK, an API client, or a separate application framework. Default to a readable Bash script unless the user requests another host language.
+The only agent-specific prerequisite is an installed and authenticated CLI for the chosen agent. Do not require an SDK, an API client, or a separate application framework. Default to a readable Bash script unless the user requests another host language.
 
 ## Choose agents for meaning, code for mechanics
 
@@ -21,7 +21,9 @@ Counter the common bias toward encoding too much of the workflow as deterministi
 - Recommend **deterministic code** for invoking commands, validating syntax or schemas, checking exit status, moving data, recording artifacts, enforcing retry/time limits, and routing fully known states.
 - Recommend a **hybrid** when an agent should do semantic work and an objective command can verify a property afterward.
 
-Keep the script thin. Do not turn semantic judgment into a growing state machine of guesses and special cases. If a step can only be specified by explaining what “good” means, prefer an agent. If success can be completely decided by a command, predicate, or schema, prefer deterministic code.
+Keep the script thin. Do not turn semantic judgment into a growing state machine of guesses and special cases. If a step can only be specified by explaining what "good" means, prefer an agent. If success can be completely decided by a command, predicate, or schema, prefer deterministic code.
+
+Apply proportionality to the host script too. Build the smallest clear program for the approved workflow, not a reusable orchestration framework. Do not add generic vendor adapters, hand-written protocol validators, retry engines, or abstractions for hypothetical future stages. If portability across agents is actually required, isolate only the invocation boundary behind the smallest adapter that preserves the vendors' different output, session, and permission semantics.
 
 Examples:
 
@@ -34,21 +36,22 @@ Examples:
 | Review a change for subtle logic errors | Agent | Open-ended semantic analysis |
 | Ensure a review artifact exists | Deterministic | A simple state check is sufficient |
 
-## Resolve which agent first
+## Resolve the target CLI
 
-Everything below is agent-shaped: the invocation form, session continuation, structured output, model selection and tool scoping all differ per agent. Settle this before looking anything up.
+Settle the agent before looking up flags because invocation, output, sessions, permissions, and limits are vendor-specific.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default. Claude Code's is `claude -p`; Codex, Gemini CLI, PI, opencode and others each have their own non-interactive form. Ask only when the answer is genuinely open, and ask once. **This is the first thing the user sees from this skill, so ask it with `AskUserQuestion`, not as a prose paragraph.** First option: the agent you are running in, recommended, because it is installed and authenticated here. Second option: the named alternative, preferable when the workflow has to run where that one already lives.
+1. If the user named an agent, use it without asking again.
+2. Otherwise prefer the agent currently running only when it has a documented non-interactive CLI and is installed in the target environment.
+3. If more than one choice is genuinely plausible, recommend one and ask once with the available structured question tool. Fall back to prose only when no such tool exists. This is the first thing the user sees from this skill, so if a structured question tool is available, use it rather than a prose paragraph.
+4. If the chosen product has no non-interactive CLI, explain that an SDK or HTTP client would be a different composition method rather than pretending it is a headless CLI.
 
-The chosen agent's non-interactive CLI is the **only** agent-specific prerequisite. Do not require an SDK, an API client, or a separate application framework. Record the choice in the decision record: every flag, session mechanism and output format below follows from it.
-
-If the user wants the workflow to be portable across agents, keep each invocation behind one small function (the `ask()` shape) so swapping agents is a one-function change rather than a rewrite.
+Record the chosen CLI and treat every later flag and behavior as belonging to it. Do not mix examples or assumptions from another agent.
 
 ## Get current before designing configuration
 
-Look up the current official documentation for **the chosen agent's** headless/non-interactive operation before asking configuration-specific questions or writing the script.
+Look up the current official documentation for the chosen agent's headless/non-interactive operation before asking configuration-specific questions or writing the script.
 
-1. Search the web for that agent's current official documentation covering headless or programmatic use. Restrict configuration claims to that vendor's official documentation and official repositories.
+1. Search the web for the current official documentation covering headless or programmatic use. Restrict configuration claims to the chosen vendor's official documentation and official repositories.
 2. Confirm relevant behavior against the installed CLI's help when implementation begins. Do not inventory the user's wider setup.
 3. Verify the current forms of non-interactive invocation, session continuation, structured output, model selection, tool/permission scoping, authentication, limits, and exit behavior needed by this workflow.
 4. Treat live official docs and installed CLI help as authoritative. Do not rely on remembered flags, model aliases, JSON fields, defaults, or pricing behavior.
@@ -61,26 +64,21 @@ Do not scan the user's repository, skills, agents, hooks, or configuration durin
 - Ask only enough questions to make the next decision.
 - Preserve answers already supplied; never re-ask them.
 - Lead every material decision with a recommendation and a reason. Then name the meaningful alternative and let the user approve or adjust it.
-- **Use your agent's structured question tool for every decision that forks the design.** In Claude Code that is
-  `AskUserQuestion`. Put your recommendation first, the meaningful alternative second, and a one-line consequence
-  on each option; let the tool supply "other". If your agent has no such tool, ask the same thing in prose.
-- Never present an **undecorated** menu of configuration choices. Options are good; bare labels are not. A choice is decidable
-  only when each option carries what it costs you.
-- Stay in prose for open questions ("what are you trying to automate?") — those have no option set, and a tool
-  with invented options would narrow the answer.
+- **Use the available structured question tool for every decision that forks the design** — in Claude Code that is `AskUserQuestion`. Put the recommendation first and the meaningful alternative second, each with a one-line consequence; let the tool supply "other". Fall back to prose only when no such tool exists.
+- Keep open-ended discovery questions in prose ("what are you trying to automate?") — those have no option set, and a tool with invented options would narrow the answer.
+- Do not present an undecorated menu of configuration choices. Options are good; bare labels are not — a choice is decidable only when each option carries what it costs you.
 - Separate the **concept** from the **implementation details**.
 - Do not write files until the concept and detailed stage design are approved.
 - After concept approval, work through one stage and its outgoing handoff at a time. Do not make the user configure every stage in one large questionnaire.
 - Keep a visible decision record and update the ASCII flow as decisions land.
 
-**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+Render a forking decision as a structured-question call by default; prose is the fallback, not the template:
 
-- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this workflow]`.
-- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
-- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
-- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+- **First option** = the recommendation, with the reason specific to this workflow as its description.
+- **Second option** = the meaningful alternative, with the condition that would make it preferable as its description.
+- Add further options only if genuinely live. Let the tool supply "other" — never write one.
 
-Only if your agent has no question tool, fall back to prose:
+Only when no structured question tool exists, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -142,9 +140,7 @@ INPUT: GitHub issue
 
 Explain why each node is agentic, deterministic, hybrid, or human-held. Explicitly call out any place where deterministic logic would be brittle and an agent is the better fit.
 
-Ask the user to approve or iterate on the concept. Accept additions, removals, reordered stages, different gates, and different observability. Do not proceed until the conceptual flow is settled.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Ask the user to approve or iterate on the concept. Accept additions, removals, reordered stages, different gates, and different observability. Do not proceed until the conceptual flow is settled — ask for that approval with the structured question tool, not a prose paragraph.
 
 ## Phase 3 — Design the input contract
 
@@ -163,7 +159,7 @@ Record the approved contract and update the flow.
 
 ## Phase 4 — Design one stage and handoff at a time
 
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Every stage and handoff decision below is a fork in the design, not an open question — render it with the structured question tool.
 
 For each stage in order, resolve its stage contract before moving to the next.
 
@@ -228,15 +224,11 @@ Present the final ASCII flow plus a compact table of stage contracts. Check the 
 - Human gates sit at deliberate seams.
 - Secrets never enter prompts, script literals, logs, or artifacts.
 
-Ask for final design approval. If the user changes the design, update the flow and affected stage contracts before building.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Ask for final design approval with the structured question tool. If the user changes the design, update the flow and affected stage contracts before building.
 
 ## Phase 6 — Build the script
 
 Confirm the output path, then create a readable Bash script by default. Use another host language only when requested. Preserve nearby user files and configuration.
-
-A complete worked example lives in `references/fix-issue.sh` — read it before writing the script.
 
 Implement using the syntax verified from current official docs and installed CLI help. Keep the script focused on:
 
@@ -250,17 +242,19 @@ Implement using the syntax verified from current official docs and installed CLI
 - enforcing bounds and returning useful exit codes;
 - stopping at human gates rather than inventing approval.
 
-Do not silently add stages, retries, fallbacks, repository scans, or permissions that were not approved. Do not ask an agent stage to claim an objective check passed when the script can run that check directly.
+Use only the selected agent's invocation and response contract. Do not copy another agent's flags, JSON fields, session identifiers, or permission model. Capture the final response directly when the CLI supports it; parse an event stream only when the approved workflow actually needs event-level observability.
+
+Do not silently add stages, retries, fallbacks, repository scans, permissions, or portability layers that were not approved. Do not ask an agent stage to claim an objective check passed when the script can run that check directly.
 
 ## Phase 7 — Prove the workflow
 
 Validate safely before reporting completion:
 
-1. Confirm the chosen agent's CLI is installed and inspect its current help for every used flag.
+1. Confirm the chosen CLI is installed and inspect its current help for every used flag.
 2. Run a shell syntax check.
 3. Exercise input validation without invoking a paid agent call when possible.
 4. Run the smallest safe representative workflow with the user's approval if it can incur material cost or mutate meaningful state.
-5. Verify the success path, one deliberate failure path, retry bounds, context behavior, output artifacts, and requested observability.
+5. Verify the designed success path and a meaningful deliberate failure path. Verify retry, session, artifact, and observability behavior only where the approved workflow includes them.
 6. Check that logs and artifacts contain no credentials or unnecessary transcript content.
 
 If a live run is unsafe, costly, or unavailable, validate everything possible locally and state precisely what remains unverified. Never report a workflow as proven from inspection alone.

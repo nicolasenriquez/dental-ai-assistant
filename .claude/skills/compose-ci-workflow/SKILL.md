@@ -1,6 +1,6 @@
 ---
 name: compose-ci-workflow
-description: Use only when the user explicitly asks to build an agentic CI workflow that runs a coding agent in GitHub Actions, such as "run this skill from GitHub Actions", "automate this with Claude in CI", "trigger this Claude workflow from a repository event", or the same request aimed at Codex, Gemini CLI or another agent.
+description: Use only when the user explicitly asks to build an agentic CI workflow that runs a coding agent in GitHub Actions, such as "run this skill from GitHub Actions", "automate this with Claude in CI", or the same request aimed at Codex, Gemini CLI, or another agent, or invoke /compose-ci-workflow.
 ---
 
 # Compose an Agentic CI Workflow
@@ -9,7 +9,7 @@ Turn a repository event into a safe, observable coding-agent workflow running in
 
 ## What this composition method is
 
-An agentic CI workflow runs a coding agent — Claude Code, or whichever agent was chosen — on GitHub-hosted or self-hosted runners because a repository event, manual dispatch, upstream workflow, or schedule occurred. GitHub Actions owns invocation, trust decisions, preparation, routing, mechanical checks, bounds, and authority. The agent owns semantic work that benefits from interpretation or judgment.
+An agentic CI workflow runs a coding agent on GitHub-hosted or self-hosted runners because a repository event, manual dispatch, upstream workflow, or schedule occurred. GitHub Actions owns invocation, trust decisions, preparation, routing, mechanical checks, bounds, and authority. The agent owns semantic work that benefits from interpretation or judgment.
 
 Design the composition as a repository event crossing a trust boundary:
 
@@ -21,7 +21,7 @@ PRODUCE evidence O
 SO deterministic CI or a human can decide what happens next
 ```
 
-The user has already selected CI as the invoker by invoking this skill. Do not compare it against a headless CLI script, an SDK program, hooks, or an orchestrator unless the user asks. Do not turn the opening into a method-selection exercise.
+The user has already selected CI as the invoker by invoking this skill. Do not compare it against a headless script, SDK program, hooks, or an orchestrator unless the user asks. Do not turn the opening into a method-selection exercise.
 
 ## Agents provide meaning; CI retains authority
 
@@ -32,7 +32,7 @@ Counter the common bias toward encoding semantic judgment as a growing set of de
 - Recommend a **hybrid** when an agent makes a semantic judgment and CI validates its output or decides the consequential next action.
 - Recommend a **human gate** for decisions whose risk, ambiguity, or organizational ownership should not be delegated yet.
 
-If a responsibility can only be specified by explaining what “good” means, prefer an agent. If a property can be completely decided by a command, predicate, or schema, use deterministic CI. An agent conclusion is evidence; it is not automatically permission to merge, deploy, expose a secret, or retry indefinitely.
+If a responsibility can only be specified by explaining what "good" means, prefer an agent. If a property can be completely decided by a command, predicate, or schema, use deterministic CI. An agent conclusion is evidence; it is not automatically permission to merge, deploy, expose a secret, or retry indefinitely.
 
 Examples:
 
@@ -45,29 +45,24 @@ Examples:
 | Decide whether to deploy to production | Deterministic gate or human | Consequential authority should not rest on prose |
 | Summarize yesterday's repository activity | Agent | Requires selection and synthesis |
 
-## Resolve which agent first
+## Resolve the target agent
 
-CI is the most portable of these composition methods. A runner is a container, and every coding agent worth automating ships a CLI that runs in one, so the whole composition below — the trigger, the trust gate, prepared inputs, the agent step, the evidence contract, the authority gate, the bounds — is unchanged whichever agent you pick. Two things are **not** portable: the **step that invokes the agent** and the **authentication secret** it reads. Settle this before looking anything up, because those two are precisely what the next section has to verify.
+The GitHub trust, permission, event, artifact, timeout, and authority design is portable. The agent invocation, installation, authentication, output contract, and any vendor-provided safety behavior are not.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default. Ask only when the answer is genuinely open, and ask once: ask it with `AskUserQuestion` (options: the agent you are running in, recommended, versus the named alternative), not as a prose paragraph:
+1. If the user named an agent, use it without asking again.
+2. Otherwise prefer the agent currently running only when it has a documented unattended CI path for the target repository.
+3. If more than one agent is genuinely plausible, recommend one and ask once with the available structured question tool. Fall back to prose only when no such tool exists. This is the first thing the user sees from this skill, so if a structured question tool is available, use it rather than a prose paragraph.
+4. If the chosen agent has no supported unattended action or non-interactive CLI, say so instead of inventing an integration.
 
-**Ask this with `AskUserQuestion`, not as a prose paragraph** — it is the first thing the user sees from this skill. First option: the agent you are running in, recommended. Second option: the named alternative, with the condition that would make it the better choice.
-
-What the choice actually changes:
-
-- **The invocation.** Claude Code has a first-party `anthropics/claude-code-action`; other agents are usually installed in a `run:` step and driven through their non-interactive CLI. A vendor action buys actor checks and trusted-configuration restoration that a bare `run:` step does not — when there is no such action, those protections become deterministic CI you have to write yourself.
-- **The secret.** Each vendor has its own credential and its own supported auth paths (subscription/OAuth token, API key, cloud provider identity). Never assume one agent's secret name or auth option applies to another.
-- **Nothing else.** Permissions, checkout trust, structured outputs, artifacts, job outputs, concurrency, timeouts, and environments belong to GitHub Actions and are identical whichever agent runs.
-
-Record the choice in the decision record.
+Record the choice before researching configuration. Do not carry action inputs, secret names, auth modes, output fields, or safety guarantees across vendors. Do not build a generic multi-vendor wrapper unless portability itself is an approved requirement.
 
 ## Get current before designing configuration
 
 Look up current official documentation before asking action-, event-, authentication-, or YAML-specific questions or writing the workflow.
 
-1. Read the chosen agent's current official CI/GitHub Actions guide, plus the setup, usage, configuration, and security documentation for whatever invokes it — for Claude Code, the official `anthropics/claude-code-action`; for an agent with no first-party action, its installation and non-interactive CLI docs. Read the relevant security guidance before recommending a PR-triggered design.
+1. Read the chosen agent's current official CI or GitHub Actions guide and the official documentation for the action or non-interactive CLI that will invoke it. Read the relevant vendor security guidance before recommending a PR-triggered design.
 2. Read the current official GitHub Actions documentation for every selected event and security-sensitive feature, especially workflow permissions, secrets, OIDC, untrusted input, checkout behavior, artifacts, job outputs, concurrency, timeouts, environments, and protected approvals.
-3. Verify the current action or CLI version, inputs, outputs, setup path, authentication methods, structured-output support, skill invocation, model and tool configuration, permission behavior, actor checks, base-branch restoration, and observability relevant to this workflow.
+3. Verify the current action or CLI version, inputs, outputs, setup path, authentication methods, structured-output support, skill invocation, model and tool configuration, permission behavior, actor checks, trusted-configuration behavior, and observability relevant to this workflow.
 4. Treat the chosen vendor's current official documentation and GitHub's as authoritative. Do not rely on remembered action inputs, model names, event payload fields, runner versions, checkout behavior, authentication options, defaults, or billing.
 5. Briefly name the official sources used and flag anything that could not be verified.
 
@@ -78,26 +73,21 @@ Do not scan the user's repository, workflows, skills, agents, secrets, or settin
 - Ask only enough questions to make the next decision.
 - Preserve answers already supplied; never re-ask them.
 - Lead every material decision with a recommendation and a reason, then name the meaningful alternative.
-- **Use your agent's structured question tool for every decision that forks the design.** In Claude Code that is
-  `AskUserQuestion`. Put your recommendation first, the meaningful alternative second, and a one-line consequence
-  on each option; let the tool supply "other". If your agent has no such tool, ask the same thing in prose.
-- Never present an **undecorated** menu of events, auth methods, permissions, or action inputs. Options are good; bare labels are not. A choice is decidable
-  only when each option carries what it costs you.
-- Stay in prose for open questions ("what are you trying to automate?") — those have no option set, and a tool
-  with invented options would narrow the answer.
+- **Use the available structured question tool for every decision that forks the design** — in Claude Code that is `AskUserQuestion`. Put the recommendation first and the meaningful alternative second, each with a one-line consequence; let the tool supply "other". Fall back to prose only when no such tool exists.
+- Keep open-ended discovery questions in prose; do not invent options that narrow the user's answer.
+- Do not present an undecorated menu of events, auth methods, permissions, or action inputs. Options are good; bare labels are not — a choice is decidable only when each option carries what it costs you.
 - Separate the **outcome and trust concept** from implementation details.
 - Do not write files until the concept and detailed responsibilities are approved.
 - After concept approval, work through one responsibility and its outgoing handoff at a time.
 - Keep a visible decision record and update the ASCII flow as decisions land.
 
-**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+Render a forking decision as a structured-question call by default; prose is the fallback, not the template:
 
-- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this workflow]`.
-- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
-- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
-- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+- **First option** = the recommendation, with the reason specific to this workflow as its description.
+- **Second option** = the meaningful alternative, with the condition that would make it preferable as its description.
+- Add further options only if genuinely live. Let the tool supply "other" — never write one.
 
-Only if your agent has no question tool, fall back to prose:
+Only when no structured question tool exists, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -186,13 +176,11 @@ Explain:
 - what is observable live and durable afterward;
 - how duplicate runs, stale commits, loops, and concurrent events are bounded.
 
-Explicitly call out where deterministic logic would be brittle and an agent is the better fit. Also call out where an agent recommendation must not become authority. Ask the user to approve or iterate on the concept. Do not proceed until the conceptual flow is settled.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Explicitly call out where deterministic logic would be brittle and an agent is the better fit. Also call out where an agent recommendation must not become authority. Ask the user to approve or iterate on the concept — with the structured question tool, not a prose paragraph. Do not proceed until the conceptual flow is settled.
 
 ## Phase 3 — Design one responsibility at a time
 
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Every responsibility and handoff decision below is a fork in the design, not an open question — render it with the structured question tool.
 
 Resolve each responsibility in causal order. Start with the event and trust boundary, not with the step that invokes the agent.
 
@@ -282,16 +270,16 @@ Resolve exact security configuration only after the functional composition is ap
 - Distinguish who controls the event text, workflow definition, agent configuration, checked-out source, build scripts, package metadata, tool configuration, artifacts, and external responses.
 - Treat prompt sanitization as mitigation, not proof that untrusted input is safe.
 - Do not check out untrusted code into a privileged workspace and execute it with secrets. Treat `pull_request_target`, `workflow_run`, downloaded artifacts, fork heads, self-hosted runners, and executable project configuration as security-sensitive designs requiring current official guidance.
-- Prefer the vendor's full action over lower-level variants when its actor checks and trusted-configuration restoration are needed — for Claude Code, the full action rather than a bare CLI invocation. When the chosen agent has no such action, write those actor and ref checks yourself as deterministic CI before the agent step runs.
+- Prefer a vendor's full action over lower-level variants when its documented actor checks and trusted-configuration restoration are needed. When the chosen agent has no such action, design those checks explicitly before invocation.
 - Remember that restoring trusted agent configuration does not make PR-controlled package scripts, lockfiles, build files, or runtime configuration trusted.
 
 ### Authentication recommendation
 
-Authentication is the least portable part of this workflow: the secret name, the supported paths, and the provider options all belong to the chosen agent's vendor. Ask whether the workflow is personal or organizational and which of **that vendor's** current provider paths applies. Verify live options before recommending one; never carry another agent's secret name or auth option across.
+Ask whether the workflow is personal or organizational and which current provider path applies. Verify the chosen vendor's live options before recommending one.
 
-- For an organization using the vendor's direct API, recommend current short-lived workload identity federation through GitHub OIDC when that vendor supports it, because it avoids a stored static credential.
+- For an organization, recommend current short-lived workload identity federation through GitHub OIDC when the chosen vendor supports it, because it avoids a stored static credential.
 - For a personal repository, recommend a currently supported personal OAuth/subscription path when it fits the user's account and official guidance.
-- Use an API key or another current official provider path — for Anthropic, Bedrock, Vertex or Foundry; for another vendor, its own equivalents — when organizational ownership, billing, residency, or platform requirements make it preferable.
+- Use an API key or another current official provider path when organizational ownership, billing, residency, or platform requirements make it preferable.
 - Store required static credentials only in GitHub secrets. Never write them into YAML, prompts, logs, outputs, caches, or artifacts.
 
 ### Least authority
@@ -299,12 +287,14 @@ Authentication is the least portable part of this workflow: the secret name, the
 Design three independent permission layers:
 
 1. GitHub workflow/job `permissions` and protected environments.
-2. The agent's own tools, settings, MCP servers, and skill grants.
+2. The agent's tools, settings, MCP servers, and skill grants.
 3. Deterministic authority gates controlling mutation, retry, merge, release, or deploy.
 
 Recommend read-only operation first. Add write permissions only for approved side effects. Keep bot and non-write-user access denied unless the concept explicitly requires it and the risk is accepted. Use explicit allowlists rather than wildcards.
 
 Bound every unattended run with an appropriate subset of turn limits, workflow timeout, concurrency policy, stale-run cancellation, retry cap, script-call cap, budget alert, and environment approval.
+
+Make advisory authority executable, not merely descriptive. Give an advisory agent step a shorter timeout than its containing job and handle its failure so it cannot override the deterministic result, while still recording the missing or failed evidence. Let the agent fail the job only when blocking authority was explicitly approved.
 
 ## Phase 5 — Review the complete design
 
@@ -322,15 +312,11 @@ Present the final ASCII flow plus a compact table of responsibility contracts. C
 - Failures leave actionable evidence and do not silently pass.
 - Human gates sit at deliberate seams.
 
-Ask for final design approval. If the user changes the design, update the flow and affected contracts before building.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Ask for final design approval with the structured question tool. If the user changes the design, update the flow and affected contracts before building.
 
 ## Phase 6 — Build the workflow
 
 Confirm the repository and output path, then inspect existing workflows and relevant named skills/configuration. Preserve unrelated jobs, permissions, secrets references, and user changes. Create or safely edit the approved file under `.github/workflows/`.
-
-Complete worked examples live in `references/` — an event-triggered review workflow and a scheduled one; read them before writing the YAML.
 
 Implement using syntax verified from current official documentation. Keep the workflow focused on:
 
@@ -370,7 +356,7 @@ Return:
 - the event, input-owner, trust, executor, evidence, authority, and bound decisions;
 - what is observable live and what remains durable;
 - the authentication and permission design without revealing secret values;
-- the chosen agent, and the official vendor and GitHub documentation used;
+- the chosen agent and the official vendor and GitHub documentation used;
 - validation and live tests performed with results;
 - anything unverified;
 - the few triggers, permissions, bounds, or output fields the user is most likely to customize;

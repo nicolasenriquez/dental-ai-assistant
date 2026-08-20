@@ -137,6 +137,12 @@ If needed:
 
 ## Output Report
 
+**Save this report to `docs/issues/fix-report-$ARGUMENTS.md`** — the RCA's sibling — then also present the
+summary in the conversation. The file matters beyond record-keeping: a stage is chainable when its completion
+is a file another process can check, and the report existing is the machine-checkable signal that this fix ran
+to completion. It also gives the outer loop's scan a persistent artifact instead of a report that dies with
+this context window.
+
 ### Fix Implementation Summary
 
 **GitHub Issue #$ARGUMENTS**: [Brief title]

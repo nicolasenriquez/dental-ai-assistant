@@ -1,17 +1,17 @@
 ---
 name: compose-sdk-workflow
-description: Use only when the user explicitly asks to build an automation or agent with a coding agent's SDK, such as "build this with the Claude Agent SDK", "let's automate this using the Agent SDK", or the same request aimed at another agent's SDK.
+description: Use only when the user explicitly asks to build an automation or agent with a coding agent's SDK, such as "build this with the Claude Agent SDK", "automate this using the Agent SDK", or the same request aimed at another agent's SDK, or invoke /compose-sdk-workflow.
 ---
 
 # Compose an Agent SDK Workflow
 
-Turn a real manual process into a runnable, bounded program built on a coding agent's SDK. Resolve the purpose first, propose an ASCII concept for approval, then design each stage and handoff with the user before writing and testing the program.
+Turn a real manual process into a runnable, bounded program built with a coding agent's SDK. Resolve the purpose first, propose an ASCII concept for approval, then design each stage and handoff with the user before writing and testing the program.
 
 ## What this composition method is
 
-An Agent SDK workflow runs the agent loop inside the user's own process — Python or TypeScript for Claude's `claude-agent-sdk`, whichever languages the chosen agent's SDK supports otherwise. The program can hold sessions, stream events, intercept tool calls as they happen, run deterministic code between agent turns, and expose application-specific state. Agent stages perform work that needs interpretation or judgment; ordinary code owns mechanics, evidence, and bounds.
+An Agent SDK workflow runs the agent loop inside the user's own process, using whichever languages the selected SDK supports. The program can hold sessions, stream events, intercept tool calls as they happen, run deterministic code between agent turns, and expose application-specific state. Agent stages perform work that needs interpretation or judgment; ordinary code owns mechanics, evidence, and bounds.
 
-The user has already selected the SDK method by invoking this skill. Do not compare it against a headless CLI script (`claude -p` or another agent's equivalent), hooks, CI, or an orchestrator unless the user asks. Do not turn the opening into a method-selection exercise.
+The user has already selected the SDK method by invoking this skill. Do not compare it against a headless CLI script, hooks, CI, or an orchestrator unless the user asks. Do not turn the opening into a method-selection exercise.
 
 ## Choose agents for meaning, code for mechanics
 
@@ -21,7 +21,7 @@ Counter the common bias toward encoding too much of the workflow as deterministi
 - Recommend **deterministic code** for invoking commands, validating syntax or schemas, checking exit status, moving data, recording artifacts, enforcing retry/time limits, and routing fully known states.
 - Recommend a **hybrid** when an agent should do semantic work and an objective command can verify a property afterward.
 
-Keep deterministic control thin. Do not turn semantic judgment into a growing state machine of guesses and special cases. If a step can only be specified by explaining what “good” means, prefer an agent. If success can be completely decided by a command, predicate, or schema, prefer deterministic code.
+Keep deterministic control thin. Do not turn semantic judgment into a growing state machine of guesses and special cases. If a step can only be specified by explaining what "good" means, prefer an agent. If success can be completely decided by a command, predicate, or schema, prefer deterministic code.
 
 Examples:
 
@@ -34,26 +34,25 @@ Examples:
 | Review a change for subtle logic errors | Agent | Open-ended semantic analysis |
 | Deny writes to a protected path | Deterministic SDK control | The policy is precise and must apply at tool-call time |
 
-## Resolve which agent first
+## Resolve the target SDK
 
-This is the one composition method with a hard prerequisite: the agent must ship a real **SDK** — a library that runs the agent loop inside your own process, loads the project's own agent layer, and exposes sessions, events, and tool control. Claude's is `claude-agent-sdk` (Python and TypeScript). That is a narrower field than the CLI-based methods, and some agents have no SDK at all. Settle this before looking anything up: every class name, session object, event field, and permission control below is that SDK's vocabulary.
+Resolve the target before looking up configuration. Every class name, session object, event field, language choice, and permission control follows from it.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default when it ships an SDK. Ask only when the answer is genuinely open, and ask once: ask it with `AskUserQuestion` (options: the agent you are running in, recommended, versus the named alternative), not as a prose paragraph:
+1. If the user names an agent or SDK in the request or skill arguments, use it. Do not ask again.
+2. Otherwise, infer the current coding agent only when it exposes a documented SDK that fits the requested workflow.
+3. If more than one target remains genuinely plausible, recommend one and ask once using the current agent's structured question tool. In Claude Code, use `AskUserQuestion`; in another agent, use its equivalent. Fall back to a concise prose question when no such tool exists. This is the first thing the user sees from this skill, so if a structured question tool is available, use it rather than a prose paragraph.
+4. If the selected agent has no SDK, say so instead of improvising one. A subprocess call to its CLI is a headless workflow, and a plain model HTTP API is not an agent SDK.
 
-**Ask this with `AskUserQuestion`, not as a prose paragraph** — it is the first thing the user sees from this skill. First option: the agent you are running in, recommended. Second option: the named alternative, with the condition that would make it the better choice.
-
-If the agent the user names has **no SDK**, say so plainly instead of improvising one. Shelling out to its CLI from `subprocess` is a headless workflow wearing a library's clothes: recommend `compose-headless-workflow`, or an agent that does ship an SDK. A plain HTTP model API is not an SDK either — no agent loop, no tools, no project-configuration layer, so none of the design below applies to it.
-
-Record the choice in the decision record: the language options, session API, streamed events, tool interception, and dependency vessel all follow from it.
+Record the selected SDK and the evidence that it provides the required agent loop, project-context loading, sessions, events, and tool controls. Missing capabilities constrain the design; do not simulate them with brittle glue.
 
 ## Get current before designing configuration
 
-Look up the current official documentation for **the chosen agent's SDK** before asking configuration-specific questions or writing the program.
+Look up the current official documentation for the selected SDK before asking configuration-specific questions or writing the program.
 
-1. Search the web for that SDK's current official overview and the official documentation for each language it supports (for Claude, `claude-agent-sdk` in Python and TypeScript). Restrict configuration claims to that vendor's official documentation and official repositories.
+1. Read the vendor's current official SDK overview and supported-language documentation. For Claude, use the official `claude-agent-sdk` Python and TypeScript documentation and repositories.
 2. Once the user chooses a language, read only that language's current SDK documentation, package metadata, examples, and public types needed for the design.
 3. Verify the current package name and version requirements, installation or single-file execution pattern, authentication, project-configuration loading, session/client APIs, one-shot queries, streaming events, model selection, tool and permission controls, callbacks or hooks, structured output, subagents, context/compaction behavior, errors, and limits relevant to this workflow.
-4. Treat live official docs and installed package types as authoritative. Do not rely on remembered class names, method signatures, event fields, defaults, model aliases, or billing behavior, and never carry one agent's SDK shape across to another.
+4. Treat live official docs and installed package types as authoritative. Do not rely on remembered class names, method signatures, event fields, defaults, model aliases, or billing behavior, and never carry one SDK's mechanics into another.
 5. Briefly name the official sources used and flag anything that could not be verified.
 
 Do not scan the user's repository, dependencies, skills, agents, hooks, or configuration during this step. If the user wants to reuse existing skills, ask them to name the skills or provide their paths. Offer to inspect or list candidates only when asked.
@@ -63,26 +62,20 @@ Do not scan the user's repository, dependencies, skills, agents, hooks, or confi
 - Ask only enough questions to make the next decision.
 - Preserve answers already supplied; never re-ask them.
 - Lead every material decision with a recommendation and a reason. Then name the meaningful alternative and let the user approve or adjust it.
-- **Use your agent's structured question tool for every decision that forks the design.** In Claude Code that is
-  `AskUserQuestion`. Put your recommendation first, the meaningful alternative second, and a one-line consequence
-  on each option; let the tool supply "other". If your agent has no such tool, ask the same thing in prose.
-- Never present an **undecorated** menu of configuration choices. Options are good; bare labels are not. A choice is decidable
-  only when each option carries what it costs you.
-- Stay in prose for open questions ("what are you trying to automate?") — those have no option set, and a tool
-  with invented options would narrow the answer.
+- **Use the current agent's structured question tool for every decision that forks the design** — in Claude Code, `AskUserQuestion`. Put the recommendation first and the meaningful alternative second, each with a one-line consequence; let the tool supply "other". Use prose for open questions, and when no structured question tool exists.
+- Do not present an undecorated menu of configuration choices or invent options for an open question. Options are good; bare labels are not — a choice is decidable only when each option carries what it costs you.
 - Separate the **concept** from the **implementation details**.
 - Do not write files until the concept and detailed stage design are approved.
 - After concept approval, work through one stage and its outgoing handoff at a time. Do not make the user configure every stage in one large questionnaire.
 - Keep a visible decision record and update the ASCII flow as decisions land.
 
-**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+Render a forking decision as a structured-question call by default; prose is the fallback, not the template:
 
-- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this workflow]`.
-- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
-- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
-- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+- **First option** = the recommendation, with the reason specific to this workflow as its description.
+- **Second option** = the meaningful alternative, with the condition that would make it preferable as its description.
+- Add further options only if genuinely live. Let the tool supply "other" — never write one.
 
-Only if your agent has no question tool, fall back to prose:
+Only when no structured question tool exists, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -141,13 +134,11 @@ INPUT: GitHub issue
 
 Explain why each node is agentic, deterministic, hybrid, or human-held. Explicitly call out any place where deterministic logic would be brittle and an agent is the better fit. Explain each session continuation or reset in terms of memory versus independence.
 
-Ask the user to approve or iterate on the concept. Accept additions, removals, reordered stages, different gates, different session boundaries, and different observability. Do not proceed until the conceptual flow is settled.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Ask the user to approve or iterate on the concept — with the structured question tool, not a prose paragraph. Accept additions, removals, reordered stages, different gates, different session boundaries, and different observability. Do not proceed until the conceptual flow is settled.
 
 ## Phase 3 — Choose the language and dependency vessel
 
-After concept approval, ask which of the chosen SDK's supported languages to build in — for Claude's SDK, **Python** or **TypeScript**. Always recommend one from information the user has supplied; do not scan the project to decide. If the SDK supports only one language, say so and skip the question rather than offering a choice that does not exist.
+After concept approval, choose from the selected SDK's supported languages. For Claude's SDK, ask whether to build in **Python** or **TypeScript** only when the answer is not already supplied. Always recommend one from information the user has supplied; do not scan the project to decide. If the SDK supports only one suitable language, state the choice and continue.
 
 - Recommend the language already used by the surrounding product when the SDK program belongs inside it.
 - For a standalone automation with no surrounding-language constraint, recommend the language the user is most comfortable maintaining.
@@ -176,7 +167,7 @@ Record the approved contract and update the flow.
 
 ## Phase 5 — Design one stage and handoff at a time
 
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Every stage and handoff decision below is a fork in the design, not an open question — render it with the structured question tool.
 
 For each stage in order, resolve its stage contract before moving to the next.
 
@@ -244,16 +235,17 @@ Present the final ASCII flow plus a compact table of stage contracts. Check the 
 - Every loop and unattended call is bounded.
 - Human gates sit at deliberate seams.
 - Secrets never enter prompts, source literals, logs, or artifacts.
+- Supporting machinery is proportional to the workflow rather than becoming a reusable SDK framework.
 
-Ask for final design approval. If the user changes the design, update the flow and affected stage contracts before building.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Ask for final design approval with the structured question tool. If the user changes the design, update the flow and affected stage contracts before building.
 
 ## Phase 7 — Build the program
 
 Create the approved Python or TypeScript artifact using the current official SDK APIs and the approved dependency vessel. Preserve nearby user files and configuration.
 
-A complete worked example lives in `references/fix_issue.py` — read it before writing the program.
+When the selected SDK is Claude's Python SDK, read `references/claude-python-mechanics.md` before writing. It is a menu of isolated SDK mechanics, not a workflow shape. Use only the patterns required by the approved design; never infer stages, session topology, retries, tools, policy, or dependencies from the reference.
+
+Keep implementation machinery proportional to the work. If schemas, validators, telemetry models, event adapters, or error wrappers outweigh the stages and handoffs, simplify the contracts before adding more code. Do not build a generic harness inside a one-off workflow. Prefer shallow handoffs and direct, stage-specific boundary checks over recursive validation or duplicate representations.
 
 Keep the program focused on:
 
@@ -279,7 +271,7 @@ Validate safely before reporting completion:
 3. Run syntax, formatting, type, or import checks appropriate to the selected language.
 4. Exercise input validation and deterministic functions without invoking a paid agent call when possible.
 5. Run the smallest safe representative workflow with the user's approval if it can incur material cost or mutate meaningful state.
-6. Verify the success path, one deliberate failure path, retry bounds, session behavior, tool interception, output artifacts, and requested observability.
+6. Verify the success path, the approved failure paths, and only the session, retry, interception, artifact, and observability behavior the design actually contains.
 7. Check that logs and artifacts contain no credentials, raw event noise, or unnecessary transcript content.
 
 If a live run is unsafe, costly, or unavailable, validate everything possible locally and state precisely what remains unverified. Never report a workflow as proven from inspection alone.
@@ -297,3 +289,7 @@ Return:
 - tests performed and their results;
 - anything unverified;
 - the few settings or lines the user is most likely to customize.
+
+## Resources
+
+- `references/claude-python-mechanics.md` — read after selecting Claude's Python SDK; choose only the isolated mechanics the approved composition needs.

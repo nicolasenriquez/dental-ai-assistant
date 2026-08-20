@@ -96,6 +96,16 @@ from stdout." > review-errors.md &
 
 wait
 
+# A reviewer producing no output (rate limit, crash, auth failure) is not the
+# same as a reviewer finding nothing — silently feeding empty content forward
+# would look like a clean bill of health from a panel that only half-ran.
+for review_file in review-logic.md review-errors.md; do
+  if [[ ! -s "$review_file" ]]; then
+    echo "⚠ $review_file came back empty — that reviewer likely failed (rate limit, crash, or auth issue), not found-nothing." >&2
+    echo "REVIEWER FAILED TO PRODUCE OUTPUT — do not treat this as a clean review. Investigate and re-run this reviewer before merging; a missing review is not evidence the code is fine." > "$review_file"
+  fi
+done
+
 # ── 5. FEED BOTH REVIEWS BACK to the implementer ─────────────────────────────
 echo "→ addressing the reviews"
 final=$(ask "Two reviewers looked at your pull request — one asked whether the

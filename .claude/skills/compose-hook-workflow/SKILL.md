@@ -1,17 +1,17 @@
 ---
 name: compose-hook-workflow
-description: Use only when the user explicitly asks to compose or automate a workflow using a coding agent's hooks, such as "build this workflow with hooks" or "use hooks to trigger the next step", whether the agent is Claude Code, Codex, Cursor, Gemini CLI, PI or another.
+description: Use only when the user explicitly asks to compose or automate a workflow using a coding agent's hooks, such as "build this workflow with hooks" or "use hooks to trigger the next step", whether the target is Claude Code, Codex, Cursor, Gemini CLI, PI, or another agent, or invoke /compose-hook-workflow.
 ---
 
 # Compose a Hook Workflow
 
 Turn a desired outcome into a safe, observable event-driven workflow using a coding agent's hooks. Resolve what each event should own, propose an ASCII event/state concept for approval, then design and implement one event responsibility at a time.
 
-Own the complete composition. Do not invoke `hooks-create`, Anthropic's hook-development skill, or another hook generator to author the result. The point is to help the user decide how the workflow should behave **their way**, then build and prove exactly that behavior.
+This is a different job from `hooks-create` (Claude Code) or another agent's single-hook authoring skill: that kind of skill turns one plain-English behavior into one hook, and is the right tool when the user already knows the single thing they want to guarantee or react to. This skill is for when the outcome needs **several** event responsibilities handing off to each other, with a shared eligibility guard, idempotence, receipts, and a bound across the whole composition, not just within one handler. If the conversation reveals the user only needs a single hook, say so and hand them to that single-hook skill instead of composing a workflow around it. Otherwise, own the complete composition yourself: do not invoke `hooks-create` or another hook generator to author individual pieces of the result, because that would fragment one composition's guards and evidence across disconnected authoring calls. The point is to help the user decide how the workflow should behave **their way**, then build and prove exactly that behavior.
 
 ## What this composition method is
 
-A hook workflow runs because something happened inside the coding agent. A lifecycle event is the invoker: a tool is about to run, an agent tries to stop, a task changes state, a file changes, or another currently supported event occurs. A matching handler observes the event and may react, gate a transition, or pass responsibility onward.
+A hook workflow runs because something happened inside the chosen coding agent. A lifecycle event is the invoker: a tool is about to run, an agent tries to stop, a task changes state, a file changes, or another currently supported event occurs. A matching handler observes the event and may react, gate a transition, or pass responsibility onward.
 
 Design hook compositions as state transitions, not merely sequences:
 
@@ -36,7 +36,9 @@ Counter the common bias toward encoding too much semantic judgment as determinis
 - Recommend a **fresh agent session** when the event hands a substantial semantic responsibility to the next independent stage.
 - Recommend a **hybrid** when an agent should perform semantic work and deterministic state or commands should verify, gate, or bound it.
 
-If a condition can only be specified by explaining what “good” means, prefer an agentic decision. If it can be completely decided by a command, predicate, or schema, prefer deterministic code. Use deterministic state around agent work for eligibility, idempotence, evidence, and bounds—not as a brittle substitute for judgment.
+Only recommend handler types the chosen agent's current runtime actually executes. A format that accepts or parses a handler type is not evidence that the handler runs.
+
+If a condition can only be specified by explaining what "good" means, prefer an agentic decision. If it can be completely decided by a command, predicate, or schema, prefer deterministic code. Use deterministic state around agent work for eligibility, idempotence, evidence, and bounds—not as a brittle substitute for judgment.
 
 Examples:
 
@@ -49,27 +51,22 @@ Examples:
 | Ensure checks pass before completion | Command gate | Exit status is authoritative |
 | Notify a shared operations service | HTTP or MCP | The external system owns delivery |
 
-## Resolve which agent first
+## Resolve the target agent
 
-Hooks are the most portable primitive in **shape** and the least portable in **spelling**. Most agents give you the same three moving parts: a handler the agent runs when a lifecycle event fires, the event payload delivered as JSON, and a way for the handler to block what was about to happen. Everything this skill teaches — which outcome an event owns, the eligibility guard, idempotence, the receipt, the recursion bound — is identical whichever agent you pick. What is **not** portable is the settings file the handler is registered in, what the events are called, and how a handler says no. Settle this before looking anything up.
+Hooks are portable in concept but vendor-specific in spelling. Event names, configuration files, matcher rules, payloads, handler types, blocking behavior, concurrency, and trust all belong to one agent's runtime.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default — hooks only fire where the agent actually runs. Ask only when the answer is genuinely open, and ask once: ask it with `AskUserQuestion` (options: the agent you are running in, recommended, versus the named alternative), not as a prose paragraph:
+1. If the user named an agent, use it without asking again.
+2. Otherwise prefer the agent currently running only when it supports hooks in the target environment.
+3. If more than one choice is genuinely plausible, recommend one and ask once with the available structured question tool. Fall back to prose only when no such tool exists. This is the first thing the user sees from this skill, so if a structured question tool is available, use it rather than a prose paragraph.
+4. If the chosen agent has no supported hook surface for the requested lifecycle moment, say so and propose a different automation method instead of borrowing another vendor's configuration.
 
-**Ask this with `AskUserQuestion`, not as a prose paragraph** — it is the first thing the user sees from this skill. First option: the agent you are running in, recommended. Second option: the named alternative, with the condition that would make it the better choice.
-
-Roughly how the field splits today — treat this as orientation to verify against live docs in the next section, never as configuration:
-
-- **Claude Code, Codex, Cursor** — an executable handler, the event as JSON on stdin, and a non-zero exit (commonly `2`) to block, with stderr carried back as the reason.
-- **Gemini CLI** — a handler that returns a JSON decision object rather than signalling through exit status.
-- **PI, opencode** — in-process plugins registered in the agent's own configuration rather than shelled-out scripts.
-
-Record the choice in the decision record. Every event name, matcher, payload field, blocking mechanism, and configuration scope below follows from it, and one agent's event names are never evidence for another's.
+Record the chosen agent and never treat one vendor's event names, JSON fields, exit codes, or settings paths as evidence for another's.
 
 ## Get current before designing configuration
 
-Look up **the chosen agent's** current official hook documentation before asking event- or handler-specific questions or writing configuration.
+Look up the chosen agent's current official hook documentation before asking event- or handler-specific questions or writing configuration.
 
-1. Read that agent's current official hooks guide and hooks reference. Restrict configuration claims to that vendor's official documentation and official repositories (Anthropic's, for Claude Code).
+1. Read the current official hooks guide and hooks reference. Restrict configuration claims to the chosen vendor's official documentation and official repositories.
 2. Discover the current lifecycle events, matcher behavior, handler types and support matrix, configuration scopes, input fields, decision outputs, blocking behavior, async behavior, concurrency rules, security guidance, debugging surfaces, and limits relevant to this composition.
 3. Treat live official docs and the installed agent version as authoritative. Do not rely on remembered event names, schemas, exit behavior, handler support, defaults, caps, or experimental status.
 4. Briefly name the official sources used and flag anything that could not be verified.
@@ -81,26 +78,21 @@ Do not scan the user's repository, hooks, settings, skills, or agents during thi
 - Ask only enough questions to make the next decision.
 - Preserve answers already supplied; never re-ask them.
 - Lead every material decision with a recommendation and a reason. Then name the meaningful alternative and let the user approve or adjust it.
-- **Use your agent's structured question tool for every decision that forks the design.** In Claude Code that is
-  `AskUserQuestion`. Put your recommendation first, the meaningful alternative second, and a one-line consequence
-  on each option; let the tool supply "other". If your agent has no such tool, ask the same thing in prose.
-- Never present an **undecorated** menu of events or handler types. Options are good; bare labels are not. A choice is decidable
-  only when each option carries what it costs you.
-- Stay in prose for open questions ("what are you trying to automate?") — those have no option set, and a tool
-  with invented options would narrow the answer.
+- **Use the available structured question tool for every decision that forks the design** — in Claude Code that is `AskUserQuestion`. Put the recommendation first and the meaningful alternative second, each with a one-line consequence; let the tool supply "other". Fall back to prose only when no such tool exists.
+- Keep open-ended discovery questions in prose; do not invent options that narrow the user's answer.
+- Do not present an undecorated menu of events or handler types. Options are good; bare labels are not — a choice is decidable only when each option carries what it costs you.
 - Separate the **event/state concept** from implementation details.
 - Do not write files until the concept and detailed event responsibilities are approved.
 - After concept approval, work through one event responsibility and its outgoing handoff at a time.
 - Keep a visible decision record and update the ASCII composition as decisions land.
 
-**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+Render a forking decision as a structured-question call by default; prose is the fallback, not the template:
 
-- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this workflow]`.
-- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
-- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
-- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+- **First option** = the recommendation, with the reason specific to this workflow as its description.
+- **Second option** = the meaningful alternative, with the condition that would make it preferable as its description.
+- Add further options only if genuinely live. Let the tool supply "other" — never write one.
 
-Only if your agent has no question tool, fall back to prose:
+Only when no structured question tool exists, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this workflow]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -176,13 +168,11 @@ Explain:
 - who owns the next responsibility;
 - what is observable live and durable afterward.
 
-Explicitly call out anywhere deterministic logic would be brittle and an agent is the better fit. Ask the user to approve or iterate on the concept. Do not proceed until the event/state flow is settled.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Explicitly call out anywhere deterministic logic would be brittle and an agent is the better fit. Ask the user to approve or iterate on the concept — with the structured question tool, not a prose paragraph. Do not proceed until the event/state flow is settled.
 
 ## Phase 3 — Design one event responsibility at a time
 
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Every event responsibility and handoff decision below is a fork in the design, not an open question — render it with the structured question tool.
 
 For each event in causal order, resolve its complete contract before moving to the next.
 
@@ -273,9 +263,7 @@ Present the final ASCII event/state flow plus a compact table of event responsib
 - Observability is useful without leaking secrets or dumping raw payloads.
 - Human gates sit at deliberate seams.
 
-Ask for final design approval. If the user changes the design, update the event flow and affected contracts before building.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Ask for final design approval with the structured question tool. If the user changes the design, update the event flow and affected contracts before building.
 
 ## Phase 5 — Choose implementation vessels
 
@@ -287,13 +275,11 @@ For each approved command handler, recommend the simplest maintainable vessel an
 
 For an agent handoff, design the complete invocation, permissions, input, context boundary, receipt, and bound. Do not delegate it to another creator skill.
 
-Confirm the configuration scope only now, from the scopes the chosen agent actually supports and the settings file it actually reads. Claude Code's are user, project, local project, plugin, skill, agent, and managed policy; other agents expose fewer, and in-process plugin agents may expose only one. Recommend the narrowest scope that matches who should receive the behavior.
+Confirm the configuration scope only now, using only scopes the chosen agent currently supports. Recommend the narrowest scope that matches who should receive the behavior.
 
 ## Phase 6 — Build the composition
 
 Inspect the existing target configuration now and merge safely. Preserve all unrelated user hooks and settings.
-
-Complete worked examples live in `references/` — a react handler, a gate, a baton, and the settings block that registers all three; read them before writing the handlers.
 
 Implement using the current official event schemas and handler contracts. Create every required handler, guard, state marker, receipt path, agent handoff, and observability output. Keep behavior aligned with the approved ownership contracts.
 
@@ -304,10 +290,12 @@ Do not silently add events, handlers, retries, fallbacks, repository scans, perm
 Validate at three levels:
 
 1. **Handler:** feed representative current-schema payloads directly into each handler. Verify eligible, ineligible/no-op, success, failure, and malformed-input behavior.
-2. **Configuration:** validate JSON/frontmatter, inspect the hook in whatever hook browser or listing the chosen agent currently provides, and use its current debug surface to confirm matching and timing.
-3. **Composition:** fire the real event cascade safely. Prove the action happens, fire it again to prove idempotence, trigger one deliberate failure, verify the bound, and confirm the expected receipt and observability.
+2. **Configuration:** validate the chosen format, confirm the intended configuration layer is active and trusted, inspect the hook in the agent's current hook browser or equivalent, and use its current debug surface to confirm matching and timing.
+3. **Composition:** fire the real event cascade safely through the same client surface the user will run in, such as the interactive CLI, headless CLI, IDE, or application. Do not substitute proof from one surface for another. Prove the action happens, fire it again to prove idempotence, trigger one deliberate failure, verify the bound, and confirm the expected receipt and observability.
 
-Obtain user approval before a live test that can incur material model cost, contact an external service, or mutate meaningful state. If a complete live run is unsafe or unavailable, validate everything possible and state precisely what remains unverified. Never report the composition as proven from inspection alone.
+Exercise every deterministic command the hook invokes or injects in the safest representative mode. A well-formed hook that hands the agent an invalid command is still a failed composition.
+
+Obtain user approval before a live test that can incur material model cost, contact an external service, or mutate meaningful state. If a complete live run is unsafe, unavailable, or fails because the chosen runtime does not dispatch a documented hook, preserve the direct handler/configuration evidence and state the runtime limitation precisely. Never report a composition as proven from inspection or direct handler tests alone.
 
 Always include the security warning: hook handlers execute automatically with the user's environment and credentials. Review them like CI configuration and run only code the user trusts.
 
@@ -319,7 +307,7 @@ Return:
 - the final ASCII event/state composition;
 - each event's owned outcome, guard, executor, evidence, and bound;
 - what is observable live and what remains durable;
-- the chosen agent, the official docs, and the installed agent version used;
+- the chosen agent, official docs, and installed agent version used;
 - tests performed and their results;
 - anything unverified;
 - the few guards, commands, or paths the user is most likely to customize;

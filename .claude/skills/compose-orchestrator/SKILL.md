@@ -1,6 +1,6 @@
 ---
 name: compose-orchestrator
-description: Use only when the user explicitly asks to create or evolve an orchestrator skill as a conversational interface for their agentic layer, such as "build an orchestrator for my agentic layer", "create one skill that can run my delivery loop", or "upgrade my orchestrator with this capability". Do not use merely because the user asks to run or coordinate existing work.
+description: Use only when the user explicitly asks to create or evolve an orchestrator skill as a conversational interface for their agentic layer, such as "build an orchestrator for my agentic layer", "create one skill that can run my delivery loop", "upgrade my orchestrator with this capability", or invoke /compose-orchestrator. Do not use merely because the user asks to run or coordinate existing work.
 ---
 
 # Compose an Evolving Orchestrator
@@ -36,7 +36,7 @@ Add a capability only when:
 3. its input, output, evidence, authority, and failure path are explicit;
 4. the upgraded orchestrator can be tested on a representative run.
 
-Treat “mature orchestrators have it” as insufficient justification.
+Treat "mature orchestrators have it" as insufficient justification.
 
 ## Orchestrate, do not implement
 
@@ -46,33 +46,27 @@ Make this the invariant of every generated orchestrator:
 - Worker agents, named skills, scripts, hooks, CI workflows, or external systems perform domain work.
 - The orchestrator composes capabilities by name and contract, not by copying their full instructions into itself.
 - The orchestrator does not edit product code, perform the review, investigate the issue, or silently take over another capability's responsibility.
-- An agent saying “done” is a claim. A promised artifact, green check, external state, or deterministic command is evidence.
+- An agent saying "done" is a claim. A promised artifact, green check, external state, or deterministic command is evidence.
 
 Keep the control plane small. Give it the ability to invoke and observe approved capabilities, not generic access to everything.
 
-## Resolve which agent first
+## Resolve the target agent
 
-The orchestrator's ideas travel; its mechanism may not. Naming capabilities, contracts, evidence, gates, and a digest are agent-independent. **Whether the orchestrator can launch a worker at all is not.** Claude Code can spawn subagents and observe them; some agents have no sub-agent surface whatsoever, and there an orchestrator has to launch each worker as a separate non-interactive CLI process and treat the artifact it leaves as the only evidence. Settle this before looking anything up.
+The capability map, evidence, gates, and digest are portable. Worker launch, lifecycle, context inheritance, skill loading, isolation, and permissions are not.
 
-**Work it out rather than asking first.** You are running inside a coding agent, and that is the default — it is also where the capabilities the user already trusts are installed. Ask only when the answer is genuinely open, and ask once: ask it with `AskUserQuestion` (options: the agent you are running in, recommended, versus the named alternative), not as a prose paragraph:
+1. If the user named an agent, use it without asking again.
+2. Otherwise prefer the agent currently running when it supports the approved orchestration needs.
+3. If more than one agent is genuinely plausible, recommend one and ask once with the available structured question tool. Fall back to prose only when no such tool exists. This is the first thing the user sees from this skill, so if a structured question tool is available, use it rather than a prose paragraph.
+4. If the chosen agent cannot support a proposed capability, leave that capability out of the first version instead of simulating another agent's mechanics.
 
-**Ask this with `AskUserQuestion`, not as a prose paragraph** — it is the first thing the user sees from this skill. First option: the agent you are running in, recommended. Second option: the named alternative, with the condition that would make it the better choice.
-
-Then establish, from that agent's live documentation rather than from memory, what it can actually do:
-
-- Can it launch a worker at all — an in-process subagent, a background task, or only a separate CLI process?
-- Can it observe or be notified of completion, or must the orchestrator poll for an artifact?
-- Can it continue or steer a worker that is already running, or is respawning the only correction available?
-- Can workers invoke named skills, and does the project's context layer reach them?
-
-A capability the chosen agent does not have is not a design to work around — it is a route to leave out of version one. If the agent cannot steer a running worker, do not design steering; make each stage a bounded launch that leaves an artifact behind. Record the choice and these answers in the decision record: the route, the continuity decisions, and the evidence contracts below all follow from them.
+Record the choice before researching configuration. Do not carry tool names, lifecycle guarantees, context behavior, permission models, or concurrency limits across agents.
 
 ## Get current before designing mechanics
 
-Look up current official documentation for **the chosen agent** before asking tool-, agent-, context-, model-, isolation-, or permission-specific questions or writing the orchestrator.
+Look up current official documentation before asking tool-, agent-, context-, model-, isolation-, or permission-specific questions or writing the orchestrator.
 
-1. Read that agent's current official documentation for skills, built-in tools, subagents, background execution, messaging or resumption, task state, permissions, and worktree isolation relevant to the approved concept.
-2. Distinguish current subagent behavior from agent teams or other coordination surfaces. Do not assume tools, nesting, context inheritance, lifecycle, availability, or experimental status — and never assume one agent's coordination surface exists in another.
+1. Read the chosen agent's current official documentation for skills, built-in tools, subagents or worker processes, background execution, messaging or resumption, task state, permissions, and isolation relevant to the approved concept.
+2. Distinguish the chosen agent's worker mechanism from other coordination surfaces. Do not assume tools, nesting, context inheritance, lifecycle, availability, or experimental status.
 3. Verify the current mechanism for invoking named skills from workers, launching work, continuing or steering the same worker, checking status, stopping work, isolating changes, and observing completion.
 4. Treat live official documentation and the installed agent version as authoritative. Do not rely on remembered tool names, parameters, defaults, model aliases, limits, or permission behavior.
 5. Briefly name the official sources used and flag anything that could not be verified.
@@ -84,27 +78,22 @@ Do not inventory the user's agentic layer during this step. Ask the user to name
 - Ask only enough questions to make the next decision.
 - Preserve supplied answers; never re-ask them.
 - Lead every material decision with a recommendation and a reason, then name the meaningful alternative.
-- **Use your agent's structured question tool for every decision that forks the design.** In Claude Code that is
-  `AskUserQuestion`. Put your recommendation first, the meaningful alternative second, and a one-line consequence
-  on each option; let the tool supply "other". If your agent has no such tool, ask the same thing in prose.
-- Never present an **undecorated** menu of tools, agents, models, or advanced orchestration patterns. Options are good; bare labels are not. A choice is decidable
-  only when each option carries what it costs you.
-- Stay in prose for open questions ("what are you trying to automate?") — those have no option set, and a tool
-  with invented options would narrow the answer.
+- **Use the available structured question tool for every decision that forks the design** — in Claude Code that is `AskUserQuestion`. Put the recommendation first and the meaningful alternative second, each with a one-line consequence; let the tool supply "other". Fall back to prose only when no such tool exists.
+- Keep open-ended discovery questions in prose; do not invent options that narrow the user's answer.
+- Do not present an undecorated menu of tools, agents, models, or advanced orchestration patterns. Options are good; bare labels are not — a choice is decidable only when each option carries what it costs you.
 - Separate the **capability concept** from implementation mechanics.
 - Do not write files until the concept and detailed capability contracts are approved.
 - After concept approval, work through one capability and its outgoing handoff at a time.
 - Keep a visible capability ledger, non-capability list, and evolving ASCII map.
 - Never use a mature example as a template to copy wholesale. Extract principles and fit them to the user's current system.
 
-**Render every such decision as an `AskUserQuestion` call. Do not write it as prose.** The tool is the default shape for a decision in this skill; prose is the fallback.
+Render a forking decision as a structured-question call by default; prose is the fallback, not the template:
 
-- **First option** = your recommendation. Label it with the choice; its description is `[reason specific to this system]`.
-- **Second option** = the meaningful alternative. Its description is `preferable when [condition]`.
-- Add further options only if they are genuinely live. Let the tool supply "other" — never write your own.
-- Keep `header` to a couple of words, and give every option a one-line consequence so the user chooses between outcomes, not labels.
+- **First option** = the recommendation, with the reason specific to this system as its description.
+- **Second option** = the meaningful alternative, with the condition that would make it preferable as its description.
+- Add further options only if genuinely live. Let the tool supply "other" — never write one.
 
-Only if your agent has no question tool, fall back to prose:
+Only when no structured question tool exists, fall back to prose:
 
 > **Recommendation:** [choice], because [reason specific to this system]. [Alternative] is preferable when [condition]. Does that fit, or should we adjust it?
 
@@ -114,7 +103,7 @@ Begin with the sentence the user wants to say:
 
 > What would you like to be able to tell your orchestrator, and what should it make happen?
 
-Examples include “run our delivery loop on issue 123” or “take this approved plan through review.” Use the user's language rather than imposing a named methodology.
+Examples include "run our delivery loop on issue 123" or "take this approved plan through review." Use the user's language rather than imposing a named methodology.
 
 Then ask a small set of plain-language questions:
 
@@ -140,7 +129,7 @@ Recommend this baseline unless the user's system calls for something different:
 - a concise status surface and final digest;
 - one simple stall bound.
 
-Do not assume “end to end” includes an automatic fix/re-review cycle, retry, merge, release, or deploy. Ask whether each is already part of the user's trusted loop before including it; otherwise stop with evidence and a recommendation at that seam.
+Do not assume "end to end" includes an automatic fix/re-review cycle, retry, merge, release, or deploy. Ask whether each is already part of the user's trusted loop before including it; otherwise stop with evidence and a recommendation at that seam.
 
 ## Phase 2 — Check capability readiness
 
@@ -167,6 +156,8 @@ Recommend building the first route from proven components. A provisional compone
 
 When the user supplies a capability path or asks for discovery, inspect only what is necessary to learn its invocation, input, output, permissions, completion evidence, and failure contract. Do not ingest its entire implementation into the future orchestrator.
 
+When a worker role owns a capability, inspect that role's actual contract, including exclusions, instead of assigning it from the role name alone.
+
 ## Phase 3 — Propose the capability concept
 
 Translate the answers into the smallest useful capability map. Label nodes as `USER`, `ORCHESTRATOR`, `WORKER`, `CAPABILITY`, `EVIDENCE`, or `HUMAN GATE`. Show context boundaries, evidence, requested observability, and explicit non-capabilities. Omit exact tool calls and configuration until approval.
@@ -175,7 +166,7 @@ Use a compact shape such as:
 
 ```text
 [USER]
-“Run our delivery loop on issue X”
+"Run our delivery loop on issue X"
     │
     ▼
 [ORCHESTRATOR]
@@ -231,13 +222,11 @@ NOT YET
 - change the agentic layer
 ```
 
-Ask the user to approve or iterate on the concept and boundary. Do not proceed until both are settled.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Ask the user to approve or iterate on the concept and boundary — with the structured question tool, not a prose paragraph. Do not proceed until both are settled.
 
 ## Phase 4 — Design one capability contract at a time
 
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Every capability and handoff decision below is a fork in the design, not an open question — render it with the structured question tool.
 
 Resolve capabilities in causal order. Do not configure the whole orchestrator in one questionnaire.
 
@@ -248,7 +237,7 @@ Resolve capabilities in causal order. Do not configure the whole orchestrator in
 3. **Readiness** — Proven, provisional, or not ready, with evidence?
 4. **Invocation** — Which named skill, agent, command, automation, or external action runs it?
 5. **Input** — What exact identifier, value, artifact, or repository state does it receive?
-6. **Worker** — Same worker, fresh worker, or no agent, and why?
+6. **Worker** — Same worker, fresh worker, or no agent, why, and may that worker delegate further?
 7. **Model** — Does the capability own its model choice, or must the orchestrator select one?
 8. **Tools and permissions** — What is the least capability the worker and orchestrator need?
 9. **Output** — What exact value, artifact, branch, PR, check, or state comes back?
@@ -260,6 +249,8 @@ Resolve capabilities in causal order. Do not configure the whole orchestrator in
 15. **Bound** — Turns, attempts, time, or another current limit?
 
 Recommend the executor, context, evidence, authority, observability, and bound for each capability. If a named skill or agent already owns model and tool choices, do not duplicate those decisions in the orchestrator unless it must override them for a clear reason.
+
+Count nested delegation against the run's worker and concurrency bounds. When a stage must remain one worker, prohibit that worker from spawning or delegating further instead of assuming the parent cap will enforce the topology.
 
 ### Handoff rule
 
@@ -276,7 +267,7 @@ Prefer artifacts for responsibilities that cross workers, need review, support r
 
 ### Verification and gate rule
 
-For each “done” claim ask:
+For each "done" claim ask:
 
 > What can the orchestrator observe outside the worker's own report that makes this true?
 
@@ -303,7 +294,7 @@ Let the user choose quiet execution, milestone updates, or richer live status. D
 After each approval, show progress:
 
 ```text
-✓ Interface: “run our delivery loop on issue X”
+✓ Interface: "run our delivery loop on issue X"
 ✓ Capability 1: investigate [fresh worker]
   Output: investigation artifact; verified by required sections
 
@@ -329,6 +320,8 @@ Normally recommend the minimum current abilities to:
 - return milestone status and the final digest.
 
 Do not grant generic product-code editing. If a durable run record is not part of the first concept, do not add write access merely because a mature orchestrator might use it. Scope tools and permissions to coordination and evidence.
+
+Define "read-only" at the product boundary. Deterministic tools may create ignored environments or caches even when they do not change source or durable product state. If zero filesystem writes are required, configure those tools accordingly; otherwise audit tracked and unexpected files separately and report expected ephemeral state without treating it as a product mutation.
 
 Choose the orchestrator model using current official options. Recommend a model capable of reliable multi-step coordination and judgment; use cheaper worker models where their capability contracts allow it. Do not force one model across the entire system.
 
@@ -385,15 +378,11 @@ Present the final ASCII map, capability ledger, explicit non-capabilities, diges
 - The digest lets the user act without reading transcripts.
 - Deferred capabilities have not leaked into implementation.
 
-Ask for final design approval. If the user changes the design, update affected contracts and boundaries before building.
-
-> **Ask this with `AskUserQuestion`.** This is a fork in the design, not an open question, so it belongs in the tool rather than in prose. Put your recommendation first, the meaningful alternative second, and a one-line consequence on each option; let the tool supply "other". Only fall back to prose if your agent has no such tool.
+Ask for final design approval with the structured question tool. If the user changes the design, update affected contracts and boundaries before building.
 
 ## Phase 8 — Build the orchestrator skill
 
-Confirm the target path and name, then create or update the orchestrator in whatever vessel the chosen agent loads by name — a portable `SKILL.md` for Claude Code, or that agent's equivalent instruction file — with only the resources the approved design needs. Preserve unrelated files and user changes.
-
-A complete worked example lives in `references/orchestrate-issues-SKILL.md` — read it before writing the orchestrator.
+Confirm the target path and name, then create or update the orchestrator in the chosen agent's reusable instruction format, using a portable `SKILL.md` when supported, with only the resources the approved design needs. Preserve unrelated files and user changes.
 
 Write the orchestrator in the user's language and terminology. Include:
 
@@ -435,7 +424,7 @@ Return:
 - the capability contracts and readiness classifications;
 - explicit current and deferred capabilities;
 - context continuity, evidence, gate, bound, and digest decisions;
-- the chosen agent, the official documentation, and the installed agent version used;
+- the chosen agent and its official documentation and installed version;
 - validation and live tests performed with results;
 - anything unverified;
 - the next capability to consider only if current-run evidence justifies it.
