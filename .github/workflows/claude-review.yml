@@ -34,4 +34,4 @@ jobs:
           prompt: "/piv-review-changes Review the changes in this pull request against the base branch (${{ github.base_ref }}). List findings worst-first. Mark each one BLOCKER or NIT."
           claude_args: |
             --model sonnet
-            --max-turns 15
+            --max-turns 40
