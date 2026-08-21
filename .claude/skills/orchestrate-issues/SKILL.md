@@ -26,6 +26,13 @@ I might send you more of these — run them in parallel.
   has produced no notification and no new evidence (a file, a commit, a reply) for about 20 minutes, check its
   status directly rather than keep waiting. Treat that silence as the first stall, the same as an explicit
   failure — it counts toward the cap above.
+- The 20 minutes is a limit, not an opening offer — don't extend it because the agent seems close. Giving it
+  "a bit more time" past that mark isn't patience, it's the second stall arriving late.
+- The status check itself can go unanswered too — a truly dead agent won't respond to that either. Give the
+  check its own short timeout (a few minutes, not another 20); silence on the check confirms the stall, it
+  doesn't restart the clock. If the second stall is a check that never answers, stop retrying and finish the
+  workstream yourself from whatever real work it already produced — don't send a third message into a process
+  that's gone.
 
 ## The vessel
 
