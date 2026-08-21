@@ -22,6 +22,10 @@ I might send you more of these — run them in parallel.
 - At every merge or destructive step: if a standing decision covers it, act and record it; if not, send me a
   short digest and wait.
 - At most three workstreams in parallel. A stage that stalls twice gets stopped and escalated, not restarted.
+- A dead agent sends no notification at all — waiting for one is not a detection method. If a dispatched stage
+  has produced no notification and no new evidence (a file, a commit, a reply) for about 20 minutes, check its
+  status directly rather than keep waiting. Treat that silence as the first stall, the same as an explicit
+  failure — it counts toward the cap above.
 
 ## The vessel
 

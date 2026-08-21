@@ -22,10 +22,13 @@ import subprocess
 import sys
 
 from claude_agent_sdk import (
+    AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKClient,
     PermissionResultAllow,
     PermissionResultDeny,
+    ResultMessage,
+    TextBlock,
     query,
 )
 
@@ -61,11 +64,16 @@ async def guard(tool_name, tool_input, context):
     return PermissionResultAllow()
 
 
-async def drain(client: ClaudeSDKClient) -> None:
+async def drain(client: ClaudeSDKClient) -> float:
     """query() only SENDS. Iterating receive_response() is what drives the
-    turn to completion — forget this and the run silently does nothing."""
-    async for _message in client.receive_response():
-        pass
+    turn to completion — forget this and the run silently does nothing.
+    Returns this turn's cost — the implementer's spend is otherwise never
+    surfaced anywhere, since only the review call below prints its own."""
+    cost = 0.0
+    async for message in client.receive_response():
+        if isinstance(message, ResultMessage) and message.total_cost_usd:
+            cost = message.total_cost_usd
+    return cost
 
 
 async def main() -> None:
@@ -77,11 +85,12 @@ async def main() -> None:
         allowed_tools=["Read", "Bash"],
         can_use_tool=guard,
     )
+    implementer_cost = 0.0
     async with ClaudeSDKClient(options=options) as implementer:
         await implementer.query(
             f"Study GitHub issue #{ISSUE}. Investigate the fix, then fix the issue."
         )
-        await drain(implementer)
+        implementer_cost += await drain(implementer)
 
         # Same bounded loop as the shell version — failures go back into the
         # SAME context, because it remembers what it just wrote.
@@ -92,19 +101,31 @@ async def main() -> None:
                 break
             print(f"→ checks failed ({attempt}/{MAX_FIX_ATTEMPTS}) — handing back")
             await implementer.query(f"The checks failed. Fix them:\n\n{output}")
-            await drain(implementer)
+            implementer_cost += await drain(implementer)
         else:
             sys.exit("✗ still failing — stopping so a human can look")
 
     # The review: one-shot, nothing carried over — the missing --resume,
     # as a function call. Cheaper model: reading a diff doesn't need the strong brain.
+    # Print only the assistant's text — the raw message objects are a wall of
+    # SystemMessage/AssistantMessage reprs, not something worth watching.
+    review_cost = 0.0
     async for message in query(
         prompt=f"Review the changes for issue #{ISSUE}. "
                "List findings worst-first, BLOCKER or NIT.",
         options=ClaudeAgentOptions(model="sonnet",
                                    allowed_tools=["Read", "Bash"]),
     ):
-        print(message)
+        if isinstance(message, AssistantMessage):
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    print(block.text)
+        elif isinstance(message, ResultMessage) and message.total_cost_usd:
+            review_cost = message.total_cost_usd
+
+    total = implementer_cost + review_cost
+    print(f"\n✓ done — issue #{ISSUE} "
+          f"(implementer ${implementer_cost:.2f} + review ${review_cost:.2f} = ${total:.2f})")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,12 @@
 
 set -uo pipefail
 
+# If the spawned session below dies before reaching `rm -f "$inflight"` (killed,
+# crashed, or blocked by an unrelated hook bug), the marker is orphaned and this
+# guard would otherwise skip that issue forever — silently, with no error. A
+# stale-past-this-long marker is treated as a dead spawn, not a running one.
+STALE_MINUTES=15
+
 INPUT=$(cat)
 cd "$CLAUDE_PROJECT_DIR"
 
@@ -22,7 +28,14 @@ for artifact in docs/issues/issue-*.md; do
   inflight="docs/issues/.baton-$n.inflight"
 
   [ -f "$done_marker" ] && continue
-  [ -f "$inflight" ] && exit 0
+
+  if [ -f "$inflight" ]; then
+    if [ -z "$(find "$inflight" -mmin +$STALE_MINUTES 2>/dev/null)" ]; then
+      exit 0   # genuinely still running (or too new to tell) — leave it alone
+    fi
+    echo "baton: $inflight is stale (>${STALE_MINUTES}m, no fix report) — the prior spawn likely died; retrying" >&2
+    rm -f "$inflight"
+  fi
 
   # One event, one hand-off.
   touch "$inflight"

@@ -35,3 +35,7 @@ jobs:
           claude_args: |
             --model sonnet
             --max-turns 40
+          # Defaults to false, which redacts the review's own summary text
+          # from the run log — the demo reads that summary on camera, so the
+          # claim needs this set explicitly rather than left to the default.
+          show_full_output: true
