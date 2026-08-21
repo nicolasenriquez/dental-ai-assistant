@@ -77,7 +77,7 @@ ask "Push the branch and open a pull request for issue #$ISSUE." \
 
 # ── 4. REVIEW — two FRESH contexts, in parallel ──────────────────────────────
 # No --resume on either: neither has seen the implementation.
-# claude invokes the review skill by name; kimi (via pi) reads the same file.
+# claude invokes the review skill by name; codex reads the same file.
 # Reviewers write nothing, so they can't collide — &, &, wait.
 echo "→ reviewing (two fresh contexts: logic · failure handling)"
 ask "/piv-review-changes Review the open pull request for issue #$ISSUE with one
@@ -87,16 +87,12 @@ Write no files — this script captures your answer from stdout." \
   --model sonnet --allowedTools "Read,Bash" \
   | jq -r '.result' > review-logic.md &
 
-# pi prints an OSC 777 terminal-notify escape sequence ahead of its answer on
-# every call — harmless in a terminal, but it would land inside the captured
-# file verbatim. Strip it; the perl pattern matches the sequence exactly.
-pi --provider kimi-coding --model kimi-for-coding --print "First read
-.claude/skills/piv-review-changes/SKILL.md — that is how we review in this
-project. Then review the open pull request for issue #$ISSUE with one question
-only: what happens when things fail? Missing error handling, swallowed
-exceptions, unchecked inputs. Ignore style. List findings worst-first. Mark
-each BLOCKER or NIT. Write no files — this script captures your answer from
-stdout." 2>&1 | perl -pe 's/\x1b\]777;notify;[^\x07]*\x07//g' > review-errors.md &
+codex exec "First read .claude/skills/piv-review-changes/SKILL.md — that is how
+we review in this project. Then review the open pull request for issue #$ISSUE
+with one question only: what happens when things fail? Missing error handling,
+swallowed exceptions, unchecked inputs. Ignore style. List findings worst-first.
+Mark each BLOCKER or NIT. Write no files — this script captures your answer
+from stdout." > review-errors.md &
 
 wait
 
