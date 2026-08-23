@@ -1,13 +1,15 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["claude-agent-sdk"]
+# dependencies = ["claude-agent-sdk", "rich"]
 # ///
 """
 fix_issue.py — ONE stage of V27's fix loop, translated to the Agent SDK.
 
 The dependencies live in the header above (PEP 723): one file, no venv,
-no install step — `uv run fix_issue.py 42` anywhere uv exists.
+no install step — `uv run fix_issue.py 42` anywhere uv exists. `rich` is
+in that same header for exactly one reason: readable terminal output
+costs one more line here, not a project setup.
 
 Three things a shell script cannot have:
   1. the session is an OBJECT — the client below IS the implementer's context
@@ -34,6 +36,9 @@ from claude_agent_sdk import (
     ToolUseBlock,
     query,
 )
+from rich.console import Console
+from rich.panel import Panel
+from rich.rule import Rule
 
 # Read/Bash are broadly allowed on purpose — only Edit/Write are meant to
 # fall through to guard() — so the SDK's warning about that is expected,
@@ -45,6 +50,12 @@ warnings.filterwarnings("ignore", category=CanUseToolShadowedWarning)
 # its own status output before it ever finishes. Harmless on platforms that
 # are already UTF-8.
 sys.stdout.reconfigure(encoding="utf-8")
+
+# legacy_windows=False: Rich's default Win32-console writer bypasses the
+# UTF-8 reconfigure above and crashes on the arrow character below on some
+# Windows consoles. Forcing the ANSI code path instead fixes it — verified
+# by reproducing the crash and confirming this line resolves it.
+console = Console(legacy_windows=False)
 
 ISSUE = sys.argv[1] if len(sys.argv) > 1 else sys.exit("usage: fix_issue.py <issue>")
 
@@ -72,18 +83,24 @@ async def guard(tool_name, tool_input, context):
     return PermissionResultAllow()
 
 
-# Different tools name their interesting field differently (Read/Edit/Write
-# use file_path, Bash uses command, Glob/Grep use pattern, Task/Skill use
-# description or prompt) — try them in order and take the first hit, so no
-# tool call prints a bare, colon-with-nothing-after line.
+# One color per kind of thing a tool call does — reading, writing, running a
+# command, or reaching into the .claude/ layer (the auto-load moment gets
+# its own color on purpose, so it visibly stands out when it happens).
+_TOOL_STYLES = {
+    "Read": "cyan", "Grep": "cyan", "Glob": "cyan", "WebFetch": "cyan", "WebSearch": "cyan",
+    "Edit": "yellow", "Write": "yellow", "MultiEdit": "yellow",
+    "Bash": "magenta",
+    "Skill": "bold green", "Task": "bold green",
+}
 _DETAIL_KEYS = ("file_path", "command", "pattern", "description", "subagent_type", "prompt", "url", "path")
 _MAX_DETAIL_LEN = 80
 
 
-def _tool_line(block: ToolUseBlock) -> str:
-    """One clean line per tool call. A multi-line Bash heredoc or a long
-    prompt would otherwise dump its whole body into the console — take
-    only the first line, and cut it if it's still too long to read live."""
+def _print_tool_call(block: ToolUseBlock) -> None:
+    """One clean, colored line per tool call. Different tools name their
+    interesting field differently, so try the common ones in order — and
+    cut whatever's found to one line, since a multi-line Bash heredoc or a
+    long prompt would otherwise dump its whole body into the console."""
     detail = ""
     for key in _DETAIL_KEYS:
         value = block.input.get(key)
@@ -92,7 +109,9 @@ def _tool_line(block: ToolUseBlock) -> str:
             if len(detail) > _MAX_DETAIL_LEN:
                 detail = detail[: _MAX_DETAIL_LEN - 1] + "…"
             break
-    return f"  → {block.name}: {detail}" if detail else f"  → {block.name}"
+    style = _TOOL_STYLES.get(block.name, "white")
+    label = f"[{style}]{block.name}[/{style}]"
+    console.print(f"  [dim]→[/dim] {label}" + (f"[dim]: {detail}[/dim]" if detail else ""))
 
 
 async def drain(client: ClaudeSDKClient) -> float:
@@ -108,7 +127,7 @@ async def drain(client: ClaudeSDKClient) -> float:
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, ToolUseBlock):
-                    print(_tool_line(block))
+                    _print_tool_call(block)
         if isinstance(message, ResultMessage) and message.total_cost_usd:
             cost = message.total_cost_usd
     return cost
@@ -123,6 +142,7 @@ async def main() -> None:
         allowed_tools=["Read", "Bash"],
         can_use_tool=guard,
     )
+    console.print(Rule(f"[bold blue]implementing a fix for issue #{ISSUE}[/bold blue]"))
     implementer_cost = 0.0
     async with ClaudeSDKClient(options=options) as implementer:
         await implementer.query(
@@ -135,18 +155,21 @@ async def main() -> None:
         for attempt in range(1, MAX_FIX_ATTEMPTS + 1):
             ok, output = run_checks()
             if ok:
-                print("✓ checks pass")
+                console.print("[bold green]✓ checks pass[/bold green]")
                 break
-            print(f"→ checks failed ({attempt}/{MAX_FIX_ATTEMPTS}) — handing back")
+            console.print(
+                f"[bold yellow]→ checks failed ({attempt}/{MAX_FIX_ATTEMPTS})[/bold yellow] — handing back"
+            )
             await implementer.query(f"The checks failed. Fix them:\n\n{output}")
             implementer_cost += await drain(implementer)
         else:
-            sys.exit("✗ still failing — stopping so a human can look")
+            console.print("[bold red]✗ still failing — stopping so a human can look[/bold red]")
+            sys.exit(1)
 
     # The review: one-shot, nothing carried over — the missing --resume,
     # as a function call. Cheaper model: reading a diff doesn't need the strong brain.
-    # Print only the assistant's text — the raw message objects are a wall of
-    # SystemMessage/AssistantMessage reprs, not something worth watching.
+    console.print(Rule(f"[bold blue]reviewing the fix for issue #{ISSUE}[/bold blue]"))
+    review_text = ""
     review_cost = 0.0
     async for message in query(
         prompt=f"Review the changes for issue #{ISSUE}. "
@@ -157,13 +180,22 @@ async def main() -> None:
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, TextBlock):
-                    print(block.text)
+                    review_text += block.text
+                if isinstance(block, ToolUseBlock):
+                    _print_tool_call(block)
         elif isinstance(message, ResultMessage) and message.total_cost_usd:
             review_cost = message.total_cost_usd
 
+    console.print(Panel(review_text.strip(), title="review", border_style="blue", padding=(1, 2)))
+
     total = implementer_cost + review_cost
-    print(f"\n✓ done — issue #{ISSUE} "
-          f"(implementer ${implementer_cost:.2f} + review ${review_cost:.2f} = ${total:.2f})")
+    console.print(Panel(
+        f"issue #{ISSUE}\n"
+        f"implementer  [cyan]${implementer_cost:.2f}[/cyan]\n"
+        f"review       [cyan]${review_cost:.2f}[/cyan]\n"
+        f"total        [bold green]${total:.2f}[/bold green]",
+        title="[bold green]✓ done[/bold green]", border_style="green",
+    ))
 
 
 if __name__ == "__main__":
