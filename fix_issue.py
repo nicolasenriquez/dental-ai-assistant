@@ -20,9 +20,11 @@ or they don't. A better harness never absorbs your checks.
 
 import subprocess
 import sys
+import warnings
 
 from claude_agent_sdk import (
     AssistantMessage,
+    CanUseToolShadowedWarning,
     ClaudeAgentOptions,
     ClaudeSDKClient,
     PermissionResultAllow,
@@ -32,6 +34,11 @@ from claude_agent_sdk import (
     ToolUseBlock,
     query,
 )
+
+# Read/Bash are broadly allowed on purpose — only Edit/Write are meant to
+# fall through to guard() — so the SDK's warning about that is expected,
+# not a sign of a real problem. Silence it instead of letting it print.
+warnings.filterwarnings("ignore", category=CanUseToolShadowedWarning)
 
 # The default Windows console codepage can't encode the checkmark below or
 # any emoji pulled in from issue text — without this, the script crashes on
