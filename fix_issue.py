@@ -72,6 +72,29 @@ async def guard(tool_name, tool_input, context):
     return PermissionResultAllow()
 
 
+# Different tools name their interesting field differently (Read/Edit/Write
+# use file_path, Bash uses command, Glob/Grep use pattern, Task/Skill use
+# description or prompt) — try them in order and take the first hit, so no
+# tool call prints a bare, colon-with-nothing-after line.
+_DETAIL_KEYS = ("file_path", "command", "pattern", "description", "subagent_type", "prompt", "url", "path")
+_MAX_DETAIL_LEN = 80
+
+
+def _tool_line(block: ToolUseBlock) -> str:
+    """One clean line per tool call. A multi-line Bash heredoc or a long
+    prompt would otherwise dump its whole body into the console — take
+    only the first line, and cut it if it's still too long to read live."""
+    detail = ""
+    for key in _DETAIL_KEYS:
+        value = block.input.get(key)
+        if value:
+            detail = str(value).splitlines()[0].strip()
+            if len(detail) > _MAX_DETAIL_LEN:
+                detail = detail[: _MAX_DETAIL_LEN - 1] + "…"
+            break
+    return f"  → {block.name}: {detail}" if detail else f"  → {block.name}"
+
+
 async def drain(client: ClaudeSDKClient) -> float:
     """query() only SENDS. Iterating receive_response() is what drives the
     turn to completion — forget this and the run silently does nothing.
@@ -85,8 +108,7 @@ async def drain(client: ClaudeSDKClient) -> float:
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, ToolUseBlock):
-                    detail = block.input.get("file_path") or block.input.get("command", "")
-                    print(f"  → {block.name}: {detail}")
+                    print(_tool_line(block))
         if isinstance(message, ResultMessage) and message.total_cost_usd:
             cost = message.total_cost_usd
     return cost
