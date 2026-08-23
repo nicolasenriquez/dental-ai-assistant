@@ -77,8 +77,10 @@ async def guard(tool_name, tool_input, context):
 
     A broadly-allowed tool is auto-approved BEFORE this guard is consulted,
     so Edit/Write stay out of allowed_tools and fall through to here."""
-    path = str(tool_input.get("file_path", ""))
-    if tool_name in ("Edit", "Write") and "migrations/" in path:
+    # Windows reports file_path with backslashes — a forward-slash check
+    # would silently never match there. Normalize before comparing.
+    path = str(tool_input.get("file_path", "")).replace("\\", "/")
+    if tool_name in ("Edit", "Write") and "alembic/versions" in path:
         return PermissionResultDeny(message="migrations are hand-written here")
     return PermissionResultAllow()
 
