@@ -77,6 +77,17 @@ async def guard(tool_name, tool_input, context):
 
     A broadly-allowed tool is auto-approved BEFORE this guard is consulted,
     so Edit/Write stay out of allowed_tools and fall through to here."""
+    # Headless — nobody is here to answer an interactive question. Left
+    # unguarded, the model can call this (often right after being denied
+    # something) and the run stalls waiting for a human who'll never answer.
+    if tool_name == "AskUserQuestion":
+        console.print(
+            "  [bold red]✗ DENIED[/bold red] [yellow]AskUserQuestion[/yellow]"
+            "[dim] — headless, no one to answer[/dim]"
+        )
+        return PermissionResultDeny(
+            message="headless run, no one is here to answer — decide yourself and note the assumption"
+        )
     # Windows reports file_path with backslashes — a forward-slash check
     # would silently never match there. Normalize before comparing.
     path = str(tool_input.get("file_path", "")).replace("\\", "/")
@@ -91,7 +102,7 @@ async def guard(tool_name, tool_input, context):
 _TOOL_STYLES = {
     "Read": "cyan", "Grep": "cyan", "Glob": "cyan", "WebFetch": "cyan", "WebSearch": "cyan",
     "Edit": "yellow", "Write": "yellow", "MultiEdit": "yellow",
-    "Bash": "magenta",
+    "Bash": "magenta", "PowerShell": "magenta",
     "Skill": "bold green", "Task": "bold green",
 }
 _DETAIL_KEYS = ("file_path", "command", "pattern", "description", "subagent_type", "prompt", "url", "path")

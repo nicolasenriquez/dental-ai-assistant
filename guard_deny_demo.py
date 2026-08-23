@@ -35,7 +35,7 @@ warnings.filterwarnings("ignore", category=CanUseToolShadowedWarning)
 sys.stdout.reconfigure(encoding="utf-8")
 console = Console(legacy_windows=False)
 
-_TOOL_STYLES = {"Read": "cyan", "Grep": "cyan", "Glob": "cyan", "Edit": "yellow", "Write": "yellow", "Bash": "magenta"}
+_TOOL_STYLES = {"Read": "cyan", "Grep": "cyan", "Glob": "cyan", "Edit": "yellow", "Write": "yellow", "Bash": "magenta", "PowerShell": "magenta"}
 
 
 def _print_tool_call(block: ToolUseBlock) -> None:
@@ -51,6 +51,17 @@ def _print_tool_call(block: ToolUseBlock) -> None:
 
 async def guard(tool_name, tool_input, context):
     """The exact guard from fix_issue.py — same code, same rule."""
+    # Headless — nobody is here to answer an interactive question. Left
+    # unguarded, the model can call this after being denied something
+    # and the run stalls waiting for a human who will never respond.
+    if tool_name == "AskUserQuestion":
+        console.print(
+            "  [bold red]✗ DENIED[/bold red] [yellow]AskUserQuestion[/yellow]"
+            "[dim] — headless, no one to answer[/dim]"
+        )
+        return PermissionResultDeny(
+            message="headless run, no one is here to answer — decide yourself and note the assumption"
+        )
     # Windows reports file_path with backslashes — a forward-slash check
     # would silently never match there. Normalize before comparing.
     path = str(tool_input.get("file_path", "")).replace("\\", "/")
