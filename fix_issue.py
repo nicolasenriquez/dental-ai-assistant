@@ -178,9 +178,15 @@ async def main() -> None:
                                    allowed_tools=["Read", "Bash"]),
     ):
         if isinstance(message, AssistantMessage):
+            # Overwrite, don't append: the model narrates in short text
+            # fragments between tool calls ("let's check X now") on the
+            # way to the actual review — appending them all runs sentences
+            # together with no separator. The LAST text this turn produces
+            # is the finished review; that's the only one worth keeping.
+            text_parts = [b.text for b in message.content if isinstance(b, TextBlock)]
+            if text_parts:
+                review_text = "\n\n".join(text_parts)
             for block in message.content:
-                if isinstance(block, TextBlock):
-                    review_text += block.text
                 if isinstance(block, ToolUseBlock):
                     _print_tool_call(block)
         elif isinstance(message, ResultMessage) and message.total_cost_usd:
