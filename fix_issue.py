@@ -29,6 +29,7 @@ from claude_agent_sdk import (
     PermissionResultDeny,
     ResultMessage,
     TextBlock,
+    ToolUseBlock,
     query,
 )
 
@@ -67,10 +68,18 @@ async def guard(tool_name, tool_input, context):
 async def drain(client: ClaudeSDKClient) -> float:
     """query() only SENDS. Iterating receive_response() is what drives the
     turn to completion — forget this and the run silently does nothing.
-    Returns this turn's cost — the implementer's spend is otherwise never
-    surfaced anywhere, since only the review call below prints its own."""
+    Prints each tool call as it happens — the only way to actually SEE the
+    .claude/ auto-load claim, since a skill firing is just a Read of its
+    SKILL.md, not anything the SDK announces on its own. Returns this
+    turn's cost — the implementer's spend is otherwise never surfaced
+    anywhere, since only the review call below prints its own."""
     cost = 0.0
     async for message in client.receive_response():
+        if isinstance(message, AssistantMessage):
+            for block in message.content:
+                if isinstance(block, ToolUseBlock):
+                    detail = block.input.get("file_path") or block.input.get("command", "")
+                    print(f"  → {block.name}: {detail}")
         if isinstance(message, ResultMessage) and message.total_cost_usd:
             cost = message.total_cost_usd
     return cost
