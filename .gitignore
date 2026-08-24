@@ -13,6 +13,10 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
+# stop-gate.sh's own per-session retry counter — pure runtime state, never
+# meant to be reviewed or committed (unlike docs/issues/, which is).
+.claude/hooks/.gate-state/
+
 # Database
 *.db
 
