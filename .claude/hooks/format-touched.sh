@@ -19,6 +19,14 @@ case "$FILE" in
 esac
 
 # The AI Tutor's formatter config lives in app/backend.
-cd "$CLAUDE_PROJECT_DIR/app/backend" 2>/dev/null && uv run ruff format "$FILE" >/dev/null 2>&1
+cd "$CLAUDE_PROJECT_DIR/app/backend" 2>/dev/null || exit 0
+
+# A real, checkable log line every time this actually fires — the hook has
+# no other visible trace (always exits 0, no output to the agent), and
+# "the file happens to be formatted" is circumstantial, not proof.
+mkdir -p "$CLAUDE_PROJECT_DIR/.claude/hooks/.react-log"
+echo "$(date '+%Y-%m-%d %H:%M:%S') formatted: $FILE" >> "$CLAUDE_PROJECT_DIR/.claude/hooks/.react-log/format-touched.log"
+
+uv run ruff format "$FILE" >/dev/null 2>&1
 
 exit 0

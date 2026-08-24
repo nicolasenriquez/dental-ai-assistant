@@ -22,6 +22,10 @@ venv/
 # fix-report-*.md, which are both tracked here).
 docs/issues/.baton-*.log
 
+# format-touched.sh's real firing log — proof the REACT hook actually ran,
+# since it otherwise has no visible trace (always exits 0, no agent output).
+.claude/hooks/.react-log/
+
 # Database
 *.db
 
