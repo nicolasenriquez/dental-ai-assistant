@@ -38,10 +38,17 @@ for artifact in docs/issues/issue-*.md; do
   fi
 
   # One event, one hand-off.
+  # `< /dev/null`: this hook's own stdin came from Claude Code's async-hook
+  # runner, not a terminal — leaving the spawned session to inherit it caused
+  # real, reproducible silent stalls (confirmed live: the process just never
+  # progressed past its first tool call, with nothing in the logs, twice in a
+  # row, and only when spawned this way — a manual `claude -p` run of the
+  # exact same command every time worked fine). Give it its own empty stdin.
   touch "$inflight"
   claude -p "/piv-implement-issue $n" \
     --allowedTools "Read,Edit,Write,Bash" \
-    >/dev/null 2>&1
+    < /dev/null \
+    > "docs/issues/.baton-$n.log" 2>&1
   rm -f "$inflight"
   exit 0
 done

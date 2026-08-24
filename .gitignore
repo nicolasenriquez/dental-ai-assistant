@@ -17,6 +17,11 @@ venv/
 # meant to be reviewed or committed (unlike docs/issues/, which is).
 .claude/hooks/.gate-state/
 
+# baton.sh's captured stdout/stderr from the spawned fix session — a debug
+# trail, not a reviewable artifact (unlike docs/issues/issue-*.md and
+# fix-report-*.md, which are both tracked here).
+docs/issues/.baton-*.log
+
 # Database
 *.db
 
