@@ -6,6 +6,9 @@ argument-hint: "[epic + its linked architecture page (paths or Confluence/Jira U
 
 # /piv-slice-epic — Slice an Epic into PIV-Sized Tickets
 
+> This skill fans out subagents — see `.claude/references/subagent-fanout.md` for dispatch-mode and
+> turn-ending rules before spawning them.
+
 The bridge between a strategic doc and the PIV loop. The epic doc is the destination; the PIV loop is the unit of motion; **tickets are the bridge.** `/piv-slice-epic` does the slicing.
 
 ## Input

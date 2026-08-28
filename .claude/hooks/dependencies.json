@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Real couplings in this repo, not aspirational ones.",
+    "The chat model is INSTRUCTED to emit [c:<chunk_id>] markers by the system",
+    "prompt in llm/openrouter.py. The code that parses and strips those markers",
+    "is rag/citations.py. Change either side without reading the other and",
+    "citations silently stop rendering in the UI - the API still returns 200.",
+    "",
+    "A new alembic migration must chain off the CURRENT head: set down_revision",
+    "wrong and test_migration_chain fails. You cannot know the head without",
+    "reading the latest migration, so the guard makes you read it."
+  ],
+  "globs": {
+    "app/backend/llm/openrouter.py": [
+      "app/backend/rag/citations.py"
+    ],
+    "app/backend/routes/messages.py": [
+      "app/backend/rag/citations.py"
+    ],
+    "app/backend/rag/tools.py": [
+      "app/backend/rag/citations.py",
+      "app/backend/rag/retriever_hybrid.py"
+    ],
+    "app/backend/alembic/versions/*.py": [
+      "app/backend/alembic/versions/0005_gated_dynamous_content.py",
+      "app/backend/tests/test_migration_chain.py"
+    ]
+  }
+}

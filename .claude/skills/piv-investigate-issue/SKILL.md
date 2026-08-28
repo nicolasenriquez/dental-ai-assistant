@@ -6,6 +6,9 @@ argument-hint: [github-issue-id]
 
 # Investigate Issue #$ARGUMENTS (Root-Cause Analysis)
 
+> This skill fans out subagents — see `.claude/references/subagent-fanout.md` for dispatch-mode and
+> turn-ending rules before spawning them.
+
 ## Objective
 
 Investigate GitHub issue #$ARGUMENTS from this repository, identify the root cause, and document findings for future implementation.

@@ -7,6 +7,9 @@ arguments: [path1, path2]
 
 # Create Rules: Set Up Your Project's Global Rules
 
+> This skill fans out subagents — see `.claude/references/subagent-fanout.md` for dispatch-mode and
+> turn-ending rules before spawning them.
+
 ## Inputs: wire the arguments first
 
 This skill takes **up to two optional paths** and uses them to pick your lane. Read whatever was passed and classify each by its content:

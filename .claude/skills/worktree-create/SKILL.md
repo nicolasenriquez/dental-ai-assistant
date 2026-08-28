@@ -6,6 +6,9 @@ argument-hint: "[branch ...]  (one or more branch names; blank = ask)"
 
 # Worktree Create
 
+> This skill fans out subagents — see `.claude/references/subagent-fanout.md` for dispatch-mode and
+> turn-ending rules before spawning them.
+
 Stand up **any number** of isolated git worktrees from a list of branches — each created off the right base, given
 its gitignored config, its dependencies, and a health check — by fanning out one setup subagent per worktree so
 they run in parallel. The per-worktree work is app-agnostic and **detected from the repo**, never hardcoded.

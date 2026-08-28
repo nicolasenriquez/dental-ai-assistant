@@ -1,0 +1,38 @@
+# Archon configuration for the AI Tutor.
+#
+# This repo is the demo target for the course's Archon videos (V32-V34).
+# Everything here exists so an unattended, worktree-isolated run behaves the
+# same way a run in the primary checkout does.
+
+# Archon pins these at the top of the run picker under a "Recommended for this
+# project" header, above a divider separating them from everything else.
+#
+# Two jobs. V33 picks archon-ship on camera, and the old bundled default
+# archon-fix-github-issue sorts right next to it alphabetically — first place
+# keeps that unambiguous. V32's new beat frames a shot on this group as "the
+# pack", which is the only way to keep the old defaults off screen: they are
+# still bundled (21 of them) and no view hides them.
+#
+# Order = the order V32's beat names them.
+recommendedWorkflows:
+  - archon-ship
+  - archon-upkeep
+  - archon-stabilize
+  - archon-investigate
+  - archon-plan
+  - archon-implement
+  - archon-review
+  - archon-validate
+
+worktree:
+  # Explicit, not auto-detected. The primary checkout is often parked on a
+  # recording-demo branch; without this a worktree would branch from whatever
+  # happens to be checked out at the time.
+  baseBranch: main
+
+  # Git-ignored files a fresh worktree would otherwise be missing. Tracked
+  # files are already there; these are not, and the backend reads config at
+  # import time, so a worktree without them fails before any test runs.
+  copyFiles:
+    - .env
+    - app/.env
