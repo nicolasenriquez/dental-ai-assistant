@@ -86,9 +86,43 @@ What the run proves, each of which was previously fixture-only:
 - `gate-ready` joins the two mutually exclusive paths and takes the loop's verdict.
 - The PR stays **draft** for the whole loop and flips only after the gate.
 
+**`53817b6e` — issue #15 (`?limit=0` silently syncs everything) → PR #54, flipped ready. 27m 09s,
+13 node records.** implement 6m 47s · gate-work 0.45s · pr 1m 21s · **review 5m 30s `ready: false`** ·
+**corrections 12m 04s** (fix 6m 15s → gate-fix 0.32s → recheck 5m 48s `ready: true`) · gate-ready
+0.36s · validate 28.9s · flip-ready 2.9s.
+
+**This is the run to keep.** Round one did not only raise the harness's synthetic L1 — it found a real
+**Critical** defect, `C1`, in the first implementation:
+
+> Switching the parameter default from the literal `None` to a `Query(...)` marker object changed the
+> value seen by *direct Python callers* of the handler. `routes/admin.py:288` calls the handler as a
+> plain function with no arguments, so `limit` binds to the `fastapi.params.Query` instance itself,
+> every `limit is not None` check is `True` on the path that means "full channel", and the slice raises
+> `TypeError`.
+
+So the loop corrected a genuine regression that would have broken the admin "Sync channel" button, not
+just the planted requirement. Round two verified both findings and — unprompted — wrote
+`review/probe/reinject_c1.py`, a pytest plugin that re-injects the C1 mechanism at collection time
+without touching a project file, to prove the new test actually fails against the pre-fix behaviour.
+That probe is in the run's artifacts.
+
+Both rounds are on disk as `review/report-round-1.md` and `report-round-2.md`, which is the fix the
+first run's gap earned.
+
 ### What the first run exposed
 
-Round two **overwrote** `review/report.md`, and the run kept only one `nodes/review.md`, so the
-finished run could not show what had been corrected — the evidence for the loop was destroyed by the
-loop. Both reviewers now also write `review/report-round-N.md`, never edited. That fix came out of
-running the loop, not out of reading it.
+Two things, both about evidence rather than behaviour, and both found only by running it.
+
+**1. Round two overwrote round one's report.** `review/report.md` is canonical and the continuation
+reviewer rewrites it, so the finished run could not show what had been corrected. Round one's *declared
+output* did survive in `nodes/review.md` — its findings summary is intact and names L1 with the
+`file:line` — but the full report was gone. Both reviewers now also write `review/report-round-N.md`,
+never edited.
+
+**2. Nodes inside a `loop_group` leave no node artifacts.** This run wrote `nodes/implement.md` and
+`nodes/review.md` and nothing for `fix`, `gate-fix` or `recheck`. Their outputs exist in the run's
+event log and in the database, but not on disk beside the others. That is the engine's behaviour, not
+something this workflow chose, and it is worth knowing: *judge the run by its artifacts* is weakest at
+exactly the point where the correction happened. The round-N reports are the fix for that too — they
+are written by the reviewer into `review/`, so a correction round now leaves a durable record whatever
+the engine does with node artifacts.

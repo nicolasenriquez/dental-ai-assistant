@@ -113,10 +113,13 @@ this repo's whole suite before it may claim green, and the reviewer only admits 
 those two conditions a well-scoped bug tends to come out right the first time. Do **not** loosen the
 reviewer to manufacture a correction round.
 
-**The loop itself is proved, on a real run, by `../looptest/`.** Run `78f77a59` (issue #11 → PR #52)
-entered `corrections`, ran `fix` (2m 48s) → `gate-fix` → a fresh `recheck` (3m 27s) that verified the
-correction against the code, converged in one round, and flipped the PR ready. Full numbers in that
-folder's README. The harness forces only the round-one verdict; every other node in it is real.
+**The loop itself is proved, on real runs, by `../looptest/`.** Two runs entered `corrections`, ran
+`fix` → `gate-fix` → a fresh `recheck` that verified the correction against the code, converged in one
+round, and flipped the PR ready. The better one is `53817b6e` (issue #15 → PR #54): its round one did
+not only raise the planted finding, it caught a **real Critical regression** — a FastAPI
+`Query(default=None)` default that broke direct Python callers of the handler — and the loop corrected
+it. So the loop has now demonstrably fixed a genuine defect, not only a synthetic one. Full numbers in
+that folder's README. The harness forces only the round-one verdict; every other node is real.
 
 Against `archon-ship` on the same repository:Against `archon-ship` on the same repository: **51m 36s and 53 node records**. Four times faster and
 five times smaller, doing the same job, because it does not have to work on a repository it has never
