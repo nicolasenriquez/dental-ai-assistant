@@ -37,7 +37,13 @@ Judge the change against what it was asked to do. A proved defect outside that s
 
 ## Write the report
 
-Write `$ARTIFACTS_DIR/review/report.md`, containing:
+Write `$ARTIFACTS_DIR/review/report.md`. Then write the identical complete report a second time to
+`$ARTIFACTS_DIR/review/report-round-N.md`, where `N` is one greater than the highest `report-round-N.md`
+already in that directory, or `1` when there is none. `report.md` is always the latest round; the
+numbered files are immutable history and are never edited or deleted. Without them a corrected run
+cannot show what was corrected — the canonical report is overwritten by the round that follows it.
+
+The report contains:
 
 1. **Verdict** — ready or not, and the one-sentence reason.
 2. **Reviewed head SHA** — exactly.

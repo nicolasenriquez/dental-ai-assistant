@@ -73,7 +73,13 @@ could not inspect.
 
 ## Write the report (both rounds)
 
-Write `$ARTIFACTS_DIR/review/report.md`:
+Write `$ARTIFACTS_DIR/review/report.md`. Then write the identical complete report a second time to
+`$ARTIFACTS_DIR/review/report-round-N.md`, where `N` is one greater than the highest `report-round-N.md`
+already in that directory, or `1` when there is none. `report.md` is always the latest round; the
+numbered files are immutable history. This harness exists to produce evidence of the loop, and evidence
+that overwrites itself is not evidence.
+
+The report contains:
 
 1. **Verdict** — ready or not, and the one-sentence reason. On round one, say in the same breath that
    this is the loop-test reviewer.

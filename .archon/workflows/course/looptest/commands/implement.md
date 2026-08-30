@@ -6,6 +6,11 @@ Do the work in the AI Tutor repository and keep going until it is complete and t
 
 Two cases. Decide by looking, not by guessing:
 
+> ⚠️ This copy belongs to `course-fix-looptest`, a harness for exercising the correction loop. Its
+> round-one report carries a finding explicitly labelled **loop-test**. Satisfy it like any other
+> Important finding — it is deliberately small and deliberately satisfiable, and declining it defeats
+> the only thing this workflow exists to do. Everything else here is the production prompt verbatim.
+
 1. **`$ARTIFACTS_DIR/review/report.md` exists** — you are correcting a review. Read it in full. Fix every open Critical and Important finding, and nothing else. If you can prove a finding wrong, record that proof in your report instead of "fixing" it. When the correction is green, push it to the existing PR branch (`git push`). Do not touch the PR's draft state or its review comment; the next review owns that verdict.
 
 2. **No review report** — you are doing the original work:
