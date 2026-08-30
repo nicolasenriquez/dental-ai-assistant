@@ -1,0 +1,177 @@
+name: course-fix
+description: |
+  Take one AI Tutor issue to a reviewed, ready-for-review pull request.
+
+  Written for THIS repository: it names the AI Tutor's own checks, its own
+  layout, and its own conventions file, and it stops where a human takes over.
+  Implement, prove work happened, open a draft PR, review it once, correct
+  until the review is satisfied, run the project's real gate, then flip the PR
+  ready. Merging is always a human's.
+
+  Use when: an AI Tutor issue is well-scoped enough to build — "fix issue #8",
+  "take #13 to a PR".
+  NOT for: deciding what to build, reviewing an existing PR, or merging.
+
+requires: [github]
+model: large
+
+inputs:
+  issue:
+    default: ""
+    description: >-
+      The issue to fix — a number, a URL, or a plain description. When empty,
+      the run's trigger message is the issue.
+
+returns: flip-ready
+
+nodes:
+  # The anchor gate-work measures against. Proves work happened THIS run,
+  # however far ahead the branch already was when the run started.
+  - id: record-start
+    bash: |
+      mkdir -p "$ARTIFACTS_DIR" &&
+        git rev-parse HEAD > "$ARTIFACTS_DIR/.start-sha" &&
+        echo '{"start":"recorded"}'
+
+  - id: implement
+    loop:
+      command: implement
+      until_field: done
+      max_iterations: 5
+    depends_on: [record-start]
+    output_type: implementation
+    output_format:
+      type: object
+      properties:
+        done: { type: boolean }
+        green: { type: boolean }
+        summary: { type: string }
+      required: [done, green, summary]
+
+  # The spend gate. Two facts, one exit code, before anything public happens:
+  # the work is green by its own account, AND the commit actually moved. An
+  # agent that declines still exits 0, so a run finishing certifies nothing.
+  - id: gate-work
+    bash: |
+      START=$(cat "$ARTIFACTS_DIR/.start-sha")
+      NOW=$(git rev-parse HEAD)
+      if [ "$INPUTS_GREEN" != "true" ]; then
+        echo "implement finished but is not green — its summary says why. Refusing to open a PR on red work." >&2
+        exit 1
+      fi
+      if [ "$START" = "$NOW" ]; then
+        echo "implement reported green but committed nothing since $START. Refusing to open an empty PR." >&2
+        exit 1
+      fi
+      echo '{"gate":"work"}'
+    depends_on: [implement]
+    with:
+      green: "$implement.output.green"
+
+  - id: pr
+    command: pr
+    depends_on: [gate-work]
+
+  # Read-only judgment with an evidence bar, in a fresh session so it never
+  # inherits the implementer's belief about its own work.
+  - id: review
+    command: review
+    context: fresh
+    depends_on: [pr]
+    output_type: review-report
+    output_format:
+      type: object
+      properties:
+        ready: { type: boolean }
+        findings_summary: { type: string }
+      required: [ready, findings_summary]
+
+  # Act, then verify — and the verification is a NEW review, never the fixer
+  # grading itself. Bounded at two rounds: meeting the gate stops it
+  # immediately, and exhausting the bound fails with the PR still draft and
+  # the findings still on it, rather than shipping an unreviewed final fix.
+  - id: corrections
+    depends_on: [review]
+    when: "$review.output.ready == 'false'"
+    loop_group:
+      until_bash: test "$recheck.output.ready" = "true"
+      max_iterations: 2
+      fresh_context: true
+      nodes:
+        - id: fix
+          loop:
+            command: implement
+            until_field: done
+            max_iterations: 3
+          output_format:
+            type: object
+            properties:
+              done: { type: boolean }
+              green: { type: boolean }
+              summary: { type: string }
+            required: [done, green, summary]
+
+        - id: gate-fix
+          bash: |
+            if [ "$INPUTS_GREEN" = "true" ]; then
+              echo '{"gate":"fix"}'
+            else
+              echo "the correction is not green — refusing to spend a review on red work." >&2
+              exit 1
+            fi
+          depends_on: [fix]
+          with:
+            green: "$fix.output.green"
+
+        - id: recheck
+          command: review
+          context: fresh
+          depends_on: [gate-fix]
+          output_format:
+            type: object
+            properties:
+              ready: { type: boolean }
+              findings_summary: { type: string }
+            required: [ready, findings_summary]
+
+  # The join: ready from the first review, or ready from the last correction.
+  # if_skipped tells a path that never ran apart from one that ran and failed.
+  - id: gate-ready
+    bash: |
+      if [ "$INPUTS_REVIEW_READY" = "true" ] || [ "$INPUTS_CORRECTION_READY" = "true" ]; then
+        echo '{"gate":"ready"}'
+      else
+        echo "no review returned ready — the PR stays draft with its findings attached." >&2
+        exit 1
+      fi
+    depends_on: [review, corrections]
+    trigger_rule: none_failed_min_one_success
+    with:
+      review_ready: { from: "$review.output.ready", if_skipped: false }
+      correction_ready: { from: "$corrections.output.ready", if_skipped: false }
+
+  # The project's own gate, as a script rather than an agent: this repository
+  # writes its checks down in CLAUDE.md, so a checkable fact settles it and
+  # the exit code owns the decision.
+  - id: validate
+    script: validate
+    runtime: uv
+    depends_on: [gate-ready]
+
+  - id: flip-ready
+    bash: |
+      ORIGIN_REPO=$(git remote get-url origin | sed -E 's#^.*[:/]([^/]+/[^/]+)$#\1#; s#\.git$##')
+      BRANCH=$(git branch --show-current)
+      if [ -z "$BRANCH" ]; then
+        echo "flip-ready: detached HEAD — cannot resolve the PR branch." >&2
+        exit 1
+      fi
+      gh pr ready "$BRANCH" --repo "$ORIGIN_REPO"
+      draft=$(gh pr view "$BRANCH" --repo "$ORIGIN_REPO" --json isDraft --jq .isDraft)
+      if [ "$draft" = "false" ]; then
+        gh pr view "$BRANCH" --repo "$ORIGIN_REPO" --json url --jq .url
+      else
+        echo "flip-ready: PR still reports draft after the ready flip" >&2
+        exit 1
+      fi
+    depends_on: [validate]

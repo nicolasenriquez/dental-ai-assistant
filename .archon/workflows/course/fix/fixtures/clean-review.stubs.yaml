@@ -1,0 +1,18 @@
+# The happy path, fully stubbed: implement is green, the first review is ready,
+# the correction loop never runs. Proves the wiring, the until_field completion,
+# and that a ready review reaches flip-ready without a correction round.
+record-start: '{"start":"recorded"}'
+implement:
+  done: true
+  green: true
+  summary: "stub: fixed the off-by-60 in chunk_video_fallback, regression test added"
+gate-work: '{"gate":"work"}'
+pr: "https://github.com/dynamous-community/ai-tutor/pull/999"
+review:
+  ready: true
+  findings_summary: "stub: no Critical or Important findings."
+gate-ready: '{"gate":"ready"}'
+validate: "PASS backend"
+flip-ready: "https://github.com/dynamous-community/ai-tutor/pull/999"
+fixture:
+  expect: completed

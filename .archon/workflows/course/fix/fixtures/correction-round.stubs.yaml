@@ -1,0 +1,26 @@
+# The correction path: the first review refuses, one round fixes it, the fresh
+# recheck certifies ready, and the join accepts the loop's verdict rather than
+# the initial review's. This is the shape the video teaches.
+record-start: '{"start":"recorded"}'
+implement:
+  done: true
+  green: true
+  summary: "stub: implemented"
+gate-work: '{"gate":"work"}'
+pr: "https://github.com/dynamous-community/ai-tutor/pull/999"
+review:
+  ready: false
+  findings_summary: "stub: R1 Important — the fix has no regression test."
+fix:
+  done: true
+  green: true
+  summary: "stub: added the regression test named in R1"
+gate-fix: '{"gate":"fix"}'
+recheck:
+  ready: true
+  findings_summary: "stub: R1 fixed at abc1234."
+gate-ready: '{"gate":"ready"}'
+validate: "PASS backend"
+flip-ready: "https://github.com/dynamous-community/ai-tutor/pull/999"
+fixture:
+  expect: completed

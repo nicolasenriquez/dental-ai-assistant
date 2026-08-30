@@ -1,0 +1,26 @@
+# EXPECTED RED — the bound, seen exhausting. Every review refuses. The loop
+# runs its two rounds and stops; the readiness gate then refuses, so the run
+# fails with the PR still draft and its findings attached, rather than shipping
+# an unreviewed final fix. Note WHERE it fails: exhausting the bound is not
+# itself an error, and the gate is what withholds the flip.
+record-start: '{"start":"recorded"}'
+implement:
+  done: true
+  green: true
+  summary: "stub: implemented"
+gate-work: '{"gate":"work"}'
+pr: "https://github.com/dynamous-community/ai-tutor/pull/999"
+review:
+  ready: false
+  findings_summary: "stub: R1 Critical — unbounded query on a supported path."
+fix:
+  done: true
+  green: true
+  summary: "stub: attempted the correction"
+gate-fix: '{"gate":"fix"}'
+recheck:
+  ready: false
+  findings_summary: "stub: R1 still open."
+fixture:
+  expect: failed
+  fail-node: gate-ready

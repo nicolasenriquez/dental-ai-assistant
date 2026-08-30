@@ -1,0 +1,11 @@
+# EXPECTED RED — the spend gate, seen refusing. implement declines (done, not
+# green), record-start and gate-work execute for real, and the run stops before
+# a PR is ever opened. A gate that has never refused anything is decoration.
+implement:
+  done: true
+  green: false
+  summary: "stub: declined — the issue names a file that does not exist"
+fixture:
+  expect: failed
+  fail-node: gate-work
+exec-code: true
