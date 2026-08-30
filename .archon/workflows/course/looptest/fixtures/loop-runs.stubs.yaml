@@ -1,0 +1,26 @@
+# The path this harness exists to exercise: round one refuses, one correction
+# round runs, the fresh recheck certifies, and the join takes the loop's verdict
+# rather than the initial refusal.
+record-start: '{"start":"recorded"}'
+implement:
+  done: true
+  green: true
+  summary: "stub: implemented"
+gate-work: '{"gate":"work"}'
+pr: "https://github.com/dynamous-community/ai-tutor/pull/999"
+review:
+  ready: false
+  findings_summary: "stub: L1 loop-test finding — the regression test is not greppable by issue."
+fix:
+  done: true
+  green: true
+  summary: "stub: added the issue marker and a second parametrized case"
+gate-fix: '{"gate":"fix"}'
+recheck:
+  ready: true
+  findings_summary: "stub: L1 fixed at abc1234, verified in the test file."
+gate-ready: '{"gate":"ready"}'
+validate: "PASS backend"
+flip-ready: "https://github.com/dynamous-community/ai-tutor/pull/999"
+fixture:
+  expect: completed
