@@ -53,3 +53,42 @@ archon workflow test course-fix-looptest
 ```
 
 Pick a small issue. The point is the loop, not the implementation.
+
+## Measured run — the loop, executing
+
+**`78f77a59` — issue #11 (`SupadataError` has no `.status`) → PR #52, flipped ready. 22m 08s,
+13 node records.**
+
+| node | duration | verdict |
+|---|---|---|
+| record-start | 0.7s | |
+| implement | 7m 24s | green |
+| gate-work | 0.5s | passed |
+| pr | 1m 32s | PR #52, draft |
+| **review** | **6m 13s** | **`ready: false`** — no real defect found; withheld on L1 |
+| **corrections** | **6m 16s** | one round, converged |
+| ↳ fix | 2m 48s | green, pushed as `5038a8e` |
+| ↳ gate-fix | 0.25s | passed |
+| ↳ recheck | 3m 27s | **`ready: true`** — L1 verified against the code |
+| gate-ready | 0.3s | took the loop's verdict, not the initial refusal |
+| validate | 25.9s | green |
+| flip-ready | 2.6s | PR #52 draft → ready |
+
+What the run proves, each of which was previously fixture-only:
+
+- `corrections` is entered by its `when:` on a real `ready: false`.
+- The `fix` agent reads the report and does real work — it added the issue marker and parametrized the
+  test, and the suite stayed green.
+- `gate-fix` gates the correction's own `green` before a second review is paid for.
+- `recheck` runs in a **fresh session** and verifies against the code, not against the fixer's claim.
+  Its round-two report reads: *"this fresh session re-verified it against the code rather than against
+  the claim."*
+- `gate-ready` joins the two mutually exclusive paths and takes the loop's verdict.
+- The PR stays **draft** for the whole loop and flips only after the gate.
+
+### What the first run exposed
+
+Round two **overwrote** `review/report.md`, and the run kept only one `nodes/review.md`, so the
+finished run could not show what had been corrected — the evidence for the loop was destroyed by the
+loop. Both reviewers now also write `review/report-round-N.md`, never edited. That fix came out of
+running the loop, not out of reading it.

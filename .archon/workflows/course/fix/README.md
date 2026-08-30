@@ -102,18 +102,23 @@ the variance (implement 4m 22s to 13m 41s, review 4m 34s to 10m 5s) while the de
 boringly stable (`gate-work` 0.35-0.46s, `gate-ready` ~0.3s, `validate` 26-38s, `flip-ready`
 2.4-3.2s). Three of the four ran under concurrency, so a solo run sits at the fast end.
 
-**The correction loop has not fired on a real run yet — four clean first reviews out of four.** So
-`corrections` was skipped by its `when:` every time. Its wiring, its bound, and the refusal at the end
-of the bound are proved by fixtures (`correction-round`, `review-never-ready`), and the fixer and
-recheck use the same prompt files the first pass does, but a live round is still unproven.
+**`a2ee1fe3` — issue #9 (neighbor expansion discards RRF ranking) → PR #53, flipped ready.
+17m 40s.** implement 8m 33s · pr 1m 14s · review 7m 11s · corrections skipped · validate 25.5s ·
+flip-ready 2.5s. Picked deliberately as the most design-ambiguous issue in the backlog, to see whether
+a reviewer would push back. It did not.
 
-Read that as a result rather than a gap: the evidence bar in `commands/review.md` only admits proved
-defects, and the implementer is required to add a regression test and run this repo's full suite before
-it can claim green. Under those two conditions, a well-scoped bug tends to come out right the first
-time. Do **not** loosen the reviewer to manufacture a correction round; if a live one is needed, reach
-for a harder class of work (a refactor, a change with a real API boundary), not a laxer gate.
+**Five for five on real work, and five clean first reviews.** So `corrections` has never been entered
+by a production run. That is a result, not a gap: the implementer must add a regression test and pass
+this repo's whole suite before it may claim green, and the reviewer only admits proved defects. Under
+those two conditions a well-scoped bug tends to come out right the first time. Do **not** loosen the
+reviewer to manufacture a correction round.
 
-Against `archon-ship` on the same repository: **51m 36s and 53 node records**. Four times faster and
+**The loop itself is proved, on a real run, by `../looptest/`.** Run `78f77a59` (issue #11 → PR #52)
+entered `corrections`, ran `fix` (2m 48s) → `gate-fix` → a fresh `recheck` (3m 27s) that verified the
+correction against the code, converged in one round, and flipped the PR ready. Full numbers in that
+folder's README. The harness forces only the round-one verdict; every other node in it is real.
+
+Against `archon-ship` on the same repository:Against `archon-ship` on the same repository: **51m 36s and 53 node records**. Four times faster and
 five times smaller, doing the same job, because it does not have to work on a repository it has never
 seen.
 
