@@ -14,7 +14,13 @@
 # still bundled (21 of them) and no view hides them.
 #
 # Order = the order V32's beat names them.
+#
+# course-fix is FIRST and is this repo's own workflow, not part of the bundled
+# pack. V33 presses go on it, so it needs to be one click from the picker; V32's
+# pack beat names the five below it and then names this one as the contrast
+# ("and one I wrote for this repo"), which is what sets up V33.
 recommendedWorkflows:
+  - course-fix
   - archon-ship
   - archon-upkeep
   - archon-stabilize

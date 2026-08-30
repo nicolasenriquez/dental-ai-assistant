@@ -1,0 +1,18 @@
+# EXEC-CODE REGRESSION for a bug this workflow actually shipped with: gate-work
+# originally read its `green` through a node-local `with:` binding, which the
+# engine does not deliver to a bash node (runtime 'sh' is excluded), so the gate
+# read an empty string and refused work that was green and committed.
+#
+# Dry-run cannot produce a commit, so the green path cannot end in success here.
+# What it CAN prove is which branch the gate takes: with green substituting
+# correctly it falls through to the commit check and fails saying "committed
+# nothing since <sha>". If the substitution ever breaks again it fails saying
+# "is not green" instead. Same fail-node, different message — read the message.
+implement:
+  done: true
+  green: true
+  summary: "stub: green, but a dry run commits nothing"
+fixture:
+  expect: failed
+  fail-node: gate-work
+exec-code: true

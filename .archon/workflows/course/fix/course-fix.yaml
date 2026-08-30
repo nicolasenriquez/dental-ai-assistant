@@ -51,11 +51,15 @@ nodes:
   # The spend gate. Two facts, one exit code, before anything public happens:
   # the work is green by its own account, AND the commit actually moved. An
   # agent that declines still exits 0, so a run finishing certifies nothing.
+  # A bash node's own `with:` map is NOT delivered as INPUTS_* env vars — the
+  # engine excludes runtime 'sh' (dag-executor.ts:294), so bindings read empty
+  # and the gate fails closed. Read the field by direct substitution instead,
+  # the way the bundled pack's gates do.
   - id: gate-work
     bash: |
       START=$(cat "$ARTIFACTS_DIR/.start-sha")
       NOW=$(git rev-parse HEAD)
-      if [ "$INPUTS_GREEN" != "true" ]; then
+      if [ "$implement.output.green" != "true" ]; then
         echo "implement finished but is not green — its summary says why. Refusing to open a PR on red work." >&2
         exit 1
       fi
@@ -65,11 +69,12 @@ nodes:
       fi
       echo '{"gate":"work"}'
     depends_on: [implement]
-    with:
-      green: "$implement.output.green"
 
+  # Writing a PR body from an artifact that already exists is not the run's
+  # hard thinking; the tier says so.
   - id: pr
     command: pr
+    model: medium
     depends_on: [gate-work]
 
   # Read-only judgment with an evidence bar, in a fresh session so it never
@@ -113,15 +118,13 @@ nodes:
 
         - id: gate-fix
           bash: |
-            if [ "$INPUTS_GREEN" = "true" ]; then
+            if [ "$fix.output.green" = "true" ]; then
               echo '{"gate":"fix"}'
             else
               echo "the correction is not green — refusing to spend a review on red work." >&2
               exit 1
             fi
           depends_on: [fix]
-          with:
-            green: "$fix.output.green"
 
         - id: recheck
           command: review
@@ -135,15 +138,12 @@ nodes:
             required: [ready, findings_summary]
 
   # The join: ready from the first review, or ready from the last correction.
-  # if_skipped tells a path that never ran apart from one that ran and failed.
+  # A script rather than a bash node because it needs `if_skipped` to tell a
+  # path that never ran from one that ran and refused — and node-local `with:`
+  # bindings only reach non-'sh' runtimes.
   - id: gate-ready
-    bash: |
-      if [ "$INPUTS_REVIEW_READY" = "true" ] || [ "$INPUTS_CORRECTION_READY" = "true" ]; then
-        echo '{"gate":"ready"}'
-      else
-        echo "no review returned ready — the PR stays draft with its findings attached." >&2
-        exit 1
-      fi
+    script: gate-ready
+    runtime: uv
     depends_on: [review, corrections]
     trigger_rule: none_failed_min_one_success
     with:
