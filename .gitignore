@@ -84,3 +84,4 @@ deploy/upstream.conf
 .archon/mcp/
 scratch_build/
 EXAMPLE-CLAUDE.md
+.agents/

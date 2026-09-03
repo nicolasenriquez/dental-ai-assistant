@@ -1,0 +1,6 @@
+services:
+  app-blue:
+    ports:
+      - "8000:8000"
+    environment:
+      SEED_ENABLE: "true"

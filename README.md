@@ -59,6 +59,44 @@ For full code conventions, repo layout, and the rules AI coding agents should fo
 
 ## Quick Start
 
+### Docker + just (recommended for local development)
+
+This is the simplest local setup. It starts Postgres and `app-blue`, serves the
+built frontend through FastAPI on `http://localhost:8000`, and does not start
+the production Caddy or blue/green standby service.
+
+Prerequisites:
+
+- [Docker Desktop](https://docs.docker.com/desktop/)
+- [`just`](https://just.systems/man/en/)
+- An [OpenRouter](https://openrouter.ai) API key for chat and embeddings
+
+Create the local environment file and fill in the required values:
+
+```powershell
+Copy-Item deploy\.env.example deploy\.env
+```
+
+Create `deploy/docker-compose.local.yml` with the local port and demo seed:
+
+```yaml
+services:
+  app-blue:
+    ports:
+      - "8000:8000"
+    environment:
+      SEED_ENABLE: "true"
+```
+
+From repository root:
+
+```bash
+just dev-up-build
+```
+
+Open <http://localhost:8000>. Subsequent starts can use `just dev-up`. Stop
+containers without deleting database data with `just dev-down`.
+
 ### Prerequisites
 
 - Python 3.11+ and [`uv`](https://docs.astral.sh/uv/)
