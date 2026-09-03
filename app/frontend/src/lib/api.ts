@@ -85,6 +85,31 @@ export interface ConversationWithMessages extends Conversation {
   messages: Message[];
 }
 
+export interface Patient {
+  id: string;
+  first_name: string;
+  last_name: string;
+  rut_masked: string;
+  last_evolution_at: string | null;
+  birth_date?: string | null;
+}
+
+export interface CreatePatientBody {
+  first_name: string;
+  last_name: string;
+  rut: string;
+  birth_date?: string | null;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public body: unknown,
+  ) {
+    super(`API error ${status}`);
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
@@ -101,7 +126,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+    let body: unknown = text;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // Keep non-JSON errors as text.
+    }
+    throw new ApiError(res.status, body);
   }
   return res.json() as Promise<T>;
 }
@@ -124,6 +155,14 @@ export const renameConversation = (id: string, title: string) =>
 
 // Videos
 export const getVideos = () => request<Video[]>('/videos');
+
+// Patients
+export const getPatients = () => request<Patient[]>('/patients');
+export const searchPatients = (query: string) =>
+  request<Patient[]>('/patients/search', { method: 'POST', body: JSON.stringify({ query }) });
+export const createPatient = (body: CreatePatientBody) =>
+  request<Patient>('/patients', { method: 'POST', body: JSON.stringify(body) });
+export const getPatient = (id: string) => request<Patient>(`/patients/${id}`);
 
 export interface IngestVideoBody {
   title: string;

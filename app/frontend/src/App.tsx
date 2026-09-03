@@ -1,12 +1,14 @@
-import { type ReactNode, useRef, useState } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { ChatArea } from './components/ChatArea';
-import { Sidebar } from './components/Sidebar';
+import { AppShell } from './components/AppShell';
 import { ToastProvider } from './components/ToastProvider';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { AdminVideos } from './pages/AdminVideos';
 import { Login } from './pages/Login';
 import { NotFound } from './pages/NotFound';
+import { PatientDetail } from './pages/PatientDetail';
+import { Patients } from './pages/Patients';
 import { Signup } from './pages/Signup';
 
 // ── Auth guard ───────────────────────────────────────────────────
@@ -37,49 +39,19 @@ interface AppLayoutProps {
 }
 
 function AppLayout({ conversationId }: AppLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   // Shared ref so ChatArea can trigger a sidebar conversation refresh
   const conversationsRef = useRef<(() => Promise<void>) | null>(null) as React.MutableRefObject<
     (() => Promise<void>) | null
   >;
 
   return (
-    <div className="app-layout">
-      {/* Mobile overlay — only rendered when sidebar is open on mobile */}
-      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
-
-      <Sidebar
-        activeConversationId={conversationId}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        conversationsRef={conversationsRef}
-      />
-
-      <div className="main-area">
-        {/* Hamburger — visible only on mobile */}
-        <button
-          className="hamburger-btn"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open sidebar"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <line x1="2" y1="4.5" x2="16" y2="4.5" />
-            <line x1="2" y1="9" x2="16" y2="9" />
-            <line x1="2" y1="13.5" x2="16" y2="13.5" />
-          </svg>
-        </button>
-
-        <ChatArea conversationId={conversationId} refreshConversationsRef={conversationsRef} />
-      </div>
-    </div>
+    <AppShell
+      activeConversationId={conversationId}
+      showConversations
+      conversationsRef={conversationsRef}
+    >
+      <ChatArea conversationId={conversationId} refreshConversationsRef={conversationsRef} />
+    </AppShell>
   );
 }
 
@@ -87,10 +59,6 @@ function AppLayout({ conversationId }: AppLayoutProps) {
 function ConversationPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   return <AppLayout conversationId={conversationId} />;
-}
-
-function LandingPage() {
-  return <AppLayout />;
 }
 
 // ── Root app ─────────────────────────────────────────────────────
@@ -106,7 +74,31 @@ function App() {
               path="/"
               element={
                 <RequireAuth>
-                  <LandingPage />
+                  <Navigate to="/patients" replace />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/patients"
+              element={
+                <RequireAuth>
+                  <AppShell showConversations={false}><Patients /></AppShell>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/patients/:patientId"
+              element={
+                <RequireAuth>
+                  <AppShell showConversations={false}><PatientDetail /></AppShell>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/chat"
+              element={
+                <RequireAuth>
+                  <AppLayout />
                 </RequireAuth>
               }
             />

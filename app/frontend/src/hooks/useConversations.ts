@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Conversation, getConversations, renameConversation } from '../lib/api';
 
-export function useConversations(searchQuery?: string) {
+export function useConversations(searchQuery?: string, enabled = true) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -11,6 +11,12 @@ export function useConversations(searchQuery?: string) {
 
   const load = useCallback(async () => {
     const myId = ++fetchIdRef.current;
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      setConversations([]);
+      return;
+    }
     try {
       setLoading(true);
       const data = await getConversations();
@@ -22,7 +28,7 @@ export function useConversations(searchQuery?: string) {
     } finally {
       if (myId === fetchIdRef.current) setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     load();

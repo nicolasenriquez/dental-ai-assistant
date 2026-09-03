@@ -11,9 +11,11 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.auth.dependencies import get_current_admin, get_current_user
 from backend.config import CORS_ORIGINS, FRONTEND_DIST
@@ -103,7 +105,15 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Routes (imported here to keep main.py clean)
 # ---------------------------------------------------------------------------
-from backend.routes import admin, auth, channels, conversations, ingest, messages  # noqa: E402
+from backend.routes import (  # noqa: E402
+    admin,
+    auth,
+    channels,
+    conversations,
+    ingest,
+    messages,
+    patients,
+)
 
 # Auth routes are public (signup/login don't require a session; /me and /logout
 # rely on their own dependency/cookie behaviour).
@@ -114,6 +124,9 @@ app.include_router(auth.router, prefix="/api")
 _auth_required = [Depends(get_current_user)]
 app.include_router(conversations.router, prefix="/api", dependencies=_auth_required)
 app.include_router(messages.router, prefix="/api", dependencies=_auth_required)
+# Patient endpoints declare the same dependency themselves so request models are
+# validated before authentication (important for deterministic 422 boundaries).
+app.include_router(patients.router, prefix="/api")
 
 # Library-mutation routes (ingest a video, backfill the whole channel) and
 # admin routes — all gated on get_current_admin. These endpoints write to the
@@ -125,6 +138,17 @@ _admin_required = [Depends(get_current_admin)]
 app.include_router(ingest.router, prefix="/api", dependencies=_admin_required)
 app.include_router(channels.router, prefix="/api", dependencies=_admin_required)
 app.include_router(admin.router, prefix="/api", dependencies=_admin_required)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> Response:
+    """Avoid echoing sensitive search bodies in validation responses."""
+    if request.url.path != "/api/patients/search":
+        return await request_validation_exception_handler(request, exc)
+    errors = [
+        {key: value for key, value in error.items() if key != "input"} for error in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": errors})
 
 
 # ---------------------------------------------------------------------------

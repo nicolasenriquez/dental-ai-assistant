@@ -1,5 +1,5 @@
-import { type MutableRefObject, type RefObject, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { type MutableRefObject, useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useConversations } from '../hooks/useConversations';
 import { useToast } from '../hooks/useToast';
@@ -407,14 +407,22 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   conversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
+  showConversations?: boolean;
 }
 
-export function Sidebar({ activeConversationId, isOpen, onClose, conversationsRef }: SidebarProps) {
+export function Sidebar({
+  activeConversationId,
+  isOpen,
+  onClose,
+  conversationsRef,
+  showConversations = true,
+}: SidebarProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const { conversations, loading, refetch, rename, filteredConversations } =
-    useConversations(debouncedQuery);
+    useConversations(debouncedQuery, showConversations);
   const { user, logout } = useAuth();
   const [creatingNew, setCreatingNew] = useState(false);
   const [newChatError, setNewChatError] = useState<string | null>(null);
@@ -525,8 +533,25 @@ export function Sidebar({ activeConversationId, isOpen, onClose, conversationsRe
   return (
     <>
       <aside className={`sidebar-container${isOpen ? ' open' : ''}`}>
+        <nav aria-label="Navegacion principal" className="p-3 pb-1 space-y-1">
+          {[
+            { to: '/patients', label: 'Pacientes', active: location.pathname.startsWith('/patients') },
+            { to: '/chat', label: 'Chat', active: showConversations },
+          ].map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={onClose}
+              aria-current={item.active ? 'page' : undefined}
+              className={`block rounded-lg px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${item.active ? 'bg-[var(--surface-2)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
         {/* ── New Chat button ── */}
-        <div style={{ padding: '12px 12px 8px' }}>
+        {showConversations && <div style={{ padding: '12px 12px 8px' }}>
           <button
             onClick={handleNewChat}
             disabled={creatingNew}
@@ -575,10 +600,10 @@ export function Sidebar({ activeConversationId, isOpen, onClose, conversationsRe
               {newChatError}
             </p>
           )}
-        </div>
+        </div>}
 
         {/* ── Search conversations ── */}
-        <div style={{ padding: '0 12px 8px' }}>
+        {showConversations && <div style={{ padding: '0 12px 8px' }}>
           <input
             type="text"
             placeholder="Search conversations..."
@@ -599,10 +624,10 @@ export function Sidebar({ activeConversationId, isOpen, onClose, conversationsRe
             onFocus={(e) => (e.currentTarget.style.borderColor = '#3b82f6')}
             onBlur={(e) => (e.currentTarget.style.borderColor = '#334155')}
           />
-        </div>
+        </div>}
 
         {/* ── Conversation list ── */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        {showConversations ? <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading ? (
             <>
               <SkeletonRow />
@@ -676,10 +701,10 @@ export function Sidebar({ activeConversationId, isOpen, onClose, conversationsRe
               />
             ))
           )}
-        </div>
+        </div> : <div style={{ flex: 1 }} />}
 
         {/* ── Daily message quota counter (MISSION §10 #1: hardcoded 25/24h) ── */}
-        {user && (
+        {showConversations && user && (
           <DailyQuotaCounter
             used={user.messages_used_today}
             remaining={user.messages_remaining_today}
