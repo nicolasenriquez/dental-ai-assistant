@@ -1,0 +1,49 @@
+- complementary:
+  - navigation "Navegacion principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Chat":
+      - /url: /chat
+  - text: admin@email.com
+  - button "Cerrar sesión"
+  - text: DynaChat
+  - link "Administración":
+    - /url: /admin
+- main:
+  - link "‹ Volver a Juan Perez":
+    - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
+  - heading "Nueva evolución dental" [level=1]
+  - paragraph: "/Paciente: Juan Perez · RUT \\d+\\.\\*\\*\\*\\.\\*\\*\\*-\\*/"
+  - text: /\d+-\d+-\d+, \d+:\d+/
+  - button "Cambiar fecha y hora"
+  - list "Progreso de la evolución":
+    - listitem: 1. Nota clínica
+    - listitem: 2. Redacción asistida
+    - listitem: 3. Revisión y guardado
+  - status: Borrador local · cambios sin guardar
+  - complementary "Referencia de la última evolución":
+    - heading "REFERENCIA DE LA ÚLTIMA EVOLUCIÓN" [level=2]
+    - time: /\d+-\d+-\d+, \d+:\d+/
+    - paragraph: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
+  - heading "NOTA CLÍNICA ORIGINAL" [level=2]
+  - paragraph: Pega o escribe tus notas clínicas. La IA las ordenará para que las revises antes de guardar.
+  - textbox "Nota rápida": Paciente de baseline para validar el flujo de redacción.
+  - button "Regenerar"
+  - heading "BORRADOR CLÍNICO PARA REVISIÓN" [level=2]
+  - text: Motivo / contexto
+  - textbox "Motivo / contexto": Consulta de control.
+  - text: Hallazgos
+  - textbox "Hallazgos": Cambio local para validar regeneración.
+  - text: Diagnóstico / impresión clínica
+  - textbox "Diagnóstico / impresión clínica": Impresión clínica de baseline.
+  - text: Tratamiento / conducta
+  - textbox "Tratamiento / conducta": Conducta de baseline.
+  - text: Seguimiento
+  - textbox "Seguimiento": Control posterior.
+  - paragraph: /Guardar para Juan Perez · RUT \d+\.\*\*\*\.\*\*\*-\*/
+  - button "Guardar evolución" [disabled]
+  - dialog "Regenerar evolución":
+    - heading "Regenerar evolución" [level=2]
+    - paragraph: Realizaste cambios en la evolución redactada. Al regenerar, esos cambios serán reemplazados por un nuevo borrador.
+    - button "Cancelar"
+    - button "Regenerar"

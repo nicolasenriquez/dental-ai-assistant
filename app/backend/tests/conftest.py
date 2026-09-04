@@ -19,6 +19,7 @@ os.environ["DATABASE_URL"] = "postgresql://test:test@localhost:5432/test"
 os.environ["SUPADATA_API_KEY"] = "test-supadata-key"
 os.environ["YOUTUBE_CHANNEL_ID"] = "UC_testchannel"
 os.environ["CHANNEL_SYNC_TYPE"] = "video"
+os.environ["CLINICAL_EXTERNAL_LLM_ENABLED"] = "false"
 
 import pytest
 
@@ -142,6 +143,8 @@ def patch_pg_pool(monkeypatch):
     binding — not just the source in `backend.db.postgres`.
     """
     from backend import rate_limit as rate_limit_mod
+    from backend.db import evolutions_repo as evolutions_repo_mod
+    from backend.db import patients_repo as patients_repo_mod
     from backend.db import postgres as pg
     from backend.db import repository as repo_mod
     from backend.db import users_repo as users_repo_mod
@@ -153,6 +156,8 @@ def patch_pg_pool(monkeypatch):
     monkeypatch.setattr(auth_route, "get_pg_pool", getter)
     monkeypatch.setattr(repo_mod, "get_pg_pool", getter)
     monkeypatch.setattr(users_repo_mod, "get_pg_pool", getter)
+    monkeypatch.setattr(patients_repo_mod, "get_pg_pool", getter)
+    monkeypatch.setattr(evolutions_repo_mod, "get_pg_pool", getter)
     monkeypatch.setattr(rate_limit_mod, "get_pg_pool", getter)
 
 

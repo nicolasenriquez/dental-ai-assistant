@@ -48,7 +48,7 @@ vi.mock('../lib/authApi', () => ({
   }),
 }));
 
-const brandingText = "Ask Cole Medin's YouTube library anything";
+const brandingText = 'Pregúntale cualquier cosa a la biblioteca de YouTube de Cole Medin';
 
 describe('Login page', () => {
   it('renders branding header with logo, title, and tagline', () => {
@@ -70,10 +70,10 @@ describe('Login page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: /log in/i })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /log in/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /iniciar sesión/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /correo electrónico/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /iniciar sesión/i })).toBeInTheDocument();
   });
 
   it('renders a link to the signup page', () => {
@@ -83,7 +83,7 @@ describe('Login page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: /sign up/i })).toHaveAttribute('href', '/signup');
+    expect(screen.getByRole('link', { name: /regístrate/i })).toHaveAttribute('href', '/signup');
   });
 });
 
@@ -107,10 +107,10 @@ describe('Signup page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: /create account/i })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /crear cuenta/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /correo electrónico/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /registrarse/i })).toBeInTheDocument();
   });
 
   it('renders a link to the login page', () => {
@@ -120,7 +120,7 @@ describe('Signup page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: /log in/i })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: /iniciar sesión/i })).toHaveAttribute('href', '/login');
   });
 });
 

@@ -1,11 +1,19 @@
 import { type ReactNode, useRef } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import {
+  Navigate,
+  Outlet,
+  Route,
+  RouterProvider,
+  createBrowserRouter,
+  createRoutesFromElements,
+  useLocation,
+  useParams,
+} from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { ChatArea } from './components/ChatArea';
 import { ToastProvider } from './components/ToastProvider';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { AdminVideos } from './pages/AdminVideos';
-import { EvolutionDetail } from './pages/EvolutionDetail';
 import { Login } from './pages/Login';
 import { NewEvolution } from './pages/NewEvolution';
 import { NotFound } from './pages/NotFound';
@@ -63,93 +71,101 @@ function ConversationPage() {
   return <AppLayout conversationId={conversationId} />;
 }
 
+function AppProviders() {
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <Outlet />
+      </ToastProvider>
+    </AuthProvider>
+  );
+}
+
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<AppProviders />}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <Navigate to="/patients" replace />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/patients"
+        element={
+          <RequireAuth>
+            <AppShell showConversations={false}>
+              <Patients />
+            </AppShell>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/patients/:patientId"
+        element={
+          <RequireAuth>
+            <AppShell showConversations={false}>
+              <PatientDetail />
+            </AppShell>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/patients/:patientId/evolutions/new"
+        element={
+          <RequireAuth>
+            <AppShell showConversations={false}>
+              <NewEvolution />
+            </AppShell>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/patients/:patientId/evolutions/:evolutionId"
+        element={
+          <RequireAuth>
+            <AppShell showConversations={false}>
+              <PatientDetail />
+            </AppShell>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <RequireAuth>
+            <AppLayout />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/c/:conversationId"
+        element={
+          <RequireAuth>
+            <ConversationPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <RequireAuth>
+            <AdminVideos />
+          </RequireAuth>
+        }
+      />
+      <Route path="*" element={<NotFound />} />
+    </Route>,
+  ),
+);
+
 // ── Root app ─────────────────────────────────────────────────────
 function App() {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <Navigate to="/patients" replace />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/patients"
-              element={
-                <RequireAuth>
-                  <AppShell showConversations={false}>
-                    <Patients />
-                  </AppShell>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/patients/:patientId"
-              element={
-                <RequireAuth>
-                  <AppShell showConversations={false}>
-                    <PatientDetail />
-                  </AppShell>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/patients/:patientId/evolutions/new"
-              element={
-                <RequireAuth>
-                  <AppShell showConversations={false}>
-                    <NewEvolution />
-                  </AppShell>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/patients/:patientId/evolutions/:evolutionId"
-              element={
-                <RequireAuth>
-                  <AppShell showConversations={false}>
-                    <EvolutionDetail />
-                  </AppShell>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/chat"
-              element={
-                <RequireAuth>
-                  <AppLayout />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/c/:conversationId"
-              element={
-                <RequireAuth>
-                  <ConversationPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <RequireAuth>
-                  <AdminVideos />
-                </RequireAuth>
-              }
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default App;

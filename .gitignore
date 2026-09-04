@@ -85,3 +85,4 @@ deploy/upstream.conf
 scratch_build/
 EXAMPLE-CLAUDE.md
 .agents/
+.playwright-cli/

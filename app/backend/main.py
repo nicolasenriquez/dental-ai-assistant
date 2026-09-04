@@ -12,6 +12,7 @@ from importlib.metadata import version as get_version
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -154,9 +155,10 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     if not sensitive_path:
         return await request_validation_exception_handler(request, exc)
     errors = [
-        {key: value for key, value in error.items() if key != "input"} for error in exc.errors()
+        {key: value for key, value in error.items() if key not in ("input", "ctx")}
+        for error in exc.errors()
     ]
-    return JSONResponse(status_code=422, content={"detail": errors})
+    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": errors}))
 
 
 # ---------------------------------------------------------------------------

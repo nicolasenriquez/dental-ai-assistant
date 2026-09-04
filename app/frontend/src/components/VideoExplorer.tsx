@@ -97,7 +97,12 @@ interface VideoExplorerProps {
 
 const INGEST_FIELDS = [
   { key: 'title', label: 'Title', placeholder: 'Video title', type: 'text' },
-  { key: 'description', label: 'Description', placeholder: 'Short description', type: 'text' },
+  {
+    key: 'description',
+    label: 'Description',
+    placeholder: 'Short description',
+    type: 'text',
+  },
   {
     key: 'url',
     label: 'YouTube URL',
@@ -209,10 +214,12 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
       )
     : videos;
 
+  if (!isOpen) return null;
+
   return (
     <>
       {/* Backdrop */}
-      {isOpen && <div onClick={onClose} className="fixed inset-0 bg-black/50 z-30" />}
+      <div onClick={onClose} className="fixed inset-0 bg-black/50 z-30" />
 
       {/* Slide-over panel */}
       <div
@@ -220,7 +227,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
         aria-label="Video Knowledge Base"
         aria-modal="true"
         className="fixed top-0 right-0 h-full w-[380px] max-w-[90vw] bg-gray-900 border-l border-white/10 z-40 flex flex-col transition-transform duration-300 shadow-[-8px_0_32px_rgba(0,0,0,0.4)]"
-        style={{ transform: isOpen ? 'translateX(0)' : 'translateX(100%)' }}
+        style={{ transform: 'translateX(0)' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 flex-shrink-0">
@@ -348,7 +355,9 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-slate-100 text-base font-semibold m-0">Add New Video</h3>
                 <button
+                  type="button"
                   onClick={closeDialog}
+                  aria-label="Cerrar formulario de video"
                   className="bg-none border-none text-slate-400 cursor-pointer text-lg focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
                 >
                   ×

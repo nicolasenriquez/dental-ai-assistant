@@ -1,5 +1,13 @@
-import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getPatientAge } from '../lib/age';
 import {
   ApiError,
   type CreatePatientBody,
@@ -8,6 +16,7 @@ import {
   getPatients,
   searchPatients,
 } from '../lib/api';
+import { formatClinicalDateTime, parseClinicalDateInput } from '../lib/clinicalDate';
 import { formatRutInput, formatRutInputWithSelection } from '../lib/rut';
 
 function duplicatePatient(error: unknown): Patient | null {
@@ -28,13 +37,16 @@ export function Patients() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const requestId = useRef(0);
+  const loadedOnce = useRef(false);
 
   const load = async (search = query) => {
     const currentRequest = ++requestId.current;
-    setLoading(true);
+    if (loadedOnce.current) setRefreshing(true);
+    else setLoading(true);
     setError(false);
     try {
       const result = search.trim() ? await searchPatients(search) : await getPatients();
@@ -42,7 +54,11 @@ export function Patients() {
     } catch {
       if (currentRequest === requestId.current) setError(true);
     } finally {
-      if (currentRequest === requestId.current) setLoading(false);
+      if (currentRequest === requestId.current) {
+        loadedOnce.current = true;
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -80,60 +96,108 @@ export function Patients() {
           />
         </label>
 
-        <h2 className="text-xs font-semibold tracking-wider text-[var(--text-secondary)] mb-2">
+        <div role="status" className="mb-2 min-h-5 text-sm text-[var(--text-secondary)]">
+          {refreshing ? 'Actualizando pacientes…' : ''}
+        </div>
+
+        {error && patients.length > 0 && (
+          <div
+            role="alert"
+            className="mb-3 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] p-3 text-sm"
+          >
+            <p className="font-medium">No pudimos actualizar la lista</p>
+            <p className="mt-1 text-[var(--text-secondary)]">
+              Mostramos los resultados anteriores.
+            </p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="mt-2 text-[var(--accent)] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        <h2 className="mb-2 text-xs font-semibold tracking-wider text-[var(--text-secondary)]">
           PACIENTES
         </h2>
         <section
           className="bg-[var(--surface-1)] border border-[var(--border)] rounded-lg overflow-hidden"
           aria-live="polite"
+          aria-busy={loading || refreshing}
         >
           {loading ? (
-            <div className="p-8 text-center text-[var(--text-secondary)]">
-              Cargando pacientes...
+            <div role="status" aria-label="Cargando pacientes" className="space-y-px">
+              {[0, 1, 2, 3].map((row) => (
+                <div
+                  key={row}
+                  className="flex items-center gap-6 border-b border-[var(--border)] p-4 last:border-b-0"
+                >
+                  <div className="skeleton h-4 flex-1" />
+                  <div className="skeleton h-4 w-24" />
+                  <div className="skeleton h-4 w-36" />
+                </div>
+              ))}
             </div>
-          ) : error ? (
+          ) : error && patients.length === 0 ? (
             <div role="alert" className="p-8 text-center text-[var(--danger)]">
               <p>No pudimos buscar pacientes</p>
               <button
                 type="button"
                 onClick={() => void load()}
-                className="mt-3 text-[var(--accent)] underline"
+                className="mt-3 text-[var(--accent)] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 Reintentar
               </button>
             </div>
           ) : patients.length === 0 ? (
             <div className="p-8 text-center text-[var(--text-secondary)]">
-              <p>{query.trim() ? 'No encontramos pacientes' : 'Aun no hay pacientes'}</p>
-              {!query.trim() && (
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(true)}
-                  className="mt-3 text-[var(--accent)] underline"
-                >
-                  + Nuevo paciente
-                </button>
-              )}
+              <p className="font-medium">
+                {query.trim() ? 'No encontramos pacientes' : 'Aún no hay pacientes'}
+              </p>
+              <p className="mt-2 text-sm">
+                {query.trim()
+                  ? 'Prueba con otro nombre o RUT.'
+                  : 'Crea una ficha para comenzar a registrar evoluciones.'}
+              </p>
             </div>
           ) : (
-            patients.map((patient) => (
-              <Link
-                key={patient.id}
-                to={`/patients/${patient.id}`}
-                className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 border-b last:border-b-0 border-[var(--border)] hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-              >
-                <strong className="min-w-48 flex-1">
-                  {patient.first_name} {patient.last_name}
-                </strong>
-                <span className="text-sm text-[var(--text-secondary)]">{patient.rut_masked}</span>
-                <span className="text-sm text-[var(--text-secondary)]">
-                  {patient.last_evolution_at
-                    ? new Date(patient.last_evolution_at).toLocaleString('es-CL')
-                    : 'Sin evoluciones'}
-                </span>
-                <span aria-hidden="true">›</span>
-              </Link>
-            ))
+            patients.map((patient) => {
+              const age = getPatientAge(patient.birth_date);
+
+              return (
+                <Link
+                  key={patient.id}
+                  to={`/patients/${patient.id}`}
+                  className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 border-b last:border-b-0 border-[var(--border)] hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                >
+                  <div className="min-w-48 flex-1">
+                    <strong className="block">
+                      {patient.first_name} {patient.last_name}
+                    </strong>
+                    {age !== null && (
+                      <span className="mt-1 block text-sm text-[var(--text-secondary)]">
+                        {age} años
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-48 text-sm text-[var(--text-secondary)]">
+                    <span className="block text-xs font-semibold uppercase tracking-wider">
+                      Última evolución
+                    </span>
+                    {patient.last_evolution_at ? (
+                      <time dateTime={patient.last_evolution_at}>
+                        {formatClinicalDateTime(patient.last_evolution_at)}
+                      </time>
+                    ) : (
+                      <span>Sin evoluciones</span>
+                    )}
+                  </div>
+                  <span aria-hidden="true">›</span>
+                </Link>
+              );
+            })
           )}
         </section>
       </div>
@@ -153,6 +217,8 @@ function PatientDialog({
 }: { open: boolean; onClose: () => void; onCreated: (patient: Patient) => void }) {
   const firstInput = useRef<HTMLInputElement>(null);
   const rutInput = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const restoreFocus = useRef<HTMLElement | null>(null);
   const rutSelection = useRef<{ start: number; end: number } | null>(null);
   const [form, setForm] = useState<CreatePatientBody>({
     first_name: '',
@@ -166,11 +232,16 @@ function PatientDialog({
 
   useEffect(() => {
     if (open) {
+      restoreFocus.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setForm({ first_name: '', last_name: '', rut: '', birth_date: null });
       rutSelection.current = null;
       setError(null);
       setDuplicate(null);
       firstInput.current?.focus();
+    } else if (restoreFocus.current?.isConnected) {
+      restoreFocus.current.focus();
+      restoreFocus.current = null;
     }
   }, [open]);
 
@@ -183,21 +254,63 @@ function PatientDialog({
     rutSelection.current = null;
   });
 
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (!submitting) onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   if (!open) return null;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const birthDate = form.birth_date ?? '';
+    const parsedBirthDate = parseClinicalDateInput(birthDate);
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.rut.trim()) {
+      setError('Completa nombre, apellido y RUT.');
+      return;
+    }
+    if (birthDate.trim() && !parsedBirthDate) {
+      setError('Ingresa la fecha como dd/mm/aaaa.');
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
-      onCreated(await createPatient(form));
+      onCreated(
+        await createPatient({
+          ...form,
+          rut: formatRutInput(form.rut, true),
+          birth_date: parsedBirthDate,
+        }),
+      );
     } catch (caught) {
       const existing = duplicatePatient(caught);
       if (existing) setDuplicate(existing);
       else
         setError(
           caught instanceof ApiError && caught.status === 422
-            ? 'Formato o DV invalido'
+            ? 'Formato o DV inválido'
             : 'No pudimos crear el paciente',
         );
     } finally {
@@ -207,17 +320,30 @@ function PatientDialog({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="patient-dialog-title"
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onKeyDown={handleDialogKeyDown}
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !submitting) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4"
     >
       <form
         onSubmit={submit}
-        onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-xl bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-6 shadow-2xl"
+        noValidate
+        className="relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-2xl"
       >
+        <button
+          type="button"
+          aria-label="Cerrar"
+          disabled={submitting}
+          onClick={onClose}
+          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-lg text-xl text-[var(--text-secondary)] hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+        >
+          ×
+        </button>
         <h2 id="patient-dialog-title" className="text-lg font-semibold">
           Nuevo paciente
         </h2>
@@ -231,14 +357,14 @@ function PatientDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-2 rounded border border-[var(--border)]"
+                className="px-3 py-2 rounded border border-[var(--border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={() => onCreated(duplicate)}
-                className="px-3 py-2 rounded bg-[var(--accent)] text-white"
+                className="px-3 py-2 rounded bg-[var(--accent)] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 Abrir paciente
               </button>
@@ -247,27 +373,31 @@ function PatientDialog({
         ) : (
           <>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              Crea la ficha basica. Podras agregar una evolucion despues.
+              Crea la ficha básica. Podrás agregar una evolución después.
             </p>
-            <div className="grid md:grid-cols-2 gap-4 mt-5">
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
               {(
                 [
                   ['first_name', 'Nombre', 'text'],
                   ['last_name', 'Apellido', 'text'],
                   ['rut', 'RUT', 'text'],
-                  ['birth_date', 'Fecha de nacimiento', 'date'],
+                  ['birth_date', 'Fecha de nacimiento', 'text'],
                 ] as const
               ).map(([name, label, type], index) => (
                 <label key={name} className="text-sm">
-                  <span className="text-[var(--text-secondary)]">{label}</span>
+                  <span className="text-[var(--text-secondary)]">
+                    {label}
+                    {name === 'birth_date' ? ' (opcional)' : ''}
+                  </span>
                   <input
-                    ref={
-                      name === 'rut' ? rutInput : index === 0 ? firstInput : undefined
-                    }
+                    ref={name === 'rut' ? rutInput : index === 0 ? firstInput : undefined}
+                    aria-label={name === 'birth_date' ? label : undefined}
                     required={name !== 'birth_date'}
                     type={type}
+                    inputMode={name === 'birth_date' ? 'numeric' : undefined}
+                    maxLength={name === 'birth_date' ? 10 : undefined}
+                    placeholder={name === 'birth_date' ? 'dd/mm/aaaa' : undefined}
                     value={form[name] ?? ''}
-                    maxLength={name === 'rut' ? 12 : undefined}
                     onChange={(event) => {
                       if (name === 'rut') {
                         const input = event.currentTarget;
@@ -300,11 +430,13 @@ function PatientDialog({
                     }}
                     onBlur={
                       name === 'rut'
-                        ? (event) =>
+                        ? (event) => {
+                            const value = event.currentTarget.value;
                             setForm((current) => ({
                               ...current,
-                              rut: formatRutInput(event.currentTarget.value, true),
-                            }))
+                              rut: formatRutInput(value, true),
+                            }));
+                          }
                         : undefined
                     }
                     disabled={submitting}
@@ -323,14 +455,14 @@ function PatientDialog({
                 type="button"
                 onClick={onClose}
                 disabled={submitting}
-                className="px-3 py-2 rounded border border-[var(--border)]"
+                className="px-3 py-2 rounded border border-[var(--border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-3 py-2 rounded bg-[var(--accent)] text-white disabled:opacity-50"
+                className="px-3 py-2 rounded bg-[var(--accent)] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
               >
                 {submitting ? 'Creando...' : 'Crear paciente'}
               </button>

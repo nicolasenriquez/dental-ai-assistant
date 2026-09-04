@@ -1,0 +1,37 @@
+- complementary:
+  - navigation "Navegacion principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Chat":
+      - /url: /chat
+  - button "Nuevo chat":
+    - img
+    - text: ""
+  - textbox "Buscar conversaciones..."
+  - button "New Conversation ahora hi"
+  - status:
+    - strong: /2\/\d+/
+    - text: mensajes hoy
+  - text: admin@email.com
+  - button "Cerrar sesión"
+  - text: DynaChat
+  - link "Administración":
+    - /url: /admin
+  - button "Explorar biblioteca de videos":
+    - img
+    - text: ""
+- dialog "Video Knowledge Base":
+  - heading "Video Library" [level=2]
+  - paragraph: /0 of \d+ videos/
+  - button "Close video library":
+    - img
+  - button "+ Add Video"
+  - searchbox "Search videos": baseline
+  - text: No videos match “baseline”
+- button "Export":
+  - img
+  - text: ""
+- paragraph: Baseline response.
+- textbox "Ask anything about the video library…"
+- button "Send message":
+  - img

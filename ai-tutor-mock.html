@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="DynaChat standalone fidelity mock with local data and simulated backend behavior."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 38'%3E%3Crect width='38' height='38' rx='9' fill='%233b82f6'/%3E%3Cpath d='M10 13.5a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-4l-4 3v-3h-2a4 4 0 0 1-4-4v-6Z' fill='white'/%3E%3C/svg%3E" />
+    <title>DynaChat - AI YouTube Assistant (Local mock)</title>
+    <style>
+      :root {
+        --bg: #0a0a0f;
+        --surface-1: #111827;
+        --surface-2: #1e293b;
+        --surface-3: #0f172a;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-strong: rgba(255, 255, 255, 0.15);
+        --accent: #3b82f6;
+        --accent-dark: #1d4ed8;
+        --accent-glow: rgba(59, 130, 246, 0.3);
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --text-tertiary: #64748b;
+        --user-bubble: #2563eb;
+        --assistant-bubble: #1e293b;
+        --success: #10b981;
+        --danger: #ef4444;
+        --warning: #f59e0b;
+        --warning-bg: rgba(245, 158, 11, 0.12);
+        --warning-border: rgba(245, 158, 11, 0.35);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text-primary);
+        background: var(--bg);
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { min-height: 100%; margin: 0; background: var(--bg); }
+
+      body {
+        min-width: 320px;
+        color: var(--text-primary);
+        font-size: 15px;
+        line-height: 1.4;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button, input, textarea { font: inherit; }
+      button, a { -webkit-tap-highlight-color: transparent; }
+      button { cursor: pointer; }
+      button:disabled { cursor: not-allowed; opacity: 0.55; }
+      a { color: inherit; text-decoration: none; }
+
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      ::selection { color: #fff; background: var(--accent-dark); }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .app-layout {
+        position: relative;
+        display: flex;
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      .main-area {
+        position: relative;
+        display: flex;
+        flex: 1;
+        min-width: 0;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .main-area > main { flex: 1; min-height: 0; overflow-y: auto; }
+
+      .sidebar-container {
+        z-index: 30;
+        display: flex;
+        width: 260px;
+        height: 100vh;
+        height: 100dvh;
+        flex-shrink: 0;
+        flex-direction: column;
+        overflow: hidden;
+        background: var(--surface-1);
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .sidebar-nav { padding: 11px 11px 1px; }
+      .sidebar-nav a {
+        display: block;
+        margin-bottom: 4px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .sidebar-nav a:hover, .sidebar-nav a[aria-current="page"] {
+        color: var(--text-primary);
+        background: var(--surface-2);
+      }
+
+      .sidebar-button {
+        display: flex;
+        width: calc(100% - 24px);
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin: 12px 12px 8px;
+        padding: 10px 16px;
+        color: white;
+        background: var(--accent);
+        border: 0;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: background .15s ease, filter .15s ease;
+      }
+      .sidebar-button:hover { background: var(--accent-dark); }
+
+      .sidebar-search, .admin-search, .patient-search, .video-search {
+        width: 100%;
+        color: var(--text-primary);
+        background: var(--surface-3);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .sidebar-search { margin: 0 12px 8px; width: calc(100% - 24px); padding: 9px 12px; font-size: 13px; }
+      .sidebar-search::placeholder, input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
+
+      .conversation-list { flex: 1; min-height: 0; overflow-y: auto; }
+      .conversation-empty { padding: 24px 16px; color: var(--text-tertiary); font-size: 13px; text-align: center; }
+      .conversation-item {
+        position: relative;
+        display: block;
+        width: 100%;
+        padding: 10px 16px;
+        color: var(--text-primary);
+        text-align: left;
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        border-left: 3px solid transparent;
+      }
+      .conversation-item:hover { background: rgba(30, 41, 59, .6); }
+      .conversation-item.active { background: var(--surface-2); border-left-color: var(--accent); }
+      .conversation-title { display: block; overflow: hidden; padding-right: 44px; font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+      .conversation-time { display: block; margin-top: 2px; color: var(--text-secondary); font-size: 12px; }
+      .conversation-preview { display: block; overflow: hidden; margin-top: 3px; color: var(--text-tertiary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .conversation-actions { position: absolute; top: 21px; right: 8px; display: flex; gap: 2px; }
+      .icon-button {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        color: var(--text-tertiary);
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+      }
+      .icon-button:hover { color: var(--text-primary); background: var(--surface-3); border-color: var(--border); }
+      .icon-button.danger:hover { color: var(--danger); }
+
+      .quota-counter {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 12px;
+        color: var(--text-secondary);
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 12px;
+      }
+      .quota-counter strong { color: var(--text-primary); }
+      .sidebar-user {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 46px;
+        padding: 8px 12px;
+        border-top: 1px solid rgba(255, 255, 255, .05);
+      }
+      .sidebar-email { overflow: hidden; color: var(--accent); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+      .sidebar-footer { display: flex; align-items: center; justify-content: space-between; min-height: 50px; padding: 8px 12px; border-top: 1px solid rgba(255, 255, 255, .05); }
+      .brand-mini { color: var(--text-tertiary); font-size: 13px; }
+      .outline-button, .link-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 10px;
+        color: var(--text-secondary);
+        background: transparent;
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        font-size: 13px;
+      }
+      .outline-button:hover { color: var(--text-primary); background: var(--surface-2); }
+      .link-button { padding: 4px 0; color: var(--accent); border: 0; }
+      .link-button:hover { text-decoration: underline; }
+
+      .hamburger-btn {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        z-index: 20;
+        display: none;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+        color: var(--text-primary);
+        background: var(--surface-2);
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+      }
+      .sidebar-overlay { position: fixed; inset: 0; z-index: 15; background: rgba(0, 0, 0, .6); }
+
+      .page-main { min-height: 100%; padding: 30px; background: var(--bg); }
+      .content-width { width: min(100%, 960px); margin: 0 auto; }
+      .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { margin-bottom: 0; font-size: 28px; line-height: 1.15; }
+      h2 { margin-bottom: 0; font-size: 18px; }
+      h3 { margin-bottom: 0; font-size: 16px; }
+      .page-header p { margin: 5px 0 0; color: var(--text-secondary); font-size: 14px; }
+      .primary-button {
+        display: inline-flex;
+        min-height: 36px;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 16px;
+        color: white;
+        background: var(--accent);
+        border: 1px solid transparent;
+        border-radius: 8px;
+        font-weight: 600;
+      }
+      .primary-button:hover { background: var(--accent-dark); }
+      .patient-search { padding: 12px 15px; font-size: 15px; }
+      .section-label { margin: 24px 0 8px; color: var(--text-secondary); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+      .surface-list { overflow: hidden; background: var(--surface-1); border: 1px solid var(--border); border-radius: 9px; }
+      .patient-row { display: flex; min-height: 45px; align-items: center; gap: 24px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+      .patient-row:last-child { border-bottom: 0; }
+      .patient-row:hover { background: var(--surface-2); }
+      .patient-name { flex: 1; min-width: 190px; font-weight: 600; }
+      .patient-meta { color: var(--text-secondary); font-size: 13px; white-space: nowrap; }
+      .chevron { color: var(--text-secondary); font-size: 20px; line-height: 1; }
+      .empty-state { padding: 34px 20px; color: var(--text-secondary); text-align: center; }
+      .empty-state strong { display: block; margin-bottom: 7px; color: var(--text-primary); }
+      .status-line { min-height: 19px; margin: 12px 0 0; color: var(--text-secondary); font-size: 13px; }
+      .alert-line { padding: 10px 12px; color: var(--text-primary); background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: 8px; font-size: 13px; }
+
+      .back-link { display: inline-flex; margin-bottom: 14px; color: var(--accent); font-size: 13px; }
+      .back-link:hover { text-decoration: underline; }
+      .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
+      .subtle { color: var(--text-secondary); font-size: 14px; }
+      .evolution-list { overflow: hidden; margin-top: 10px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 9px; }
+      .evolution-row { display: flex; align-items: center; gap: 16px; padding: 14px 15px; border-bottom: 1px solid var(--border); }
+      .evolution-row:last-child { border-bottom: 0; }
+      .evolution-row:hover { background: var(--surface-2); }
+      .evolution-copy { flex: 1; min-width: 0; }
+      .eyebrow { margin-bottom: 3px; color: var(--text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+      .preview { overflow: hidden; margin: 5px 0 0; color: var(--text-secondary); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+      .record-card { padding: 18px 0; border-top: 1px solid var(--border); }
+      .record-card:first-of-type { border-top: 0; }
+      .record-card h2 { margin-bottom: 5px; color: var(--text-secondary); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+      .record-card p { margin-bottom: 0; white-space: pre-wrap; }
+
+      .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 20px 0 30px; color: var(--text-secondary); font-size: 12px; }
+      .workflow span { padding-top: 7px; border-top: 1px solid var(--border-strong); }
+      .workflow span.active { color: var(--accent); border-color: var(--accent); }
+      .form-block { margin-top: 24px; }
+      .form-label { display: block; margin-bottom: 6px; color: var(--text-secondary); font-size: 14px; }
+      .field, .clinical-field, .chat-textarea {
+        width: 100%;
+        color: var(--text-primary);
+        background: var(--surface-1);
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+      }
+      .field { padding: 9px 11px; }
+      .clinical-field { min-height: 88px; resize: vertical; padding: 10px 11px; }
+      .raw-note { min-height: 205px; resize: vertical; padding: 13px; }
+      .field:focus, .clinical-field:focus, .chat-textarea:focus, .patient-search:focus, .sidebar-search:focus, .admin-search:focus, .video-search:focus { border-color: var(--accent); outline: 2px solid var(--accent-glow); }
+      .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+      .split-fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+      .review-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+      .review-grid .wide { grid-column: 1 / -1; }
+      .review-section { margin-top: 30px; padding-top: 28px; border-top: 1px solid var(--border); }
+      .review-flags { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+      .review-flags li { margin-bottom: 7px; color: var(--text-secondary); font-size: 13px; }
+      .warning-text { color: var(--warning); font-size: 13px; }
+      .danger-text { color: var(--danger); font-size: 13px; }
+      .skeleton { height: 14px; background: linear-gradient(90deg, #1e293b 25%, #2a3a52 50%, #1e293b 75%); background-size: 200% 100%; border-radius: 6px; animation: shimmer 1.5s infinite linear; }
+      @keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+
+      .chat-page { display: flex; height: 100%; flex-direction: column; background: var(--bg); }
+      .chat-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; }
+      .welcome { display: flex; min-height: 100%; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+      .welcome h2 { font-size: 20px; }
+      .welcome p { max-width: 380px; margin: 8px 0 20px; color: var(--text-secondary); font-size: 14px; }
+      .suggestions { display: grid; width: min(100%, 400px); gap: 9px; }
+      .suggestion { padding: 10px 13px; color: var(--text-secondary); text-align: left; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; }
+      .suggestion:hover { color: var(--text-primary); border-color: var(--accent); background: var(--surface-2); }
+      .messages { width: min(100%, 972px); margin: 0 auto; }
+      .message { display: flex; margin: 0 auto 18px; }
+      .message.user { justify-content: flex-end; }
+      .message-bubble { max-width: min(78%, 630px); padding: 12px 18px; border-radius: 12px; }
+      .message.user .message-bubble { color: #fff; background: var(--user-bubble); }
+      .message.assistant .message-bubble { color: var(--text-primary); background: var(--assistant-bubble); }
+      .message-content p { margin: 0 0 12px; line-height: 1.7; }
+      .message-content p:last-child { margin-bottom: 0; }
+      .message-content strong { font-weight: 650; }
+      .message-content ul, .message-content ol { margin: 6px 0 12px; padding-left: 21px; }
+      .message-content li { margin-bottom: 5px; line-height: 1.6; }
+      .message-content code { padding: 2px 5px; color: #dbeafe; background: rgba(255,255,255,.08); border-radius: 4px; font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; }
+      .source-strip { margin-top: 18px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); }
+      .source-heading { margin-bottom: 7px; color: var(--text-secondary); font-size: 12px; }
+      .source-button { display: inline-flex; margin: 0 6px 5px 0; padding: 5px 8px; color: #bfdbfe; background: rgba(59,130,246,.14); border: 1px solid rgba(59,130,246,.35); border-radius: 6px; font-size: 12px; }
+      .source-button:hover { background: rgba(59,130,246,.25); }
+      .typing-bubble { display: inline-flex; gap: 5px; padding: 15px 18px; background: var(--assistant-bubble); border-radius: 12px; }
+      .typing-dot { width: 7px; height: 7px; background: var(--text-secondary); border-radius: 50%; animation: typing 1.2s infinite ease-in-out; }
+      .typing-dot:nth-child(2) { animation-delay: .2s; }.typing-dot:nth-child(3) { animation-delay: .4s; }
+      @keyframes typing { 0%,80%,100% { transform: scale(.6); opacity: .4; } 40% { transform: scale(1); opacity: 1; } }
+      .chat-composer { width: min(100%, 972px); margin: 0 auto; padding: 0 24px 24px; }
+      .chat-form { display: flex; align-items: flex-end; gap: 8px; padding: 7px 8px 7px 13px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 9px; }
+      .chat-form:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+      .chat-textarea { min-height: 26px; max-height: 150px; padding: 2px 0; background: transparent; border: 0; outline: 0; resize: none; }
+      .send-button { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; padding: 0; color: white; background: var(--accent); border: 0; border-radius: 8px; }
+      .send-button:hover { background: var(--accent-dark); }
+      .chat-topbar { display: flex; justify-content: flex-end; padding: 12px 24px 0; }
+
+      .library-backdrop { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,.5); }
+      .library-panel { position: fixed; top: 0; right: 0; z-index: 40; display: flex; width: 380px; max-width: 90vw; height: 100%; flex-direction: column; overflow: hidden; background: #111827; border-left: 1px solid var(--border); box-shadow: -8px 0 32px rgba(0,0,0,.4); }
+      .library-header { display: flex; min-height: 70px; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
+      .library-header h2 { font-size: 16px; }.library-header p { margin: 2px 0 0; color: var(--text-secondary); font-size: 12px; }
+      .library-actions { display: flex; gap: 5px; }.library-list { flex: 1; overflow-y: auto; padding: 14px 18px; }
+      .library-card { margin-bottom: 9px; padding: 14px; background: var(--surface-3); border: 1px solid var(--border); border-radius: 8px; }
+      .library-card strong { display: block; font-size: 14px; }.library-card small { display: block; margin-top: 5px; color: var(--text-secondary); }.library-card a { display: inline-block; margin-top: 10px; color: #93c5fd; font-size: 12px; }.library-card a:hover { text-decoration: underline; }
+
+      .admin-page { min-height: 100vh; padding: 30px; background: var(--bg); }
+      .admin-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+      .admin-search { display: block; padding: 9px 11px; margin-bottom: 12px; font-size: 13px; }
+      .admin-table-wrap { overflow-x: auto; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; }
+      .admin-table { width: 100%; min-width: 700px; border-collapse: collapse; font-size: 13px; }
+      .admin-table th { color: var(--text-primary); text-align: left; background: var(--surface-2); }.admin-table th, .admin-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }.admin-table tr:last-child td { border-bottom: 0; }.admin-table td:nth-child(2), .admin-table td:nth-child(3) { color: var(--text-secondary); }.admin-table a:hover { text-decoration: underline; }
+      .table-actions { display: flex; justify-content: flex-end; gap: 8px; white-space: nowrap; }.small-button { padding: 6px 10px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 12px; }.small-button:hover { color: var(--text-primary); background: var(--surface-2); }.small-button.delete { color: var(--danger); border-color: rgba(239,68,68,.55); }
+
+      .auth-page { display: flex; min-height: 100vh; align-items: flex-start; justify-content: center; padding: 140px 16px 40px; background: var(--bg); }
+      .auth-wrap { width: min(100%, 415px); text-align: center; }.brand-block { margin-bottom: 45px; }.brand-icon { display: block; width: 38px; height: 38px; margin: 0 auto 7px; }.brand-name { margin: 0; font-size: 20px; font-weight: 700; }.brand-tagline { margin: 2px 0 0; color: #93b4d8; font-size: 14px; }
+      .auth-card { width: 360px; max-width: 100%; margin: 0 auto; padding: 24px; text-align: left; background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 8px; }.auth-card h1 { margin-bottom: 19px; font-size: 20px; }.auth-card label { display: block; margin-bottom: 15px; color: var(--text-secondary); font-size: 13px; }.auth-card input { display: block; width: 100%; margin-top: 5px; padding: 9px 10px; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 4px; }.auth-card .primary-button { width: 100%; margin-top: 1px; }.auth-switch { margin: 15px 0 0; color: var(--text-secondary); font-size: 13px; text-align: center; }.auth-switch a { color: #60a5fa; }.auth-switch a:hover { text-decoration: underline; }.demo-note { margin: 16px 0 0; color: var(--text-tertiary); font-size: 11px; text-align: center; }.demo-fill { color: #60a5fa; background: transparent; border: 0; font-size: inherit; }
+
+      .modal-backdrop { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; overflow-y: auto; padding: 16px; background: rgba(0,0,0,.6); }
+      .modal-card { position: relative; width: min(100%, 540px); max-height: calc(100vh - 32px); overflow-y: auto; padding: 24px; background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 11px; box-shadow: 0 25px 50px -12px rgba(0,0,0,.5); }.modal-card.small { width: min(100%, 420px); }.modal-card h2 { margin-bottom: 4px; }.modal-card > p { color: var(--text-secondary); font-size: 13px; }.modal-close { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; color: var(--text-secondary); background: transparent; border: 0; border-radius: 8px; font-size: 21px; }.modal-close:hover { background: var(--surface-2); }.modal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 20px; }.modal-grid .wide { grid-column: 1 / -1; }.modal-label { display: block; color: var(--text-secondary); font-size: 13px; }.modal-label input, .modal-label textarea { display: block; width: 100%; margin-top: 5px; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 5px; }.modal-label input { padding: 9px 10px; }.modal-label textarea { min-height: 95px; padding: 9px 10px; resize: vertical; }.modal-error { margin: 14px 0 0; color: var(--danger); font-size: 13px; }.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 21px; }.confirm-copy { margin: 16px 0 0; }.danger-button { padding: 8px 15px; color: #fff; background: var(--danger); border: 0; border-radius: 7px; }.danger-button:hover { filter: brightness(.9); }
+
+      .toast-region { position: fixed; right: 18px; bottom: 18px; z-index: 120; display: grid; gap: 8px; width: min(360px, calc(100vw - 36px)); }.toast { padding: 11px 13px; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--border-strong); border-left: 3px solid var(--accent); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,.25); font-size: 13px; animation: toast-in .18s ease-out; }.toast.success { border-left-color: var(--success); }.toast.error { border-left-color: var(--danger); }
+      @keyframes toast-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
+
+      @media (max-width: 767px) {
+        .sidebar-container { position: fixed; left: 0; width: min(260px, calc(100vw - 24px)); transform: translateX(-100%); transition: transform .25s ease; }
+        .sidebar-container.open { transform: translateX(0); }
+        .hamburger-btn { display: flex; }
+        .sidebar-container.open ~ .main-area .hamburger-btn { opacity: 0; pointer-events: none; }
+        .page-main { padding: 68px 23px 30px; }
+        .page-header, .detail-header { flex-direction: column; }
+        .page-header .primary-button, .detail-header .primary-button { align-self: flex-start; }
+        .patient-row { flex-wrap: wrap; gap: 3px 14px; padding: 10px 14px; }.patient-name { min-width: calc(100% - 70px); }.patient-meta { font-size: 13px; }.patient-row .chevron { position: absolute; margin-left: 135px; }.surface-list a { position: relative; }
+        .split-fields, .review-grid, .modal-grid { grid-template-columns: 1fr; }.review-grid .wide, .modal-grid .wide { grid-column: auto; }
+        .chat-scroll { padding: 18px 13px; }.chat-composer { padding: 0 13px 13px; }.message-bubble { max-width: 88%; }.chat-topbar { padding-right: 13px; }
+        .library-panel { width: min(380px, calc(100vw - 10px)); }.admin-page { padding: 24px 16px; }.admin-page .page-header { margin-bottom: 20px; }
+        .auth-page { padding-top: 140px; }.brand-block { margin-bottom: 45px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <script>
+      (() => {
+        'use strict';
+
+        const clone = (value) => JSON.parse(JSON.stringify(value));
+        const seed = {
+          user: { id: 'demo-user', email: 'demo@example.com', is_admin: true, used: 3, remaining: 22 },
+          patients: [
+            { id: 'p-001', first_name: 'Ana', last_name: 'Pérez', rut_masked: '12.345.678-9', birth_date: '1985-04-12', last_evolution_at: '2026-08-28T15:30:00Z' },
+            { id: 'p-002', first_name: 'Luis', last_name: 'González', rut_masked: '9.876.543-2', birth_date: null, last_evolution_at: null },
+            { id: 'p-003', first_name: 'María', last_name: 'Soto', rut_masked: '17.234.567-8', birth_date: '1991-11-04', last_evolution_at: '2026-08-11T18:00:00Z' },
+          ],
+          conversations: [
+            { id: 'c-001', title: 'Cómo usar los agentes', created_at: '2026-08-30T10:00:00Z', updated_at: '2026-09-03T18:20:00Z', preview: 'Una explicación sobre el flujo de trabajo.' },
+            { id: 'c-002', title: 'RAG y recuperación híbrida', created_at: '2026-08-29T09:00:00Z', updated_at: '2026-09-02T11:15:00Z', preview: '¿Cómo combina búsqueda semántica y textual?' },
+          ],
+          videos: [
+            { id: 'v-001', title: 'Building AI agents', description: 'Agentic engineering fundamentals.', url: 'https://www.youtube.com/watch?v=demo001', created_at: '2026-08-20T10:00:00Z', channel_title: 'Dynamous', chunk_count: 42 },
+            { id: 'v-002', title: 'RAG systems explained', description: 'Retrieval augmented generation.', url: 'https://www.youtube.com/watch?v=demo002', created_at: '2026-08-21T10:00:00Z', channel_title: 'Dynamous', chunk_count: 18 },
+            { id: 'v-003', title: 'Engineering with AI teams', description: 'Practical workflows for agentic teams.', url: 'https://www.youtube.com/watch?v=demo003', created_at: '2026-08-23T10:00:00Z', channel_title: 'Dynamous', chunk_count: 31 },
+          ],
+          evolutions: {
+            'p-001': [{ id: 'e-001', patient_id: 'p-001', evolution_at: '2026-08-28T15:30:00Z', preview: 'Control periodontal y revisión de restauración posterior.', created_at: '2026-08-28T15:40:00Z', final_text: 'Motivo / contexto: Control periodontal.\n\nHallazgos: Restauración posterior íntegra.\n\nDiagnóstico / impresión clínica: Sensibilidad dentinaria leve.\n\nTratamiento / conducta: Control y medidas de higiene.\n\nSeguimiento: Reevaluar en 30 días.' }],
+            'p-002': [],
+            'p-003': [],
+          },
+          messages: {
+            'c-001': [
+              { id: 'm-001', role: 'user', content: '¿Cómo uso subagentes?', created_at: '2026-09-03T18:15:00Z' },
+              { id: 'm-002', role: 'assistant', content: 'Puedes delegar tareas especializadas a subagentes y luego integrar sus resultados.\n\n**Pasos recomendados:**\n\n1. Define el objetivo.\n2. Asigna el contexto mínimo.', created_at: '2026-09-03T18:16:00Z', sources: [{ chunk_id: 'chunk-001', video_id: 'v-001', video_title: 'Building AI agents', video_url: 'https://www.youtube.com/watch?v=demo001', start_seconds: 90, end_seconds: 120, snippet: 'Delegate specialized work to focused agents.', is_cited: true }] },
+            ],
+            'c-002': [],
+          },
+        };
+
+        const state = {
+          session: false,
+          authMode: 'login',
+          user: clone(seed.user),
+          data: clone(seed),
+          route: null,
+          sidebarOpen: false,
+          libraryOpen: false,
+          modal: null,
+          pendingRoute: null,
+          search: { patients: '', conversations: '', videos: '', admin: '' },
+          renamingId: null,
+          busy: false,
+          typing: false,
+          workflow: null,
+        };
+
+        const app = document.getElementById('app');
+        const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+        const iconMenu = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="2" y1="4.5" x2="16" y2="4.5"/><line x1="2" y1="9" x2="16" y2="9"/><line x1="2" y1="13.5" x2="16" y2="13.5"/></svg>';
+        const iconClose = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg>';
+        const iconTrash = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><polyline points="2,4 12,4"/><path d="M5,4V2.5a.5.5,0,0,1,.5-.5h3a.5.5,0,0,1,.5.5V4"/><path d="M3,4l.7,7.5a.5.5,0,0,0,.5.5h5.6a.5.5,0,0,0,.5-.5L11,4"/></svg>';
+        const logo = '<svg class="brand-icon" viewBox="0 0 38 38" fill="none" aria-label="DynaChat logo" role="img"><rect width="38" height="38" rx="9" fill="#3B82F6"/><path d="M10 13.5a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-4l-4 3v-3h-2a4 4 0 0 1-4-4v-6Z" fill="white"/><circle cx="16" cy="16.5" r="1.5" fill="#3B82F6"/><circle cx="19" cy="16.5" r="1.5" fill="#3B82F6"/><circle cx="22" cy="16.5" r="1.5" fill="#3B82F6"/></svg>';
+
+        const dateTime = (iso) => {
+          if (!iso) return 'Sin evoluciones';
+          return new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+        };
+        const dateOnly = (iso) => new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${iso}T00:00:00`));
+        const relative = (iso) => {
+          const days = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+          if (days < 1) return 'ahora';
+          if (days < 7) return `hace ${days} d`;
+          return dateOnly(iso.slice(0, 10));
+        };
+        const activeRoute = () => {
+          const raw = (location.hash || '#login').slice(1).replace(/^\//, '');
+          if (raw === 'signup') return { view: 'signup' };
+          if (raw === 'patients' || raw === '') return { view: 'patients' };
+          if (raw === 'chat') return { view: 'chat' };
+          if (raw === 'admin') return { view: 'admin' };
+          let match = raw.match(/^patients\/([^/]+)$/);
+          if (match) return { view: 'patient-detail', patientId: match[1] };
+          match = raw.match(/^patients\/([^/]+)\/evolutions\/new$/);
+          if (match) return { view: 'new-evolution', patientId: match[1] };
+          match = raw.match(/^patients\/([^/]+)\/evolutions\/([^/]+)$/);
+          if (match) return { view: 'evolution-detail', patientId: match[1], evolutionId: match[2] };
+          match = raw.match(/^c\/([^/]+)$/);
+          if (match) return { view: 'conversation', conversationId: match[1] };
+          return { view: 'not-found' };
+        };
+        const routeHash = (route) => `#${route}`;
+        const patientById = (id) => state.data.patients.find((patient) => patient.id === id);
+        const conversationById = (id) => state.data.conversations.find((conversation) => conversation.id === id);
+        const evolutionById = (patientId, id) => (state.data.evolutions[patientId] || []).find((evolution) => evolution.id === id);
+        const isWorkflowDirty = () => Boolean(state.workflow && (state.workflow.rawNote.trim() || state.workflow.generatedDraft));
+
+        function toast(message, kind = '') {
+          const item = document.createElement('div');
+          item.className = `toast ${kind}`;
+          item.textContent = message;
+          document.getElementById('toast-region').appendChild(item);
+          window.setTimeout(() => item.remove(), 3200);
+        }
+
+        function go(route) {
+          if (isWorkflowDirty() && !route.includes('/evolutions/new')) {
+            state.pendingRoute = routeHash(route);
+            state.modal = 'leave';
+            render();
+            return;
+          }
+          state.sidebarOpen = false;
+          state.modal = null;
+          state.libraryOpen = false;
+          state.renamingId = null;
+          location.hash = route.replace(/^#/, '');
+        }
+
+        function renderBrand() {
+          return `<div class="brand-block">${logo}<p class="brand-name">DynaChat</p><p class="brand-tagline">Ask Cole Medin's YouTube videos and Dynamous lessons anything</p></div>`;
+        }
+
+        function renderAuth(mode) {
+          const signup = mode === 'signup';
+          return `<div class="auth-page"><div class="auth-wrap">${renderBrand()}<section class="auth-card" aria-labelledby="auth-title"><h1 id="auth-title">${signup ? 'Create account' : 'Log in'}</h1><form id="auth-form"><label>Email<input name="email" type="email" autocomplete="email" required /></label><label>${signup ? 'Password (8+ characters)' : 'Password'}<input name="password" type="password" minlength="${signup ? 8 : 1}" autocomplete="${signup ? 'new-password' : 'current-password'}" required /></label><button class="primary-button" type="submit">${signup ? 'Sign up' : 'Log in'}</button></form><p class="auth-switch">${signup ? 'Already have an account?' : 'Need an account?'} <a href="${signup ? '#login' : '#signup'}" data-action="auth-nav">${signup ? 'Log in' : 'Sign up'}</a></p><p class="demo-note">Sin backend conectado. <button class="demo-fill" type="button" data-action="fill-demo">Cargar datos demo</button></p></section></div></div>`;
+        }
+
+        function renderSidebar(active, showConversations) {
+          const conversations = state.data.conversations.filter((conversation) => {
+            const q = state.search.conversations.trim().toLowerCase();
+            return !q || `${conversation.title} ${conversation.preview || ''}`.toLowerCase().includes(q);
+          });
+          const activeConversationId = state.route?.conversationId;
+          return `<aside id="app-sidebar" class="sidebar-container${state.sidebarOpen ? ' open' : ''}" aria-label="Navegación lateral"><nav class="sidebar-nav" aria-label="Navegación principal"><a href="#patients" data-action="go" data-route="patients" ${active === 'patients' ? 'aria-current="page"' : ''}>Pacientes</a><a href="#chat" data-action="go" data-route="chat" ${active === 'chat' ? 'aria-current="page"' : ''}>Chat</a></nav>${showConversations ? `<button class="sidebar-button" type="button" data-action="new-chat"><span aria-hidden="true">＋</span> Nuevo chat</button><input class="sidebar-search" data-focus="conversation-search" data-search="conversations" aria-label="Buscar conversaciones" placeholder="Buscar conversaciones..." value="${esc(state.search.conversations)}" /> <div class="conversation-list" aria-label="Conversaciones">${conversations.length ? conversations.map((conversation) => renderConversationItem(conversation, activeConversationId === conversation.id)).join('') : '<p class="conversation-empty">No encontramos conversaciones.</p>'}</div>` : '<div class="conversation-list"></div>'}<div class="quota-counter" role="status"><span><strong>${state.user.used}/${state.user.used + state.user.remaining}</strong> mensajes hoy</span></div><div class="sidebar-user"><span class="sidebar-email" title="${esc(state.user.email)}">${esc(state.user.email)}</span><button class="outline-button" type="button" data-action="logout">Cerrar sesión</button></div><div class="sidebar-footer"><span class="brand-mini">DynaChat</span><span>${state.user.is_admin ? '<a class="outline-button" href="#admin" data-action="go" data-route="admin">Administración</a>' : ''}${showConversations ? '<button class="outline-button" type="button" data-action="open-library" aria-label="Explorar biblioteca de videos">Biblioteca</button>' : ''}</span></div></aside>`;
+        }
+
+        function renderConversationItem(conversation, active) {
+          if (state.renamingId === conversation.id) return `<div class="conversation-item ${active ? 'active' : ''}"><input class="field" data-rename-input="${esc(conversation.id)}" value="${esc(conversation.title)}" aria-label="Nuevo título" /><div class="conversation-actions"><button class="icon-button" type="button" data-action="commit-rename" data-id="${esc(conversation.id)}" aria-label="Guardar nombre">✓</button><button class="icon-button" type="button" data-action="cancel-rename" data-id="${esc(conversation.id)}" aria-label="Cancelar renombrado">×</button></div></div>`;
+          return `<div class="conversation-item ${active ? 'active' : ''}" role="button" tabindex="0" data-action="select-conversation" data-id="${esc(conversation.id)}"><span class="conversation-title">${esc(conversation.title)}</span><span class="conversation-time">${relative(conversation.updated_at)}</span>${conversation.preview ? `<span class="conversation-preview">${esc(conversation.preview)}</span>` : ''}<div class="conversation-actions"><button class="icon-button" type="button" data-action="rename" data-id="${esc(conversation.id)}" aria-label="Renombrar conversación">✏</button><button class="icon-button danger" type="button" data-action="delete-conversation" data-id="${esc(conversation.id)}" aria-label="Eliminar conversación">${iconTrash}</button></div></div>`;
+        }
+
+        function shell(content, active, showConversations) {
+          return `<div class="app-layout">${state.sidebarOpen ? '<div class="sidebar-overlay" data-action="close-sidebar" aria-hidden="true"></div>' : ''}${renderSidebar(active, showConversations)}<div class="main-area"><button class="hamburger-btn" type="button" data-action="toggle-sidebar" aria-expanded="${state.sidebarOpen}" aria-controls="app-sidebar" aria-label="${state.sidebarOpen ? 'Cerrar navegación' : 'Abrir navegación'}">${state.sidebarOpen ? iconClose : iconMenu}</button>${content}</div></div>`;
+        }
+
+        function renderPatients() {
+          const q = state.search.patients.trim().toLowerCase();
+          const patients = state.data.patients.filter((patient) => !q || `${patient.first_name} ${patient.last_name} ${patient.rut_masked}`.toLowerCase().includes(q));
+          return `<main class="page-main"><div class="content-width"><header class="page-header"><div><h1>Pacientes</h1><p>Gestiona pacientes y sus evoluciones dentales.</p></div><button class="primary-button" type="button" data-action="new-patient">＋ Nuevo paciente</button></header><input class="patient-search" data-focus="patient-search" data-search="patients" aria-label="Buscar por nombre o RUT" placeholder="Buscar por nombre o RUT..." value="${esc(state.search.patients)}" /><div class="status-line" role="status">${state.busy ? 'Actualizando pacientes…' : ''}</div><h2 class="section-label">PACIENTES</h2><section class="surface-list" aria-live="polite">${patients.length ? patients.map(renderPatientRow).join('') : `<div class="empty-state"><strong>${q ? 'No encontramos pacientes' : 'Aún no hay pacientes'}</strong><span>${q ? 'Prueba con otro nombre o RUT.' : 'Crea una ficha para comenzar a registrar evoluciones.'}</span></div>`}</section></div></main>`;
+        }
+
+        function renderPatientRow(patient) {
+          return `<a class="patient-row" href="#patients/${esc(patient.id)}" data-action="go" data-route="patients/${esc(patient.id)}"><strong class="patient-name">${esc(patient.first_name)} ${esc(patient.last_name)}</strong><span class="patient-meta"><span class="sr-only">RUT: </span>${esc(patient.rut_masked)}</span><span class="patient-meta"><span class="sr-only">Última evolución: </span>${patient.last_evolution_at ? dateTime(patient.last_evolution_at) : 'Sin evoluciones'}</span><span class="chevron" aria-hidden="true">›</span></a>`;
+        }
+
+        function renderPatientDetail(patientId) {
+          const patient = patientById(patientId);
+          const evolutions = state.data.evolutions[patientId] || [];
+          if (!patient) return renderNotFound();
+          return `<main class="page-main"><div class="content-width"><a class="back-link" href="#patients" data-action="go" data-route="patients">‹ Pacientes</a><header class="detail-header"><div><h1>${esc(patient.first_name)} ${esc(patient.last_name)}</h1><p class="subtle">RUT ${esc(patient.rut_masked)}${patient.birth_date ? ` · Nacimiento ${dateOnly(patient.birth_date)}` : ''}</p></div><a class="primary-button" href="#patients/${esc(patient.id)}/evolutions/new" data-action="go" data-route="patients/${esc(patient.id)}/evolutions/new">＋ Nueva evolución</a></header><h2 class="section-label">HISTORIAL DE EVOLUCIONES</h2>${evolutions.length ? `<div class="evolution-list">${evolutions.map((evolution) => `<a class="evolution-row" href="#patients/${esc(patient.id)}/evolutions/${esc(evolution.id)}" data-action="go" data-route="patients/${esc(patient.id)}/evolutions/${esc(evolution.id)}"><div class="evolution-copy"><div class="eyebrow">Evolución dental · Registro aprobado</div><strong>${dateTime(evolution.evolution_at)}</strong><p class="preview">${esc(evolution.preview)}</p></div><span class="chevron" aria-hidden="true">›</span></a>`).join('')}</div>` : '<div class="empty-state surface-list">Este paciente aún no tiene evoluciones</div>'}</div></main>`;
+        }
+
+        function workflowFor(patientId) {
+          if (!state.workflow || state.workflow.patientId !== patientId) state.workflow = { patientId, rawNote: '', generatedDraft: null, draft: null, evolutionAt: new Date().toISOString(), showDateTime: false, error: '' };
+          return state.workflow;
+        }
+
+        function renderNewEvolution(patientId) {
+          const patient = patientById(patientId);
+          if (!patient) return renderNotFound();
+          const workflow = workflowFor(patientId);
+          const hasDraft = Boolean(workflow.generatedDraft);
+          const canGenerate = Boolean(patient && workflow.rawNote.trim() && !state.busy);
+          const activeStep = state.busy ? 1 : hasDraft ? 2 : 0;
+          return `<main class="page-main"><div class="content-width"><a class="back-link" href="#patients/${esc(patientId)}" data-action="go" data-route="patients/${esc(patientId)}">‹ Volver a ${esc(patient.first_name)} ${esc(patient.last_name)}</a><header><h1>Nueva evolución dental</h1><p class="subtle" style="margin:6px 0 0">Paciente: ${esc(patient.first_name)} ${esc(patient.last_name)} · RUT ${esc(patient.rut_masked)}</p><div class="subtle" style="margin-top:7px">${dateTime(workflow.evolutionAt)} <button class="link-button" type="button" data-action="toggle-date">Cambiar fecha y hora</button></div>${workflow.showDateTime ? `<div class="split-fields" style="max-width:500px;margin-top:10px"><label class="form-label">Fecha<input class="field" type="date" data-date-part="date" value="${workflow.evolutionAt.slice(0,10)}" /></label><label class="form-label">Hora<input class="field" type="time" data-date-part="time" value="${workflow.evolutionAt.slice(11,16)}" /></label></div>` : ''}</header><div class="workflow" aria-label="Progreso de la evolución"><span class="${activeStep === 0 ? 'active' : ''}">1. Nota clínica</span><span class="${activeStep === 1 ? 'active' : ''}">2. Redacción asistida</span><span class="${activeStep === 2 ? 'active' : ''}">3. Revisión y guardado</span></div><section><h2 class="section-label" style="margin-top:0">${hasDraft ? 'NOTA CLÍNICA ORIGINAL' : 'REGISTRO CLÍNICO INICIAL'}</h2><p class="subtle">Pega o escribe tus notas clínicas. La IA las ordenará para que las revises antes de guardar.</p><textarea class="field raw-note" data-focus="raw-note" aria-label="Nota rápida" ${state.busy || hasDraft ? 'readonly' : ''} placeholder="Ejemplo: Paciente consulta por sensibilidad posterior...">${esc(workflow.rawNote)}</textarea>${workflow.rawNote.length >= 100 ? `<p class="subtle" style="margin:4px 0 0">${workflow.rawNote.length.toLocaleString('es-CL')} / 40.000 caracteres</p>` : ''}${hasDraft ? '<button class="link-button" type="button" data-action="edit-raw">Corregir nota y regenerar</button>' : `<div class="form-actions"><button class="primary-button" type="button" data-action="generate" ${canGenerate ? '' : 'disabled'}>${state.busy ? 'Redactando evolución...' : 'Redactar evolución'}</button></div>`}</section>${state.busy && !hasDraft ? renderGenerationSkeleton() : ''}${hasDraft ? renderReview(patient, workflow) : ''}${workflow.error ? `<p class="danger-text" role="alert" style="margin-top:18px">${esc(workflow.error)} <button class="link-button" data-action="retry-generation">Reintentar</button></p>` : ''}</div></main>`;
+        }
+
+        function renderGenerationSkeleton() {
+          return `<section class="review-section" aria-live="polite"><div class="skeleton" style="width:180px"></div><div class="split-fields" style="margin-top:18px"><div><div class="skeleton" style="width:130px;margin-bottom:8px"></div><div class="skeleton" style="height:70px"></div></div><div><div class="skeleton" style="width:130px;margin-bottom:8px"></div><div class="skeleton" style="height:70px"></div></div></div></section>`;
+        }
+
+        function renderReview(patient, workflow) {
+          const fields = [['context', 'Motivo / contexto', true], ['findings', 'Hallazgos', true], ['assessment', 'Diagnóstico / impresión clínica', true], ['treatment', 'Tratamiento / conducta', false], ['follow_up', 'Seguimiento', false]];
+          const draft = workflow.draft;
+          return `<section class="review-section"><h2 class="section-label" style="margin-top:0">BORRADOR CLÍNICO PARA REVISIÓN</h2><div class="review-grid" style="margin-top:18px">${fields.map(([key, label, wide]) => `<label class="form-label ${wide ? 'wide' : ''}">${label}<textarea class="clinical-field" data-clinical-field="${key}">${esc(draft[key])}</textarea></label>`).join('')}</div>${draft.review_flags.length ? `<div class="review-flags"><h3>Información por revisar</h3><ul>${draft.review_flags.map((flag) => `<li><q>${esc(flag.source_text)}</q> · ${esc(flag.reason)}</li>`).join('')}</ul></div>` : ''}${!Object.values(draft).some((value) => typeof value === 'string' && value.trim()) ? '<p class="warning-text">No hay contenido clínico para guardar. Completa al menos un campo.</p>' : ''}<div class="form-actions" style="justify-content:space-between"><span class="subtle">Guardar para ${esc(patient.first_name)} ${esc(patient.last_name)} · RUT ${esc(patient.rut_masked)}</span><button class="primary-button" type="button" data-action="save-evolution" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Guardando evolución...' : 'Guardar evolución'}</button></div></section>`;
+        }
+
+        function renderEvolutionDetail(patientId, evolutionId) {
+          const patient = patientById(patientId);
+          const evolution = evolutionById(patientId, evolutionId);
+          if (!patient || !evolution) return renderNotFound();
+          const parsed = parseClinicalText(evolution.final_text);
+          return `<main class="page-main"><div class="content-width"><a class="back-link" href="#patients/${esc(patientId)}" data-action="go" data-route="patients/${esc(patientId)}">‹ Volver a ${esc(patient.first_name)} ${esc(patient.last_name)}</a><article><header style="margin:12px 0 26px"><h1>Evolución dental · <time>${dateTime(evolution.evolution_at)}</time></h1><p class="subtle" style="margin-top:6px">Registro aprobado</p></header>${parsed.map(([label, value]) => `<section class="record-card"><h2>${esc(label)}</h2><p>${esc(value)}</p></section>`).join('')}</article></div></main>`;
+        }
+
+        function parseClinicalText(text) {
+          const labels = ['Motivo / contexto', 'Hallazgos', 'Diagnóstico / impresión clínica', 'Tratamiento / conducta', 'Seguimiento'];
+          const chunks = text.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+          const result = [];
+          chunks.forEach((chunk) => {
+            const label = labels.find((candidate) => chunk.startsWith(`${candidate}:`));
+            if (label) result.push([label, chunk.slice(label.length + 1).trim()]);
+            else if (result.length) result[result.length - 1][1] += `\n\n${chunk}`;
+          });
+          return result.length ? result : [['Registro clínico', text]];
+        }
+
+        function renderChat(conversationId = null) {
+          const messages = conversationId ? (state.data.messages[conversationId] || []) : [];
+          const conversation = conversationId ? conversationById(conversationId) : null;
+          const body = conversationId ? `<div class="messages">${messages.map(renderMessage).join('')}${state.typing ? '<div class="message assistant"><div class="typing-bubble" role="status" aria-label="Generando respuesta"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div></div>' : ''}</div>` : `<div class="welcome"><h2>Ask anything about the video library</h2><p>This AI has access to transcripts from a curated collection of YouTube videos.</p><div class="suggestions">${['How do I use subagents in Claude Code?', 'How should I structure an agent team?', "How does Cole's complete agentic coding workflow look end-to-end?", 'How do I turn Claude Code into an engineering team?'].map((question) => `<button class="suggestion" type="button" data-action="suggestion" data-question="${esc(question)}">${esc(question)}</button>`).join('')}</div></div>`;
+          return `<main class="chat-page"><div class="chat-topbar">${conversationId ? '<button class="outline-button" type="button" data-action="export">Export</button>' : ''}</div><div class="chat-scroll" id="chat-scroll" aria-live="polite">${conversation ? `<div class="messages" style="margin-bottom:26px"><div class="eyebrow">${esc(conversation.title)}</div></div>` : ''}${body}</div><div class="chat-composer"><form id="chat-form" class="chat-form"><textarea class="chat-textarea" name="message" data-focus="chat-input" aria-label="Ask anything about the video library" placeholder="Ask anything about the video library…" rows="1" ${state.typing ? 'disabled' : ''}></textarea><button class="send-button" type="submit" aria-label="Send message" ${state.typing ? 'disabled' : ''}>➤</button></form></div></main>`;
+        }
+
+        function renderMessage(message) {
+          const html = markdownLite(message.content);
+          const sources = message.sources?.length ? `<div class="source-strip"><div class="source-heading">Sources cited (${message.sources.length})</div>${message.sources.map((source) => `<button class="source-button" type="button" data-action="citation" data-id="${esc(source.chunk_id)}">${Math.floor(source.start_seconds / 60)}:${String(source.start_seconds % 60).padStart(2, '0')} — ${esc(source.video_title)}</button>`).join('')}</div>` : '';
+          return `<div class="message ${message.role}"><div class="message-bubble"><div class="message-content">${html}</div>${sources}</div></div>`;
+        }
+
+        function markdownLite(text) {
+          return esc(text).split(/\n\n+/).map((block) => {
+            if (/^\d+\. /.test(block)) return `<ol>${block.split('\n').map((line) => `<li>${line.replace(/^\d+\. /, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</li>`).join('')}</ol>`;
+            if (/^- /.test(block)) return `<ul>${block.split('\n').map((line) => `<li>${line.replace(/^- /, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</li>`).join('')}</ul>`;
+            return `<p>${block.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code>$1</code>')}</p>`;
+          }).join('');
+        }
+
+        function renderAdmin() {
+          const q = state.search.admin.trim().toLowerCase();
+          const videos = state.data.videos.filter((video) => !q || `${video.title} ${video.description} ${video.channel_title}`.toLowerCase().includes(q));
+          return `<main class="admin-page"><div class="content-width"><header class="page-header"><div><h1>Administración de biblioteca</h1><p>Agrega, resincroniza o elimina videos del corpus RAG.</p></div><a class="link-button" href="#chat" data-action="go" data-route="chat">← Volver al chat</a></header><div class="admin-toolbar"><button class="primary-button" type="button" data-action="add-video">＋ Agregar video por URL</button><button class="outline-button" type="button" data-action="sync-channel" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Sincronizando canal…' : 'Sincronizar canal'}</button><button class="outline-button" type="button" data-action="refresh-admin">Actualizar</button></div><input class="admin-search" data-focus="admin-search" data-search="admin" aria-label="Buscar videos" placeholder="Buscar videos..." value="${esc(state.search.admin)}" /><div class="admin-table-wrap">${videos.length ? `<table class="admin-table"><thead><tr><th>Título</th><th>Fragmentos</th><th>Agregado</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${videos.map((video) => `<tr><td><a href="${esc(video.url)}" target="_blank" rel="noreferrer">${esc(video.title || '(sin título)')}</a></td><td>${video.chunk_count}</td><td>${esc(video.created_at.slice(0,10))}</td><td><div class="table-actions"><button class="small-button" type="button" data-action="resync-video" data-id="${esc(video.id)}">Sincronizar</button><button class="small-button delete" type="button" data-action="delete-video" data-id="${esc(video.id)}">Eliminar</button></div></td></tr>`).join('')}</tbody></table>` : `<div class="empty-state">${q ? `No hay coincidencias para “${esc(state.search.admin)}”` : 'Aún no hay videos. Agrega uno por URL o sincroniza un canal.'}</div>`}</div></div></main>`;
+        }
+
+        function renderNotFound() { return `<main class="page-main"><div class="content-width"><h1>No encontramos esa pantalla</h1><p class="subtle" style="margin-top:10px">La ruta no existe en este mock.</p><button class="primary-button" type="button" data-action="go" data-route="patients">Ir a pacientes</button></div></main>`; }
+
+        function modalFrame(inner, labelledBy = 'dialog-title', small = false) { return `<div class="modal-backdrop" role="presentation" data-action="backdrop-close"><section class="modal-card${small ? ' small' : ''}" role="dialog" aria-modal="true" aria-labelledby="${labelledBy}" data-modal-card>${inner}</section></div>`; }
+
+        function renderModal() {
+          if (state.modal === 'new-patient') return modalFrame(`<button class="modal-close" type="button" data-action="close-modal" aria-label="Cerrar">×</button><h2 id="dialog-title">Nuevo paciente</h2><p>Crea la ficha básica. Podrás agregar una evolución después.</p><form id="patient-form"><div class="modal-grid"><label class="modal-label">Nombre<input name="first_name" required /></label><label class="modal-label">Apellido<input name="last_name" required /></label><label class="modal-label">RUT<input name="rut" required placeholder="12.345.678-9" /></label><label class="modal-label">Fecha de nacimiento (opcional)<input name="birth_date" type="date" /></label></div><p class="modal-error" id="patient-error" hidden></p><div class="modal-actions"><button class="outline-button" type="button" data-action="close-modal">Cancelar</button><button class="primary-button" type="submit">Crear paciente</button></div></form>`);
+          if (state.modal === 'delete-conv') { const conversation = conversationById(state.modalId); return modalFrame(`<h2 id="dialog-title">¿Eliminar conversación?</h2><p class="confirm-copy">${esc(conversation?.title || '')}</p><p>Esta acción no se puede deshacer.</p><div class="modal-actions"><button class="outline-button" type="button" data-action="close-modal">Cancelar</button><button class="danger-button" type="button" data-action="confirm-delete-conversation">Eliminar</button></div>`, 'dialog-title', true); }
+          if (state.modal === 'delete-video') { const video = state.data.videos.find((item) => item.id === state.modalId); return modalFrame(`<h2 id="dialog-title">¿Eliminar video?</h2><p class="confirm-copy">${esc(video?.title || '')}</p><p>Se quitará del corpus local de este mock.</p><div class="modal-actions"><button class="outline-button" type="button" data-action="close-modal">Cancelar</button><button class="danger-button" type="button" data-action="confirm-delete-video">Eliminar</button></div>`, 'dialog-title', true); }
+          if (state.modal === 'leave') return modalFrame(`<h2 id="dialog-title">¿Salir sin guardar?</h2><p>La nota y los cambios de esta evolución se perderán.</p><div class="modal-actions"><button class="outline-button" type="button" data-action="cancel-leave">Continuar editando</button><button class="primary-button" type="button" data-action="confirm-leave">Salir sin guardar</button></div>`, 'dialog-title', true);
+          if (state.modal === 'citation') { const source = findSource(state.modalId); return modalFrame(`<button class="modal-close" type="button" data-action="close-modal" aria-label="Cerrar">×</button><h2 id="dialog-title">Fuente citada</h2><p class="subtle">${esc(source?.video_title || 'Video')}</p><blockquote style="margin:18px 0;padding:10px 13px;color:var(--text-secondary);border-left:3px solid var(--accent);background:var(--surface-3)">${esc(source?.snippet || 'Fragmento disponible en la base de conocimiento local.')}</blockquote><a class="primary-button" href="${esc(source?.video_url || '#')}" target="_blank" rel="noreferrer">Ver en YouTube</a>`, 'dialog-title', true); }
+          if (state.modal === 'add-video') return modalFrame(`<button class="modal-close" type="button" data-action="close-modal" aria-label="Cerrar">×</button><h2 id="dialog-title">Agregar video</h2><p>Este formulario usa solo datos locales.</p><form id="video-form"><div class="modal-grid"><label class="modal-label">Título<input name="title" required placeholder="Video title" /></label><label class="modal-label">Descripción<input name="description" required placeholder="Short description" /></label><label class="modal-label wide">YouTube URL<input name="url" type="url" required placeholder="https://www.youtube.com/watch?v=..." /></label><label class="modal-label wide">Transcript<textarea name="transcript" required placeholder="Full transcript text..."></textarea></label></div><p class="modal-error" id="video-error" hidden></p><div class="modal-actions"><button class="outline-button" type="button" data-action="close-modal">Cancelar</button><button class="primary-button" type="submit">Agregar video</button></div></form>`);
+          return '';
+        }
+
+        function renderLibrary() {
+          if (!state.libraryOpen) return '';
+          const q = state.search.videos.trim().toLowerCase();
+          const videos = state.data.videos.filter((video) => !q || `${video.title} ${video.description} ${video.channel_title}`.toLowerCase().includes(q));
+          return `<div class="library-backdrop" data-action="close-library"></div><aside class="library-panel" role="dialog" aria-modal="true" aria-label="Video Knowledge Base"><header class="library-header"><div><h2>Video Library</h2><p>${q ? `${videos.length} de ${state.data.videos.length} videos` : `${state.data.videos.length} videos in knowledge base`}</p></div><div class="library-actions"><button class="icon-button" type="button" data-action="close-library" aria-label="Close video library">${iconClose}</button><button class="small-button" type="button" data-action="add-video">＋ Add Video</button></div></header><div style="padding:12px 18px;border-bottom:1px solid var(--border)"><input class="video-search" data-focus="video-search" data-search="videos" aria-label="Search videos" placeholder="Search videos…" value="${esc(state.search.videos)}" style="padding:9px 10px" /></div><div class="library-list">${videos.length ? videos.map((video) => `<article class="library-card"><strong>${esc(video.title)}</strong><small>${esc(video.channel_title || 'Synced from Dynamous')}</small><a href="${esc(video.url)}" target="_blank" rel="noreferrer">Watch on YouTube</a></article>`).join('') : '<div class="empty-state">No videos match this search.</div>'}</div></aside>`;
+        }
+
+        function findSource(chunkId) {
+          for (const messages of Object.values(state.data.messages)) {
+            for (const message of messages) {
+              const source = message.sources?.find((item) => item.chunk_id === chunkId);
+              if (source) return source;
+            }
+          }
+          return null;
+        }
+
+        function render() {
+          state.route = activeRoute();
+          if (!state.session && !['login', 'signup'].includes(state.route.view)) {
+            if (location.hash !== '#login') location.hash = 'login';
+            state.route = { view: 'login' };
+          }
+          let page = '';
+          if (!state.session) page = renderAuth(state.route.view === 'signup' ? 'signup' : 'login');
+          else if (state.route.view === 'patients') page = shell(renderPatients(), 'patients', false);
+          else if (state.route.view === 'patient-detail') page = shell(renderPatientDetail(state.route.patientId), 'patients', false);
+          else if (state.route.view === 'new-evolution') page = shell(renderNewEvolution(state.route.patientId), 'patients', false);
+          else if (state.route.view === 'evolution-detail') page = shell(renderEvolutionDetail(state.route.patientId, state.route.evolutionId), 'patients', false);
+          else if (state.route.view === 'chat') page = shell(renderChat(), 'chat', true);
+          else if (state.route.view === 'conversation') page = shell(renderChat(state.route.conversationId), 'chat', true);
+          else if (state.route.view === 'admin') page = renderAdmin();
+          else page = shell(renderNotFound(), '', false);
+          app.innerHTML = page + renderLibrary() + (state.session ? renderModal() : '');
+          if (state.route.view === 'conversation') document.getElementById('chat-scroll')?.scrollTo(0, 999999);
+        }
+
+        function fillDemo() {
+          const email = document.querySelector('[name="email"]');
+          const password = document.querySelector('[name="password"]');
+          if (email) email.value = 'demo@example.com';
+          if (password) password.value = 'demo1234';
+          toast('Datos demo cargados');
+        }
+
+        function sendMessage(content) {
+          const question = content.trim();
+          if (!question || state.typing) return;
+          let conversationId = state.route?.conversationId;
+          if (!conversationId) {
+            conversationId = `c-${Date.now()}`;
+            state.data.conversations.unshift({ id: conversationId, title: question.slice(0, 42), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), preview: question });
+            state.data.messages[conversationId] = [];
+            location.hash = `c/${conversationId}`;
+          }
+          const list = state.data.messages[conversationId] || (state.data.messages[conversationId] = []);
+          list.push({ id: `m-${Date.now()}`, role: 'user', content: question, created_at: new Date().toISOString() });
+          const conversation = conversationById(conversationId);
+          if (conversation) { conversation.preview = question; conversation.updated_at = new Date().toISOString(); }
+          state.typing = true;
+          state.user.used = Math.min(state.user.used + 1, 25);
+          state.user.remaining = Math.max(0, 25 - state.user.used);
+          render();
+          window.setTimeout(() => {
+            list.push({ id: `m-${Date.now()}`, role: 'assistant', content: 'Esta respuesta se generó en el **mock local**. En producción, el backend recuperaría fragmentos relevantes y transmitiría una respuesta citada por SSE.\n\nPuedes usar este estado para diseñar mejoras de lectura, fuentes y composición.', created_at: new Date().toISOString(), sources: [{ chunk_id: `chunk-${Date.now()}`, video_id: 'v-001', video_title: 'Building AI agents', video_url: 'https://www.youtube.com/watch?v=demo001', start_seconds: 90, end_seconds: 120, snippet: 'Mock citation: delegate specialized work to focused agents.', is_cited: true }] });
+            state.typing = false;
+            render();
+          }, 850);
+        }
+
+        function generateDraft() {
+          const workflow = state.workflow;
+          if (!workflow || !workflow.rawNote.trim() || state.busy) return;
+          state.busy = true;
+          workflow.error = '';
+          render();
+          window.setTimeout(() => {
+            state.busy = false;
+            workflow.generatedDraft = true;
+            workflow.draft = {
+              context: 'Paciente consulta por sensibilidad posterior.',
+              findings: 'Restauración posterior íntegra, sin dolor a la percusión.',
+              assessment: 'Sensibilidad dentinaria leve.',
+              treatment: 'Se indica control y medidas de higiene.',
+              follow_up: 'Reevaluar en 30 días.',
+              review_flags: [{ source_text: 'sensibilidad posterior', reason: 'Confirmar pieza involucrada' }],
+            };
+            render();
+          }, 650);
+        }
+
+        function saveEvolution() {
+          const workflow = state.workflow;
+          if (!workflow?.draft) return;
+          state.busy = true;
+          render();
+          window.setTimeout(() => {
+            const patientId = workflow.patientId;
+            const text = [['Motivo / contexto', workflow.draft.context], ['Hallazgos', workflow.draft.findings], ['Diagnóstico / impresión clínica', workflow.draft.assessment], ['Tratamiento / conducta', workflow.draft.treatment], ['Seguimiento', workflow.draft.follow_up]].filter(([, value]) => value.trim()).map(([label, value]) => `${label}: ${value}`).join('\n\n');
+            const evolution = { id: `e-${Date.now()}`, patient_id: patientId, evolution_at: workflow.evolutionAt, preview: workflow.draft.context || workflow.draft.findings, created_at: new Date().toISOString(), final_text: text };
+            state.data.evolutions[patientId] = [evolution, ...(state.data.evolutions[patientId] || [])];
+            const patient = patientById(patientId);
+            if (patient) patient.last_evolution_at = evolution.evolution_at;
+            state.busy = false;
+            state.workflow = null;
+            toast('Evolución guardada', 'success');
+            go(`patients/${patientId}`);
+          }, 550);
+        }
+
+        document.addEventListener('click', (event) => {
+          const target = event.target.closest('[data-action]');
+          if (!target) return;
+          const action = target.dataset.action;
+          if (action === 'go') { event.preventDefault(); go(target.dataset.route); return; }
+          if (action === 'auth-nav') { event.preventDefault(); state.authMode = target.getAttribute('href') === '#signup' ? 'signup' : 'login'; location.hash = state.authMode; return; }
+          if (action === 'fill-demo') { fillDemo(); return; }
+          if (action === 'toggle-sidebar') { state.sidebarOpen = !state.sidebarOpen; render(); return; }
+          if (action === 'close-sidebar') { state.sidebarOpen = false; render(); return; }
+          if (action === 'new-patient') { state.modal = 'new-patient'; render(); document.querySelector('[name="first_name"]')?.focus(); return; }
+          if (action === 'close-modal') { state.modal = null; render(); return; }
+          if (action === 'backdrop-close' && event.target === target) { state.modal = null; render(); return; }
+          if (action === 'toggle-date') { state.workflow.showDateTime = !state.workflow.showDateTime; render(); return; }
+          if (action === 'generate' || action === 'retry-generation') { generateDraft(); return; }
+          if (action === 'edit-raw') { state.workflow.generatedDraft = null; state.workflow.draft = null; render(); document.querySelector('[data-focus="raw-note"]')?.focus(); return; }
+          if (action === 'save-evolution') { saveEvolution(); return; }
+          if (action === 'cancel-leave') { state.modal = null; state.pendingRoute = null; render(); return; }
+          if (action === 'confirm-leave') { const route = state.pendingRoute; state.modal = null; state.pendingRoute = null; state.workflow = null; location.hash = route || 'patients'; return; }
+          if (action === 'new-chat') { const id = `c-${Date.now()}`; state.data.conversations.unshift({ id, title: 'Nueva conversación', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), preview: null }); state.data.messages[id] = []; go(`c/${id}`); return; }
+          if (action === 'select-conversation') { go(`c/${target.dataset.id}`); return; }
+          if (action === 'rename') { event.stopPropagation(); state.renamingId = target.dataset.id; render(); document.querySelector(`[data-rename-input="${target.dataset.id}"]`)?.focus(); return; }
+          if (action === 'cancel-rename') { state.renamingId = null; render(); return; }
+          if (action === 'commit-rename') { const input = document.querySelector(`[data-rename-input="${target.dataset.id}"]`); const conversation = conversationById(target.dataset.id); if (input && conversation && input.value.trim()) { conversation.title = input.value.trim(); toast('Conversación renombrada', 'success'); } state.renamingId = null; render(); return; }
+          if (action === 'delete-conversation') { event.stopPropagation(); state.modal = 'delete-conv'; state.modalId = target.dataset.id; render(); return; }
+          if (action === 'confirm-delete-conversation') { state.data.conversations = state.data.conversations.filter((conversation) => conversation.id !== state.modalId); delete state.data.messages[state.modalId]; const wasActive = state.route?.conversationId === state.modalId; state.modal = null; toast('Conversación eliminada', 'success'); if (wasActive) go('chat'); else render(); return; }
+          if (action === 'open-library') { state.libraryOpen = true; render(); return; }
+          if (action === 'close-library') { state.libraryOpen = false; render(); return; }
+          if (action === 'citation') { state.modal = 'citation'; state.modalId = target.dataset.id; render(); return; }
+          if (action === 'suggestion') { sendMessage(target.dataset.question); return; }
+          if (action === 'export') { exportConversation(); return; }
+          if (action === 'logout') { state.session = false; state.modal = null; state.libraryOpen = false; toast('Sesión cerrada'); location.hash = 'login'; return; }
+          if (action === 'add-video') { state.modal = 'add-video'; render(); return; }
+          if (action === 'sync-channel') { state.busy = true; render(); window.setTimeout(() => { state.busy = false; toast('Sincronización del canal completada', 'success'); render(); }, 700); return; }
+          if (action === 'refresh-admin') { toast('Biblioteca actualizada', 'success'); render(); return; }
+          if (action === 'resync-video') { state.busy = true; render(); window.setTimeout(() => { const video = state.data.videos.find((item) => item.id === target.dataset.id); if (video) video.chunk_count += 3; state.busy = false; toast('Video sincronizado', 'success'); render(); }, 600); return; }
+          if (action === 'delete-video') { state.modal = 'delete-video'; state.modalId = target.dataset.id; render(); return; }
+          if (action === 'confirm-delete-video') { state.data.videos = state.data.videos.filter((video) => video.id !== state.modalId); state.modal = null; toast('Video eliminado', 'success'); render(); return; }
+        });
+
+        document.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const form = event.target;
+          if (form.id === 'auth-form') {
+            if (!form.reportValidity()) return;
+            state.session = true;
+            state.user.email = form.elements.email.value.trim() || 'demo@example.com';
+            state.authMode = 'login';
+            toast('Sesión demo iniciada', 'success');
+            location.hash = 'patients';
+            return;
+          }
+          if (form.id === 'patient-form') {
+            if (!form.reportValidity()) return;
+            const first = form.elements.first_name.value.trim();
+            const last = form.elements.last_name.value.trim();
+            const rut = form.elements.rut.value.trim();
+            const error = document.getElementById('patient-error');
+            if (rut.replace(/[^0-9kK]/g, '').length < 2) { error.textContent = 'Formato de RUT inválido'; error.hidden = false; return; }
+            const id = `p-${Date.now()}`;
+            const patient = { id, first_name: first, last_name: last, rut_masked: rut, birth_date: form.elements.birth_date.value || null, last_evolution_at: null };
+            state.data.patients.unshift(patient); state.data.evolutions[id] = []; state.modal = null; toast('Paciente creado', 'success'); go(`patients/${id}`); return;
+          }
+          if (form.id === 'video-form') {
+            if (!form.reportValidity()) return;
+            const error = document.getElementById('video-error');
+            try { new URL(form.elements.url.value); } catch { error.textContent = 'Ingresa una URL válida'; error.hidden = false; return; }
+            state.data.videos.unshift({ id: `v-${Date.now()}`, title: form.elements.title.value.trim(), description: form.elements.description.value.trim(), url: form.elements.url.value.trim(), created_at: new Date().toISOString(), channel_title: 'Local mock', chunk_count: Math.max(1, Math.round(form.elements.transcript.value.length / 180)) });
+            state.modal = null; toast('Video agregado al mock', 'success'); render(); return;
+          }
+          if (form.id === 'chat-form') { const message = form.elements.message.value; form.reset(); sendMessage(message); }
+        });
+
+        document.addEventListener('input', (event) => {
+          const target = event.target;
+          if (target.dataset.search) { state.search[target.dataset.search] = target.value; renderPreservingFocus(target); return; }
+          if (target.dataset.clinicalField && state.workflow?.draft) { state.workflow.draft[target.dataset.clinicalField] = target.value; return; }
+          if (target.dataset.focus === 'raw-note' && state.workflow) { state.workflow.rawNote = target.value; const generateButton = document.querySelector('[data-action="generate"]'); if (generateButton) generateButton.disabled = !target.value.trim() || state.busy; return; }
+          if (target.dataset.datePart && state.workflow) { const date = document.querySelector('[data-date-part="date"]')?.value || state.workflow.evolutionAt.slice(0,10); const time = document.querySelector('[data-date-part="time"]')?.value || state.workflow.evolutionAt.slice(11,16); state.workflow.evolutionAt = `${date}T${time}:00.000Z`; return; }
+        });
+
+        document.addEventListener('keydown', (event) => {
+          const target = event.target;
+          if (target.dataset.renameInput) {
+            if (event.key === 'Enter') document.querySelector(`[data-action="commit-rename"][data-id="${target.dataset.renameInput}"]`)?.click();
+            if (event.key === 'Escape') document.querySelector(`[data-action="cancel-rename"][data-id="${target.dataset.renameInput}"]`)?.click();
+          }
+          if (target.matches('.conversation-item') && event.key === 'Enter') target.click();
+          if (event.key === 'Escape' && state.libraryOpen) { state.libraryOpen = false; render(); }
+          if (event.key === 'Escape' && state.modal && state.modal !== 'leave') { state.modal = null; render(); }
+        });
+
+        function renderPreservingFocus(previous) {
+          const focus = previous.dataset.focus;
+          const selection = { start: previous.selectionStart, end: previous.selectionEnd };
+          render();
+          const next = document.querySelector(`[data-focus="${focus}"]`);
+          if (next) { next.focus(); if (typeof next.setSelectionRange === 'function') next.setSelectionRange(selection.start, selection.end); }
+        }
+
+        function exportConversation() {
+          const id = state.route?.conversationId;
+          const conversation = conversationById(id);
+          const messages = state.data.messages[id] || [];
+          const markdown = `# ${conversation?.title || 'DynaChat'}\n\n${messages.map((message) => `## ${message.role === 'user' ? 'Usuario' : 'Asistente'}\n\n${message.content}`).join('\n\n')}`;
+          const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+          const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${(conversation?.title || 'conversation').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.md`; link.click(); URL.revokeObjectURL(link.href); toast('Conversación exportada', 'success');
+        }
+
+        window.addEventListener('hashchange', () => { state.modal = null; state.libraryOpen = false; render(); });
+        window.addEventListener('beforeunload', (event) => { if (isWorkflowDirty()) { event.preventDefault(); event.returnValue = ''; } });
+        if (!location.hash) location.hash = 'login';
+        render();
+      })();
+    </script>
+  </body>
+</html>

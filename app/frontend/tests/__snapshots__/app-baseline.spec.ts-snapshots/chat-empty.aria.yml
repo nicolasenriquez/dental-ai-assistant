@@ -1,0 +1,32 @@
+- complementary:
+  - navigation "Navegacion principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Chat":
+      - /url: /chat
+  - button "Nuevo chat":
+    - img
+    - text: ""
+  - textbox "Buscar conversaciones..."
+  - button "New Conversation ahora hi"
+  - status:
+    - strong: /2\/\d+/
+    - text: mensajes hoy
+  - text: admin@email.com
+  - button "Cerrar sesión"
+  - text: DynaChat
+  - link "Administración":
+    - /url: /admin
+  - button "Explorar biblioteca de videos":
+    - img
+    - text: ""
+- img
+- heading "Ask anything about the video library" [level=2]
+- paragraph: This AI has access to transcripts from a curated collection of YouTube videos.
+- button "How do I use subagents in Claude Code?"
+- button "How should I structure an agent team?"
+- button "How does Cole's complete agentic coding workflow look end-to-end?"
+- button "How do I turn Claude Code into an engineering team?"
+- textbox "Ask anything about the video library…"
+- button "Send message":
+  - img

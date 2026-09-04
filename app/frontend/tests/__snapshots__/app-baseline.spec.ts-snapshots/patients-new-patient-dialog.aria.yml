@@ -1,0 +1,41 @@
+- complementary:
+  - navigation "Navegacion principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Chat":
+      - /url: /chat
+  - text: admin@email.com
+  - button "Cerrar sesión"
+  - text: DynaChat
+  - link "Administración":
+    - /url: /admin
+- main:
+  - heading "Pacientes" [level=1]
+  - paragraph: Gestiona pacientes y sus evoluciones dentales.
+  - button "+ Nuevo paciente"
+  - text: Buscar por nombre o RUT
+  - textbox "Buscar por nombre o RUT":
+    - /placeholder: Buscar por nombre o RUT...
+  - status
+  - heading "PACIENTES" [level=2]
+  - link /Juan Perez RUT \d+\.\*\*\*\.\*\*\*-\* Última evolución \d+-\d+-\d+, \d+:\d+/:
+    - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
+    - strong: Juan Perez
+    - text: ""
+    - time: /\d+-\d+-\d+, \d+:\d+/
+  - dialog "Nuevo paciente":
+    - button "Cerrar": ×
+    - heading "Nuevo paciente" [level=2]
+    - paragraph: Crea la ficha básica. Podrás agregar una evolución después.
+    - text: Nombre
+    - textbox "Nombre"
+    - text: Apellido
+    - textbox "Apellido"
+    - text: RUT
+    - textbox "RUT"
+    - text: Fecha de nacimiento (opcional)
+    - textbox "Fecha de nacimiento":
+      - /placeholder: dd/mm/aaaa
+    - text: "Formato: dd/mm/aaaa. Puedes dejar este campo en blanco."
+    - button "Cancelar"
+    - button "Crear paciente"

@@ -85,7 +85,7 @@ MEMBERSHIP_REFRESH_SECONDS: int = int(os.environ.get("MEMBERSHIP_REFRESH_SECONDS
 
 OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
-CHAT_MODEL: str = "z-ai/glm-5.2:free"  # "anthropic/claude-sonnet-4.6"
+CHAT_MODEL: str = "dots-studio/dots-3-note-preview:free"
 CLINICAL_EXTERNAL_LLM_ENABLED: bool = os.environ.get(
     "CLINICAL_EXTERNAL_LLM_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "on")

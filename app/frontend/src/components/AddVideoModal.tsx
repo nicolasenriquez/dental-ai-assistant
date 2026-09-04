@@ -31,7 +31,7 @@ export function AddVideoModal({ open, onClose, onSubmit }: AddVideoModalProps) {
       await onSubmit(url.trim());
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add video');
+      setError(err instanceof Error ? err.message : 'No se pudo agregar el video');
     } finally {
       setSubmitting(false);
     }
@@ -41,7 +41,7 @@ export function AddVideoModal({ open, onClose, onSubmit }: AddVideoModalProps) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Add video by URL"
+      aria-label="Agregar video por URL"
       onClick={onClose}
       style={{
         position: 'fixed',
@@ -59,9 +59,9 @@ export function AddVideoModal({ open, onClose, onSubmit }: AddVideoModalProps) {
         onSubmit={handleSubmit}
         className="w-full max-w-md bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6 space-y-4 shadow-2xl"
       >
-        <h2 className="text-lg font-semibold">Add video by URL</h2>
+        <h2 className="text-lg font-semibold">Agregar video por URL</h2>
         <label className="block text-sm">
-          <span className="text-[var(--text-secondary)]">YouTube URL</span>
+          <span className="text-[var(--text-secondary)]">URL de YouTube</span>
           <input
             ref={inputRef}
             type="url"
@@ -85,14 +85,14 @@ export function AddVideoModal({ open, onClose, onSubmit }: AddVideoModalProps) {
             disabled={submitting}
             className="px-3 py-2 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           >
-            Cancel
+            Cancelar
           </button>
           <button
             type="submit"
             disabled={submitting || !url.trim()}
             className="px-3 py-2 rounded bg-[var(--accent)] text-white font-medium disabled:opacity-50 transition-[filter] duration-150 active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           >
-            {submitting ? 'Adding…' : 'Add video'}
+            {submitting ? 'Agregando…' : 'Agregar video'}
           </button>
         </div>
       </form>

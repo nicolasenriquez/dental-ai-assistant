@@ -1,0 +1,11 @@
+- img "DynaChat logo"
+- text: DynaChat Pregúntale cualquier cosa a la biblioteca de YouTube de Cole Medin
+- heading "Iniciar sesión" [level=1]
+- text: Correo electrónico
+- textbox "Correo electrónico"
+- text: Contraseña
+- textbox "Contraseña"
+- button "Iniciar sesión"
+- text: ¿Necesitas una cuenta?
+- link "Regístrate":
+  - /url: /signup

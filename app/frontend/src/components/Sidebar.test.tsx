@@ -97,10 +97,10 @@ describe('Sidebar handleNewChat', () => {
         </MemoryRouter>,
       );
 
-      // Get all buttons and find the main "New Chat" button
+      // Get all buttons and find the main "Nuevo chat" button
       const buttons = screen.getAllByRole('button');
       const newChatButton = buttons.find(
-        (btn) => btn.textContent === 'New Chat' && (btn as HTMLButtonElement).type === 'submit',
+        (btn) => btn.textContent === 'Nuevo chat' && (btn as HTMLButtonElement).type === 'submit',
       ) as HTMLButtonElement;
       expect(newChatButton).toBeDefined();
 
@@ -159,10 +159,10 @@ describe('Sidebar handleNewChat', () => {
         </MemoryRouter>,
       );
 
-      // Get all buttons and find the main "New Chat" button
+      // Get all buttons and find the main "Nuevo chat" button
       const buttons = screen.getAllByRole('button');
       const newChatButton = buttons.find(
-        (btn) => btn.textContent === 'New Chat' && (btn as HTMLButtonElement).type === 'submit',
+        (btn) => btn.textContent === 'Nuevo chat' && (btn as HTMLButtonElement).type === 'submit',
       ) as HTMLButtonElement;
       expect(newChatButton).toBeDefined();
 
@@ -217,10 +217,10 @@ describe('Sidebar handleNewChat', () => {
         </MemoryRouter>,
       );
 
-      // Get all buttons and find the main "New Chat" button
+      // Get all buttons and find the main "Nuevo chat" button
       const buttons = screen.getAllByRole('button');
       const newChatButton = buttons.find(
-        (btn) => btn.textContent === 'New Chat' && (btn as HTMLButtonElement).type === 'submit',
+        (btn) => btn.textContent === 'Nuevo chat' && (btn as HTMLButtonElement).type === 'submit',
       ) as HTMLButtonElement;
       expect(newChatButton).toBeDefined();
 
@@ -265,10 +265,10 @@ describe('Sidebar handleNewChat', () => {
         </MemoryRouter>,
       );
 
-      // Get all buttons and find the main "New Chat" button
+      // Get all buttons and find the main "Nuevo chat" button
       const buttons = screen.getAllByRole('button');
       const newChatButton = buttons.find(
-        (btn) => btn.textContent === 'New Chat' && (btn as HTMLButtonElement).type === 'submit',
+        (btn) => btn.textContent === 'Nuevo chat' && (btn as HTMLButtonElement).type === 'submit',
       ) as HTMLButtonElement;
       expect(newChatButton).toBeDefined();
 
@@ -278,7 +278,7 @@ describe('Sidebar handleNewChat', () => {
 
       // Should show error message
       expect(
-        await screen.findByText('Could not create conversation. Please try again.'),
+        await screen.findByText('No pudimos crear la conversación. Intenta nuevamente.'),
       ).toBeInTheDocument();
     });
   });
@@ -290,7 +290,7 @@ describe('Sidebar logout', () => {
     navigateMock.mockReset();
   });
 
-  it('shows the user email and a Log out button when authed', async () => {
+  it('shows the user email and a logout button when authed', async () => {
     render(
       <MemoryRouter>
         <Sidebar activeConversationId={undefined} isOpen={true} onClose={vi.fn()} />
@@ -298,7 +298,7 @@ describe('Sidebar logout', () => {
     );
 
     expect(screen.getByText('test@example.com')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cerrar sesión/i })).toBeInTheDocument();
   });
 
   it('calls logout and navigates to /login when the button is clicked', async () => {
@@ -328,7 +328,7 @@ describe('Sidebar logout', () => {
       </MemoryRouter>,
     );
 
-    const logoutBtn = screen.getByRole('button', { name: /log out/i });
+    const logoutBtn = screen.getByRole('button', { name: /cerrar sesión/i });
     await act(async () => {
       fireEvent.click(logoutBtn);
       await new Promise((r) => setTimeout(r, 0));
@@ -337,5 +337,25 @@ describe('Sidebar logout', () => {
     expect(logoutMock).toHaveBeenCalledTimes(1);
     expect(navigateMock).toHaveBeenCalledWith('/login');
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('Sidebar patient shell', () => {
+  it('does not expose the video library outside the chat shell', () => {
+    render(
+      <MemoryRouter>
+        <Sidebar
+          activeConversationId={undefined}
+          isOpen={true}
+          onClose={vi.fn()}
+          showConversations={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'Explorar biblioteca de videos' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Video Knowledge Base' })).not.toBeInTheDocument();
   });
 });

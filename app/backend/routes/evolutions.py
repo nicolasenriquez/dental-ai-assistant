@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Cookie, HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints, field_validator
 
 from backend.auth.dependencies import get_current_user
 from backend.db import evolutions_repo
@@ -15,7 +15,21 @@ from backend.services import clinical_evolutions
 
 router = APIRouter(prefix="/evolutions", tags=["evolutions"])
 patient_router = APIRouter(prefix="/patients", tags=["evolutions"])
-RawNote = Annotated[str, Field(min_length=1, max_length=clinical_evolutions.MAX_RAW_NOTE_LENGTH)]
+
+
+def _validate_raw_note(value: str) -> str:
+    length = len(value.strip())
+    if length == 0:
+        raise ValueError("La nota no puede estar vacia")
+    if length > clinical_evolutions.MAX_RAW_NOTE_LENGTH:
+        raise ValueError("La nota supera el limite de 40.000 caracteres")
+    return value
+
+
+RawNote = Annotated[str, AfterValidator(_validate_raw_note)]
+EvolutionText = Annotated[
+    str, StringConstraints(max_length=clinical_evolutions.MAX_RAW_NOTE_LENGTH)
+]
 
 
 class GenerateEvolutionRequest(BaseModel):
@@ -24,13 +38,6 @@ class GenerateEvolutionRequest(BaseModel):
     patient_id: UUID
     raw_note: RawNote
 
-    @field_validator("raw_note")
-    @classmethod
-    def validate_raw_note(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("La nota no puede estar vacia")
-        return value
-
 
 class SaveEvolutionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -38,10 +45,10 @@ class SaveEvolutionRequest(BaseModel):
     id: UUID
     evolution_at: datetime
     raw_note: RawNote
-    generated_text: str
-    final_text: str
+    generated_text: EvolutionText
+    final_text: EvolutionText
 
-    @field_validator("raw_note", "final_text")
+    @field_validator("final_text")
     @classmethod
     def validate_non_blank(cls, value: str) -> str:
         if not value.strip():
@@ -68,14 +75,24 @@ async def generate_evolution(
         )
     except clinical_evolutions.ClinicalGenerationDisabledError as exc:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "clinical_generation_disabled",
+                "message": "Clinical generation is disabled in this environment",
+            },
         ) from None
     except LookupError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado"
         ) from None
-    except clinical_evolutions.ClinicalGenerationError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
+    except clinical_evolutions.ClinicalGenerationError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": clinical_evolutions.ClinicalGenerationError.code,
+                "message": "La redacción asistida no está disponible temporalmente",
+            },
+        ) from None
 
 
 @patient_router.post(

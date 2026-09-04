@@ -40,9 +40,9 @@ export function Login() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6 space-y-4"
       >
-        <h1 className="text-xl font-semibold">Log in</h1>
+        <h1 className="text-xl font-semibold">Iniciar sesión</h1>
         <label className="block text-sm">
-          <span className="text-[var(--text-secondary)]">Email</span>
+          <span className="text-[var(--text-secondary)]">Correo electrónico</span>
           <input
             type="email"
             required
@@ -53,7 +53,7 @@ export function Login() {
           />
         </label>
         <label className="block text-sm">
-          <span className="text-[var(--text-secondary)]">Password</span>
+          <span className="text-[var(--text-secondary)]">Contraseña</span>
           <input
             type="password"
             required
@@ -73,12 +73,12 @@ export function Login() {
           disabled={submitting}
           className="w-full py-2 rounded bg-[var(--accent)] text-white font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
         >
-          {submitting ? 'Logging in…' : 'Log in'}
+          {submitting ? 'Iniciando sesión…' : 'Iniciar sesión'}
         </button>
         <div className="text-sm text-[var(--text-secondary)] text-center">
-          Need an account?{' '}
+          ¿Necesitas una cuenta?{' '}
           <Link to="/signup" className="text-[var(--accent)] hover:underline">
-            Sign up
+            Regístrate
           </Link>
         </div>
       </form>

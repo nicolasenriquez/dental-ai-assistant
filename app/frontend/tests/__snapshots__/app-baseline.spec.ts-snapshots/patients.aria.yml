@@ -1,0 +1,25 @@
+- complementary:
+  - navigation "Navegacion principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Chat":
+      - /url: /chat
+  - text: admin@email.com
+  - button "Cerrar sesión"
+  - text: DynaChat
+  - link "Administración":
+    - /url: /admin
+- main:
+  - heading "Pacientes" [level=1]
+  - paragraph: Gestiona pacientes y sus evoluciones dentales.
+  - button "+ Nuevo paciente"
+  - text: Buscar por nombre o RUT
+  - textbox "Buscar por nombre o RUT":
+    - /placeholder: Buscar por nombre o RUT...
+  - status
+  - heading "PACIENTES" [level=2]
+  - link /Juan Perez RUT \d+\.\*\*\*\.\*\*\*-\* Última evolución \d+-\d+-\d+, \d+:\d+/:
+    - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
+    - strong: Juan Perez
+    - text: ""
+    - time: /\d+-\d+-\d+, \d+:\d+/

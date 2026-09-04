@@ -12,7 +12,9 @@
     "format": "biome format --write src",
     "format:check": "biome format src",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e:baseline": "playwright test --project=baseline",
+    "e2e:baseline:update": "playwright test --project=baseline --update-snapshots"
   },
   "dependencies": {
     "file-saver": "^2.0.0",
@@ -32,6 +34,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@playwright/test": "1.62.1",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "jsdom": "^25.0.1",

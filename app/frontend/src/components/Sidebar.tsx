@@ -1,4 +1,11 @@
-import { type MutableRefObject, useEffect, useRef, useState } from 'react';
+import {
+  type KeyboardEventHandler,
+  type MutableRefObject,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useConversations } from '../hooks/useConversations';
@@ -16,17 +23,22 @@ function formatRelativeTime(dateStr: string): string {
   const diffHrs = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHrs / 24);
 
-  if (diffSecs < 60) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHrs < 24) return `${diffHrs}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (diffSecs < 60) return 'ahora';
+  if (diffMins < 60) return `hace ${diffMins} min`;
+  if (diffHrs < 24) return `hace ${diffHrs} h`;
+  if (diffDays < 7) return `hace ${diffDays} d`;
+  return date.toLocaleDateString('es-CL', { month: 'short', day: 'numeric' });
 }
 
 // ── Skeleton row ─────────────────────────────────────────────────
 function SkeletonRow() {
   return (
-    <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+    <div
+      style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+      }}
+    >
       <div className="skeleton" style={{ height: 14, width: '70%', marginBottom: 8 }} />
       <div className="skeleton" style={{ height: 11, width: '40%', marginBottom: 6 }} />
       <div className="skeleton" style={{ height: 11, width: '90%' }} />
@@ -205,8 +217,8 @@ function ConvItem({
             setEditing(true);
             setEditValue(conv.title);
           }}
-          aria-label="Rename conversation"
-          title="Rename conversation"
+          aria-label="Renombrar conversación"
+          title="Renombrar conversación"
           className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           style={{
             position: 'absolute',
@@ -238,7 +250,8 @@ function ConvItem({
             e.stopPropagation();
             onDeleteRequest(conv.id);
           }}
-          title="Delete conversation"
+          title="Eliminar conversación"
+          aria-label="Eliminar conversación"
           className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           style={{
             position: 'absolute',
@@ -310,13 +323,15 @@ function ConfirmDialog({ onConfirm, onCancel, deleting, error }: ConfirmDialogPr
           boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
         }}
       >
-        <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#f1f5f9' }}>Delete conversation?</p>
+        <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#f1f5f9' }}>
+          ¿Eliminar conversación?
+        </p>
         <p style={{ margin: '0 0 20px', fontSize: 14, color: '#94a3b8' }}>
-          This action cannot be undone.
+          Esta acción no se puede deshacer.
         </p>
         {error && (
           <p style={{ margin: '0 0 16px', fontSize: 13, color: '#ef4444' }}>
-            Failed to delete. Please try again.
+            No pudimos eliminarla. Intenta nuevamente.
           </p>
         )}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -333,7 +348,7 @@ function ConfirmDialog({ onConfirm, onCancel, deleting, error }: ConfirmDialogPr
               fontSize: 14,
             }}
           >
-            Cancel
+            Cancelar
           </button>
           <button
             onClick={onConfirm}
@@ -350,7 +365,7 @@ function ConfirmDialog({ onConfirm, onCancel, deleting, error }: ConfirmDialogPr
               opacity: deleting ? 0.7 : 1,
             }}
           >
-            {deleting ? 'Deleting…' : 'Delete'}
+            {deleting ? 'Eliminando…' : 'Eliminar'}
           </button>
         </div>
       </div>
@@ -369,7 +384,10 @@ function DailyQuotaCounter({ used, remaining, resetsAt }: DailyQuotaCounterProps
   const cap = used + remaining;
   const atLimit = remaining === 0;
   const resetLabel = resetsAt
-    ? new Date(resetsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    ? new Date(resetsAt).toLocaleTimeString([], {
+        hour: 'numeric',
+        minute: '2-digit',
+      })
     : null;
 
   return (
@@ -392,10 +410,10 @@ function DailyQuotaCounter({ used, remaining, resetsAt }: DailyQuotaCounterProps
         <strong style={{ color: atLimit ? '#ef4444' : '#f1f5f9', fontWeight: 600 }}>
           {used}/{cap}
         </strong>{' '}
-        messages today
+        mensajes hoy
       </span>
       {atLimit && resetLabel && (
-        <span style={{ fontSize: 11, opacity: 0.85 }}>resets at {resetLabel}</span>
+        <span style={{ fontSize: 11, opacity: 0.85 }}>se reinicia a las {resetLabel}</span>
       )}
     </div>
   );
@@ -408,6 +426,8 @@ interface SidebarProps {
   onClose: () => void;
   conversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
   showConversations?: boolean;
+  sidebarRef?: RefObject<HTMLElement>;
+  onKeyDown?: KeyboardEventHandler<HTMLElement>;
 }
 
 export function Sidebar({
@@ -416,6 +436,8 @@ export function Sidebar({
   onClose,
   conversationsRef,
   showConversations = true,
+  sidebarRef,
+  onKeyDown,
 }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -467,7 +489,7 @@ export function Sidebar({
       navigate(`/c/${conv.id}`);
       onClose();
     } catch (e) {
-      setNewChatError('Could not create conversation. Please try again.');
+      setNewChatError('No pudimos crear la conversación. Intenta nuevamente.');
     } finally {
       setCreatingNew(false);
     }
@@ -491,7 +513,7 @@ export function Sidebar({
       setConfirmId(null);
       await refetch();
       if (activeConversationId === confirmId) {
-        navigate('/');
+        navigate('/chat');
       }
     } catch (e) {
       console.error('[Sidebar] Delete conversation failed:', e);
@@ -528,13 +550,18 @@ export function Sidebar({
   const handleRename = async (id: string, title: string) => {
     const { ok, error } = await rename(id, title);
     if (!ok && error) {
-      addToast(`Rename failed: ${error}`, 'error');
+      addToast(`No pudimos renombrar: ${error}`, 'error');
     }
   };
 
   return (
     <>
-      <aside className={`sidebar-container${isOpen ? ' open' : ''}`}>
+      <aside
+        id="app-sidebar"
+        ref={sidebarRef}
+        onKeyDown={onKeyDown}
+        className={`sidebar-container${isOpen ? ' open' : ''}`}
+      >
         <nav aria-label="Navegacion principal" className="p-3 pb-1 space-y-1">
           {[
             {
@@ -599,11 +626,18 @@ export function Sidebar({
                 <line x1="7" y1="2" x2="7" y2="12" />
                 <line x1="2" y1="7" x2="12" y2="7" />
               </svg>
-              {creatingNew ? 'Creating…' : 'New Chat'}
+              {creatingNew ? 'Creando…' : 'Nuevo chat'}
             </button>
 
             {newChatError && (
-              <p style={{ fontSize: 12, color: '#ef4444', margin: '8px 0 0', textAlign: 'center' }}>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: '#ef4444',
+                  margin: '8px 0 0',
+                  textAlign: 'center',
+                }}
+              >
                 {newChatError}
               </p>
             )}
@@ -615,7 +649,7 @@ export function Sidebar({
           <div style={{ padding: '0 12px 8px' }}>
             <input
               type="text"
-              placeholder="Search conversations..."
+              placeholder="Buscar conversaciones..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
@@ -662,17 +696,22 @@ export function Sidebar({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }}
+                  style={{
+                    margin: '0 auto 12px',
+                    display: 'block',
+                    opacity: 0.5,
+                  }}
                 >
                   <path d="M6,4 L30,4 A2,2 0 0,1 32,6 L32,24 A2,2 0 0,1 30,26 L10,26 L4,32 L4,6 A2,2 0 0,1 6,4 Z" />
                 </svg>
                 {debouncedQuery.trim() ? (
                   <p style={{ margin: 0, fontSize: 13 }}>
-                    No matches for <strong style={{ color: '#94a3b8' }}>"{debouncedQuery}"</strong>
+                    Sin resultados para{' '}
+                    <strong style={{ color: '#94a3b8' }}>"{debouncedQuery}"</strong>
                   </p>
                 ) : (
                   <>
-                    <p style={{ margin: 0, fontSize: 13 }}>No conversations yet</p>
+                    <p style={{ margin: 0, fontSize: 13 }}>Aún no hay conversaciones</p>
                     <button
                       onClick={handleNewChat}
                       className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
@@ -694,7 +733,7 @@ export function Sidebar({
                         e.currentTarget.style.background = 'transparent';
                       }}
                     >
-                      Start your first chat →
+                      Inicia tu primer chat →
                     </button>
                   </>
                 )}
@@ -755,8 +794,8 @@ export function Sidebar({
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              title="Log out"
-              aria-label="Log out"
+              title="Cerrar sesión"
+              aria-label="Cerrar sesión"
               className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
               style={{
                 background: 'transparent',
@@ -782,7 +821,7 @@ export function Sidebar({
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
               }}
             >
-              {loggingOut ? 'Signing out…' : 'Log out'}
+              {loggingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
             </button>
           </div>
         )}
@@ -805,7 +844,7 @@ export function Sidebar({
           {user?.is_admin && (
             <Link
               to="/admin"
-              title="Manage video library"
+              title="Administrar biblioteca de videos"
               className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
               style={{
                 fontSize: 12,
@@ -827,57 +866,64 @@ export function Sidebar({
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
               }}
             >
-              Admin
+              Administración
             </Link>
           )}
 
-          {/* Library / VideoExplorer button */}
-          <button
-            onClick={() => setExplorerOpen(true)}
-            title="Browse video library"
-            aria-label="Browse video library"
-            className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 7,
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '5px 7px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 5,
-              fontSize: 12,
-              transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1e293b';
-              e.currentTarget.style.color = '#f1f5f9';
-              e.currentTarget.style.borderColor = 'rgba(59,130,246,0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#94a3b8';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-            }}
-          >
-            {/* Play/video icon */}
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="1" y="2" width="12" height="10" rx="2" />
-              <polygon points="5,4.5 9.5,7 5,9.5" fill="currentColor" stroke="none" />
-            </svg>
-            Library
-          </button>
+          {showConversations && (
+            <>
+              {/* Library / VideoExplorer button */}
+              <button
+                onClick={() => {
+                  setExplorerOpen(true);
+                  onClose();
+                }}
+                title="Explorar biblioteca de videos"
+                aria-label="Explorar biblioteca de videos"
+                className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 7,
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '5px 7px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 5,
+                  fontSize: 12,
+                  transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#1e293b';
+                  e.currentTarget.style.color = '#f1f5f9';
+                  e.currentTarget.style.borderColor = 'rgba(59,130,246,0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#94a3b8';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                }}
+              >
+                {/* Play/video icon */}
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="1" y="2" width="12" height="10" rx="2" />
+                  <polygon points="5,4.5 9.5,7 5,9.5" fill="currentColor" stroke="none" />
+                </svg>
+                Biblioteca
+              </button>
+            </>
+          )}
         </div>
       </aside>
 
@@ -892,7 +938,9 @@ export function Sidebar({
       )}
 
       {/* ── Video Explorer panel ── */}
-      <VideoExplorer isOpen={explorerOpen} onClose={() => setExplorerOpen(false)} />
+      {showConversations && (
+        <VideoExplorer isOpen={explorerOpen} onClose={() => setExplorerOpen(false)} />
+      )}
     </>
   );
 }

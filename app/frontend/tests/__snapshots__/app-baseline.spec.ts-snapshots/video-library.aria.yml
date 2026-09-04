@@ -1,0 +1,96 @@
+- complementary:
+  - navigation "Navegacion principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Chat":
+      - /url: /chat
+  - button "Nuevo chat":
+    - img
+    - text: ""
+  - textbox "Buscar conversaciones..."
+  - button "New Conversation ahora hi"
+  - status:
+    - strong: /2\/\d+/
+    - text: mensajes hoy
+  - text: admin@email.com
+  - button "Cerrar sesión"
+  - text: DynaChat
+  - link "Administración":
+    - /url: /admin
+  - button "Explorar biblioteca de videos":
+    - img
+    - text: ""
+- dialog "Video Knowledge Base":
+  - heading "Video Library" [level=2]
+  - paragraph: /\d+ videos in knowledge base/
+  - button "Close video library":
+    - img
+  - button "+ Add Video"
+  - searchbox "Search videos"
+  - paragraph: Building Production RAG Pipelines
+  - paragraph: Advanced techniques for production-grade RAG — covering chunking strategies, hybrid search, re-ranking, and monitorin…
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=ProdRagPip1
+    - img
+    - text: ""
+  - paragraph: "Local LLMs: A Practical Guide"
+  - paragraph: Everything you need to know about running LLMs locally — covering Ollama, model quantization, hardware requirements, …
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=LocalLLMsG9
+    - img
+    - text: ""
+  - paragraph: "Evaluating AI Outputs: Metrics That Matter"
+  - paragraph: A practical guide to evaluating LLM outputs — covering automated metrics, LLM-as-judge, human evaluation, and buildin…
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=AIEvalMtr08
+    - img
+    - text: ""
+  - paragraph: Prompt Engineering Best Practices
+  - paragraph: Practical, battle-tested prompt engineering patterns and anti-patterns from real production deployments.
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=PromptEng07
+    - img
+    - text: ""
+  - paragraph: The Future of LLM Tooling
+  - paragraph: An opinion piece on where the LLM developer ecosystem is heading — what will matter in two years and what's just hype.
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=LLMToolng06
+    - img
+    - text: ""
+  - paragraph: How I Built a Coding Assistant in One Weekend
+  - paragraph: A personal walkthrough of building a functional AI coding assistant in a weekend — architecture decisions, lessons le…
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=CodingAst05
+    - img
+    - text: ""
+  - paragraph: Vector Databases Explained
+  - paragraph: A practical guide to vector databases — covering FAISS, Pinecone, pgvector, and how to choose the right solution for …
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=VectorDBs04
+    - img
+    - text: ""
+  - paragraph: "Fine-tuning vs. Prompting: When to Use Each"
+  - paragraph: An honest comparison of fine-tuning and prompt engineering, helping you decide which approach is right for your use c…
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=FineVsPrm03
+    - img
+    - text: ""
+  - paragraph: Understanding Retrieval-Augmented Generation
+  - paragraph: A complete guide to RAG architecture — how chunking, embedding, retrieval, and generation work together to ground LLM…
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=RAGExplain2
+    - img
+    - text: ""
+  - paragraph: Building AI Agents from Scratch
+  - paragraph: A deep dive into how autonomous AI agents work, covering agent loops, tool use, memory, and planning strategies.
+  - link "Watch on YouTube":
+    - /url: https://www.youtube.com/watch?v=AgntBld001a
+    - img
+    - text: ""
+- button "Export":
+  - img
+  - text: ""
+- paragraph: Baseline response.
+- textbox "Ask anything about the video library…"
+- button "Send message":
+  - img

@@ -1,0 +1,4 @@
+- heading "Page not found" [level=1]
+- paragraph: The page you're looking for doesn't exist.
+- link "Back to home":
+  - /url: /

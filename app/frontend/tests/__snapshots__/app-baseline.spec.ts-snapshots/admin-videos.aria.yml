@@ -1,0 +1,107 @@
+- banner:
+  - heading "Administración de biblioteca" [level=1]
+  - paragraph: Agrega, resincroniza o elimina videos del corpus RAG.
+  - link "← Volver al chat":
+    - /url: /
+- button "+ Agregar video por URL"
+- button "Sincronizar canal"
+- button "Actualizar"
+- textbox "Buscar videos..."
+- table:
+  - rowgroup:
+    - row "Título Fragmentos Agregado Acciones":
+      - columnheader "Título"
+      - columnheader "Fragmentos"
+      - columnheader "Agregado"
+      - columnheader "Acciones"
+  - rowgroup:
+    - row /Building Production RAG Pipelines 3 \d+-\d+-\d+ Sincronizar Eliminar/:
+      - cell "Building Production RAG Pipelines":
+        - link "Building Production RAG Pipelines":
+          - /url: https://www.youtube.com/watch?v=ProdRagPip1
+      - cell "3"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - 'row /Local LLMs: A Practical Guide 2 \d+-\d+-\d+ Sincronizar Eliminar/':
+      - 'cell "Local LLMs: A Practical Guide"':
+        - 'link "Local LLMs: A Practical Guide"':
+          - /url: https://www.youtube.com/watch?v=LocalLLMsG9
+      - cell "2"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - 'row /Evaluating AI Outputs: Metrics That Matter 4 \d+-\d+-\d+ Sincronizar Eliminar/':
+      - 'cell "Evaluating AI Outputs: Metrics That Matter"':
+        - 'link "Evaluating AI Outputs: Metrics That Matter"':
+          - /url: https://www.youtube.com/watch?v=AIEvalMtr08
+      - cell "4"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - row /Prompt Engineering Best Practices 3 \d+-\d+-\d+ Sincronizar Eliminar/:
+      - cell "Prompt Engineering Best Practices":
+        - link "Prompt Engineering Best Practices":
+          - /url: https://www.youtube.com/watch?v=PromptEng07
+      - cell "3"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - row /The Future of LLM Tooling 3 \d+-\d+-\d+ Sincronizar Eliminar/:
+      - cell "The Future of LLM Tooling":
+        - link "The Future of LLM Tooling":
+          - /url: https://www.youtube.com/watch?v=LLMToolng06
+      - cell "3"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - row /How I Built a Coding Assistant in One Weekend 2 \d+-\d+-\d+ Sincronizar Eliminar/:
+      - cell "How I Built a Coding Assistant in One Weekend":
+        - link "How I Built a Coding Assistant in One Weekend":
+          - /url: https://www.youtube.com/watch?v=CodingAst05
+      - cell "2"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - row /Vector Databases Explained 2 \d+-\d+-\d+ Sincronizar Eliminar/:
+      - cell "Vector Databases Explained":
+        - link "Vector Databases Explained":
+          - /url: https://www.youtube.com/watch?v=VectorDBs04
+      - cell "2"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - 'row /Fine-tuning vs\. Prompting: When to Use Each 3 \d+-\d+-\d+ Sincronizar Eliminar/':
+      - 'cell "Fine-tuning vs. Prompting: When to Use Each"':
+        - 'link "Fine-tuning vs. Prompting: When to Use Each"':
+          - /url: https://www.youtube.com/watch?v=FineVsPrm03
+      - cell "3"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - row /Understanding Retrieval-Augmented Generation 3 \d+-\d+-\d+ Sincronizar Eliminar/:
+      - cell "Understanding Retrieval-Augmented Generation":
+        - link "Understanding Retrieval-Augmented Generation":
+          - /url: https://www.youtube.com/watch?v=RAGExplain2
+      - cell "3"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"
+    - row /Building AI Agents from Scratch 3 \d+-\d+-\d+ Sincronizar Eliminar/:
+      - cell "Building AI Agents from Scratch":
+        - link "Building AI Agents from Scratch":
+          - /url: https://www.youtube.com/watch?v=AgntBld001a
+      - cell "3"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"

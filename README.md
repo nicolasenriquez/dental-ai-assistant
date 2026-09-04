@@ -59,43 +59,30 @@ For full code conventions, repo layout, and the rules AI coding agents should fo
 
 ## Quick Start
 
-### Docker + just (recommended for local development)
+### Docker + just (recommended)
 
-This is the simplest local setup. It starts Postgres and `app-blue`, serves the
-built frontend through FastAPI on `http://localhost:8000`, and does not start
-the production Caddy or blue/green standby service.
+Starts PostgreSQL and `app-blue`, serving the built frontend and FastAPI at
+`http://localhost:8000`. Does not start Caddy or `app-green`.
 
 Prerequisites:
 
 - [Docker Desktop](https://docs.docker.com/desktop/)
 - [`just`](https://just.systems/man/en/)
-- An [OpenRouter](https://openrouter.ai) API key for chat and embeddings
+- An [OpenRouter](https://openrouter.ai) API key
 
-Create the local environment file and fill in the required values:
+Create the root environment file and fill in the required values:
 
 ```powershell
-Copy-Item deploy\.env.example deploy\.env
+Copy-Item deploy\.env.example .env
 ```
 
-Create `deploy/docker-compose.local.yml` with the local port and demo seed:
-
-```yaml
-services:
-  app-blue:
-    ports:
-      - "8000:8000"
-    environment:
-      SEED_ENABLE: "true"
-```
-
-From repository root:
+Start local services from repository root:
 
 ```bash
 just dev-up-build
 ```
 
-Open <http://localhost:8000>. Subsequent starts can use `just dev-up`. Stop
-containers without deleting database data with `just dev-down`.
+Subsequent starts can use `just dev-up`. Stop containers with `just dev-down`.
 
 ### Prerequisites
 
@@ -104,7 +91,7 @@ containers without deleting database data with `just dev-down`.
 - A Postgres database with the `pgvector` extension (the simplest local option is the `postgres` service in [`deploy/docker-compose.yml`](deploy/docker-compose.yml))
 - An [OpenRouter](https://openrouter.ai) API key
 
-### Setup
+### Native setup
 
 1. Create a `.env` file in the project root. At minimum:
 
@@ -115,7 +102,7 @@ containers without deleting database data with `just dev-down`.
 
    See [`deploy/.env.example`](deploy/.env.example) for the full list of variables (`SUPADATA_API_KEY`, `JWT_SECRET`, `ADMIN_USER_EMAIL`, ...).
 
-2. Start everything (creates the Python venv via `uv`, installs frontend deps, runs both dev servers):
+2. Start native FastAPI and Vite servers:
 
    ```bash
    cd app && ./start.sh        # macOS / Linux
@@ -136,6 +123,9 @@ cd app/frontend && bun install && bun run dev
 ```
 
 The app runs Alembic migrations automatically on startup, so a fresh Postgres database is brought up to schema on first run.
+
+Use `just dev-up` to start local PostgreSQL and `app-blue`. Use `just dev-down`
+to stop Compose services without deleting database data.
 
 ---
 

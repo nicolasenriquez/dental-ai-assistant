@@ -1,0 +1,11 @@
+- img "DynaChat logo"
+- text: DynaChat Pregúntale cualquier cosa a la biblioteca de YouTube de Cole Medin
+- heading "Crear cuenta" [level=1]
+- text: Correo electrónico
+- textbox "Correo electrónico"
+- text: Contraseña (8+ caracteres)
+- textbox "Contraseña (8+ caracteres)"
+- button "Registrarse"
+- text: ¿Ya tienes una cuenta?
+- link "Iniciar sesión":
+  - /url: /login

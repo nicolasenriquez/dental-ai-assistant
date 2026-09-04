@@ -61,15 +61,15 @@ async def create_evolution(
             SELECT id, patient_id, owner_user_id, evolution_at, raw_note,
                    generated_text, final_text, created_at, updated_at
             FROM evolutions
-            WHERE id = $1
+            WHERE id = $1 AND owner_user_id = $2
             """,
             record_id,
+            owner_id,
         )
         if not existing:
             raise LookupError("Patient not found")
         if (
-            existing["owner_user_id"] != owner_id
-            or existing["patient_id"] != patient_uuid
+            existing["patient_id"] != patient_uuid
             or existing["evolution_at"] != evolution_at
             or existing["raw_note"] != raw_note
             or existing["generated_text"] != generated_text

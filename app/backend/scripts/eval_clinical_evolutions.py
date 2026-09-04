@@ -10,6 +10,27 @@ from pathlib import Path
 from backend.llm.openrouter import create_structured_completion
 from backend.services.clinical_evolutions import ClinicalDraft, _provider_messages
 
+CLINICAL_FIELDS = ("context", "findings", "assessment", "treatment", "follow_up")
+
+
+def assert_expected(case: dict, draft: ClinicalDraft) -> None:
+    expected = case["expected"]
+    fields = {name: getattr(draft, name) for name in CLINICAL_FIELDS}
+    clinical_text = "\n".join(fields.values()).casefold()
+
+    for text in expected.get("preserve", []):
+        assert text.casefold() in clinical_text
+    for text in expected.get("forbid", []):
+        assert text.casefold() not in clinical_text
+    for field in expected.get("empty", []):
+        assert fields[field] == ""
+    if expected.get("clinical_fields_empty"):
+        assert not any(value.strip() for value in fields.values())
+    if expected.get("requires_flags"):
+        assert draft.review_flags
+    if literal := expected.get("flag_literal"):
+        assert any(flag.source_text == literal for flag in draft.review_flags)
+
 
 async def main() -> None:
     fixture = Path(__file__).parents[1] / "tests" / "fixtures" / "clinical" / "evolution_cases.json"
@@ -24,6 +45,7 @@ async def main() -> None:
             ClinicalDraft.model_json_schema(),
         )
         draft = ClinicalDraft.validate_meaningful(ClinicalDraft.model_validate_json(content))
+        assert_expected(case, draft)
         print(f"\nCASE: {case['id']}")
         print(f"SYNTHETIC INPUT: {case['raw_note']}")
         print(f"BOUNDED APPROVED HISTORY: {case['history'][-3:]}")

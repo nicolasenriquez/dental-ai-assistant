@@ -37,7 +37,7 @@ export function AdminVideos() {
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text-secondary)]">
-        Loading…
+        Cargando…
       </div>
     );
   }
@@ -50,21 +50,25 @@ export function AdminVideos() {
 
   async function handleAdd(url: string) {
     const res = await addVideoByUrl(url);
-    addToast(`Added video (${res.chunks_created} chunks)`, 'success');
+    addToast(`Video agregado (${res.chunks_created} fragmentos)`, 'success');
     await refetch();
   }
 
   async function handleDelete(video: AdminVideo) {
-    if (!confirm(`Delete "${video.title}" and its ${video.chunk_count} chunks?`)) {
+    if (
+      !confirm(
+        `¿Eliminar "${video.title}" y sus ${video.chunk_count} fragmentos? Esta acción no se puede deshacer.`,
+      )
+    ) {
       return;
     }
     setPendingId(video.id);
     try {
       await deleteVideo(video.id);
-      addToast('Video deleted', 'success');
+      addToast('Video eliminado', 'success');
       await refetch();
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
+      addToast(err instanceof Error ? err.message : 'No se pudo eliminar', 'error');
     } finally {
       setPendingId(null);
     }
@@ -74,10 +78,10 @@ export function AdminVideos() {
     setPendingId(video.id);
     try {
       const res = await resyncVideo(video.id);
-      addToast(`Re-synced (${res.chunks_created} chunks)`, 'success');
+      addToast(`Video sincronizado (${res.chunks_created} fragmentos)`, 'success');
       await refetch();
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Re-sync failed', 'error');
+      addToast(err instanceof Error ? err.message : 'No se pudo sincronizar', 'error');
     } finally {
       setPendingId(null);
     }
@@ -88,12 +92,12 @@ export function AdminVideos() {
     try {
       const res = await syncChannel();
       addToast(
-        `Channel sync ${res.status}: ${res.videos_new} new, ${res.videos_error} errors`,
+        `Sincronización del canal ${res.status}: ${res.videos_new} nuevos, ${res.videos_error} errores`,
         res.status === 'completed' ? 'success' : 'error',
       );
       await refetch();
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Channel sync failed', 'error');
+      addToast(err instanceof Error ? err.message : 'No se pudo sincronizar el canal', 'error');
     } finally {
       setSyncing(false);
     }
@@ -104,13 +108,13 @@ export function AdminVideos() {
       <div className="max-w-6xl mx-auto">
         <header className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-semibold">Library admin</h1>
+            <h1 className="text-2xl font-semibold">Administración de biblioteca</h1>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              Add, re-sync, or remove videos in the RAG corpus.
+              Agrega, resincroniza o elimina videos del corpus RAG.
             </p>
           </div>
-          <Link to="/" className="text-sm text-[var(--accent)] hover:underline">
-            ← Back to chat
+          <Link to="/chat" className="text-sm text-[var(--accent)] hover:underline">
+            ← Volver al chat
           </Link>
         </header>
 
@@ -121,7 +125,7 @@ export function AdminVideos() {
             disabled={syncing}
             className="px-3 py-2 rounded bg-[var(--accent)] text-white font-medium disabled:opacity-50"
           >
-            + Add video by URL
+            + Agregar video por URL
           </button>
           <button
             type="button"
@@ -129,7 +133,7 @@ export function AdminVideos() {
             disabled={syncing}
             className="px-3 py-2 rounded border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--surface-2)] disabled:opacity-50"
           >
-            {syncing ? 'Syncing channel…' : 'Sync channel'}
+            {syncing ? 'Sincronizando canal…' : 'Sincronizar canal'}
           </button>
           <button
             type="button"
@@ -137,35 +141,42 @@ export function AdminVideos() {
             disabled={loading || syncing}
             className="px-3 py-2 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
           >
-            Refresh
+            Actualizar
           </button>
         </div>
 
+        <label htmlFor="admin-video-search" className="sr-only">
+          Buscar videos
+        </label>
         <input
+          id="admin-video-search"
           type="text"
-          placeholder="Search videos..."
+          placeholder="Buscar videos..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-2 mb-3 rounded-lg bg-[var(--surface-1)] border border-[var(--border)] text-[var(--text-primary)] text-[13px] outline-none transition-colors focus:border-[var(--accent)]"
+          className="w-full px-3 py-2 mb-3 rounded-lg bg-[var(--surface-1)] border border-[var(--border)] text-[var(--text-primary)] text-[13px] outline-none transition-colors focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         />
 
-        <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-lg overflow-hidden">
+        <p className="admin-video-table-hint">Desliza horizontalmente para ver las acciones.</p>
+
+        <div className="admin-video-table-surface bg-[var(--surface-1)] border border-[var(--border)] rounded-lg">
           {loading ? (
-            <div className="p-6 text-center text-[var(--text-secondary)]">Loading…</div>
+            <div className="p-6 text-center text-[var(--text-secondary)]">Cargando…</div>
           ) : videos.length === 0 ? (
             <div className="p-6 text-center text-[var(--text-secondary)]">
               {debouncedQuery.trim()
-                ? `No matches for "${debouncedQuery}"`
-                : 'No videos yet. Add one by URL or sync a channel.'}
+                ? `No hay coincidencias para "${debouncedQuery}"`
+                : 'Aún no hay videos. Agrega uno por URL o sincroniza un canal.'}
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="admin-video-table w-full text-sm">
+              <caption className="sr-only">Videos disponibles en la biblioteca</caption>
               <thead className="bg-[var(--surface-2)] text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Title</th>
-                  <th className="px-4 py-2 font-medium">Chunks</th>
-                  <th className="px-4 py-2 font-medium">Added</th>
-                  <th className="px-4 py-2 font-medium text-right">Actions</th>
+                  <th className="px-4 py-2 font-medium">Título</th>
+                  <th className="px-4 py-2 font-medium">Fragmentos</th>
+                  <th className="px-4 py-2 font-medium">Agregado</th>
+                  <th className="px-4 py-2 font-medium text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,7 +191,7 @@ export function AdminVideos() {
                           rel="noreferrer"
                           className="hover:underline"
                         >
-                          {v.title || '(untitled)'}
+                          {v.title || '(sin título)'}
                         </a>
                       </td>
                       <td className="px-4 py-2 text-[var(--text-secondary)]">{v.chunk_count}</td>
@@ -193,17 +204,17 @@ export function AdminVideos() {
                             type="button"
                             onClick={() => handleResync(v)}
                             disabled={isPending || syncing}
-                            className="px-3 py-1.5 text-xs rounded border border-[var(--border)] hover:bg-[var(--surface-2)] disabled:opacity-50"
+                            className="min-h-11 px-3 py-1.5 text-xs rounded border border-[var(--border)] hover:bg-[var(--surface-2)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                           >
-                            {isPending ? '…' : 'Re-sync'}
+                            {isPending ? '…' : 'Sincronizar'}
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(v)}
                             disabled={isPending || syncing}
-                            className="px-3 py-1.5 text-xs rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--surface-2)] disabled:opacity-50"
+                            className="min-h-11 px-3 py-1.5 text-xs rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--surface-2)] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                           >
-                            Delete
+                            Eliminar
                           </button>
                         </div>
                       </td>

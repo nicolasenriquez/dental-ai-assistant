@@ -1,15 +1,14 @@
 # Local Docker Compose project.
-# Keep production Compose configuration unchanged; local overrides publish
-# app-blue on localhost:8000 and enable demo seed data.
+# Keep production Compose configuration unchanged; local override publishes
+# app-blue on localhost:8000 and enables demo seed data.
 
 set shell := ["sh", "-cu"]
-# `windows-shell` keeps this file compatible with just 1.50, installed in the
-# current development environment. Newer just versions can use a [windows]
-# platform-specific shell setting instead.
 set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command"]
 
-compose := "docker compose --project-directory deploy --env-file deploy/.env -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml"
+compose := "docker compose --project-directory deploy --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml"
 local_services := "postgres app-blue"
+e2e_image := "mcr.microsoft.com/playwright:v1.62.1-noble"
+repo_dir := justfile_directory()
 
 # Start local services without forcing an image rebuild.
 dev-up:
@@ -22,3 +21,12 @@ dev-up-build:
 # Stop local services and preserve named volumes.
 dev-down:
     {{compose}} down
+
+# Run the authenticated UI baseline against local app-blue only.
+# E2E_USER and E2E_PASSWORD must be supplied by the caller.
+e2e-baseline:
+    docker run --rm --network host --mount "type=bind,source={{repo_dir}},target=/workspace" --workdir /workspace/app/frontend --env E2E_USER --env E2E_PASSWORD {{e2e_image}} npx playwright test --config playwright.config.ts --project=baseline
+
+# Regenerate local visual/ARIA baselines after an intentional UI change.
+e2e-baseline-update:
+    docker run --rm --network host --mount "type=bind,source={{repo_dir}},target=/workspace" --workdir /workspace/app/frontend --env E2E_USER --env E2E_PASSWORD {{e2e_image}} npx playwright test --config playwright.config.ts --project=baseline --update-snapshots

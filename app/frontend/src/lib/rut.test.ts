@@ -12,7 +12,7 @@ describe('formatRutInput', () => {
 
   it('keeps partial input readable', () => {
     expect(formatRutInput('1234')).toBe('1.234');
-    expect(formatRutInput('12345678')).toBe('12.345.678');
+    expect(formatRutInput('12345678')).toBe('1.234.567-8');
   });
 
   it('preserves invalid DV instead of changing it', () => {
@@ -25,6 +25,16 @@ describe('formatRutInput', () => {
 
   it('supports an explicitly typed separator', () => {
     expect(formatRutInput('12345678-5')).toBe('12.345.678-5');
+  });
+
+  it('reinterprets provisional DV when ninth digit arrives', () => {
+    expect(formatRutInput('1.234.567-89')).toBe('12.345.678-9');
+  });
+
+  it('drops invalid characters and limits significant digits', () => {
+    expect(formatRutInput('12a.345.678-5xyz')).toBe('12.345.678-5');
+    expect(formatRutInput('1234567890')).toBe('12.345.678-9');
+    expect(formatRutInput('K')).toBe('');
   });
 
   it('separates numeric DV on blur for seven-digit body', () => {
@@ -72,15 +82,9 @@ describe('formatRutInput', () => {
 
   it('preserves caret positions at the start, end, and around the hyphen', () => {
     expect(formatRutInputWithSelection('92.345.678-5', 1, 1).selectionStart).toBe(1);
-    expect(formatRutInputWithSelection('12.345.678-K', 12, 12).selectionStart).toBe(
-      12,
-    );
-    expect(formatRutInputWithSelection('12.345.678-7', 10, 10).selectionStart).toBe(
-      10,
-    );
-    expect(formatRutInputWithSelection('12.345.678-7', 11, 11).selectionStart).toBe(
-      11,
-    );
+    expect(formatRutInputWithSelection('12.345.678-K', 12, 12).selectionStart).toBe(12);
+    expect(formatRutInputWithSelection('12.345.678-7', 10, 10).selectionStart).toBe(10);
+    expect(formatRutInputWithSelection('12.345.678-7', 11, 11).selectionStart).toBe(11);
   });
 
   it('preserves formatted pastes and lowercase K at the end', () => {
@@ -93,6 +97,19 @@ describe('formatRutInput', () => {
       value: '7.618.285-K',
       selectionStart: 11,
       selectionEnd: 11,
+    });
+  });
+
+  it('keeps the caret at end after provisional formatting and sanitization', () => {
+    expect(formatRutInputWithSelection('12345678', 8, 8)).toEqual({
+      value: '1.234.567-8',
+      selectionStart: 11,
+      selectionEnd: 11,
+    });
+    expect(formatRutInputWithSelection('12a3', 4, 4)).toEqual({
+      value: '123',
+      selectionStart: 3,
+      selectionEnd: 3,
     });
   });
 });

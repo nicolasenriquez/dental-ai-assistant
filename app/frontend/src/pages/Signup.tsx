@@ -19,7 +19,7 @@ export function Signup() {
     e.preventDefault();
     setFormError(null);
     if (password.length < 8) {
-      setFormError({ kind: 'error', msg: 'Password must be at least 8 characters' });
+      setFormError({ kind: 'error', msg: 'La contraseña debe tener al menos 8 caracteres' });
       return;
     }
     setSubmitting(true);
@@ -47,9 +47,9 @@ export function Signup() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6 space-y-4"
       >
-        <h1 className="text-xl font-semibold">Create account</h1>
+        <h1 className="text-xl font-semibold">Crear cuenta</h1>
         <label className="block text-sm">
-          <span className="text-[var(--text-secondary)]">Email</span>
+          <span className="text-[var(--text-secondary)]">Correo electrónico</span>
           <input
             type="email"
             required
@@ -60,7 +60,7 @@ export function Signup() {
           />
         </label>
         <label className="block text-sm">
-          <span className="text-[var(--text-secondary)]">Password (8+ characters)</span>
+          <span className="text-[var(--text-secondary)]">Contraseña (8+ caracteres)</span>
           <input
             type="password"
             required
@@ -94,12 +94,12 @@ export function Signup() {
           disabled={submitting}
           className="w-full py-2 rounded bg-[var(--accent)] text-white font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
         >
-          {submitting ? 'Creating account…' : 'Sign up'}
+          {submitting ? 'Creando cuenta…' : 'Registrarse'}
         </button>
         <div className="text-sm text-[var(--text-secondary)] text-center">
-          Already have an account?{' '}
+          ¿Ya tienes una cuenta?{' '}
           <Link to="/login" className="text-[var(--accent)] hover:underline">
-            Log in
+            Iniciar sesión
           </Link>
         </div>
       </form>

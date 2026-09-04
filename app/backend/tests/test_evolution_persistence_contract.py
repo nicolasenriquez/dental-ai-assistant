@@ -41,12 +41,26 @@ def test_save_request_requires_uuid_timestamp_and_three_text_versions() -> None:
 
 
 @pytest.mark.parametrize(
-    ("raw_note", "final_text"),
-    [("", "approved"), ("   ", "approved"), ("x" * 40_001, "approved"), ("source", "   ")],
-    ids=["empty-source", "blank-source", "oversized-source", "blank-final"],
+    ("raw_note", "generated_text", "final_text"),
+    [
+        ("", "baseline", "approved"),
+        ("   ", "baseline", "approved"),
+        ("x" * 40_001, "baseline", "approved"),
+        ("source", "baseline", "   "),
+        ("source", "x" * 40_001, "approved"),
+        ("source", "baseline", "x" * 40_001),
+    ],
+    ids=[
+        "empty-source",
+        "blank-source",
+        "oversized-source",
+        "blank-final",
+        "oversized-generated",
+        "oversized-final",
+    ],
 )
 def test_save_rejects_invalid_source_or_blank_approved_record(
-    raw_note: str, final_text: str
+    raw_note: str, generated_text: str, final_text: str
 ) -> None:
     from backend.routes.evolutions import SaveEvolutionRequest
 
@@ -55,7 +69,7 @@ def test_save_rejects_invalid_source_or_blank_approved_record(
             id=uuid4(),
             evolution_at=datetime.now(UTC),
             raw_note=raw_note,
-            generated_text="baseline",
+            generated_text=generated_text,
             final_text=final_text,
         )
 
@@ -79,6 +93,13 @@ def test_save_is_uuid_idempotent_and_conflicting_retry_is_recoverable() -> None:
     assert "409" in route_source
     assert "404" in route_source
     assert "422" in route_source
+
+
+def test_conflict_lookup_does_not_reveal_another_owners_evolution() -> None:
+    from backend.db import evolutions_repo
+
+    source = inspect.getsource(evolutions_repo.create_evolution)
+    assert "WHERE id = $1 AND owner_user_id = $2" in source
 
 
 def test_latest_successful_baseline_is_persisted_without_flags() -> None:
