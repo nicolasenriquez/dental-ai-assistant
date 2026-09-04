@@ -124,3 +124,24 @@ async def get_patient_by_rut(owner_user_id: UUID | str, rut_body: int) -> dict[s
             rut_body,
         )
     return dict(row) if row else None
+
+
+async def get_recent_approved_evolutions(
+    owner_user_id: UUID | str, patient_id: UUID | str, *, limit: int
+) -> list[dict[str, Any]]:
+    pool = get_pg_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT evolution_at, final_text
+            FROM evolutions
+            WHERE owner_user_id = $1 AND patient_id = $2
+              AND btrim(final_text) <> ''
+            ORDER BY evolution_at DESC, created_at DESC
+            LIMIT $3
+            """,
+            _uuid(owner_user_id),
+            _uuid(patient_id),
+            limit,
+        )
+    return [dict(row) for row in rows]

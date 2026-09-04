@@ -52,6 +52,28 @@ def _get_async_client() -> AsyncOpenAI:
     return _async_client
 
 
+async def create_structured_completion(
+    messages: list[ChatCompletionMessageParam], json_schema: dict[str, Any]
+) -> str:
+    """Run one non-streaming completion through the shared OpenRouter client."""
+    response = await _get_async_client().chat.completions.create(
+        model=CHAT_MODEL,
+        messages=messages,
+        stream=False,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "clinical_evolution",
+                "strict": True,
+                "schema": json_schema,
+            },
+        },
+    )
+    if not response.choices or not response.choices[0].message.content:
+        raise RuntimeError("OpenRouter returned no structured content")
+    return response.choices[0].message.content
+
+
 _BASE_SYSTEM_PROMPT = """\
 You are a helpful assistant with access to transcripts from a YouTube creator's video library. You answer questions by retrieving grounded content from that library via the tools below.
 

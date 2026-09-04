@@ -421,8 +421,10 @@ export function Sidebar({
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const { conversations, loading, refetch, rename, filteredConversations } =
-    useConversations(debouncedQuery, showConversations);
+  const { conversations, loading, refetch, rename, filteredConversations } = useConversations(
+    debouncedQuery,
+    showConversations,
+  );
   const { user, logout } = useAuth();
   const [creatingNew, setCreatingNew] = useState(false);
   const [newChatError, setNewChatError] = useState<string | null>(null);
@@ -535,7 +537,11 @@ export function Sidebar({
       <aside className={`sidebar-container${isOpen ? ' open' : ''}`}>
         <nav aria-label="Navegacion principal" className="p-3 pb-1 space-y-1">
           {[
-            { to: '/patients', label: 'Pacientes', active: location.pathname.startsWith('/patients') },
+            {
+              to: '/patients',
+              label: 'Pacientes',
+              active: location.pathname.startsWith('/patients'),
+            },
             { to: '/chat', label: 'Chat', active: showConversations },
           ].map((item) => (
             <Link
@@ -551,157 +557,165 @@ export function Sidebar({
         </nav>
 
         {/* ── New Chat button ── */}
-        {showConversations && <div style={{ padding: '12px 12px 8px' }}>
-          <button
-            onClick={handleNewChat}
-            disabled={creatingNew}
-            className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none focus-visible:shadow-[0_0_12px_var(--accent-glow)]"
-            style={{
-              width: '100%',
-              background: '#3b82f6',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              padding: '10px 16px',
-              cursor: creatingNew ? 'not-allowed' : 'pointer',
-              fontWeight: 600,
-              fontSize: 14,
-              opacity: creatingNew ? 0.75 : 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              transition: 'background 0.15s, filter 0.15s',
-            }}
-            onMouseEnter={(e) => !creatingNew && (e.currentTarget.style.background = '#1d4ed8')}
-            onMouseLeave={(e) => {
-              if (!creatingNew) {
-                e.currentTarget.style.background = '#3b82f6';
-              }
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            >
-              <line x1="7" y1="2" x2="7" y2="12" />
-              <line x1="2" y1="7" x2="12" y2="7" />
-            </svg>
-            {creatingNew ? 'Creating…' : 'New Chat'}
-          </button>
-
-          {newChatError && (
-            <p style={{ fontSize: 12, color: '#ef4444', margin: '8px 0 0', textAlign: 'center' }}>
-              {newChatError}
-            </p>
-          )}
-        </div>}
-
-        {/* ── Search conversations ── */}
-        {showConversations && <div style={{ padding: '0 12px 8px' }}>
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: 8,
-              background: '#1e293b',
-              border: '1px solid #334155',
-              color: '#f1f5f9',
-              fontSize: 13,
-              outline: 'none',
-              transition: 'border-color 0.15s',
-            }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = '#3b82f6')}
-            onBlur={(e) => (e.currentTarget.style.borderColor = '#334155')}
-          />
-        </div>}
-
-        {/* ── Conversation list ── */}
-        {showConversations ? <div style={{ flex: 1, overflowY: 'auto' }}>
-          {loading ? (
-            <>
-              <SkeletonRow />
-              <SkeletonRow />
-              <SkeletonRow />
-              <SkeletonRow />
-            </>
-          ) : filteredConversations.length === 0 ? (
-            // Empty state — distinct copy when the user is searching
-            <div
+        {showConversations && (
+          <div style={{ padding: '12px 12px 8px' }}>
+            <button
+              onClick={handleNewChat}
+              disabled={creatingNew}
+              className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none focus-visible:shadow-[0_0_12px_var(--accent-glow)]"
               style={{
-                padding: '40px 16px',
-                textAlign: 'center',
-                color: '#475569',
+                width: '100%',
+                background: '#3b82f6',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px 16px',
+                cursor: creatingNew ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+                fontSize: 14,
+                opacity: creatingNew ? 0.75 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                transition: 'background 0.15s, filter 0.15s',
+              }}
+              onMouseEnter={(e) => !creatingNew && (e.currentTarget.style.background = '#1d4ed8')}
+              onMouseLeave={(e) => {
+                if (!creatingNew) {
+                  e.currentTarget.style.background = '#3b82f6';
+                }
               }}
             >
               <svg
-                width="36"
-                height="36"
-                viewBox="0 0 36 36"
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.5"
-                style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }}
+                strokeWidth="2.5"
+                strokeLinecap="round"
               >
-                <path d="M6,4 L30,4 A2,2 0 0,1 32,6 L32,24 A2,2 0 0,1 30,26 L10,26 L4,32 L4,6 A2,2 0 0,1 6,4 Z" />
+                <line x1="7" y1="2" x2="7" y2="12" />
+                <line x1="2" y1="7" x2="12" y2="7" />
               </svg>
-              {debouncedQuery.trim() ? (
-                <p style={{ margin: 0, fontSize: 13 }}>
-                  No matches for <strong style={{ color: '#94a3b8' }}>"{debouncedQuery}"</strong>
-                </p>
-              ) : (
-                <>
-                  <p style={{ margin: 0, fontSize: 13 }}>No conversations yet</p>
-                  <button
-                    onClick={handleNewChat}
-                    className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-                    style={{
-                      marginTop: 10,
-                      background: 'transparent',
-                      border: '1px solid rgba(59,130,246,0.4)',
-                      borderRadius: 8,
-                      color: '#3b82f6',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      padding: '7px 16px',
-                      transition: 'background 0.15s, filter 0.15s',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')
-                    }
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    Start your first chat →
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            filteredConversations.map((conv) => (
-              <ConvItem
-                key={conv.id}
-                conv={conv}
-                isActive={conv.id === activeConversationId}
-                searchQuery={debouncedQuery}
-                onSelect={() => handleSelect(conv.id)}
-                onDeleteRequest={handleDeleteRequest}
-                onRename={handleRename}
-              />
-            ))
-          )}
-        </div> : <div style={{ flex: 1 }} />}
+              {creatingNew ? 'Creating…' : 'New Chat'}
+            </button>
+
+            {newChatError && (
+              <p style={{ fontSize: 12, color: '#ef4444', margin: '8px 0 0', textAlign: 'center' }}>
+                {newChatError}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── Search conversations ── */}
+        {showConversations && (
+          <div style={{ padding: '0 12px 8px' }}>
+            <input
+              type="text"
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: '#1e293b',
+                border: '1px solid #334155',
+                color: '#f1f5f9',
+                fontSize: 13,
+                outline: 'none',
+                transition: 'border-color 0.15s',
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = '#3b82f6')}
+              onBlur={(e) => (e.currentTarget.style.borderColor = '#334155')}
+            />
+          </div>
+        )}
+
+        {/* ── Conversation list ── */}
+        {showConversations ? (
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading ? (
+              <>
+                <SkeletonRow />
+                <SkeletonRow />
+                <SkeletonRow />
+                <SkeletonRow />
+              </>
+            ) : filteredConversations.length === 0 ? (
+              // Empty state — distinct copy when the user is searching
+              <div
+                style={{
+                  padding: '40px 16px',
+                  textAlign: 'center',
+                  color: '#475569',
+                }}
+              >
+                <svg
+                  width="36"
+                  height="36"
+                  viewBox="0 0 36 36"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }}
+                >
+                  <path d="M6,4 L30,4 A2,2 0 0,1 32,6 L32,24 A2,2 0 0,1 30,26 L10,26 L4,32 L4,6 A2,2 0 0,1 6,4 Z" />
+                </svg>
+                {debouncedQuery.trim() ? (
+                  <p style={{ margin: 0, fontSize: 13 }}>
+                    No matches for <strong style={{ color: '#94a3b8' }}>"{debouncedQuery}"</strong>
+                  </p>
+                ) : (
+                  <>
+                    <p style={{ margin: 0, fontSize: 13 }}>No conversations yet</p>
+                    <button
+                      onClick={handleNewChat}
+                      className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                      style={{
+                        marginTop: 10,
+                        background: 'transparent',
+                        border: '1px solid rgba(59,130,246,0.4)',
+                        borderRadius: 8,
+                        color: '#3b82f6',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        padding: '7px 16px',
+                        transition: 'background 0.15s, filter 0.15s',
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')
+                      }
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      Start your first chat →
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              filteredConversations.map((conv) => (
+                <ConvItem
+                  key={conv.id}
+                  conv={conv}
+                  isActive={conv.id === activeConversationId}
+                  searchQuery={debouncedQuery}
+                  onSelect={() => handleSelect(conv.id)}
+                  onDeleteRequest={handleDeleteRequest}
+                  onRename={handleRename}
+                />
+              ))
+            )}
+          </div>
+        ) : (
+          <div style={{ flex: 1 }} />
+        )}
 
         {/* ── Daily message quota counter (MISSION §10 #1: hardcoded 25/24h) ── */}
         {showConversations && user && (

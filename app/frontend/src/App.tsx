@@ -1,11 +1,13 @@
 import { type ReactNode, useRef } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
-import { ChatArea } from './components/ChatArea';
 import { AppShell } from './components/AppShell';
+import { ChatArea } from './components/ChatArea';
 import { ToastProvider } from './components/ToastProvider';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { AdminVideos } from './pages/AdminVideos';
+import { EvolutionDetail } from './pages/EvolutionDetail';
 import { Login } from './pages/Login';
+import { NewEvolution } from './pages/NewEvolution';
 import { NotFound } from './pages/NotFound';
 import { PatientDetail } from './pages/PatientDetail';
 import { Patients } from './pages/Patients';
@@ -82,7 +84,9 @@ function App() {
               path="/patients"
               element={
                 <RequireAuth>
-                  <AppShell showConversations={false}><Patients /></AppShell>
+                  <AppShell showConversations={false}>
+                    <Patients />
+                  </AppShell>
                 </RequireAuth>
               }
             />
@@ -90,7 +94,29 @@ function App() {
               path="/patients/:patientId"
               element={
                 <RequireAuth>
-                  <AppShell showConversations={false}><PatientDetail /></AppShell>
+                  <AppShell showConversations={false}>
+                    <PatientDetail />
+                  </AppShell>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/patients/:patientId/evolutions/new"
+              element={
+                <RequireAuth>
+                  <AppShell showConversations={false}>
+                    <NewEvolution />
+                  </AppShell>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/patients/:patientId/evolutions/:evolutionId"
+              element={
+                <RequireAuth>
+                  <AppShell showConversations={false}>
+                    <EvolutionDetail />
+                  </AppShell>
                 </RequireAuth>
               }
             />

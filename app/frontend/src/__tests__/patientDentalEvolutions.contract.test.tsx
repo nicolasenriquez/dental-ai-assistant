@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+const read = (path: string) =>
+  readFileSync(decodeURIComponent(new URL(path, import.meta.url).pathname), 'utf8');
 
 describe('patient-first shell contract', () => {
   const app = read('../App.tsx');
@@ -15,25 +16,40 @@ describe('patient-first shell contract', () => {
   });
 
   it('lists Pacientes before Chat and can hide conversations', () => {
-    expect(sidebar.indexOf('Pacientes')).toBeGreaterThan(-1);
-    expect(sidebar.indexOf('Pacientes')).toBeLessThan(sidebar.indexOf('Chat'));
+    expect(sidebar.indexOf("label: 'Pacientes'")).toBeGreaterThan(-1);
+    expect(sidebar.indexOf("label: 'Pacientes'")).toBeLessThan(sidebar.indexOf("label: 'Chat'"));
     expect(sidebar).toContain('showConversations');
   });
 });
 
 describe('patient pages and evolution workspace contracts', () => {
-  const pages = () => read('../pages/Patients.tsx') + read('../pages/PatientDetail.tsx') + read('../pages/NewEvolution.tsx') + read('../pages/EvolutionDetail.tsx');
+  const pages = () =>
+    read('../pages/Patients.tsx') +
+    read('../pages/PatientDetail.tsx') +
+    read('../pages/NewEvolution.tsx') +
+    read('../pages/EvolutionDetail.tsx');
 
   it('covers one-field patient search and recoverable states', () => {
     const source = pages();
-    for (const text of ['Buscar por nombre o RUT', 'No encontramos pacientes', 'Reintentar', 'Abrir paciente']) {
+    for (const text of [
+      'Buscar por nombre o RUT',
+      'No encontramos pacientes',
+      'Reintentar',
+      'Abrir paciente',
+    ]) {
       expect(source).toContain(text);
     }
   });
 
   it('keeps explicit generation, review flags and stale-save protection together', () => {
     const source = pages();
-    for (const text of ['Nota rapida', 'Redactar evolucion', 'Informacion por revisar', 'Corregir nota y regenerar', 'isDraftStale']) {
+    for (const text of [
+      'Nota rapida',
+      'Redactar evolucion',
+      'Informacion por revisar',
+      'Corregir nota y regenerar',
+      'isDraftStale',
+    ]) {
       expect(source).toContain(text);
     }
     expect(source).toContain('40000');
@@ -64,8 +80,14 @@ describe('patient pages and evolution workspace contracts', () => {
     expect(source).toContain('final_text');
     expect(source).toContain('evolution_at');
     expect(source).toContain('saving');
-    expect(source).toContain('locale');
-    for (const label of ['Motivo / contexto', 'Hallazgos', 'Diagnostico / impresion clinica', 'Tratamiento / conducta', 'Seguimiento']) {
+    expect(source).toContain('toLocale');
+    for (const label of [
+      'Motivo / contexto',
+      'Hallazgos',
+      'Diagnostico / impresion clinica',
+      'Tratamiento / conducta',
+      'Seguimiento',
+    ]) {
       expect(source).toContain(label);
     }
     expect(source).toContain('.filter');

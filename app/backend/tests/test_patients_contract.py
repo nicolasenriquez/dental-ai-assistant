@@ -1,5 +1,6 @@
 """Failing-first contracts for the owner-scoped patient directory."""
 
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ from backend.main import app
 
 
 @pytest.fixture
-async def client() -> AsyncClient:
+async def client() -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="https://testserver"
     ) as test_client:
@@ -19,7 +20,11 @@ async def client() -> AsyncClient:
 async def test_patient_routes_require_authentication(client: AsyncClient) -> None:
     for method, path, body in (
         ("GET", "/api/patients", None),
-        ("POST", "/api/patients", {"first_name": "Ana", "last_name": "Perez", "rut": "12.345.678-5"}),
+        (
+            "POST",
+            "/api/patients",
+            {"first_name": "Ana", "last_name": "Perez", "rut": "12.345.678-5"},
+        ),
         ("POST", "/api/patients/search", {"query": "Ana"}),
     ):
         response = await client.request(method, path, json=body)
@@ -54,7 +59,7 @@ def test_patient_repository_contract_is_owner_scoped() -> None:
 
 
 def test_patient_contract_never_puts_rut_in_route_templates() -> None:
-    route_paths = {route.path for route in app.routes}
+    route_paths = {getattr(route, "path", "") for route in app.routes}
     assert "/api/patients/search" in route_paths
     assert all("rut" not in path.lower() for path in route_paths)
 

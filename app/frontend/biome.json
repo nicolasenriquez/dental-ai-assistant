@@ -32,6 +32,7 @@
         "noArrayIndexKey": "off"
       },
       "a11y": {
+        "noAutofocus": "off",
         "useKeyWithClickEvents": "off",
         "noSvgWithoutTitle": "off",
         "useButtonType": "off",

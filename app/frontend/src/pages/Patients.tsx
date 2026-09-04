@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ApiError,
@@ -8,9 +8,15 @@ import {
   getPatients,
   searchPatients,
 } from '../lib/api';
+import { formatRutInput, formatRutInputWithSelection } from '../lib/rut';
 
 function duplicatePatient(error: unknown): Patient | null {
-  if (!(error instanceof ApiError) || error.status !== 409 || typeof error.body !== 'object' || !error.body) {
+  if (
+    !(error instanceof ApiError) ||
+    error.status !== 409 ||
+    typeof error.body !== 'object' ||
+    !error.body
+  ) {
     return null;
   }
   const detail = (error.body as { detail?: { patient?: Patient } }).detail;
@@ -74,14 +80,25 @@ export function Patients() {
           />
         </label>
 
-        <h2 className="text-xs font-semibold tracking-wider text-[var(--text-secondary)] mb-2">PACIENTES</h2>
-        <section className="bg-[var(--surface-1)] border border-[var(--border)] rounded-lg overflow-hidden" aria-live="polite">
+        <h2 className="text-xs font-semibold tracking-wider text-[var(--text-secondary)] mb-2">
+          PACIENTES
+        </h2>
+        <section
+          className="bg-[var(--surface-1)] border border-[var(--border)] rounded-lg overflow-hidden"
+          aria-live="polite"
+        >
           {loading ? (
-            <div className="p-8 text-center text-[var(--text-secondary)]">Cargando pacientes...</div>
+            <div className="p-8 text-center text-[var(--text-secondary)]">
+              Cargando pacientes...
+            </div>
           ) : error ? (
             <div role="alert" className="p-8 text-center text-[var(--danger)]">
               <p>No pudimos buscar pacientes</p>
-              <button type="button" onClick={() => void load()} className="mt-3 text-[var(--accent)] underline">
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="mt-3 text-[var(--accent)] underline"
+              >
                 Reintentar
               </button>
             </div>
@@ -89,7 +106,11 @@ export function Patients() {
             <div className="p-8 text-center text-[var(--text-secondary)]">
               <p>{query.trim() ? 'No encontramos pacientes' : 'Aun no hay pacientes'}</p>
               {!query.trim() && (
-                <button type="button" onClick={() => setModalOpen(true)} className="mt-3 text-[var(--accent)] underline">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(true)}
+                  className="mt-3 text-[var(--accent)] underline"
+                >
                   + Nuevo paciente
                 </button>
               )}
@@ -101,10 +122,14 @@ export function Patients() {
                 to={`/patients/${patient.id}`}
                 className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 border-b last:border-b-0 border-[var(--border)] hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] focus-visible:outline-none"
               >
-                <strong className="min-w-48 flex-1">{patient.first_name} {patient.last_name}</strong>
+                <strong className="min-w-48 flex-1">
+                  {patient.first_name} {patient.last_name}
+                </strong>
                 <span className="text-sm text-[var(--text-secondary)]">{patient.rut_masked}</span>
                 <span className="text-sm text-[var(--text-secondary)]">
-                  {patient.last_evolution_at ? new Date(patient.last_evolution_at).toLocaleString('es-CL') : 'Sin evoluciones'}
+                  {patient.last_evolution_at
+                    ? new Date(patient.last_evolution_at).toLocaleString('es-CL')
+                    : 'Sin evoluciones'}
                 </span>
                 <span aria-hidden="true">›</span>
               </Link>
@@ -121,9 +146,20 @@ export function Patients() {
   );
 }
 
-function PatientDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (patient: Patient) => void }) {
+function PatientDialog({
+  open,
+  onClose,
+  onCreated,
+}: { open: boolean; onClose: () => void; onCreated: (patient: Patient) => void }) {
   const firstInput = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState<CreatePatientBody>({ first_name: '', last_name: '', rut: '', birth_date: null });
+  const rutInput = useRef<HTMLInputElement>(null);
+  const rutSelection = useRef<{ start: number; end: number } | null>(null);
+  const [form, setForm] = useState<CreatePatientBody>({
+    first_name: '',
+    last_name: '',
+    rut: '',
+    birth_date: null,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<Patient | null>(null);
@@ -131,11 +167,22 @@ function PatientDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
   useEffect(() => {
     if (open) {
       setForm({ first_name: '', last_name: '', rut: '', birth_date: null });
+      rutSelection.current = null;
       setError(null);
       setDuplicate(null);
       firstInput.current?.focus();
     }
   }, [open]);
+
+  useLayoutEffect(() => {
+    const selection = rutSelection.current;
+    const input = rutInput.current;
+    if (!selection || !input) return;
+
+    input.setSelectionRange(selection.start, selection.end);
+    rutSelection.current = null;
+  });
+
   if (!open) return null;
 
   const submit = async (event: FormEvent) => {
@@ -147,53 +194,146 @@ function PatientDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
     } catch (caught) {
       const existing = duplicatePatient(caught);
       if (existing) setDuplicate(existing);
-      else setError(caught instanceof ApiError && caught.status === 422 ? 'Formato o DV invalido' : 'No pudimos crear el paciente');
+      else
+        setError(
+          caught instanceof ApiError && caught.status === 422
+            ? 'Formato o DV invalido'
+            : 'No pudimos crear el paciente',
+        );
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="patient-dialog-title" onClick={onClose} className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <form onSubmit={submit} onClick={(event) => event.stopPropagation()} className="w-full max-w-xl bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-6 shadow-2xl">
-        <h2 id="patient-dialog-title" className="text-lg font-semibold">Nuevo paciente</h2>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="patient-dialog-title"
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+    >
+      <form
+        onSubmit={submit}
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-xl bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-6 shadow-2xl"
+      >
+        <h2 id="patient-dialog-title" className="text-lg font-semibold">
+          Nuevo paciente
+        </h2>
         {duplicate ? (
           <div className="mt-4">
             <p className="font-medium">Este paciente ya existe</p>
-            <p className="mt-2 text-[var(--text-secondary)]">{duplicate.first_name} {duplicate.last_name} · {duplicate.rut_masked}</p>
+            <p className="mt-2 text-[var(--text-secondary)]">
+              {duplicate.first_name} {duplicate.last_name} · {duplicate.rut_masked}
+            </p>
             <div className="flex justify-end gap-2 mt-6">
-              <button type="button" onClick={onClose} className="px-3 py-2 rounded border border-[var(--border)]">Cancelar</button>
-              <button type="button" onClick={() => onCreated(duplicate)} className="px-3 py-2 rounded bg-[var(--accent)] text-white">Abrir paciente</button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3 py-2 rounded border border-[var(--border)]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => onCreated(duplicate)}
+                className="px-3 py-2 rounded bg-[var(--accent)] text-white"
+              >
+                Abrir paciente
+              </button>
             </div>
           </div>
         ) : (
           <>
-            <p className="text-sm text-[var(--text-secondary)] mt-1">Crea la ficha basica. Podras agregar una evolucion despues.</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">
+              Crea la ficha basica. Podras agregar una evolucion despues.
+            </p>
             <div className="grid md:grid-cols-2 gap-4 mt-5">
-              {([
-                ['first_name', 'Nombre', 'text'],
-                ['last_name', 'Apellido', 'text'],
-                ['rut', 'RUT', 'text'],
-                ['birth_date', 'Fecha de nacimiento', 'date'],
-              ] as const).map(([name, label, type], index) => (
+              {(
+                [
+                  ['first_name', 'Nombre', 'text'],
+                  ['last_name', 'Apellido', 'text'],
+                  ['rut', 'RUT', 'text'],
+                  ['birth_date', 'Fecha de nacimiento', 'date'],
+                ] as const
+              ).map(([name, label, type], index) => (
                 <label key={name} className="text-sm">
                   <span className="text-[var(--text-secondary)]">{label}</span>
                   <input
-                    ref={index === 0 ? firstInput : undefined}
+                    ref={
+                      name === 'rut' ? rutInput : index === 0 ? firstInput : undefined
+                    }
                     required={name !== 'birth_date'}
                     type={type}
                     value={form[name] ?? ''}
-                    onChange={(event) => setForm({ ...form, [name]: event.target.value || null })}
+                    maxLength={name === 'rut' ? 12 : undefined}
+                    onChange={(event) => {
+                      if (name === 'rut') {
+                        const input = event.currentTarget;
+                        const selectionStart = input.selectionStart ?? input.value.length;
+                        const selectionEnd = input.selectionEnd ?? selectionStart;
+                        const formatted = formatRutInputWithSelection(
+                          input.value,
+                          selectionStart,
+                          selectionEnd,
+                        );
+                        rutSelection.current = {
+                          start: formatted.selectionStart,
+                          end: formatted.selectionEnd,
+                        };
+                        setForm((current) => ({ ...current, rut: formatted.value }));
+                        return;
+                      }
+
+                      const value = event.currentTarget.value;
+
+                      setForm((current) => {
+                        if (name === 'birth_date') {
+                          return { ...current, birth_date: value || null };
+                        }
+                        if (name === 'first_name') {
+                          return { ...current, first_name: value };
+                        }
+                        return { ...current, last_name: value };
+                      });
+                    }}
+                    onBlur={
+                      name === 'rut'
+                        ? (event) =>
+                            setForm((current) => ({
+                              ...current,
+                              rut: formatRutInput(event.currentTarget.value, true),
+                            }))
+                        : undefined
+                    }
                     disabled={submitting}
                     className="mt-1 w-full px-3 py-2 rounded bg-[var(--surface-2)] border border-[var(--border)] outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                   />
                 </label>
               ))}
             </div>
-            {error && <p role="alert" className="mt-4 text-sm text-[var(--danger)]">{error}</p>}
+            {error && (
+              <p role="alert" className="mt-4 text-sm text-[var(--danger)]">
+                {error}
+              </p>
+            )}
             <div className="flex justify-end gap-2 mt-6">
-              <button type="button" onClick={onClose} disabled={submitting} className="px-3 py-2 rounded border border-[var(--border)]">Cancelar</button>
-              <button type="submit" disabled={submitting} className="px-3 py-2 rounded bg-[var(--accent)] text-white disabled:opacity-50">{submitting ? 'Creando...' : 'Crear paciente'}</button>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={submitting}
+                className="px-3 py-2 rounded border border-[var(--border)]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-3 py-2 rounded bg-[var(--accent)] text-white disabled:opacity-50"
+              >
+                {submitting ? 'Creando...' : 'Crear paciente'}
+              </button>
             </div>
           </>
         )}

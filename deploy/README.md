@@ -33,6 +33,7 @@ The app container reads these from `/opt/dynachat/.env` via docker-compose:
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | **yes** | Postgres credentials used by both the `postgres` service and the app's `DATABASE_URL` |
 | `JWT_SECRET` | **yes** (auth) | 32+ random bytes used to sign session-cookie JWTs. Generate with `openssl rand -hex 32`. Rotating this value invalidates all live sessions |
 | `ADMIN_USER_EMAIL` | optional | Email of the single admin user (case-insensitive match). When unset, every `/api/admin/*` endpoint returns 403. Match MUST equal the email the admin registered with |
+| `CLINICAL_EXTERNAL_LLM_ENABLED` | **no** (default: `false`) | Gate for external clinical drafting. Keep `false` until production approval |
 
 The app's `DATABASE_URL` is assembled from the `POSTGRES_*` values inside
 `docker-compose.yml` — you do **not** set it directly in `.env`. It points at
@@ -49,6 +50,19 @@ POSTGRES_DB=dynachat
 JWT_SECRET=<openssl rand -hex 32>
 ADMIN_USER_EMAIL=admin@yourdomain.com
 ```
+
+## Clinical data gate
+
+Clinical drafting uses synthetic data only in development, automated tests, and
+manual evaluation. Production defaults
+`CLINICAL_EXTERNAL_LLM_ENABLED=false`; when disabled, the service stops before
+building or sending a request to OpenRouter. This gate does not disable the
+patient directory or local persistence.
+
+Do not set the variable to `true` in production until privacy, contractual,
+logging, retention, deployment, and data-processing reviews have explicit
+approval. The application does not classify notes as real or synthetic, so this
+approval is an operational responsibility.
 
 ## Secret hygiene
 

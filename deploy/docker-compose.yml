@@ -58,6 +58,7 @@ services:
       # Points at the in-compose postgres service by DNS name.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
+      CLINICAL_EXTERNAL_LLM_ENABLED: ${CLINICAL_EXTERNAL_LLM_ENABLED:-false}
       ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-}
       # Issue #147: Circle membership verification + Dynamous content ingest.
       CIRCLE_ADMIN_TOKEN: ${CIRCLE_ADMIN_TOKEN:-}
@@ -102,6 +103,7 @@ services:
       # Points at the in-compose postgres service by DNS name.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
+      CLINICAL_EXTERNAL_LLM_ENABLED: ${CLINICAL_EXTERNAL_LLM_ENABLED:-false}
       ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-}
       # Issue #147: Circle membership verification + Dynamous content ingest.
       CIRCLE_ADMIN_TOKEN: ${CIRCLE_ADMIN_TOKEN:-}

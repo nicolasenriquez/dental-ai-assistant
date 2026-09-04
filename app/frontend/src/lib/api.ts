@@ -101,6 +101,44 @@ export interface CreatePatientBody {
   birth_date?: string | null;
 }
 
+export interface ReviewFlag {
+  source_text: string;
+  reason: string;
+}
+
+export interface ClinicalDraft {
+  context: string;
+  findings: string;
+  assessment: string;
+  treatment: string;
+  follow_up: string;
+  review_flags: ReviewFlag[];
+}
+
+export interface SaveEvolutionBody {
+  id: string;
+  evolution_at: string;
+  raw_note: string;
+  generated_text: string;
+  final_text: string;
+}
+
+export interface EvolutionSummary {
+  id: string;
+  patient_id: string;
+  evolution_at: string;
+  preview: string;
+  created_at: string;
+}
+
+export interface EvolutionDetail {
+  id: string;
+  patient_id: string;
+  evolution_at: string;
+  final_text: string;
+  created_at: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -163,6 +201,20 @@ export const searchPatients = (query: string) =>
 export const createPatient = (body: CreatePatientBody) =>
   request<Patient>('/patients', { method: 'POST', body: JSON.stringify(body) });
 export const getPatient = (id: string) => request<Patient>(`/patients/${id}`);
+export const generateEvolution = (patientId: string, rawNote: string) =>
+  request<ClinicalDraft>('/evolutions/generate', {
+    method: 'POST',
+    body: JSON.stringify({ patient_id: patientId, raw_note: rawNote }),
+  });
+export const saveEvolution = (patientId: string, body: SaveEvolutionBody) =>
+  request<EvolutionDetail>(`/patients/${patientId}/evolutions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+export const getPatientEvolutions = (patientId: string) =>
+  request<EvolutionSummary[]>(`/patients/${patientId}/evolutions`);
+export const getEvolution = (evolutionId: string) =>
+  request<EvolutionDetail>(`/evolutions/${evolutionId}`);
 
 export interface IngestVideoBody {
   title: string;

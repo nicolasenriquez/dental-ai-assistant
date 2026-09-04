@@ -110,6 +110,7 @@ from backend.routes import (  # noqa: E402
     auth,
     channels,
     conversations,
+    evolutions,
     ingest,
     messages,
     patients,
@@ -127,6 +128,8 @@ app.include_router(messages.router, prefix="/api", dependencies=_auth_required)
 # Patient endpoints declare the same dependency themselves so request models are
 # validated before authentication (important for deterministic 422 boundaries).
 app.include_router(patients.router, prefix="/api")
+app.include_router(evolutions.router, prefix="/api")
+app.include_router(evolutions.patient_router, prefix="/api")
 
 # Library-mutation routes (ingest a video, backfill the whole channel) and
 # admin routes — all gated on get_current_admin. These endpoints write to the
@@ -143,7 +146,12 @@ app.include_router(admin.router, prefix="/api", dependencies=_admin_required)
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> Response:
     """Avoid echoing sensitive search bodies in validation responses."""
-    if request.url.path != "/api/patients/search":
+    sensitive_path = request.url.path in ("/api/patients/search", "/api/evolutions/generate") or (
+        request.url.path.startswith("/api/patients/")
+        and request.url.path.endswith("/evolutions")
+        and request.method == "POST"
+    )
+    if not sensitive_path:
         return await request_validation_exception_handler(request, exc)
     errors = [
         {key: value for key, value in error.items() if key != "input"} for error in exc.errors()
