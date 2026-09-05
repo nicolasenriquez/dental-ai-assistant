@@ -31,9 +31,9 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>;
 }
 
-function renderPatient(path: string) {
+function renderPatient(path: string, state?: Record<string, unknown>) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[{ pathname: path, state }]}>
       <Routes>
         <Route path="/patients/:patientId" element={<PatientDetail />} />
         <Route path="/patients/:patientId/evolutions/:evolutionId" element={<PatientDetail />} />
@@ -53,16 +53,29 @@ describe('PatientDetail evolution workspace', () => {
     vi.spyOn(api, 'getPatientEvolutions').mockResolvedValue([evolutionSummary]);
   }
 
-  it('does not select an evolution or change the URL on patient entry', async () => {
+  it('selects the newest evolution on patient entry', async () => {
     mockPatientData();
-    const getEvolution = vi.spyOn(api, 'getEvolution');
+    const getEvolution = vi.spyOn(api, 'getEvolution').mockResolvedValue(evolutionDetail);
 
     renderPatient('/patients/patient-1');
 
-    expect(await screen.findByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
-    expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1');
+    expect(await screen.findByRole('heading', { name: 'Evolución dental' })).toBeVisible();
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/patients/patient-1/evolutions/evolution-1',
+    );
     expect(screen.getByRole('link', { name: /Ver evolución del/ })).toBeVisible();
     expect(screen.getByText(/\d+ años/)).toBeVisible();
+    expect(getEvolution).toHaveBeenCalledWith('evolution-1');
+  });
+
+  it('keeps the history list when returning from the mobile detail view', async () => {
+    mockPatientData();
+    const getEvolution = vi.spyOn(api, 'getEvolution');
+
+    renderPatient('/patients/patient-1', { preserveHistory: true });
+
+    expect(await screen.findByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+    expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1');
     expect(getEvolution).not.toHaveBeenCalled();
   });
 
@@ -85,9 +98,11 @@ describe('PatientDetail evolution workspace', () => {
     mockPatientData();
     vi.spyOn(api, 'getEvolution').mockResolvedValue(evolutionDetail);
 
-    renderPatient('/patients/patient-1');
+    renderPatient('/patients/patient-1', { preserveHistory: true });
 
-    fireEvent.click(await screen.findByRole('link', { name: /Ver evolución del/ }));
+    const evolutionLink = await screen.findByRole('link', { name: /Ver evolución del/ });
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/patients\/patient-1$/);
+    fireEvent.click(evolutionLink);
 
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent(
@@ -106,5 +121,10 @@ describe('PatientDetail evolution workspace', () => {
     expect(await screen.findByText('No se encontró esta evolución')).toBeVisible();
     expect(screen.getByRole('link', { name: 'Volver al historial' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Historial de evoluciones' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Volver al historial' }));
+
+    expect(await screen.findByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/patients\/patient-1$/);
   });
 });

@@ -25,11 +25,30 @@ export function AppShell({
   conversationsRef: suppliedConversationsRef,
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobileSidebar, setIsMobileSidebar] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarWasOpen = useRef(false);
   const localConversationsRef = useRef<(() => Promise<void>) | null>(null);
   const conversationsRef = suppliedConversationsRef ?? localConversationsRef;
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.('(max-width: 767px)');
+    if (!mediaQuery) return;
+
+    const update = () => setIsMobileSidebar(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener?.('change', update);
+    return () => mediaQuery.removeEventListener?.('change', update);
+  }, []);
+
+  useEffect(() => {
+    const sidebar = sidebarRef.current;
+    if (!sidebar || !isMobileSidebar) return;
+
+    sidebar.toggleAttribute('inert', !sidebarOpen);
+    return () => sidebar.removeAttribute('inert');
+  }, [isMobileSidebar, sidebarOpen]);
 
   useEffect(() => {
     if (sidebarOpen) {
@@ -86,6 +105,7 @@ export function AppShell({
         onClose={() => setSidebarOpen(false)}
         conversationsRef={conversationsRef}
         showConversations={showConversations}
+        isMobile={isMobileSidebar}
         sidebarRef={sidebarRef}
         onKeyDown={handleSidebarKeyDown}
       />

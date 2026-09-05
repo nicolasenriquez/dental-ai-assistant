@@ -121,21 +121,14 @@ function ConvItem({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(e) => e.key === 'Enter' && !editing && onSelect()}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+      className="conversation-item"
       style={{
         position: 'relative',
         padding: '10px 16px',
-        cursor: 'pointer',
         borderBottom: '1px solid rgba(255,255,255,0.04)',
         background: isActive ? '#1e293b' : hovered ? 'rgba(30,41,59,0.6)' : 'transparent',
-        borderLeft: isActive ? '3px solid #3b82f6' : '3px solid transparent',
-        paddingLeft: 13,
         transition: 'background 0.15s, border-color 0.15s',
         userSelect: 'none',
       }}
@@ -162,56 +155,75 @@ function ConvItem({
           }}
         />
       ) : (
-        <div
+        <button
+          type="button"
+          onClick={onSelect}
           onDoubleClick={(e) => {
             e.stopPropagation();
             setEditing(true);
             setEditValue(conv.title);
           }}
+          aria-current={isActive ? 'page' : undefined}
+          className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           style={{
-            fontSize: 14,
-            fontWeight: 500,
-            color: '#f1f5f9',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            paddingRight: hovered ? 56 : 0,
+            display: 'block',
+            width: '100%',
+            border: 'none',
+            padding: 0,
+            background: 'transparent',
+            color: 'inherit',
+            cursor: 'pointer',
+            textAlign: 'left',
+            font: 'inherit',
           }}
         >
-          {highlightMatch(conv.title, searchQuery)}
-        </div>
-      )}
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              color: '#f1f5f9',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              paddingRight: hovered ? 56 : 0,
+            }}
+          >
+            {highlightMatch(conv.title, searchQuery)}
+          </div>
 
-      {/* Timestamp */}
-      <div
-        style={{
-          fontSize: 12,
-          color: '#94a3b8',
-          marginTop: 2,
-          marginBottom: preview ? 3 : 0,
-        }}
-      >
-        {formatRelativeTime(conv.updated_at)}
-      </div>
+          {/* Timestamp */}
+          <div
+            style={{
+              fontSize: 12,
+              color: '#94a3b8',
+              marginTop: 2,
+              marginBottom: preview ? 3 : 0,
+            }}
+          >
+            {formatRelativeTime(conv.updated_at)}
+          </div>
 
-      {/* Preview */}
-      {preview && (
-        <div
-          style={{
-            fontSize: 12,
-            color: '#475569',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {preview}
-        </div>
+          {/* Preview */}
+          {preview && (
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--text-tertiary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {preview}
+            </div>
+          )}
+        </button>
       )}
 
       {/* Pencil icon — visible on hover (rename) */}
       {hovered && !editing && (
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             setEditing(true);
@@ -228,7 +240,7 @@ function ConvItem({
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            color: '#475569',
+            color: 'var(--text-tertiary)',
             padding: 4,
             borderRadius: 4,
             display: 'flex',
@@ -237,7 +249,7 @@ function ConvItem({
             transition: 'color 0.15s',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = '#3b82f6')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
         >
           ✏️
         </button>
@@ -246,6 +258,7 @@ function ConvItem({
       {/* Delete button — visible on hover */}
       {hovered && !editing && (
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onDeleteRequest(conv.id);
@@ -261,7 +274,7 @@ function ConvItem({
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            color: '#475569',
+            color: 'var(--text-tertiary)',
             padding: 4,
             borderRadius: 4,
             display: 'flex',
@@ -270,7 +283,7 @@ function ConvItem({
             transition: 'color 0.15s',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
         >
           <svg
             width="14"
@@ -426,6 +439,7 @@ interface SidebarProps {
   onClose: () => void;
   conversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
   showConversations?: boolean;
+  isMobile?: boolean;
   sidebarRef?: RefObject<HTMLElement>;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
 }
@@ -436,6 +450,7 @@ export function Sidebar({
   onClose,
   conversationsRef,
   showConversations = true,
+  isMobile = false,
   sidebarRef,
   onKeyDown,
 }: SidebarProps) {
@@ -561,6 +576,7 @@ export function Sidebar({
         ref={sidebarRef}
         onKeyDown={onKeyDown}
         className={`sidebar-container${isOpen ? ' open' : ''}`}
+        aria-hidden={isMobile && !isOpen ? true : undefined}
       >
         <nav aria-label="Navegacion principal" className="p-3 pb-1 space-y-1">
           {[
@@ -686,7 +702,7 @@ export function Sidebar({
                 style={{
                   padding: '40px 16px',
                   textAlign: 'center',
-                  color: '#475569',
+                  color: 'var(--text-tertiary)',
                 }}
               >
                 <svg
@@ -837,7 +853,7 @@ export function Sidebar({
             gap: 8,
           }}
         >
-          <span style={{ fontSize: 12, color: '#475569' }}>DynaChat</span>
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>DynaChat</span>
 
           {/* Library admin link — admin-only. is_admin is a server-computed
               hint only; the /api/admin/* endpoints re-verify on every call. */}

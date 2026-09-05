@@ -36,5 +36,16 @@
           - strong: Evolución dental
           - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
   - complementary "Detalle de la evolución":
-    - heading "Selecciona una evolución" [level=2]
-    - paragraph: Elige una evolución del historial para revisar su detalle clínico.
+    - article:
+      - heading "Evolución dental" [level=2]
+      - paragraph:
+        - text: "Fecha de atención:"
+        - time: /\d+ de septiembre de \d+ · \d+:\d+ p\. m\./
+      - heading "Motivo / contexto" [level=3]
+      - paragraph: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección.
+      - heading "Hallazgos" [level=3]
+      - paragraph: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cercana a cámara pulpar
+      - heading "Diagnóstico / impresión clínica" [level=3]
+      - paragraph: sospecha de quistes subcondrales, amelofisis imperfecta
+      - heading "Seguimiento" [level=3]
+      - paragraph: sujeta a control cada seis meses

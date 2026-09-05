@@ -89,6 +89,21 @@ export function PatientDetail() {
   }, [load]);
 
   useEffect(() => {
+    const preserveHistory = location.state?.preserveHistory === true;
+    if (
+      !loading &&
+      !error &&
+      patient &&
+      !preserveHistory &&
+      !evolutionId &&
+      evolutions.length > 0
+    ) {
+      // ponytail: API contract returns newest-first; avoid a second client-side sort.
+      navigate(`/patients/${patientId}/evolutions/${evolutions[0].id}`, { replace: true });
+    }
+  }, [error, evolutionId, evolutions, loading, location.state, navigate, patient, patientId]);
+
+  useEffect(() => {
     void loadDetail();
   }, [loadDetail]);
 

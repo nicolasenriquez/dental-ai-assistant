@@ -170,9 +170,9 @@ export function Patients() {
                 <Link
                   key={patient.id}
                   to={`/patients/${patient.id}`}
-                  className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 border-b last:border-b-0 border-[var(--border)] hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                  className="patient-list-link border-b border-[var(--border)] px-4 py-3 hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] focus-visible:outline-none last:border-b-0"
                 >
-                  <div className="min-w-48 flex-1">
+                  <div>
                     <strong className="block">
                       {patient.first_name} {patient.last_name}
                     </strong>
@@ -182,7 +182,7 @@ export function Patients() {
                       </span>
                     )}
                   </div>
-                  <div className="min-w-48 text-sm text-[var(--text-secondary)]">
+                  <div className="text-sm text-[var(--text-secondary)]">
                     <span className="block text-xs font-semibold uppercase tracking-wider">
                       Última evolución
                     </span>

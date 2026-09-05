@@ -92,9 +92,9 @@ function EmptyState({ onStarterClick }: EmptyStateProps) {
         <circle cx="28" cy="28" r="24" />
         <path d="M18,22 L38,22 M18,28 L34,28 M18,34 L30,34" strokeLinecap="round" />
       </svg>
-      <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 600, color: '#f1f5f9' }}>
+      <h1 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 600, color: '#f1f5f9' }}>
         Ask anything about the video library
-      </h2>
+      </h1>
       <p style={{ margin: '0 0 24px', color: '#94a3b8', maxWidth: 380, lineHeight: 1.6 }}>
         This AI has access to transcripts from a curated collection of YouTube videos.
       </p>

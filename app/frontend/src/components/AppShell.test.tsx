@@ -7,11 +7,20 @@ vi.mock('./Sidebar', () => ({
   Sidebar: ({
     sidebarRef,
     onKeyDown,
+    isMobile,
+    isOpen,
   }: {
     sidebarRef?: RefObject<HTMLElement>;
     onKeyDown?: KeyboardEventHandler<HTMLElement>;
+    isMobile?: boolean;
+    isOpen?: boolean;
   }) => (
-    <aside id="app-sidebar" ref={sidebarRef} onKeyDown={onKeyDown}>
+    <aside
+      id="app-sidebar"
+      ref={sidebarRef}
+      onKeyDown={onKeyDown}
+      aria-hidden={isMobile && !isOpen ? true : undefined}
+    >
       <a href="/patients">Pacientes</a>
       <button type="button">Último elemento</button>
     </aside>
@@ -19,6 +28,29 @@ vi.mock('./Sidebar', () => ({
 }));
 
 describe('AppShell mobile sidebar', () => {
+  it('removes the closed mobile sidebar from accessibility navigation', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+
+    const { container } = render(
+      <AppShell showConversations={false}>
+        <main>Contenido</main>
+      </AppShell>,
+    );
+
+    const sidebar = container.querySelector('#app-sidebar');
+    expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+    expect(sidebar).toHaveAttribute('inert');
+
+    vi.unstubAllGlobals();
+  });
+
   it('manages aria state, focus and Escape', () => {
     render(
       <AppShell showConversations={false}>

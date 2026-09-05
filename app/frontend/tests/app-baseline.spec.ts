@@ -79,7 +79,7 @@ test('captures public views and patients workflow', async ({ page }) => {
 
   await patientLink.click();
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Evolución dental' })).toBeVisible();
   await captureView(page, 'patient-detail');
 
   await page.getByRole('link', { name: /Nueva evolución/ }).click();
@@ -157,8 +157,10 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
     /How do I use subagents/,
   );
 
-  const conversationItem = page.locator('#app-sidebar [role="button"][tabindex="0"]').first();
+  const conversationItem = page.locator('#app-sidebar .conversation-item').first();
   await expect(conversationItem).toBeVisible();
+  await conversationItem.getByRole('button').click();
+  await expect(page).toHaveURL(/\/c\/.+$/);
   await conversationItem.hover();
   await page.getByRole('button', { name: 'Renombrar conversación', exact: true }).click();
   const renameInput = conversationItem.getByRole('textbox');

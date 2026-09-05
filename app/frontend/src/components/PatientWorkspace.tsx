@@ -63,7 +63,9 @@ function EvolutionNotFound({ patientId }: { patientId: string }) {
     <div role="alert" className="patient-workspace__empty patient-workspace__empty--detail">
       <h2 id="evolution-detail-title">No se encontró esta evolución</h2>
       <p>La evolución solicitada no está disponible para este paciente.</p>
-      <Link to={`/patients/${patientId}`}>Volver al historial</Link>
+      <Link to={`/patients/${patientId}`} state={{ preserveHistory: true }}>
+        Volver al historial
+      </Link>
     </div>
   );
 }
@@ -142,7 +144,7 @@ export function PatientWorkspace({
           {!detailLoading && !detailError && selectedEvolution && (
             <>
               <div className="patient-detail-mobile-back">
-                <Link to={`/patients/${patient.id}`}>
+                <Link to={`/patients/${patient.id}`} state={{ preserveHistory: true }}>
                   ‹ Volver a {patient.first_name} {patient.last_name}
                 </Link>
               </div>

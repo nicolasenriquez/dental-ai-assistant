@@ -21,7 +21,7 @@
     - img
     - text: ""
 - img
-- heading "Ask anything about the video library" [level=2]
+- heading "Ask anything about the video library" [level=1]
 - paragraph: This AI has access to transcripts from a curated collection of YouTube videos.
 - button "How do I use subagents in Claude Code?"
 - button "How should I structure an agent team?"

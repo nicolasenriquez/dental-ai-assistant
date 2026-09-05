@@ -101,7 +101,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             flex: 1,
             background: 'transparent',
             border: 'none',
-            color: isDisabled ? '#475569' : '#f1f5f9',
+            color: isDisabled ? 'var(--text-tertiary)' : '#f1f5f9',
             fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             fontSize: 15,
             lineHeight: '24px',
@@ -118,6 +118,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         {/* ── Send / Stop button ── */}
         {isStreaming ? (
           <button
+            type="button"
             onClick={onStop}
             aria-label="Stop response"
             className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
@@ -131,8 +132,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              height: 34,
-              width: 34,
+              height: 44,
+              width: 44,
               transition: 'background 0.15s, filter 0.15s',
             }}
           >
@@ -142,6 +143,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           </button>
         ) : (
           <button
+            type="button"
             onClick={handleSend}
             disabled={isDisabled}
             aria-label="Send message"
@@ -150,14 +152,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               background: isDisabled ? '#1e293b' : '#3b82f6',
               border: 'none',
               borderRadius: 8,
-              color: isDisabled ? '#475569' : '#fff',
+              color: isDisabled ? 'var(--text-tertiary)' : '#fff',
               cursor: isDisabled ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              height: 34,
-              width: 34,
+              height: 44,
+              width: 44,
               transition: 'background 0.15s, color 0.15s, filter 0.15s',
             }}
             onMouseEnter={(e) => {
