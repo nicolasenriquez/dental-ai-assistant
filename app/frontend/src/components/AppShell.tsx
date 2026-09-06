@@ -1,3 +1,4 @@
+import { PanelLeftOpen } from 'lucide-react';
 import {
   type KeyboardEvent,
   type MutableRefObject,
@@ -25,7 +26,10 @@ export function AppShell({
   conversationsRef: suppliedConversationsRef,
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isMobileSidebar, setIsMobileSidebar] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobileSidebar, setIsMobileSidebar] = useState(
+    () => window.matchMedia?.('(max-width: 767px)').matches ?? true,
+  );
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarWasOpen = useRef(false);
@@ -36,7 +40,10 @@ export function AppShell({
     const mediaQuery = window.matchMedia?.('(max-width: 767px)');
     if (!mediaQuery) return;
 
-    const update = () => setIsMobileSidebar(mediaQuery.matches);
+    const update = () => {
+      setIsMobileSidebar(mediaQuery.matches);
+      if (mediaQuery.matches) setSidebarCollapsed(false);
+    };
     update();
     mediaQuery.addEventListener?.('change', update);
     return () => mediaQuery.removeEventListener?.('change', update);
@@ -44,16 +51,22 @@ export function AppShell({
 
   useEffect(() => {
     const sidebar = sidebarRef.current;
-    if (!sidebar || !isMobileSidebar) return;
+    if (!sidebar) return;
 
-    sidebar.toggleAttribute('inert', !sidebarOpen);
+    const hidden = isMobileSidebar && !sidebarOpen;
+    sidebar.toggleAttribute('inert', hidden);
     return () => sidebar.removeAttribute('inert');
-  }, [isMobileSidebar, sidebarOpen]);
+  }, [isMobileSidebar, sidebarCollapsed, sidebarOpen]);
 
   useEffect(() => {
     if (sidebarOpen) {
       sidebarWasOpen.current = true;
-      sidebarRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus();
+      const firstLink = sidebarRef.current?.querySelector<HTMLElement>('a[href]');
+      if (firstLink) {
+        firstLink.focus();
+      } else {
+        sidebarRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus();
+      }
       return;
     }
 
@@ -96,7 +109,7 @@ export function AppShell({
 
   return (
     <div className="app-layout">
-      {sidebarOpen && (
+      {isMobileSidebar && sidebarOpen && (
         <div aria-hidden="true" className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
       <Sidebar
@@ -106,42 +119,26 @@ export function AppShell({
         conversationsRef={conversationsRef}
         showConversations={showConversations}
         isMobile={isMobileSidebar}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
         sidebarRef={sidebarRef}
         onKeyDown={handleSidebarKeyDown}
       />
       <div className={`main-area${showConversations ? '' : ' patient-shell'}`}>
-        <button
-          ref={menuButtonRef}
-          type="button"
-          className="hamburger-btn"
-          onClick={() => setSidebarOpen((open) => !open)}
-          aria-expanded={sidebarOpen}
-          aria-controls="app-sidebar"
-          aria-label={sidebarOpen ? 'Cerrar navegación' : 'Abrir navegación'}
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
+        {isMobileSidebar && !sidebarOpen && (
+          <button
+            ref={menuButtonRef}
+            type="button"
+            className="hamburger-btn"
+            onClick={() => setSidebarOpen(true)}
+            aria-expanded={false}
+            aria-controls="app-sidebar"
+            aria-label="Abrir navegación"
+            title="Abrir navegación"
           >
-            {sidebarOpen ? (
-              <>
-                <line x1="4" y1="4" x2="14" y2="14" />
-                <line x1="14" y1="4" x2="4" y2="14" />
-              </>
-            ) : (
-              <>
-                <line x1="2" y1="4.5" x2="16" y2="4.5" />
-                <line x1="2" y1="9" x2="16" y2="9" />
-                <line x1="2" y1="13.5" x2="16" y2="13.5" />
-              </>
-            )}
-          </svg>
-        </button>
+            <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
+          </button>
+        )}
         {children}
       </div>
     </div>

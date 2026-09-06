@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
@@ -97,12 +97,7 @@ describe('Sidebar handleNewChat', () => {
         </MemoryRouter>,
       );
 
-      // Get all buttons and find the main "Nuevo chat" button
-      const buttons = screen.getAllByRole('button');
-      const newChatButton = buttons.find(
-        (btn) => btn.textContent === 'Nuevo chat' && (btn as HTMLButtonElement).type === 'submit',
-      ) as HTMLButtonElement;
-      expect(newChatButton).toBeDefined();
+      const newChatButton = screen.getByRole('button', { name: 'Nuevo chat' });
 
       await act(async () => {
         fireEvent.click(newChatButton);
@@ -159,12 +154,7 @@ describe('Sidebar handleNewChat', () => {
         </MemoryRouter>,
       );
 
-      // Get all buttons and find the main "Nuevo chat" button
-      const buttons = screen.getAllByRole('button');
-      const newChatButton = buttons.find(
-        (btn) => btn.textContent === 'Nuevo chat' && (btn as HTMLButtonElement).type === 'submit',
-      ) as HTMLButtonElement;
-      expect(newChatButton).toBeDefined();
+      const newChatButton = screen.getByRole('button', { name: 'Nuevo chat' });
 
       await act(async () => {
         fireEvent.click(newChatButton);
@@ -217,12 +207,7 @@ describe('Sidebar handleNewChat', () => {
         </MemoryRouter>,
       );
 
-      // Get all buttons and find the main "Nuevo chat" button
-      const buttons = screen.getAllByRole('button');
-      const newChatButton = buttons.find(
-        (btn) => btn.textContent === 'Nuevo chat' && (btn as HTMLButtonElement).type === 'submit',
-      ) as HTMLButtonElement;
-      expect(newChatButton).toBeDefined();
+      const newChatButton = screen.getByRole('button', { name: 'Nuevo chat' });
 
       await act(async () => {
         fireEvent.click(newChatButton);
@@ -265,12 +250,7 @@ describe('Sidebar handleNewChat', () => {
         </MemoryRouter>,
       );
 
-      // Get all buttons and find the main "Nuevo chat" button
-      const buttons = screen.getAllByRole('button');
-      const newChatButton = buttons.find(
-        (btn) => btn.textContent === 'Nuevo chat' && (btn as HTMLButtonElement).type === 'submit',
-      ) as HTMLButtonElement;
-      expect(newChatButton).toBeDefined();
+      const newChatButton = screen.getByRole('button', { name: 'Nuevo chat' });
 
       await act(async () => {
         fireEvent.click(newChatButton);
@@ -298,7 +278,9 @@ describe('Sidebar logout', () => {
     );
 
     expect(screen.getByText('test@example.com')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /cerrar sesión/i })).toBeInTheDocument();
+    const userMenuTrigger = screen.getByRole('button', { name: /abrir menú de usuario/i });
+    fireEvent.click(userMenuTrigger);
+    expect(screen.getByRole('menuitem', { name: /cerrar sesión/i })).toBeInTheDocument();
   });
 
   it('calls logout and navigates to /login when the button is clicked', async () => {
@@ -328,7 +310,8 @@ describe('Sidebar logout', () => {
       </MemoryRouter>,
     );
 
-    const logoutBtn = screen.getByRole('button', { name: /cerrar sesión/i });
+    fireEvent.click(screen.getByRole('button', { name: /abrir menú de usuario/i }));
+    const logoutBtn = screen.getByRole('menuitem', { name: /cerrar sesión/i });
     await act(async () => {
       fireEvent.click(logoutBtn);
       await new Promise((r) => setTimeout(r, 0));
@@ -356,6 +339,186 @@ describe('Sidebar patient shell', () => {
     expect(
       screen.queryByRole('button', { name: 'Explorar biblioteca de videos' }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: 'Video Knowledge Base' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Biblioteca de videos' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Sidebar navigation and conversations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigateMock.mockReset();
+  });
+
+  it('groups conversations into Hoy, Ayer and Anteriores without previews', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-05T15:00:00'));
+    const { useConversations } = await import('../hooks/useConversations');
+    vi.mocked(useConversations).mockReturnValueOnce({
+      conversations: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      rename: vi.fn(),
+      filteredConversations: [
+        {
+          id: 'today',
+          title: 'Consulta de hoy',
+          preview: 'No debe aparecer en la fila',
+          created_at: '2026-09-05T10:00:00Z',
+          updated_at: '2026-09-05T10:00:00Z',
+        },
+        {
+          id: 'yesterday',
+          title: 'Consulta de ayer',
+          preview: 'Preview de ayer',
+          created_at: '2026-09-04T10:00:00Z',
+          updated_at: '2026-09-04T10:00:00Z',
+        },
+        {
+          id: 'older',
+          title: 'Consulta anterior',
+          preview: 'Preview anterior',
+          created_at: '2026-08-01T10:00:00Z',
+          updated_at: '2026-08-01T10:00:00Z',
+        },
+      ] as api.Conversation[],
+    });
+
+    render(
+      <MemoryRouter>
+        <Sidebar isOpen={true} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('region', { name: 'Hoy' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Ayer' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Anteriores' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Consulta de hoy' })).toBeInTheDocument();
+    expect(screen.queryByText('No debe aparecer en la fila')).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('opens a contextual menu and supports rename and delete actions', async () => {
+    const rename = vi.fn().mockResolvedValue({ ok: true });
+    const { useConversations } = await import('../hooks/useConversations');
+    vi.mocked(useConversations).mockReturnValueOnce({
+      conversations: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      rename,
+      filteredConversations: [
+        {
+          id: 'conv-1',
+          title: 'Consulta contextual',
+          preview: 'Tiene mensajes',
+          created_at: '2026-09-05T10:00:00Z',
+          updated_at: '2026-09-05T10:00:00Z',
+        },
+      ] as api.Conversation[],
+    });
+
+    render(
+      <MemoryRouter>
+        <Sidebar isOpen={true} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /acciones para consulta contextual/i }));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Renombrar' }));
+    const input = screen.getByRole('textbox', { name: 'Renombrar conversación' });
+    fireEvent.change(input, { target: { value: 'Consulta renombrada' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(rename).toHaveBeenCalledWith('conv-1', 'Consulta renombrada'));
+
+    fireEvent.click(screen.getByRole('button', { name: /acciones para consulta contextual/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Eliminar' }));
+    expect(screen.getByRole('dialog', { name: '¿Eliminar conversación?' })).toBeInTheDocument();
+  });
+
+  it('shows administration only for admin users', async () => {
+    const { useAuth } = await import('../hooks/useAuth');
+    vi.mocked(useAuth).mockReturnValueOnce({
+      status: 'authed',
+      user: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        is_admin: true,
+        messages_used_today: 5,
+        messages_remaining_today: 20,
+        rate_window_resets_at: null,
+      },
+      error: null,
+      signup: vi.fn(),
+      login: vi.fn(),
+      logout: vi.fn(),
+      refresh: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <Sidebar isOpen={true} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /abrir menú de usuario/i }));
+    expect(screen.getByRole('menuitem', { name: 'Administración' })).toHaveAttribute(
+      'href',
+      '/admin',
+    );
+  });
+
+  it('exposes the quota progress bar and the keyboard search shortcut', () => {
+    render(
+      <MemoryRouter>
+        <Sidebar isOpen={true} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('progressbar', { name: 'Cuota de mensajes diaria' })).toHaveAttribute(
+      'aria-valuenow',
+      '5',
+    );
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    expect(screen.getByRole('searchbox', { name: 'Buscar conversaciones' })).toHaveFocus();
+  });
+
+  it('does not capture the search shortcut while the mobile drawer is closed', () => {
+    render(
+      <MemoryRouter>
+        <Sidebar isOpen={false} isMobile={true} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    expect(
+      screen.queryByRole('searchbox', { name: 'Buscar conversaciones' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps the collapsed 56px rail accessible and functional', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Sidebar isOpen={true} isCollapsed={true} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    const sidebar = container.querySelector('#app-sidebar');
+    expect(sidebar).toHaveClass('collapsed');
+    expect(sidebar).not.toHaveAttribute('aria-hidden');
+    expect(screen.getByRole('button', { name: 'Expandir navegación' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(screen.getByRole('button', { name: 'Expandir navegación' })).toHaveAttribute(
+      'aria-controls',
+      'app-sidebar',
+    );
+    expect(screen.getByRole('link', { name: 'Pacientes' })).toHaveAttribute('title', 'Pacientes');
+    expect(screen.getByRole('link', { name: 'Chat' })).toHaveAttribute('title', 'Chat');
+    expect(screen.getByRole('button', { name: 'Buscar conversaciones' })).toHaveAttribute(
+      'title',
+      'Buscar conversaciones (Ctrl K)',
+    );
   });
 });

@@ -6,19 +6,19 @@ describe('ChatInput', () => {
   describe('Send/Stop button rendering', () => {
     it('shows Send button when not streaming', () => {
       render(<ChatInput onSend={vi.fn()} isStreaming={false} />);
-      expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /enviar/i })).toBeInTheDocument();
     });
 
     it('shows Stop button when streaming', () => {
       render(<ChatInput onSend={vi.fn()} isStreaming={true} />);
-      expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /send/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /detener/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /enviar/i })).not.toBeInTheDocument();
     });
 
     it('Stop button calls onStop when clicked', () => {
       const onStop = vi.fn();
       render(<ChatInput onSend={vi.fn()} isStreaming={true} onStop={onStop} />);
-      fireEvent.click(screen.getByRole('button', { name: /stop/i }));
+      fireEvent.click(screen.getByRole('button', { name: /detener/i }));
       expect(onStop).toHaveBeenCalledTimes(1);
     });
 
@@ -27,7 +27,7 @@ describe('ChatInput', () => {
       render(<ChatInput onSend={onSend} isStreaming={false} />);
       const input = screen.getByRole('textbox');
       fireEvent.change(input, { target: { value: 'Hello' } });
-      fireEvent.click(screen.getByRole('button', { name: /send/i }));
+      fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
       expect(onSend).toHaveBeenCalledWith('Hello');
     });
 
@@ -43,21 +43,21 @@ describe('ChatInput', () => {
 
     it('shows correct placeholder when streaming', () => {
       render(<ChatInput onSend={vi.fn()} isStreaming={true} />);
-      expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'Waiting for response…');
+      expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'Esperando la respuesta…');
     });
 
     it('shows correct placeholder when not streaming', () => {
       render(<ChatInput onSend={vi.fn()} isStreaming={false} />);
       expect(screen.getByRole('textbox')).toHaveAttribute(
         'placeholder',
-        'Ask anything about the video library…',
+        'Pregunta sobre la biblioteca de videos…',
       );
     });
 
     it('does not throw when onStop is not provided during streaming', () => {
       render(<ChatInput onSend={vi.fn()} isStreaming={true} />);
       // Stop button exists but has no handler - clicking should not throw
-      const stopBtn = screen.getByRole('button', { name: /stop/i });
+      const stopBtn = screen.getByRole('button', { name: /detener/i });
       expect(() => fireEvent.click(stopBtn)).not.toThrow();
     });
   });

@@ -7,6 +7,7 @@ const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.m
 describe('patient-first shell contract', () => {
   const app = read('../App.tsx');
   const sidebar = read('../components/Sidebar.tsx');
+  const sidebarNavigation = read('../components/sidebar/SidebarNavigation.tsx');
 
   it('redirects root to patients and preserves chat routes', () => {
     expect(app).toContain('to="/patients"');
@@ -17,8 +18,10 @@ describe('patient-first shell contract', () => {
   });
 
   it('lists Pacientes before Chat and can hide conversations', () => {
-    expect(sidebar.indexOf("label: 'Pacientes'")).toBeGreaterThan(-1);
-    expect(sidebar.indexOf("label: 'Pacientes'")).toBeLessThan(sidebar.indexOf("label: 'Chat'"));
+    expect(sidebarNavigation.indexOf('>Pacientes</span>')).toBeGreaterThan(-1);
+    expect(sidebarNavigation.indexOf('>Pacientes</span>')).toBeLessThan(
+      sidebarNavigation.indexOf('>Chat</span>'),
+    );
     expect(sidebar).toContain('showConversations');
   });
 });

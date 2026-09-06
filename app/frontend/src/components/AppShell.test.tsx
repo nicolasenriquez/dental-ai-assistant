@@ -9,11 +9,17 @@ vi.mock('./Sidebar', () => ({
     onKeyDown,
     isMobile,
     isOpen,
+    isCollapsed,
+    onToggleCollapse,
+    onClose,
   }: {
     sidebarRef?: RefObject<HTMLElement>;
     onKeyDown?: KeyboardEventHandler<HTMLElement>;
     isMobile?: boolean;
     isOpen?: boolean;
+    isCollapsed?: boolean;
+    onToggleCollapse?: () => void;
+    onClose?: () => void;
   }) => (
     <aside
       id="app-sidebar"
@@ -21,6 +27,23 @@ vi.mock('./Sidebar', () => ({
       onKeyDown={onKeyDown}
       aria-hidden={isMobile && !isOpen ? true : undefined}
     >
+      {isMobile && isOpen ? (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar navegación"
+          aria-expanded="true"
+          aria-controls="app-sidebar"
+        />
+      ) : !isMobile ? (
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={isCollapsed ? 'Abrir navegación' : 'Cerrar navegación'}
+          aria-expanded={!isCollapsed}
+          aria-controls="app-sidebar"
+        />
+      ) : null}
       <a href="/patients">Pacientes</a>
       <button type="button">Último elemento</button>
     </aside>
@@ -112,5 +135,34 @@ describe('AppShell mobile sidebar', () => {
     first.focus();
     fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
     expect(last).toHaveFocus();
+  });
+
+  it('collapses the sidebar from the persistent desktop toggle', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+
+    render(
+      <AppShell showConversations={false}>
+        <main>Contenido</main>
+      </AppShell>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Cerrar navegación' });
+    fireEvent.click(trigger);
+
+    expect(screen.getByRole('button', { name: 'Abrir navegación' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('aria-hidden');
+    expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('inert');
+
+    vi.unstubAllGlobals();
   });
 });

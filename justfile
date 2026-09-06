@@ -11,12 +11,22 @@ e2e_image := "mcr.microsoft.com/playwright:v1.62.1-noble"
 repo_dir := justfile_directory()
 
 # Start local services without forcing an image rebuild.
+[unix]
 dev-up:
-    {{compose}} up -d {{local_services}}
+    unset OPENROUTER_API_KEY; {{compose}} up -d {{local_services}}
+
+[windows]
+dev-up:
+    Remove-Item Env:OPENROUTER_API_KEY -ErrorAction SilentlyContinue; {{compose}} up -d {{local_services}}
 
 # Rebuild the application image, then start local services.
+[unix]
 dev-up-build:
-    {{compose}} up -d --build {{local_services}}
+    unset OPENROUTER_API_KEY; {{compose}} up -d --build {{local_services}}
+
+[windows]
+dev-up-build:
+    Remove-Item Env:OPENROUTER_API_KEY -ErrorAction SilentlyContinue; {{compose}} up -d --build {{local_services}}
 
 # Stop local services and preserve named volumes.
 dev-down:

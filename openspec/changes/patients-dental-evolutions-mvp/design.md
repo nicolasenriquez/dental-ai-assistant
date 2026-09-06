@@ -211,7 +211,7 @@ Los wireframes componen patrones que ya existen. No crean otro sistema visual.
 
 | Need | Existing DynaChat authority | Planned use |
 |---|---|---|
-| Application frame | `App.tsx` `.app-layout`, `.main-area` and mobile overlay | Extract `AppShell` without changing the 260 px sidebar or mobile drawer behavior |
+| Application frame | `App.tsx` `.app-layout`, `.main-area` and mobile overlay | Extract `AppShell`; preserve the mobile drawer and add a compact desktop rail |
 | Navigation | `Sidebar.tsx` full-width primary action, links, focus rings and footer | Add `Pacientes` and `Chat`; show conversations only in Chat |
 | Page container and rows | `AdminVideos.tsx` `max-w-6xl`, header, search, bordered surface, loading and empty states | Use a readable patient list and timeline rows, not dashboard cards |
 | Forms and fields | `Login.tsx` labels, inputs, validation text and submit state | Reuse field spacing, borders, radius, focus and disabled styles |
@@ -219,7 +219,7 @@ Los wireframes componen patrones que ya existen. No crean otro sistema visual.
 | Feedback | `ToastProvider.tsx` success/error toasts and `aria-live` | Save confirmation and recoverable errors |
 | Tokens | `globals.css` background, surfaces, border, accent, text, success, danger and warning | Use existing variables only |
 
-Desktop reference for all six screens: 1440 x 900. At widths below 768 px, the existing sidebar becomes a 260 px drawer with overlay and hamburger. Page headers wrap, actions remain near their owning content, rows stack their metadata, and form sections become one column. No new breakpoint or navigation pattern is introduced.
+Desktop reference for all six screens: 1440 x 900. Desktop navigation can collapse from 240 px to a 56 px rail. At widths below 768 px, it remains a 260 px drawer with overlay and hamburger. Page headers wrap, actions remain near their owning content, rows stack their metadata, and form sections become one column.
 
 ### 01. Patient list
 

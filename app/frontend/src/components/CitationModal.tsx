@@ -41,7 +41,7 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
       ? `https://www.youtube.com/watch?v=${videoId}&t=${startSeconds}s`
       : '';
 
-  const externalLabel = isDynamous ? 'Open on Dynamous' : 'Open on YouTube';
+  const externalLabel = isDynamous ? 'Abrir en Dynamous' : 'Abrir en YouTube';
 
   // Close on ESC key
   useEffect(() => {
@@ -73,7 +73,7 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
       }}
       role="dialog"
       aria-modal="true"
-      aria-label="Video citation"
+      aria-label="Cita de video"
     >
       <div
         className="bg-slate-800 border border-white/10 rounded-xl p-6 w-[640px] max-w-[calc(100vw-48px)] max-h-[90vh] flex flex-col shadow-2xl"
@@ -84,13 +84,13 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
           <div>
             <h3 className="text-slate-100 text-base font-semibold m-0">{citation.video_title}</h3>
             <p className="text-slate-400 text-xs m-0 mt-0.5">
-              at {formatTimestamp(citation.start_seconds)} – {formatTimestamp(citation.end_seconds)}
+              en {formatTimestamp(citation.start_seconds)} – {formatTimestamp(citation.end_seconds)}
             </p>
           </div>
           <button
             onClick={onClose}
             className="bg-none border-none text-slate-400 cursor-pointer text-xl leading-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            aria-label="Close"
+            aria-label="Cerrar cita"
           >
             ×
           </button>
@@ -112,7 +112,7 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-slate-900 rounded-lg text-slate-500 text-sm">
-                  Video unavailable
+                  Video no disponible
                 </div>
               )}
             </div>
@@ -120,7 +120,7 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
 
           {/* Transcript snippet */}
           <div>
-            <h4 className="text-slate-200 text-sm font-semibold mb-1">Transcript Excerpt</h4>
+            <h4 className="text-slate-200 text-sm font-semibold mb-1">Extracto de transcripción</h4>
             <p className="text-slate-300 text-sm leading-relaxed m-0 whitespace-pre-wrap">
               {snippetDisplay}
             </p>
@@ -134,7 +134,7 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
               href={externalUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-slate-400 hover:text-slate-200 text-xs flex items-center gap-1 transition-colors"
+              className="min-h-11 flex items-center gap-1 text-xs text-slate-400 transition-colors hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             >
               {externalLabel}
               <svg

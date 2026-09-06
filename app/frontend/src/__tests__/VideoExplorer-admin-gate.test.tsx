@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VideoExplorer } from '../components/VideoExplorer';
 import * as api from '../lib/api';
 
-// Non-admin user: the "+ Add Video" button must not render. Split into its
+// Non-admin user: the "+ Agregar video" button must not render. Split into its
 // own file because vi.mock is hoisted per-module and cannot be changed
 // between tests in the same file.
 vi.mock('../hooks/useAuth', () => ({
@@ -27,14 +27,14 @@ describe('VideoExplorer admin gate', () => {
     vi.spyOn(api, 'getVideos').mockResolvedValue([]);
   });
 
-  it('hides the "+ Add Video" button for non-admin users', async () => {
+  it('hides the "+ Agregar video" button for non-admin users', async () => {
     render(<VideoExplorer isOpen={true} onClose={vi.fn()} />);
 
     // The modal header renders asynchronously after fetchVideos resolves.
     await waitFor(() => {
-      expect(screen.getByText('Video Library')).toBeInTheDocument();
+      expect(screen.getByText('Biblioteca de videos')).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('+ Add Video')).not.toBeInTheDocument();
+    expect(screen.queryByText('+ Agregar video')).not.toBeInTheDocument();
   });
 });

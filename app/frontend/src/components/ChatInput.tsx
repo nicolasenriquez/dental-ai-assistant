@@ -89,7 +89,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         <textarea
           ref={textareaRef}
           placeholder={
-            isStreaming ? 'Waiting for response…' : 'Ask anything about the video library…'
+            isStreaming ? 'Esperando la respuesta…' : 'Pregunta sobre la biblioteca de videos…'
           }
           disabled={isDisabled}
           onInput={adjustHeight}
@@ -120,7 +120,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           <button
             type="button"
             onClick={onStop}
-            aria-label="Stop response"
+            aria-label="Detener respuesta"
             className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
             style={{
               background: '#dc2626',
@@ -146,7 +146,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             type="button"
             onClick={handleSend}
             disabled={isDisabled}
-            aria-label="Send message"
+            aria-label="Enviar mensaje"
             className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
             style={{
               background: isDisabled ? '#1e293b' : '#3b82f6',

@@ -47,7 +47,7 @@ DynaChat no ofrece un flujo clinico para registrar pacientes y documentar evoluc
 - Edicion de pacientes, edicion o eliminacion de evoluciones y eliminacion fisica de registros clinicos.
 - FHIR, RAG clinico, herramientas del Chat y agentes autonomos.
 - Campo de instrucciones, conversacion de refinamiento, segunda llamada automatica y sistema de prompts configurable.
-- ADR, tabla de auditoria, framework de agentes y dependencias nuevas.
+- ADR, tabla de auditoria y framework de agentes.
 
 ## Impact
 

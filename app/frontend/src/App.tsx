@@ -1,3 +1,4 @@
+import { MotionConfig } from 'motion/react';
 import { type ReactNode, useRef } from 'react';
 import {
   Navigate,
@@ -165,7 +166,11 @@ const router = createBrowserRouter(
 
 // ── Root app ─────────────────────────────────────────────────────
 function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <MotionConfig reducedMotion="user">
+      <RouterProvider router={router} />
+    </MotionConfig>
+  );
 }
 
 export default App;

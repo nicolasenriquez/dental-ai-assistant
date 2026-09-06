@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { PatientIdentity } from '../components/PatientIdentity';
 import { PatientWorkspace, type PatientWorkspaceDetailError } from '../components/PatientWorkspace';
-import { getPatientAge } from '../lib/age';
 import {
   ApiError,
   type EvolutionDetail,
@@ -11,7 +11,6 @@ import {
   getPatient,
   getPatientEvolutions,
 } from '../lib/api';
-import { formatClinicalDate } from '../lib/clinicalDate';
 
 export function PatientDetail() {
   const { patientId = '', evolutionId = '' } = useParams<{
@@ -107,11 +106,9 @@ export function PatientDetail() {
     void loadDetail();
   }, [loadDetail]);
 
-  const patientAge = patient ? getPatientAge(patient.birth_date) : null;
-
   return (
     <main className="min-h-full bg-[var(--bg)] p-6 text-[var(--text-primary)] md:p-8">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         <Link
           to="/patients"
           className="text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
@@ -144,13 +141,7 @@ export function PatientDetail() {
                 <h1 className="text-3xl font-semibold tracking-tight">
                   {patient.first_name} {patient.last_name}
                 </h1>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                  RUT {patient.rut_masked}
-                  {patient.birth_date
-                    ? ` · Nacimiento ${formatClinicalDate(`${patient.birth_date}T00:00:00`)}`
-                    : ''}
-                  {patientAge !== null ? ` · ${patientAge} años` : ''}
-                </p>
+                <PatientIdentity patient={patient} showName={false} />
               </div>
               <Link to={`/patients/${patient.id}/evolutions/new`} className="primary-button">
                 + Nueva evolución

@@ -93,10 +93,11 @@ function EmptyState({ onStarterClick }: EmptyStateProps) {
         <path d="M18,22 L38,22 M18,28 L34,28 M18,34 L30,34" strokeLinecap="round" />
       </svg>
       <h1 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 600, color: '#f1f5f9' }}>
-        Ask anything about the video library
+        Pregunta sobre la biblioteca de videos
       </h1>
       <p style={{ margin: '0 0 24px', color: '#94a3b8', maxWidth: 380, lineHeight: 1.6 }}>
-        This AI has access to transcripts from a curated collection of YouTube videos.
+        Esta IA tiene acceso a las transcripciones de una colección seleccionada de videos de
+        YouTube.
       </p>
       <div
         style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 400 }}
@@ -105,6 +106,7 @@ function EmptyState({ onStarterClick }: EmptyStateProps) {
           <button
             key={q}
             onClick={() => onStarterClick(q)}
+            className="min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
             style={{
               padding: '10px 16px',
               background: '#1e293b',
@@ -152,6 +154,7 @@ function LoadErrorState({ message, onRetry }: { message: string; onRetry: () => 
       <p style={{ color: '#ef4444', marginBottom: 16 }}>{message}</p>
       <button
         onClick={onRetry}
+        className="min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
         style={{
           background: '#1e293b',
           border: '1px solid rgba(255,255,255,0.1)',
@@ -162,7 +165,7 @@ function LoadErrorState({ message, onRetry }: { message: string; onRetry: () => 
           fontSize: 14,
         }}
       >
-        Retry
+        Reintentar
       </button>
     </div>
   );
@@ -205,6 +208,7 @@ function InlineError({ message, onRetry }: InlineErrorProps) {
       <p style={{ flex: 1, margin: 0, fontSize: 14, color: '#f1f5f9' }}>{message}</p>
       <button
         onClick={onRetry}
+        className="min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
         style={{
           background: 'transparent',
           border: '1px solid rgba(239,68,68,0.5)',
@@ -225,7 +229,7 @@ function InlineError({ message, onRetry }: InlineErrorProps) {
           e.currentTarget.style.color = '#ef4444';
         }}
       >
-        Retry
+        Reintentar
       </button>
     </div>
   );
@@ -318,7 +322,7 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
             '[ChatArea] Failed to create conversation:',
             e instanceof Error ? e.message : String(e),
           );
-          addToast('Could not create conversation. Please try again.', 'error');
+          addToast('No pudimos crear la conversación. Intenta nuevamente.', 'error');
         }
         return;
       }
@@ -373,7 +377,7 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
         if (e instanceof RateLimitError) {
           // MISSION §10 #1 — daily cap hit. No retry; the user literally
           // can't send another message until the window slides forward.
-          const friendly = `You've hit your daily message limit (${e.limit}/day). Resets at ${formatResetTime(e.resetAt)}.`;
+          const friendly = `Alcanzaste el límite diario de mensajes (${e.limit}/día). Se reinicia a las ${formatResetTime(e.resetAt)}.`;
           setInlineError(friendly);
           setFailedMessageText(null);
           addToast(friendly, 'error');
@@ -384,10 +388,11 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
           return;
         }
 
-        const errMsg = e instanceof Error ? e.message : 'Failed to send message';
-        setInlineError('Failed to get a response. Please try again.');
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        console.error('[ChatArea] Failed to send message:', errorMessage);
+        setInlineError('No pudimos obtener una respuesta. Intenta nuevamente.');
         setFailedMessageText(content);
-        addToast(errMsg || 'Network error — message not sent', 'error');
+        addToast('No pudimos enviar el mensaje. Intenta nuevamente.', 'error');
         setTimeout(() => chatInputRef.current?.setInputText(content), 50);
       }
     },
@@ -414,7 +419,7 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
     // This catches the silent-failure path where conversationId is set but the pending
     // message never fires (e.g., component re-mount, race condition).
     const timeoutId = setTimeout(() => {
-      addToast('Failed to send message. Please try again.', 'error');
+      addToast('No pudimos enviar el mensaje. Intenta nuevamente.', 'error');
     }, 2000);
     handleSend(msg);
     return () => clearTimeout(timeoutId);
@@ -449,9 +454,9 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
         exportConversationAsMarkdown(conversation, messages);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Export failed';
-      console.error('[ChatArea] Export failed:', msg);
-      addToast(`Export failed: ${msg}`, 'error');
+      const message = e instanceof Error ? e.message : String(e);
+      console.error('[ChatArea] Export failed:', message);
+      addToast('No pudimos exportar la conversación. Intenta nuevamente.', 'error');
     }
   }, [conversation, messages, addToast]);
 
@@ -483,7 +488,8 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
         {conversation && messages.length > 0 && (
           <button
             onClick={handleExport}
-            title="Export conversation as Markdown"
+            title="Exportar conversación como Markdown"
+            className="min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
             style={{
               position: 'absolute',
               top: 12,
@@ -524,7 +530,7 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
               <polyline points="6.5,1 6.5,8.5" />
               <polyline points="3.5,5.5 6.5,8.5 9.5,5.5" />
             </svg>
-            Export
+            Exportar
           </button>
         )}
 
@@ -534,7 +540,7 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
 
         {showError && (
           <LoadErrorState
-            message={error || 'Failed to load messages'}
+            message="No pudimos cargar los mensajes. Intenta nuevamente."
             onRetry={() => window.location.reload()}
           />
         )}

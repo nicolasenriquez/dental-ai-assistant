@@ -23,10 +23,16 @@ def normalize_rut(value: str) -> tuple[int, str]:
     return number, supplied_dv
 
 
-def mask_rut(number: int) -> str:
+def mask_rut(number: int, check_digit: str) -> str:
     digits = str(number)
-    visible = digits[:2] if len(digits) > 7 else digits[:1]
-    return f"{visible}.***.***-*"
+    visible_count = min(3, len(digits) - 1)
+    visible = digits[-visible_count:] if visible_count else ""
+    masked = "•" * (len(digits) - visible_count) + visible
+    groups: list[str] = []
+    while masked:
+        groups.insert(0, masked[-3:])
+        masked = masked[:-3]
+    return f"{'.'.join(groups)}-{check_digit.upper()}"
 
 
 def public_patient(row: dict[str, Any]) -> dict[str, Any]:
@@ -35,7 +41,7 @@ def public_patient(row: dict[str, Any]) -> dict[str, Any]:
         "id": row["id"],
         "first_name": row["first_name"],
         "last_name": row["last_name"],
-        "rut_masked": mask_rut(row["rut_number"]),
+        "rut_masked": mask_rut(row["rut_number"], row["rut_dv"]),
         "last_evolution_at": row.get("last_evolution_at"),
     }
 

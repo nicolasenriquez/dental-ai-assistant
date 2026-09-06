@@ -61,6 +61,7 @@ def test_patient_repository_contract_is_owner_scoped() -> None:
 def test_patient_contract_never_puts_rut_in_route_templates() -> None:
     route_paths = {getattr(route, "path", "") for route in app.routes}
     assert "/api/patients/search" in route_paths
+    assert "/api/patients/{patient_id}/identifier" not in route_paths
     assert all("rut" not in path.lower() for path in route_paths)
 
 
@@ -69,6 +70,13 @@ def test_patient_responses_are_minimal_and_masked() -> None:
 
     fields = set(PatientSummary.model_fields)
     assert fields == {"id", "first_name", "last_name", "rut_masked", "last_evolution_at"}
+
+
+def test_patient_rut_display_formats_are_explicit() -> None:
+    from backend.patients.rut import mask_rut
+
+    assert mask_rut(19_345_678, "9") == "••.•••.678-9"
+    assert mask_rut(123, "6") == "•23-6"
 
 
 def test_patient_logging_contract_contains_no_sensitive_payload_logging() -> None:

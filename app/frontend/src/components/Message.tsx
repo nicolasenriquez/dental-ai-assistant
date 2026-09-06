@@ -85,7 +85,7 @@ function SourceCitations({
       {showTwoTier && (
         <>
           <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>
-            Sources cited ({cited.length})
+            Fuentes citadas ({cited.length})
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {cited.map((c, i) => citationChip(c, i, onCitationClick, false))}
@@ -113,7 +113,7 @@ function SourceCitations({
           onMouseEnter={(e) => (e.currentTarget.style.color = '#f1f5f9')}
           onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
           aria-expanded={expanded}
-          aria-label={expanded ? 'Collapse sources' : 'Expand sources'}
+          aria-label={expanded ? 'Contraer fuentes' : 'Expandir fuentes'}
         >
           <svg
             width="12"
@@ -132,8 +132,8 @@ function SourceCitations({
             <polyline points="4,2 8,6 4,10" />
           </svg>
           {showTwoTier
-            ? `All sources consulted (${sources.length})`
-            : `Sources (${sources.length})`}
+            ? `Todas las fuentes consultadas (${sources.length})`
+            : `Fuentes (${sources.length})`}
         </button>
       )}
 
@@ -185,7 +185,7 @@ export function Message({
         {isStreaming && !content ? (
           streamingStatus ? (
             <div className="text-slate-400 text-[13px] italic">
-              {streamingStatus.subject ? `Searching: ${streamingStatus.subject}…` : 'Working…'}
+              {streamingStatus.subject ? `Buscando: ${streamingStatus.subject}…` : 'Procesando…'}
             </div>
           ) : (
             <TypingIndicator />

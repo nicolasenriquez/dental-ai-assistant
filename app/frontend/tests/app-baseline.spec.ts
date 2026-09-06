@@ -148,27 +148,35 @@ test('captures public views and patients workflow', async ({ page }) => {
 test('captures chat, library, admin, and not-found behaviors', async ({ page }) => {
   await page.clock.install({ time: '2026-01-15T12:00:00Z' });
   await page.goto('/chat');
-  await expect(page.getByPlaceholder(/Ask anything about the video library/)).toBeVisible();
+  await expect(page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/)).toBeVisible();
   await captureView(page, 'chat-empty');
 
   const starter = page.getByRole('button', { name: /How do I use subagents/ });
   await starter.click();
-  await expect(page.getByPlaceholder(/Ask anything about the video library/)).toHaveValue(
+  await expect(page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/)).toHaveValue(
     /How do I use subagents/,
   );
 
   const conversationItem = page.locator('#app-sidebar .conversation-item').first();
   await expect(conversationItem).toBeVisible();
-  await conversationItem.getByRole('button').click();
+  await conversationItem.getByRole('button', { name: 'Baseline conversation' }).click();
   await expect(page).toHaveURL(/\/c\/.+$/);
   await conversationItem.hover();
-  await page.getByRole('button', { name: 'Renombrar conversación', exact: true }).click();
+  await conversationItem
+    .getByRole('button', { name: /acciones para baseline conversation/i })
+    .click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await captureView(page, 'sidebar-conversation-menu');
+  await page.getByRole('menuitem', { name: 'Renombrar' }).click();
   const renameInput = conversationItem.getByRole('textbox');
   await expect(renameInput).toBeVisible();
   await renameInput.press('Escape');
   await conversationItem.hover();
-  await page.getByRole('button', { name: 'Eliminar conversación', exact: true }).click();
-  await expect(page.getByText('¿Eliminar conversación?')).toBeVisible();
+  await conversationItem
+    .getByRole('button', { name: /acciones para baseline conversation/i })
+    .click();
+  await page.getByRole('menuitem', { name: 'Eliminar' }).click();
+  await expect(page.getByRole('dialog', { name: '¿Eliminar conversación?' })).toBeVisible();
   await page.getByRole('button', { name: 'Cancelar' }).click();
 
   await mockJsonRoute(page, '**/api/conversations', conversationFixture, 'POST');
@@ -182,20 +190,26 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   await expect(page.getByText('Baseline response.')).toBeVisible();
   await captureView(page, 'chat-conversation');
 
-  await page.getByRole('button', { name: 'Explorar biblioteca de videos' }).click();
-  const library = page.getByRole('dialog', { name: 'Video Knowledge Base' });
+  const userMenuTrigger = page.getByRole('button', { name: /abrir menú de usuario/i });
+  await userMenuTrigger.click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await captureView(page, 'sidebar-user-menu');
+  await page.getByRole('menuitem', { name: /cerrar sesión/i }).press('Escape');
+
+  await page.getByRole('button', { name: 'Biblioteca' }).click();
+  const library = page.getByRole('dialog', { name: 'Biblioteca de videos' });
   await expect(library).toBeVisible();
-  await expect(library.getByRole('heading', { name: 'Video Library' })).toBeVisible();
+  await expect(library.getByRole('heading', { name: 'Biblioteca de videos' })).toBeVisible();
   await captureView(page, 'video-library');
-  const videoSearch = library.getByRole('searchbox', { name: 'Search videos' });
+  const videoSearch = library.getByRole('searchbox', { name: 'Buscar videos' });
   await videoSearch.fill('baseline');
   await expect(library).toBeVisible();
   await captureView(page, 'video-library-search');
-  await library.getByRole('button', { name: /Add Video/ }).click();
-  await expect(page.getByRole('heading', { name: 'Add New Video' })).toBeVisible();
+  await library.getByRole('button', { name: /Agregar video/ }).click();
+  await expect(page.getByRole('heading', { name: 'Agregar video' })).toBeVisible();
   await captureView(page, 'video-library-add-dialog');
-  await page.getByRole('button', { name: 'Cancel' }).click();
-  await page.getByRole('button', { name: 'Close video library' }).click();
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+  await page.getByRole('button', { name: 'Cerrar biblioteca de videos' }).click();
 
   await mockJsonRoute(
     page,
@@ -265,4 +279,47 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   await page.goto('/this-route-does-not-exist');
   await expect(page.getByText('Página no encontrada')).toBeVisible();
   await captureView(page, 'not-found');
+});
+
+test('captures sidebar responsive states and preserves the rail contract', async ({ page }) => {
+  const viewports = [
+    { width: 1440, height: 900, name: '1440' },
+    { width: 1280, height: 800, name: '1280' },
+    { width: 1024, height: 768, name: '1024' },
+    { width: 390, height: 844, name: '390' },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/chat');
+    const sidebar = page.locator('#app-sidebar');
+    await expect(sidebar).toBeVisible();
+
+    if (viewport.width < 768) {
+      await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+      await page.getByRole('button', { name: 'Abrir navegación' }).click();
+      await expect(sidebar).not.toHaveAttribute('aria-hidden');
+      await expect(sidebar).toHaveScreenshot(`sidebar-mobile-${viewport.name}-open.png`, {
+        animations: 'disabled',
+      });
+      await page.getByRole('button', { name: 'Cerrar navegación' }).click();
+      await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+    } else {
+      await expect(sidebar).toHaveScreenshot(`sidebar-${viewport.name}-expanded.png`, {
+        animations: 'disabled',
+      });
+      await sidebar.getByRole('button', { name: 'Colapsar navegación' }).click();
+      await expect(sidebar).not.toHaveAttribute('aria-hidden');
+      await expect(sidebar).toHaveClass(/collapsed/);
+      await expect(sidebar).toHaveScreenshot(`sidebar-${viewport.name}-collapsed.png`, {
+        animations: 'disabled',
+      });
+      await sidebar.getByRole('button', { name: 'Expandir navegación' }).click();
+    }
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(hasHorizontalOverflow).toBe(false);
+  }
 });

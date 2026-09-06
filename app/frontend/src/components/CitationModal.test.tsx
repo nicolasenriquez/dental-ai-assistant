@@ -19,7 +19,7 @@ describe('CitationModal', () => {
     render(<CitationModal citation={mockCitation} onClose={onClose} />);
 
     expect(screen.getByText('Test Video Title')).toBeInTheDocument();
-    expect(screen.getByText(/at 12:34/)).toBeInTheDocument();
+    expect(screen.getByText(/en 12:34/)).toBeInTheDocument();
   });
 
   it('shows correct iframe src with start param', () => {
@@ -36,7 +36,7 @@ describe('CitationModal', () => {
     const onClose = vi.fn();
     render(<CitationModal citation={mockCitation} onClose={onClose} />);
 
-    expect(screen.getByText('Transcript Excerpt')).toBeInTheDocument();
+    expect(screen.getByText('Extracto de transcripción')).toBeInTheDocument();
     expect(
       screen.getByText(
         'This is a sample transcript snippet that appears in the video at the cited moment.',
@@ -48,7 +48,7 @@ describe('CitationModal', () => {
     const onClose = vi.fn();
     render(<CitationModal citation={mockCitation} onClose={onClose} />);
 
-    const link = screen.getByRole('link', { name: /Open on YouTube/i }) as HTMLAnchorElement;
+    const link = screen.getByRole('link', { name: /Abrir en YouTube/i }) as HTMLAnchorElement;
     expect(link.href).toContain('youtube.com/watch?v=dQw4w9WgXcQ');
     expect(link.href).toContain('t=754s');
   });
@@ -76,7 +76,7 @@ describe('CitationModal', () => {
     const onClose = vi.fn();
     render(<CitationModal citation={mockCitation} onClose={onClose} />);
 
-    const closeButton = screen.getByRole('button', { name: 'Close' });
+    const closeButton = screen.getByRole('button', { name: 'Cerrar cita' });
     fireEvent.click(closeButton);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -101,7 +101,7 @@ describe('CitationModal', () => {
     const onClose = vi.fn();
     render(<CitationModal citation={badCitation} onClose={onClose} />);
 
-    expect(screen.getByText('Video unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Video no disponible')).toBeInTheDocument();
   });
 
   it('shows video unavailable when youtube URL has empty v parameter', () => {
@@ -112,7 +112,7 @@ describe('CitationModal', () => {
     const onClose = vi.fn();
     render(<CitationModal citation={badCitation} onClose={onClose} />);
 
-    expect(screen.getByText('Video unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Video no disponible')).toBeInTheDocument();
   });
 
   it('shows iframe when youtube URL has a valid v parameter with extra query params', () => {
@@ -144,7 +144,7 @@ describe('CitationModal', () => {
     render(<CitationModal citation={badCitation} onClose={onClose} />);
 
     // Relative URL throws in URL constructor, shows unavailable
-    expect(screen.getByText('Video unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Video no disponible')).toBeInTheDocument();
   });
 });
 

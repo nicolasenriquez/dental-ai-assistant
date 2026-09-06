@@ -1,5 +1,6 @@
 import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Link, useBeforeUnload, useBlocker, useNavigate, useParams } from 'react-router-dom';
+import { PatientIdentity } from '../components/PatientIdentity';
 import { useToast } from '../hooks/useToast';
 import {
   ApiError,
@@ -324,7 +325,7 @@ export function NewEvolution() {
 
   return (
     <main className="min-h-full bg-[var(--bg)] p-6 text-[var(--text-primary)] md:p-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-7xl">
         <Link
           to={`/patients/${patientId}`}
           className="text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
@@ -348,9 +349,7 @@ export function NewEvolution() {
               </button>
             </div>
           ) : (
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Paciente: {patient.first_name} {patient.last_name} · RUT {patient.rut_masked}
-            </p>
+            <PatientIdentity patient={patient} />
           )}
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
             <span>{formatClinicalDateTime(evolutionAt)}</span>
@@ -423,22 +422,24 @@ export function NewEvolution() {
         {!historyLoading && previousEvolution && (
           <aside
             aria-label="Referencia de la última evolución"
-            className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-4"
+            className="evolution-reference-card mt-5"
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-xs font-semibold tracking-wider text-[var(--text-secondary)]">
-                REFERENCIA DE LA ÚLTIMA EVOLUCIÓN
-              </h2>
+              <h2 className="evolution-reference-card__heading">Última atención</h2>
               <time
                 dateTime={previousEvolution.evolution_at}
-                className="text-sm text-[var(--text-secondary)]"
+                className="evolution-reference-card__time"
               >
                 {formatClinicalDateTime(previousEvolution.evolution_at)}
               </time>
             </div>
-            <p className="mt-2 line-clamp-3 text-sm text-[var(--text-secondary)]">
-              {previousEvolution.preview}
-            </p>
+            <p className="evolution-reference-card__preview">{previousEvolution.preview}</p>
+            <Link
+              to={`/patients/${patientId}/evolutions/${previousEvolution.id}`}
+              className="evolution-reference-card__action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            >
+              Ver evolución completa
+            </Link>
           </aside>
         )}
 
@@ -574,7 +575,7 @@ export function NewEvolution() {
             <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
               {patient && (
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Guardar para {patient.first_name} {patient.last_name} · RUT {patient.rut_masked}
+                  Evolución de {patient.first_name} {patient.last_name}
                 </p>
               )}
               <button

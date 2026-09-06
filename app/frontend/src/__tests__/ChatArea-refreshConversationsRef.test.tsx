@@ -140,7 +140,7 @@ describe('ChatArea refreshConversationsRef', () => {
 
     // Type and send a message
     const input = screen.getByRole('textbox');
-    const sendButton = screen.getByRole('button', { name: /send/i });
+    const sendButton = screen.getByRole('button', { name: /enviar mensaje/i });
 
     fireEvent.change(input, { target: { value: 'Hello test message' } });
     fireEvent.click(sendButton);
@@ -182,7 +182,7 @@ describe('ChatArea refreshConversationsRef', () => {
     });
 
     const input = screen.getByRole('textbox');
-    const sendButton = screen.getByRole('button', { name: /send/i });
+    const sendButton = screen.getByRole('button', { name: /enviar mensaje/i });
 
     fireEvent.change(input, { target: { value: 'Test message' } });
     fireEvent.click(sendButton);
@@ -216,7 +216,7 @@ describe('ChatArea refreshConversationsRef', () => {
     });
 
     const input = screen.getByRole('textbox');
-    const sendButton = screen.getByRole('button', { name: /send/i });
+    const sendButton = screen.getByRole('button', { name: /enviar mensaje/i });
 
     fireEvent.change(input, { target: { value: 'Test' } });
 
@@ -284,7 +284,7 @@ describe('ChatArea refreshConversationsRef', () => {
 
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'Hello world' } });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
 
     await waitFor(() => {
       expect(api.createConversation).toHaveBeenCalledTimes(1);
@@ -305,13 +305,13 @@ describe('ChatArea refreshConversationsRef', () => {
     await waitFor(() => expect(screen.getByRole('textbox')).toBeInTheDocument());
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Test' } });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
 
     // Wait for the error to propagate
     await new Promise((r) => setTimeout(r, 200));
 
     expect(addToastRef.current).toHaveBeenCalledWith(
-      'Could not create conversation. Please try again.',
+      'No pudimos crear la conversación. Intenta nuevamente.',
       'error',
     );
   });

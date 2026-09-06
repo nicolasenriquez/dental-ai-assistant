@@ -1,406 +1,37 @@
+import { motion } from 'motion/react';
 import {
   type KeyboardEventHandler,
   type MutableRefObject,
   type RefObject,
   useEffect,
-  useRef,
   useState,
 } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useConversations } from '../hooks/useConversations';
 import { useToast } from '../hooks/useToast';
-import { type Conversation, createConversation, deleteConversation } from '../lib/api';
+import { createConversation, deleteConversation } from '../lib/api';
 import { VideoExplorer } from './VideoExplorer';
+import { ConfirmDialog, ConversationList } from './sidebar/ConversationList';
+import { SidebarHeader } from './sidebar/SidebarHeader';
+import { SidebarNavigation } from './sidebar/SidebarNavigation';
+import { SidebarSearch } from './sidebar/SidebarSearch';
+import { SidebarUserMenu } from './sidebar/SidebarUserMenu';
+import { SIDEBAR_MOTION } from './sidebar/sidebarMotion';
 
-// ── Relative time helper ─────────────────────────────────────────
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHrs = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHrs / 24);
-
-  if (diffSecs < 60) return 'ahora';
-  if (diffMins < 60) return `hace ${diffMins} min`;
-  if (diffHrs < 24) return `hace ${diffHrs} h`;
-  if (diffDays < 7) return `hace ${diffDays} d`;
-  return date.toLocaleDateString('es-CL', { month: 'short', day: 'numeric' });
-}
-
-// ── Skeleton row ─────────────────────────────────────────────────
-function SkeletonRow() {
-  return (
-    <div
-      style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
-      }}
-    >
-      <div className="skeleton" style={{ height: 14, width: '70%', marginBottom: 8 }} />
-      <div className="skeleton" style={{ height: 11, width: '40%', marginBottom: 6 }} />
-      <div className="skeleton" style={{ height: 11, width: '90%' }} />
-    </div>
-  );
-}
-
-// ── Highlight matched substring in a title ──────────────────────
-function highlightMatch(title: string, query: string) {
-  const q = query.trim();
-  if (!q) return title;
-  const idx = title.toLowerCase().indexOf(q.toLowerCase());
-  if (idx === -1) return title;
-  return (
-    <>
-      {title.slice(0, idx)}
-      <mark
-        style={{
-          background: 'rgba(59,130,246,0.35)',
-          color: 'inherit',
-          padding: 0,
-          borderRadius: 2,
-        }}
-      >
-        {title.slice(idx, idx + q.length)}
-      </mark>
-      {title.slice(idx + q.length)}
-    </>
-  );
-}
-
-// ── Single conversation item ─────────────────────────────────────
-interface ConvItemProps {
-  conv: Conversation;
-  isActive: boolean;
-  searchQuery: string;
-  onSelect: () => void;
-  onDeleteRequest: (id: string) => void;
-  onRename: (id: string, title: string) => void;
-}
-
-function ConvItem({
-  conv,
-  isActive,
-  searchQuery,
-  onSelect,
-  onDeleteRequest,
-  onRename,
-}: ConvItemProps) {
-  const [hovered, setHovered] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(conv.title);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  const preview = conv.preview
-    ? conv.preview.length > 80
-      ? conv.preview.slice(0, 77) + '…'
-      : conv.preview
-    : null;
-
-  const handleRenameCommit = () => {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== conv.title) {
-      onRename(conv.id, trimmed);
-    }
-    setEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleRenameCommit();
-    if (e.key === 'Escape') {
-      setEditing(false);
-      setEditValue(conv.title);
-    }
-  };
-
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="conversation-item"
-      style={{
-        position: 'relative',
-        padding: '10px 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
-        background: isActive ? '#1e293b' : hovered ? 'rgba(30,41,59,0.6)' : 'transparent',
-        transition: 'background 0.15s, border-color 0.15s',
-        userSelect: 'none',
-      }}
-    >
-      {/* Title */}
-      {editing ? (
-        <input
-          ref={inputRef}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={handleRenameCommit}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            fontSize: 14,
-            fontWeight: 500,
-            color: '#f1f5f9',
-            background: '#0f172a',
-            border: '1px solid #3b82f6',
-            borderRadius: 4,
-            padding: '1px 6px',
-            width: '100%',
-            outline: 'none',
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={onSelect}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            setEditing(true);
-            setEditValue(conv.title);
-          }}
-          aria-current={isActive ? 'page' : undefined}
-          className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          style={{
-            display: 'block',
-            width: '100%',
-            border: 'none',
-            padding: 0,
-            background: 'transparent',
-            color: 'inherit',
-            cursor: 'pointer',
-            textAlign: 'left',
-            font: 'inherit',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 500,
-              color: '#f1f5f9',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              paddingRight: hovered ? 56 : 0,
-            }}
-          >
-            {highlightMatch(conv.title, searchQuery)}
-          </div>
-
-          {/* Timestamp */}
-          <div
-            style={{
-              fontSize: 12,
-              color: '#94a3b8',
-              marginTop: 2,
-              marginBottom: preview ? 3 : 0,
-            }}
-          >
-            {formatRelativeTime(conv.updated_at)}
-          </div>
-
-          {/* Preview */}
-          {preview && (
-            <div
-              style={{
-                fontSize: 12,
-                color: 'var(--text-tertiary)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {preview}
-            </div>
-          )}
-        </button>
-      )}
-
-      {/* Pencil icon — visible on hover (rename) */}
-      {hovered && !editing && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setEditing(true);
-            setEditValue(conv.title);
-          }}
-          aria-label="Renombrar conversación"
-          title="Renombrar conversación"
-          className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          style={{
-            position: 'absolute',
-            right: 30,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--text-tertiary)',
-            padding: 4,
-            borderRadius: 4,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'color 0.15s',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = '#3b82f6')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-        >
-          ✏️
-        </button>
-      )}
-
-      {/* Delete button — visible on hover */}
-      {hovered && !editing && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDeleteRequest(conv.id);
-          }}
-          title="Eliminar conversación"
-          aria-label="Eliminar conversación"
-          className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          style={{
-            position: 'absolute',
-            right: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--text-tertiary)',
-            padding: 4,
-            borderRadius: 4,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'color 0.15s',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          >
-            <polyline points="2,4 12,4" />
-            <path d="M5,4V2.5a.5.5,0,0,1,.5-.5h3a.5.5,0,0,1,.5.5V4" />
-            <path d="M3,4l.7,7.5a.5.5,0,0,0,.5.5h5.6a.5.5,0,0,0,.5-.5L11,4" />
-          </svg>
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── Delete confirm dialog ─────────────────────────────────────────
-interface ConfirmDialogProps {
-  onConfirm: () => void;
-  onCancel: () => void;
-  deleting: boolean;
-  error: boolean;
-}
-
-function ConfirmDialog({ onConfirm, onCancel, deleting, error }: ConfirmDialogProps) {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.6)',
-        zIndex: 50,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <div
-        style={{
-          background: '#1e293b',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 12,
-          padding: 24,
-          width: 320,
-          maxWidth: 'calc(100vw - 48px)',
-          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-        }}
-      >
-        <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#f1f5f9' }}>
-          ¿Eliminar conversación?
-        </p>
-        <p style={{ margin: '0 0 20px', fontSize: 14, color: '#94a3b8' }}>
-          Esta acción no se puede deshacer.
-        </p>
-        {error && (
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#ef4444' }}>
-            No pudimos eliminarla. Intenta nuevamente.
-          </p>
-        )}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button
-            onClick={onCancel}
-            className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: 8,
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '8px 16px',
-              fontSize: 14,
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={deleting}
-            className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            style={{
-              background: '#ef4444',
-              border: 'none',
-              borderRadius: 8,
-              color: '#fff',
-              cursor: deleting ? 'not-allowed' : 'pointer',
-              padding: '8px 16px',
-              fontSize: 14,
-              opacity: deleting ? 0.7 : 1,
-            }}
-          >
-            {deleting ? 'Eliminando…' : 'Eliminar'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Daily quota counter ──────────────────────────────────────────
 interface DailyQuotaCounterProps {
+  isCollapsed: boolean;
   used: number;
   remaining: number;
   resetsAt: string | null;
 }
 
-function DailyQuotaCounter({ used, remaining, resetsAt }: DailyQuotaCounterProps) {
-  const cap = used + remaining;
+function DailyQuotaCounter({ isCollapsed, used, remaining, resetsAt }: DailyQuotaCounterProps) {
+  const cap = Math.max(used + remaining, 0);
   const atLimit = remaining === 0;
+  const percent = cap > 0 ? Math.min(100, Math.max(0, (used / cap) * 100)) : 0;
   const resetLabel = resetsAt
-    ? new Date(resetsAt).toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit',
-      })
+    ? new Date(resetsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     : null;
 
   return (
@@ -408,38 +39,50 @@ function DailyQuotaCounter({ used, remaining, resetsAt }: DailyQuotaCounterProps
       role="status"
       aria-live="polite"
       data-testid="quota-counter"
-      style={{
-        padding: '8px 12px',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
-        fontSize: 12,
-        color: atLimit ? '#ef4444' : '#94a3b8',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 8,
-      }}
+      className={`sidebar-quota${atLimit ? ' is-at-limit' : ''}`}
+      title={`${used} de ${cap} mensajes usados hoy`}
     >
-      <span>
-        <strong style={{ color: atLimit ? '#ef4444' : '#f1f5f9', fontWeight: 600 }}>
-          {used}/{cap}
-        </strong>{' '}
-        mensajes hoy
-      </span>
-      {atLimit && resetLabel && (
-        <span style={{ fontSize: 11, opacity: 0.85 }}>se reinicia a las {resetLabel}</span>
+      <div className="sidebar-quota-heading">
+        <span className="sidebar-label">
+          <strong>{used}</strong> / {cap} mensajes hoy
+        </span>
+        {atLimit && resetLabel && (
+          <span className="sidebar-quota-reset sidebar-label">{resetLabel}</span>
+        )}
+      </div>
+      <div
+        className="sidebar-quota-track"
+        role="progressbar"
+        tabIndex={0}
+        aria-label="Cuota de mensajes diaria"
+        aria-valuemin={0}
+        aria-valuemax={cap}
+        aria-valuenow={Math.min(used, cap)}
+      >
+        <motion.div
+          className="sidebar-quota-fill"
+          animate={{ width: `${percent}%` }}
+          transition={{ duration: SIDEBAR_MOTION.slow, ease: SIDEBAR_MOTION.ease }}
+        />
+      </div>
+      {isCollapsed && (
+        <span className="sidebar-visually-hidden">
+          {used} de {cap} mensajes
+        </span>
       )}
     </div>
   );
 }
 
-// ── Main Sidebar component ───────────────────────────────────────
-interface SidebarProps {
+export interface SidebarProps {
   activeConversationId?: string;
   isOpen: boolean;
   onClose: () => void;
   conversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
   showConversations?: boolean;
   isMobile?: boolean;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
   sidebarRef?: RefObject<HTMLElement>;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
 }
@@ -451,17 +94,17 @@ export function Sidebar({
   conversationsRef,
   showConversations = true,
   isMobile = false,
+  isCollapsed = false,
+  onToggleCollapse = () => undefined,
   sidebarRef,
   onKeyDown,
 }: SidebarProps) {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const { conversations, loading, refetch, rename, filteredConversations } = useConversations(
-    debouncedQuery,
-    showConversations,
-  );
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { conversations, loading, error, refetch, rename, filteredConversations } =
+    useConversations(debouncedQuery, showConversations);
   const { user, logout } = useAuth();
   const [creatingNew, setCreatingNew] = useState(false);
   const [newChatError, setNewChatError] = useState<string | null>(null);
@@ -472,45 +115,40 @@ export function Sidebar({
   const [loggingOut, setLoggingOut] = useState(false);
   const { addToast } = useToast();
 
-  // Debounce search query — 250ms per issue #92
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 250);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Store refetch in the shared ref so ChatArea can trigger it
   useEffect(() => {
-    if (conversationsRef) {
-      conversationsRef.current = refetch;
-    }
+    if (conversationsRef) conversationsRef.current = refetch;
   }, [refetch, conversationsRef]);
 
-  // ── New Chat ──
   const handleNewChat = async () => {
-    // Guard: if already on an empty conversation, reuse it instead of creating a duplicate
     if (activeConversationId) {
-      const activeConv = conversations.find((c) => c.id === activeConversationId);
-      if (activeConv && !activeConv.preview) {
-        // Already on an empty conversation — no-op, just close sidebar
+      const activeConversation = conversations.find(
+        (conversation) => conversation.id === activeConversationId,
+      );
+      if (activeConversation && !activeConversation.preview) {
         onClose();
         return;
       }
     }
+
     setCreatingNew(true);
     setNewChatError(null);
     try {
-      const conv = await createConversation();
+      const conversation = await createConversation();
       await refetch();
-      navigate(`/c/${conv.id}`);
+      navigate(`/c/${conversation.id}`);
       onClose();
-    } catch (e) {
+    } catch {
       setNewChatError('No pudimos crear la conversación. Intenta nuevamente.');
     } finally {
       setCreatingNew(false);
     }
   };
 
-  // ── Delete flow ──
   const handleDeleteRequest = (id: string) => {
     setConfirmId(id);
     setDeleteError(false);
@@ -521,35 +159,24 @@ export function Sidebar({
     setDeleting(true);
     setDeleteError(false);
     try {
-      const res = await deleteConversation(confirmId);
-      if (!res.ok && res.status !== 204) {
-        throw new Error('Delete failed');
-      }
+      const response = await deleteConversation(confirmId);
+      if (!response.ok && response.status !== 204) throw new Error('Delete failed');
       setConfirmId(null);
       await refetch();
-      if (activeConversationId === confirmId) {
-        navigate('/chat');
-      }
-    } catch (e) {
-      console.error('[Sidebar] Delete conversation failed:', e);
+      if (activeConversationId === confirmId) navigate('/chat');
+    } catch (deleteFailure) {
+      console.error('[Sidebar] Delete conversation failed:', deleteFailure);
       setDeleteError(true);
     } finally {
       setDeleting(false);
     }
   };
 
-  const handleDeleteCancel = () => {
-    setConfirmId(null);
-    setDeleteError(false);
+  const handleRename = async (id: string, title: string) => {
+    const result = await rename(id, title);
+    if (!result.ok && result.error) addToast(`No pudimos renombrar: ${result.error}`, 'error');
   };
 
-  // ── Navigate to conversation ──
-  const handleSelect = (id: string) => {
-    navigate(`/c/${id}`);
-    onClose();
-  };
-
-  // ── Logout ──
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
@@ -561,399 +188,122 @@ export function Sidebar({
     }
   };
 
-  // ── Rename ──
-  const handleRename = async (id: string, title: string) => {
-    const { ok, error } = await rename(id, title);
-    if (!ok && error) {
-      addToast(`No pudimos renombrar: ${error}`, 'error');
-    }
-  };
-
   return (
     <>
-      <aside
+      <motion.aside
         id="app-sidebar"
         ref={sidebarRef}
         onKeyDown={onKeyDown}
-        className={`sidebar-container${isOpen ? ' open' : ''}`}
+        className={`sidebar-container${isOpen ? ' open' : ''}${isCollapsed ? ' collapsed' : ''}`}
         aria-hidden={isMobile && !isOpen ? true : undefined}
+        initial={false}
+        animate={{
+          width: isMobile ? 'min(260px, calc(100vw - 24px))' : isCollapsed ? 56 : 240,
+          x: isMobile && !isOpen ? '-100%' : 0,
+        }}
+        transition={
+          isMobile
+            ? { duration: SIDEBAR_MOTION.slow, ease: SIDEBAR_MOTION.ease }
+            : SIDEBAR_MOTION.spring
+        }
       >
-        <nav aria-label="Navegacion principal" className="p-3 pb-1 space-y-1">
-          {[
-            {
-              to: '/patients',
-              label: 'Pacientes',
-              active: location.pathname.startsWith('/patients'),
-            },
-            { to: '/chat', label: 'Chat', active: showConversations },
-          ].map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={onClose}
-              aria-current={item.active ? 'page' : undefined}
-              className={`block rounded-lg px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${item.active ? 'bg-[var(--surface-2)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <SidebarHeader
+          isCollapsed={isCollapsed}
+          isMobile={isMobile}
+          onClose={onClose}
+          onToggleCollapse={onToggleCollapse}
+        />
 
-        {/* ── New Chat button ── */}
-        {showConversations && (
-          <div style={{ padding: '12px 12px 8px' }}>
-            <button
-              onClick={handleNewChat}
-              disabled={creatingNew}
-              className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none focus-visible:shadow-[0_0_12px_var(--accent-glow)]"
-              style={{
-                width: '100%',
-                background: '#3b82f6',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                padding: '10px 16px',
-                cursor: creatingNew ? 'not-allowed' : 'pointer',
-                fontWeight: 600,
-                fontSize: 14,
-                opacity: creatingNew ? 0.75 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                transition: 'background 0.15s, filter 0.15s',
-              }}
-              onMouseEnter={(e) => !creatingNew && (e.currentTarget.style.background = '#1d4ed8')}
-              onMouseLeave={(e) => {
-                if (!creatingNew) {
-                  e.currentTarget.style.background = '#3b82f6';
-                }
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              >
-                <line x1="7" y1="2" x2="7" y2="12" />
-                <line x1="2" y1="7" x2="12" y2="7" />
-              </svg>
-              {creatingNew ? 'Creando…' : 'Nuevo chat'}
-            </button>
+        <div className="sidebar-content">
+          <SidebarNavigation
+            isCollapsed={isCollapsed}
+            showConversations={showConversations}
+            creatingNew={creatingNew}
+            onClose={onClose}
+            onNewChat={handleNewChat}
+            onOpenLibrary={() => {
+              setExplorerOpen(true);
+              onClose();
+            }}
+          />
 
-            {newChatError && (
-              <p
-                style={{
-                  fontSize: 12,
-                  color: '#ef4444',
-                  margin: '8px 0 0',
-                  textAlign: 'center',
-                }}
-              >
-                {newChatError}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ── Search conversations ── */}
-        {showConversations && (
-          <div style={{ padding: '0 12px 8px' }}>
-            <input
-              type="text"
-              placeholder="Buscar conversaciones..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: 8,
-                background: '#1e293b',
-                border: '1px solid #334155',
-                color: '#f1f5f9',
-                fontSize: 13,
-                outline: 'none',
-                transition: 'border-color 0.15s',
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = '#3b82f6')}
-              onBlur={(e) => (e.currentTarget.style.borderColor = '#334155')}
-            />
-          </div>
-        )}
-
-        {/* ── Conversation list ── */}
-        {showConversations ? (
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loading ? (
-              <>
-                <SkeletonRow />
-                <SkeletonRow />
-                <SkeletonRow />
-                <SkeletonRow />
-              </>
-            ) : filteredConversations.length === 0 ? (
-              // Empty state — distinct copy when the user is searching
-              <div
-                style={{
-                  padding: '40px 16px',
-                  textAlign: 'center',
-                  color: 'var(--text-tertiary)',
-                }}
-              >
-                <svg
-                  width="36"
-                  height="36"
-                  viewBox="0 0 36 36"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  style={{
-                    margin: '0 auto 12px',
-                    display: 'block',
-                    opacity: 0.5,
-                  }}
-                >
-                  <path d="M6,4 L30,4 A2,2 0 0,1 32,6 L32,24 A2,2 0 0,1 30,26 L10,26 L4,32 L4,6 A2,2 0 0,1 6,4 Z" />
-                </svg>
-                {debouncedQuery.trim() ? (
-                  <p style={{ margin: 0, fontSize: 13 }}>
-                    Sin resultados para{' '}
-                    <strong style={{ color: '#94a3b8' }}>"{debouncedQuery}"</strong>
-                  </p>
-                ) : (
-                  <>
-                    <p style={{ margin: 0, fontSize: 13 }}>Aún no hay conversaciones</p>
-                    <button
-                      onClick={handleNewChat}
-                      className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-                      style={{
-                        marginTop: 10,
-                        background: 'transparent',
-                        border: '1px solid rgba(59,130,246,0.4)',
-                        borderRadius: 8,
-                        color: '#3b82f6',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        padding: '7px 16px',
-                        transition: 'background 0.15s, filter 0.15s',
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')
-                      }
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                      }}
-                    >
-                      Inicia tu primer chat →
-                    </button>
-                  </>
-                )}
+          {showConversations && (
+            <>
+              {newChatError && (
+                <p className="sidebar-error" role="alert">
+                  {newChatError}
+                </p>
+              )}
+              <div className="sidebar-search-region">
+                <SidebarSearch
+                  isCollapsed={isCollapsed}
+                  shortcutEnabled={!isMobile || isOpen}
+                  isOpen={isSearchOpen}
+                  query={searchQuery}
+                  onChange={setSearchQuery}
+                  onOpenChange={setIsSearchOpen}
+                />
               </div>
-            ) : (
-              filteredConversations.map((conv) => (
-                <ConvItem
-                  key={conv.id}
-                  conv={conv}
-                  isActive={conv.id === activeConversationId}
-                  searchQuery={debouncedQuery}
-                  onSelect={() => handleSelect(conv.id)}
+              <div className="sidebar-conversations-scroll">
+                {error && (
+                  <p className="sidebar-error" role="alert">
+                    No pudimos cargar tus conversaciones.
+                  </p>
+                )}
+                <ConversationList
+                  conversations={filteredConversations}
+                  loading={loading}
+                  query={debouncedQuery}
+                  activeConversationId={activeConversationId}
+                  onNewChat={handleNewChat}
+                  onSelect={(id) => {
+                    navigate(`/c/${id}`);
+                    onClose();
+                  }}
                   onDeleteRequest={handleDeleteRequest}
                   onRename={handleRename}
                 />
-              ))
-            )}
-          </div>
-        ) : (
-          <div style={{ flex: 1 }} />
-        )}
+              </div>
+            </>
+          )}
+        </div>
 
-        {/* ── Daily message quota counter (MISSION §10 #1: hardcoded 25/24h) ── */}
         {showConversations && user && (
           <DailyQuotaCounter
+            isCollapsed={isCollapsed}
             used={user.messages_used_today}
             remaining={user.messages_remaining_today}
             resetsAt={user.rate_window_resets_at}
           />
         )}
 
-        {/* ── User identity + logout row ── */}
-        {user && (
-          <div
-            style={{
-              padding: '8px 12px',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-            }}
-          >
-            <span
-              title={user.email}
-              style={{
-                fontSize: 12,
-                color: '#94a3b8',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                flex: 1,
-                minWidth: 0,
-              }}
-            >
-              {user.email}
-            </span>
-            <button
-              onClick={handleLogout}
-              disabled={loggingOut}
-              title="Cerrar sesión"
-              aria-label="Cerrar sesión"
-              className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-              style={{
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 7,
-                color: '#94a3b8',
-                cursor: loggingOut ? 'not-allowed' : 'pointer',
-                padding: '5px 10px',
-                fontSize: 12,
-                opacity: loggingOut ? 0.6 : 1,
-                transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => {
-                if (loggingOut) return;
-                e.currentTarget.style.background = '#1e293b';
-                e.currentTarget.style.color = '#f1f5f9';
-                e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#94a3b8';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-              }}
-            >
-              {loggingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
-            </button>
-          </div>
-        )}
-
-        {/* ── Sidebar footer: branding + library button ── */}
-        <div
-          style={{
-            padding: '10px 12px',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>DynaChat</span>
-
-          {/* Library admin link — admin-only. is_admin is a server-computed
-              hint only; the /api/admin/* endpoints re-verify on every call. */}
-          {user?.is_admin && (
-            <Link
-              to="/admin"
-              title="Administrar biblioteca de videos"
-              className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-              style={{
-                fontSize: 12,
-                color: '#94a3b8',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 7,
-                padding: '5px 7px',
-                textDecoration: 'none',
-                transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#1e293b';
-                e.currentTarget.style.color = '#f1f5f9';
-                e.currentTarget.style.borderColor = 'rgba(59,130,246,0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#94a3b8';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-              }}
-            >
-              Administración
-            </Link>
+        <div className="sidebar-footer">
+          {user && (
+            <SidebarUserMenu
+              email={user.email}
+              isAdmin={user.is_admin}
+              isCollapsed={isCollapsed}
+              loggingOut={loggingOut}
+              onClose={onClose}
+              onLogout={handleLogout}
+            />
           )}
-
-          {showConversations && (
-            <>
-              {/* Library / VideoExplorer button */}
-              <button
-                onClick={() => {
-                  setExplorerOpen(true);
-                  onClose();
-                }}
-                title="Explorar biblioteca de videos"
-                aria-label="Explorar biblioteca de videos"
-                className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-                style={{
-                  background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 7,
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: '5px 7px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 5,
-                  fontSize: 12,
-                  transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#1e293b';
-                  e.currentTarget.style.color = '#f1f5f9';
-                  e.currentTarget.style.borderColor = 'rgba(59,130,246,0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#94a3b8';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-                }}
-              >
-                {/* Play/video icon */}
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="1" y="2" width="12" height="10" rx="2" />
-                  <polygon points="5,4.5 9.5,7 5,9.5" fill="currentColor" stroke="none" />
-                </svg>
-                Biblioteca
-              </button>
-            </>
-          )}
+          <span className="sidebar-footer-brand sidebar-label">DynaChat</span>
         </div>
-      </aside>
+      </motion.aside>
 
-      {/* ── Confirm delete dialog ── */}
       {confirmId && (
         <ConfirmDialog
           onConfirm={handleDeleteConfirm}
-          onCancel={handleDeleteCancel}
+          onCancel={() => {
+            setConfirmId(null);
+            setDeleteError(false);
+          }}
           deleting={deleting}
           error={deleteError}
         />
       )}
 
-      {/* ── Video Explorer panel ── */}
       {showConversations && (
         <VideoExplorer isOpen={explorerOpen} onClose={() => setExplorerOpen(false)} />
       )}

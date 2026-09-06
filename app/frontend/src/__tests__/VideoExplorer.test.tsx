@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VideoExplorer } from '../components/VideoExplorer';
 import * as api from '../lib/api';
 
-// Default auth mock: admin user so the "+ Add Video" button renders. The
+// Default auth mock: admin user so the "+ Agregar video" button renders. The
 // non-admin gate is covered by its own suite below that re-mocks useAuth.
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({
@@ -32,21 +32,67 @@ describe('VideoExplorer', () => {
     });
   });
 
+  describe('keyboard focus', () => {
+    it('moves focus into the library, traps it, and restores it on close', async () => {
+      const opener = document.createElement('button');
+      opener.type = 'button';
+      document.body.appendChild(opener);
+      opener.focus();
+
+      const onClose = vi.fn();
+      const { rerender } = render(<VideoExplorer isOpen={false} onClose={onClose} />);
+      rerender(<VideoExplorer isOpen={true} onClose={onClose} />);
+
+      const closeButton = await screen.findByRole('button', {
+        name: 'Cerrar biblioteca de videos',
+      });
+      expect(closeButton).toHaveFocus();
+
+      fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true });
+      expect(screen.getByRole('button', { name: '+ Agregar video' })).toHaveFocus();
+
+      fireEvent.keyDown(closeButton, { key: 'Escape' });
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      rerender(<VideoExplorer isOpen={false} onClose={onClose} />);
+      expect(opener).toHaveFocus();
+      opener.remove();
+    });
+
+    it('keeps Escape inside the ingest dialog and returns focus to its opener', async () => {
+      const onClose = vi.fn();
+      render(<VideoExplorer isOpen={true} onClose={onClose} />);
+
+      const addButton = await screen.findByRole('button', { name: '+ Agregar video' });
+      fireEvent.click(addButton);
+
+      const ingestDialog = screen.getByRole('dialog', { name: 'Agregar video' });
+      const ingestCloseButton = screen.getByRole('button', { name: 'Cerrar formulario de video' });
+      expect(ingestCloseButton).toHaveFocus();
+
+      fireEvent.keyDown(ingestDialog, { key: 'Escape' });
+
+      expect(screen.queryByRole('dialog', { name: 'Agregar video' })).not.toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(addButton).toHaveFocus();
+    });
+  });
+
   describe('handleIngest', () => {
     it('shows validation error when fields are empty', async () => {
       const onClose = vi.fn();
       render(<VideoExplorer isOpen={true} onClose={onClose} />);
 
       // Open the ingest dialog
-      const addButton = screen.getByText('+ Add Video');
+      const addButton = screen.getByText('+ Agregar video');
       fireEvent.click(addButton);
 
       // Try to submit empty form
-      const addVideoButton = screen.getByRole('button', { name: 'Add Video' });
+      const addVideoButton = screen.getByRole('button', { name: 'Agregar video' });
       fireEvent.click(addVideoButton);
 
       // Should show validation error
-      expect(screen.getByText('All fields are required.')).toBeInTheDocument();
+      expect(screen.getByText('Completa todos los campos.')).toBeInTheDocument();
     });
 
     it('shows validation error when URL is missing', async () => {
@@ -69,22 +115,22 @@ describe('VideoExplorer', () => {
       });
 
       // Open the ingest dialog
-      const addButton = screen.getByText('+ Add Video');
+      const addButton = screen.getByText('+ Agregar video');
       fireEvent.click(addButton);
 
       // Fill partial form (missing URL and transcript)
-      fireEvent.change(screen.getByLabelText('Title'), {
+      fireEvent.change(screen.getByLabelText('Título'), {
         target: { value: 'Test Title' },
       });
-      fireEvent.change(screen.getByLabelText('Description'), {
+      fireEvent.change(screen.getByLabelText('Descripción'), {
         target: { value: 'Test Description' },
       });
 
       // Try to submit
-      const addVideoButton = screen.getByRole('button', { name: 'Add Video' });
+      const addVideoButton = screen.getByRole('button', { name: 'Agregar video' });
       fireEvent.click(addVideoButton);
 
-      expect(screen.getByText('All fields are required.')).toBeInTheDocument();
+      expect(screen.getByText('Completa todos los campos.')).toBeInTheDocument();
     });
 
     it('successfully ingests video and refreshes video list', async () => {
@@ -127,25 +173,25 @@ describe('VideoExplorer', () => {
       });
 
       // Open the ingest dialog
-      const addButton = screen.getByText('+ Add Video');
+      const addButton = screen.getByText('+ Agregar video');
       fireEvent.click(addButton);
 
       // Fill all fields
-      fireEvent.change(screen.getByLabelText('Title'), {
+      fireEvent.change(screen.getByLabelText('Título'), {
         target: { value: 'New Video' },
       });
-      fireEvent.change(screen.getByLabelText('Description'), {
+      fireEvent.change(screen.getByLabelText('Descripción'), {
         target: { value: 'New description' },
       });
-      fireEvent.change(screen.getByLabelText('YouTube URL'), {
+      fireEvent.change(screen.getByLabelText('URL de YouTube'), {
         target: { value: 'https://youtube.com/watch?v=xyz789' },
       });
-      fireEvent.change(screen.getByLabelText('Transcript'), {
+      fireEvent.change(screen.getByLabelText('Transcripción'), {
         target: { value: 'Full transcript text here' },
       });
 
       // Submit
-      const addVideoButton = screen.getByRole('button', { name: 'Add Video' });
+      const addVideoButton = screen.getByRole('button', { name: 'Agregar video' });
       fireEvent.click(addVideoButton);
 
       // Verify ingestVideo was called with correct body
@@ -159,7 +205,7 @@ describe('VideoExplorer', () => {
       });
 
       // Verify dialog closed
-      expect(screen.queryByText('Add New Video')).not.toBeInTheDocument();
+      expect(screen.queryByText('Agregar video')).not.toBeInTheDocument();
     });
 
     it('shows error message when ingest fails', async () => {
@@ -185,30 +231,32 @@ describe('VideoExplorer', () => {
       });
 
       // Open the ingest dialog
-      const addButton = screen.getByText('+ Add Video');
+      const addButton = screen.getByText('+ Agregar video');
       fireEvent.click(addButton);
 
       // Fill all fields
-      fireEvent.change(screen.getByLabelText('Title'), {
+      fireEvent.change(screen.getByLabelText('Título'), {
         target: { value: 'New Video' },
       });
-      fireEvent.change(screen.getByLabelText('Description'), {
+      fireEvent.change(screen.getByLabelText('Descripción'), {
         target: { value: 'New description' },
       });
-      fireEvent.change(screen.getByLabelText('YouTube URL'), {
+      fireEvent.change(screen.getByLabelText('URL de YouTube'), {
         target: { value: 'https://youtube.com/watch?v=xyz789' },
       });
-      fireEvent.change(screen.getByLabelText('Transcript'), {
+      fireEvent.change(screen.getByLabelText('Transcripción'), {
         target: { value: 'Full transcript text here' },
       });
 
       // Submit
-      const addVideoButton = screen.getByRole('button', { name: 'Add Video' });
+      const addVideoButton = screen.getByRole('button', { name: 'Agregar video' });
       fireEvent.click(addVideoButton);
 
       // Should show error
       await waitFor(() => {
-        expect(screen.getByText('Server error: Invalid URL format')).toBeInTheDocument();
+        expect(
+          screen.getByText('No pudimos agregar el video. Intenta nuevamente.'),
+        ).toBeInTheDocument();
       });
     });
 
@@ -233,38 +281,42 @@ describe('VideoExplorer', () => {
       });
 
       // Open dialog, trigger error
-      const addButton = screen.getByText('+ Add Video');
+      const addButton = screen.getByText('+ Agregar video');
       fireEvent.click(addButton);
 
-      fireEvent.change(screen.getByLabelText('Title'), {
+      fireEvent.change(screen.getByLabelText('Título'), {
         target: { value: 'New Video' },
       });
-      fireEvent.change(screen.getByLabelText('Description'), {
+      fireEvent.change(screen.getByLabelText('Descripción'), {
         target: { value: 'New description' },
       });
-      fireEvent.change(screen.getByLabelText('YouTube URL'), {
+      fireEvent.change(screen.getByLabelText('URL de YouTube'), {
         target: { value: 'https://youtube.com/watch?v=xyz789' },
       });
-      fireEvent.change(screen.getByLabelText('Transcript'), {
+      fireEvent.change(screen.getByLabelText('Transcripción'), {
         target: { value: 'Transcript' },
       });
 
-      const addVideoButton = screen.getByRole('button', { name: 'Add Video' });
+      const addVideoButton = screen.getByRole('button', { name: 'Agregar video' });
       fireEvent.click(addVideoButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Some error')).toBeInTheDocument();
+        expect(
+          screen.getByText('No pudimos agregar el video. Intenta nuevamente.'),
+        ).toBeInTheDocument();
       });
 
       // Close dialog
-      const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+      const cancelButton = screen.getByRole('button', { name: 'Cancelar' });
       fireEvent.click(cancelButton);
 
       // Reopen dialog
       fireEvent.click(addButton);
 
       // Error should be cleared
-      expect(screen.queryByText('Some error')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('No pudimos agregar el video. Intenta nuevamente.'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -276,11 +328,11 @@ describe('VideoExplorer', () => {
       render(<VideoExplorer isOpen={true} onClose={onClose} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Failed to load videos')).toBeInTheDocument();
+        expect(screen.getByText('No pudimos cargar la biblioteca de videos.')).toBeInTheDocument();
       });
 
-      expect(screen.getByText('Network failure')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+      expect(screen.queryByText('Network failure')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
     });
 
     it('displays empty state when no videos', async () => {
@@ -290,7 +342,9 @@ describe('VideoExplorer', () => {
       render(<VideoExplorer isOpen={true} onClose={onClose} />);
 
       await waitFor(() => {
-        expect(screen.getByText('No videos in the knowledge base yet.')).toBeInTheDocument();
+        expect(
+          screen.getByText('Aún no hay videos en la base de conocimiento.'),
+        ).toBeInTheDocument();
       });
     });
 
@@ -313,7 +367,7 @@ describe('VideoExplorer', () => {
       });
 
       expect(screen.getByText('A test video description')).toBeInTheDocument();
-      expect(screen.getByText('Watch on YouTube')).toBeInTheDocument();
+      expect(screen.getByText('Ver en YouTube')).toBeInTheDocument();
     });
   });
 
@@ -334,7 +388,7 @@ describe('VideoExplorer', () => {
       render(<VideoExplorer isOpen={true} onClose={onClose} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Synced from Cole Medin')).toBeInTheDocument();
+        expect(screen.getByText('Sincronizado desde Cole Medin')).toBeInTheDocument();
       });
       // Description should NOT be shown when channel_title is present
       expect(screen.queryByText(/Old description/)).not.toBeInTheDocument();
@@ -377,7 +431,7 @@ describe('VideoExplorer', () => {
         expect(screen.getByText('Test Video')).toBeInTheDocument();
       });
       // No attribution text should appear
-      expect(screen.queryByText(/Synced from/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Sincronizado desde/)).not.toBeInTheDocument();
     });
 
     it('truncates long description when channel_title is absent', async () => {
@@ -415,16 +469,18 @@ describe('VideoExplorer', () => {
         },
       ]);
       render(<VideoExplorer isOpen={true} onClose={vi.fn()} />);
-      await waitFor(() => expect(screen.getByLabelText('Search videos')).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByLabelText('Buscar videos')).toBeInTheDocument());
     });
 
     it('does not render search input when library is empty', async () => {
       vi.spyOn(api, 'getVideos').mockResolvedValueOnce([]);
       render(<VideoExplorer isOpen={true} onClose={vi.fn()} />);
       await waitFor(() =>
-        expect(screen.getByText('No videos in the knowledge base yet.')).toBeInTheDocument(),
+        expect(
+          screen.getByText('Aún no hay videos en la base de conocimiento.'),
+        ).toBeInTheDocument(),
       );
-      expect(screen.queryByLabelText('Search videos')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Buscar videos')).not.toBeInTheDocument();
     });
 
     it('filters video list by title after debounce', async () => {
@@ -435,7 +491,7 @@ describe('VideoExplorer', () => {
       render(<VideoExplorer isOpen={true} onClose={vi.fn()} />);
       await waitFor(() => expect(screen.getByText('React Hooks Deep Dive')).toBeInTheDocument());
 
-      fireEvent.change(screen.getByLabelText('Search videos'), { target: { value: 'typescript' } });
+      fireEvent.change(screen.getByLabelText('Buscar videos'), { target: { value: 'typescript' } });
       // Wait for the debounce (250ms) to fire — React Hooks should be gone
       await waitFor(
         () => expect(screen.queryByText('React Hooks Deep Dive')).not.toBeInTheDocument(),
@@ -453,7 +509,7 @@ describe('VideoExplorer', () => {
       render(<VideoExplorer isOpen={true} onClose={vi.fn()} />);
       await waitFor(() => expect(screen.getByText('React Hooks Deep Dive')).toBeInTheDocument());
 
-      const input = screen.getByLabelText('Search videos');
+      const input = screen.getByLabelText('Buscar videos');
       fireEvent.change(input, { target: { value: 'typescript' } });
       await waitFor(
         () => expect(screen.queryByText('React Hooks Deep Dive')).not.toBeInTheDocument(),
@@ -473,10 +529,13 @@ describe('VideoExplorer', () => {
       render(<VideoExplorer isOpen={true} onClose={vi.fn()} />);
       await waitFor(() => expect(screen.getByText('React Hooks Deep Dive')).toBeInTheDocument());
 
-      fireEvent.change(screen.getByLabelText('Search videos'), { target: { value: 'Python' } });
-      await waitFor(() => expect(screen.getByText(/No videos match/)).toBeInTheDocument(), {
-        timeout: 1000,
-      });
+      fireEvent.change(screen.getByLabelText('Buscar videos'), { target: { value: 'Python' } });
+      await waitFor(
+        () => expect(screen.getByText(/No hay videos que coincidan/)).toBeInTheDocument(),
+        {
+          timeout: 1000,
+        },
+      );
       expect(screen.queryByText('React Hooks Deep Dive')).not.toBeInTheDocument();
     });
 
@@ -488,11 +547,11 @@ describe('VideoExplorer', () => {
       ]);
       render(<VideoExplorer isOpen={true} onClose={vi.fn()} />);
       await waitFor(() =>
-        expect(screen.getByText('3 videos in knowledge base')).toBeInTheDocument(),
+        expect(screen.getByText('3 videos en la base de conocimiento')).toBeInTheDocument(),
       );
 
-      fireEvent.change(screen.getByLabelText('Search videos'), { target: { value: 'typescript' } });
-      await waitFor(() => expect(screen.getByText('1 of 3 videos')).toBeInTheDocument(), {
+      fireEvent.change(screen.getByLabelText('Buscar videos'), { target: { value: 'typescript' } });
+      await waitFor(() => expect(screen.getByText('1 de 3 videos')).toBeInTheDocument(), {
         timeout: 1000,
       });
     });
@@ -526,7 +585,7 @@ describe('VideoExplorer', () => {
       await waitFor(() => expect(screen.getByText('Episode 4')).toBeInTheDocument());
 
       // Match by channel_title
-      const input = screen.getByLabelText('Search videos');
+      const input = screen.getByLabelText('Buscar videos');
       fireEvent.change(input, { target: { value: 'cole' } });
       await waitFor(() => expect(screen.queryByText('Episode 5')).not.toBeInTheDocument(), {
         timeout: 1000,
@@ -550,21 +609,24 @@ describe('VideoExplorer', () => {
       await waitFor(() => expect(screen.getByText('React Hooks Deep Dive')).toBeInTheDocument());
 
       // Type a search query and wait for debounce
-      fireEvent.change(screen.getByLabelText('Search videos'), { target: { value: 'Python' } });
-      await waitFor(() => expect(screen.getByText(/No videos match/)).toBeInTheDocument(), {
-        timeout: 1000,
-      });
+      fireEvent.change(screen.getByLabelText('Buscar videos'), { target: { value: 'Python' } });
+      await waitFor(
+        () => expect(screen.getByText(/No hay videos que coincidan/)).toBeInTheDocument(),
+        {
+          timeout: 1000,
+        },
+      );
 
       // Close the panel
       rerender(<VideoExplorer isOpen={false} onClose={vi.fn()} />);
 
       // Reopen the panel
       rerender(<VideoExplorer isOpen={true} onClose={vi.fn()} />);
-      await waitFor(() => expect(screen.getByLabelText('Search videos')).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByLabelText('Buscar videos')).toBeInTheDocument());
 
       // Search input should be cleared
-      expect((screen.getByLabelText('Search videos') as HTMLInputElement).value).toBe('');
-      expect(screen.queryByText(/No videos match/)).not.toBeInTheDocument();
+      expect((screen.getByLabelText('Buscar videos') as HTMLInputElement).value).toBe('');
+      expect(screen.queryByText(/No hay videos que coincidan/)).not.toBeInTheDocument();
     });
   });
 });
