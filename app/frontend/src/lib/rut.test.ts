@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatRutInput, formatRutInputWithSelection } from './rut';
+import { formatRutInput, formatRutInputWithSelection, validateRut } from './rut';
 
 describe('formatRutInput', () => {
   it('formats complete raw RUT', () => {
@@ -111,5 +111,21 @@ describe('formatRutInput', () => {
       selectionStart: 3,
       selectionEnd: 3,
     });
+  });
+});
+
+describe('validateRut', () => {
+  it('accepts valid RUTs with separators or a numeric DV', () => {
+    expect(validateRut('12.345.678-5')).toBe(true);
+    expect(validateRut('123456785')).toBe(true);
+  });
+
+  it('rejects an invalid check digit', () => {
+    expect(validateRut('12.345.678-9')).toBe(false);
+  });
+
+  it('supports a K check digit', () => {
+    expect(validateRut('7.618.285-K')).toBe(true);
+    expect(validateRut('7618285k')).toBe(true);
   });
 });

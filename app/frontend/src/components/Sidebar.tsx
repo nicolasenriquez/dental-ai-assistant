@@ -288,7 +288,7 @@ export function Sidebar({
               onLogout={handleLogout}
             />
           )}
-          <span className="sidebar-footer-brand sidebar-label">DynaChat</span>
+          <span className="sidebar-footer-brand sidebar-label">Dental AI Assistant</span>
         </div>
       </motion.aside>
 

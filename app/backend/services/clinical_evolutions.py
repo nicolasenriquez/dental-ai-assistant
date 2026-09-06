@@ -67,7 +67,7 @@ class ClinicalDraft(BaseModel):
             draft.treatment,
             draft.follow_up,
         )
-        if not any(value.strip() for value in clinical) and not draft.review_flags:
+        if not any(value.strip() for value in clinical):
             raise EmptyClinicalDraftError("No se pudo redactar contenido clinico verificable")
         return draft
 
@@ -122,7 +122,7 @@ async def generate_draft(
             _provider_messages(raw_note, history), ClinicalDraft.model_json_schema()
         )
         return ClinicalDraft.validate_meaningful(ClinicalDraft.model_validate_json(content))
-    except (ValidationError, EmptyClinicalDraftError, RuntimeError) as exc:
+    except (ValidationError, RuntimeError) as exc:
         logger.warning("Clinical generation failed category=%s", type(exc).__name__)
         raise ClinicalGenerationError("No pudimos redactar la evolucion") from exc
     except Exception as exc:

@@ -73,7 +73,7 @@ async def generate_evolution(
         return await clinical_evolutions.generate_draft(
             user["id"], request.patient_id, request.raw_note
         )
-    except clinical_evolutions.ClinicalGenerationDisabledError as exc:
+    except clinical_evolutions.ClinicalGenerationDisabledError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
@@ -84,6 +84,16 @@ async def generate_evolution(
     except LookupError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado"
+        ) from None
+    except clinical_evolutions.EmptyClinicalDraftError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "clinical_content_insufficient",
+                "message": (
+                    "No encontramos información clínica suficiente para generar un borrador."
+                ),
+            },
         ) from None
     except clinical_evolutions.ClinicalGenerationError:
         raise HTTPException(

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { PatientFormModal, type PatientFormValues } from '../components/PatientFormModal';
 import { PatientIdentity } from '../components/PatientIdentity';
 import { PatientWorkspace, type PatientWorkspaceDetailError } from '../components/PatientWorkspace';
+import { useToast } from '../hooks/useToast';
 import {
   ApiError,
   type EvolutionDetail,
@@ -10,6 +12,7 @@ import {
   getEvolution,
   getPatient,
   getPatientEvolutions,
+  updatePatient,
 } from '../lib/api';
 
 export function PatientDetail() {
@@ -19,6 +22,7 @@ export function PatientDetail() {
   }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [evolutions, setEvolutions] = useState<EvolutionSummary[]>([]);
   const [selectedEvolution, setSelectedEvolution] = useState<EvolutionDetail | null>(null);
@@ -26,6 +30,7 @@ export function PatientDetail() {
   const [error, setError] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<PatientWorkspaceDetailError>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const patientRequest = useRef(0);
   const detailRequest = useRef(0);
 
@@ -106,6 +111,16 @@ export function PatientDetail() {
     void loadDetail();
   }, [loadDetail]);
 
+  const savePatient = async (values: PatientFormValues) => {
+    if (!patient) throw new Error('Paciente no cargado');
+    return updatePatient(patient.id, {
+      first_name: values.first_name,
+      last_name: values.last_name,
+      birth_date: values.birth_date,
+      ...(values.rut ? { rut: values.rut } : {}),
+    });
+  };
+
   return (
     <main className="min-h-full bg-[var(--bg)] p-6 text-[var(--text-primary)] md:p-8">
       <div className="mx-auto max-w-7xl">
@@ -143,9 +158,18 @@ export function PatientDetail() {
                 </h1>
                 <PatientIdentity patient={patient} showName={false} />
               </div>
-              <Link to={`/patients/${patient.id}/evolutions/new`} className="primary-button">
-                + Nueva evolución
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(true)}
+                  className="rounded border border-[var(--border)] px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                >
+                  Editar paciente
+                </button>
+                <Link to={`/patients/${patient.id}/evolutions/new`} className="primary-button">
+                  + Nueva evolución
+                </Link>
+              </div>
             </header>
 
             <div aria-live="polite" className="sr-only">
@@ -160,6 +184,18 @@ export function PatientDetail() {
               detailLoading={detailLoading}
               detailError={detailError}
               onRetryDetail={() => void loadDetail()}
+            />
+            <PatientFormModal
+              open={editOpen}
+              mode="edit"
+              patient={patient}
+              onClose={() => setEditOpen(false)}
+              onSubmit={savePatient}
+              onSuccess={(updatedPatient) => {
+                setPatient(updatedPatient);
+                setEditOpen(false);
+                addToast('Paciente actualizado', 'success');
+              }}
             />
           </>
         )}

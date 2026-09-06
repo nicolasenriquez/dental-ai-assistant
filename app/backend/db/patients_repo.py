@@ -49,7 +49,7 @@ async def list_patients(owner_user_id: UUID | str) -> list[dict[str, Any]]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT p.id, p.first_name, p.last_name, p.rut_number, p.rut_dv,
+            SELECT p.id, p.first_name, p.last_name, p.rut_number, p.rut_dv, p.birth_date,
                    MAX(e.evolution_at) AS last_evolution_at
             FROM patients p
             LEFT JOIN evolutions e
@@ -73,7 +73,7 @@ async def search_patients(
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT p.id, p.first_name, p.last_name, p.rut_number, p.rut_dv,
+            SELECT p.id, p.first_name, p.last_name, p.rut_number, p.rut_dv, p.birth_date,
                    MAX(e.evolution_at) AS last_evolution_at
             FROM patients p
             LEFT JOIN evolutions e
@@ -107,12 +107,61 @@ async def get_patient(owner_user_id: UUID | str, patient_id: UUID | str) -> dict
     return dict(row) if row else None
 
 
+async def update_patient(
+    owner_user_id: UUID | str,
+    patient_id: UUID | str,
+    *,
+    first_name: str,
+    last_name: str,
+    birth_date: date | None,
+    rut_body: int | None = None,
+    check_digit: str | None = None,
+) -> dict[str, Any] | None:
+    pool = get_pg_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE patients
+            SET first_name = $3,
+                last_name = $4,
+                birth_date = $5,
+                rut_number = COALESCE($6, rut_number),
+                rut_dv = COALESCE($7, rut_dv),
+                updated_at = now()
+            WHERE owner_user_id = $1 AND id = $2
+            RETURNING id, first_name, last_name, rut_number, rut_dv, birth_date,
+                      created_at, updated_at
+            """,
+            _uuid(owner_user_id),
+            _uuid(patient_id),
+            first_name,
+            last_name,
+            birth_date,
+            rut_body,
+            check_digit,
+        )
+        if row is None:
+            return None
+
+        result = dict(row)
+        result["last_evolution_at"] = await conn.fetchval(
+            """
+            SELECT MAX(evolution_at)
+            FROM evolutions
+            WHERE patient_id = $1 AND owner_user_id = $2
+            """,
+            _uuid(patient_id),
+            _uuid(owner_user_id),
+        )
+    return result
+
+
 async def get_patient_by_rut(owner_user_id: UUID | str, rut_body: int) -> dict[str, Any] | None:
     pool = get_pg_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT p.id, p.first_name, p.last_name, p.rut_number, p.rut_dv,
+            SELECT p.id, p.first_name, p.last_name, p.rut_number, p.rut_dv, p.birth_date,
                    MAX(e.evolution_at) AS last_evolution_at
             FROM patients p
             LEFT JOIN evolutions e

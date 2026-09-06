@@ -27,6 +27,7 @@ const EMPTY_DRAFT: ClinicalDraft = {
 
 type ClinicalField = Exclude<keyof ClinicalDraft, 'review_flags'>;
 type WorkspaceState = 'editing_raw' | 'generating' | 'reviewing';
+type GenerationOutcome = 'success' | 'partial' | 'insufficient' | 'technical' | null;
 
 const fields: Array<{ key: ClinicalField; label: string }> = [
   { key: 'context', label: 'Motivo / contexto' },
@@ -36,7 +37,7 @@ const fields: Array<{ key: ClinicalField; label: string }> = [
   { key: 'follow_up', label: 'Seguimiento' },
 ];
 
-const workflowSteps = ['Nota clínica', 'Redacción asistida', 'Revisión y guardado'] as const;
+const workflowSteps = ['Nota clínica', 'Borrador asistido', 'Revisar y guardar'] as const;
 
 function localInputParts(value: Date) {
   const local = new Date(value.getTime() - value.getTimezoneOffset() * 60000)
@@ -70,6 +71,7 @@ export function NewEvolution() {
   const [draft, setDraft] = useState<ClinicalDraft>(EMPTY_DRAFT);
   const [generatedDraft, setGeneratedDraft] = useState<ClinicalDraft | null>(null);
   const [generatedRawNote, setGeneratedRawNote] = useState<string | null>(null);
+  const [generationOutcome, setGenerationOutcome] = useState<GenerationOutcome>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmRegeneration, setConfirmRegeneration] = useState(false);
   const [evolutionAt, setEvolutionAt] = useState(() => new Date());
@@ -84,6 +86,7 @@ export function NewEvolution() {
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
   const patientRequestId = useRef(0);
   const historyRequestId = useRef(0);
+  const rawNoteRef = useRef<HTMLTextAreaElement>(null);
   const initialEvolutionAt = useRef(evolutionAt);
   const regenerationDialogRef = useRef<HTMLDivElement>(null);
   const regenerationCancelRef = useRef<HTMLButtonElement>(null);
@@ -216,12 +219,22 @@ export function NewEvolution() {
   const runGeneration = async () => {
     setConfirmRegeneration(false);
     setError(null);
+    setGenerationOutcome(null);
     setWorkspace('generating');
     try {
       const result = await generateEvolution(patientId, rawNote);
+      if (!fields.some(({ key }) => result[key].trim())) {
+        setGeneratedDraft(null);
+        setGeneratedRawNote(null);
+        setDraft(EMPTY_DRAFT);
+        setGenerationOutcome('insufficient');
+        setWorkspace('editing_raw');
+        return;
+      }
       setDraft(result);
       setGeneratedDraft(result);
       setGeneratedRawNote(rawNote);
+      setGenerationOutcome(result.review_flags.length > 0 ? 'partial' : 'success');
       setWorkspace('reviewing');
     } catch (caught) {
       const detail =
@@ -233,14 +246,16 @@ export function NewEvolution() {
           ? detail.code
           : null;
 
-      setError(
-        code === 'clinical_generation_disabled'
-          ? 'La redacción asistida no está disponible en este entorno. Conservamos tu nota.'
-          : code === 'clinical_generation_provider_unavailable'
-            ? 'La redacción asistida no está disponible temporalmente. Conservamos tu nota.'
-            : 'No pudimos redactar la evolución. Puedes reintentar.',
-      );
-      setWorkspace(generatedDraft ? 'reviewing' : 'editing_raw');
+      if (code === 'clinical_content_insufficient') {
+        setGeneratedDraft(null);
+        setGeneratedRawNote(null);
+        setDraft(EMPTY_DRAFT);
+        setGenerationOutcome('insufficient');
+        setWorkspace('editing_raw');
+      } else {
+        setGenerationOutcome('technical');
+        setWorkspace(generatedDraft ? 'reviewing' : 'editing_raw');
+      }
     }
   };
 
@@ -255,6 +270,9 @@ export function NewEvolution() {
 
   const changeRawNote = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setRawNote(event.target.value);
+    if (generationOutcome === 'insufficient' || generationOutcome === 'technical') {
+      setGenerationOutcome(null);
+    }
   };
 
   const handleRegenerationDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -321,6 +339,12 @@ export function NewEvolution() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const continueEditing = () => {
+    setGenerationOutcome(null);
+    setWorkspace('editing_raw');
+    window.requestAnimationFrame(() => rawNoteRef.current?.focus());
   };
 
   return (
@@ -451,6 +475,7 @@ export function NewEvolution() {
             Escribe la nota. La IA crea un borrador para revisar.
           </p>
           <textarea
+            ref={rawNoteRef}
             autoFocus
             aria-label="Nota clínica"
             value={rawNote}
@@ -487,10 +512,10 @@ export function NewEvolution() {
                 className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
               >
                 {workspace === 'generating'
-                  ? 'Redactando...'
+                  ? 'Generando borrador...'
                   : generatedDraft
                     ? 'Regenerar borrador'
-                    : 'Redactar con IA'}
+                    : 'Generar borrador con IA'}
               </button>
             </div>
           )}
@@ -514,18 +539,72 @@ export function NewEvolution() {
           </section>
         )}
 
+        {generationOutcome === 'insufficient' && (
+          <section
+            role="alert"
+            className="mt-8 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] p-4"
+          >
+            <h2 className="text-sm font-semibold">
+              No encontramos información clínica suficiente para generar un borrador.
+            </h2>
+            <button
+              type="button"
+              onClick={continueEditing}
+              className="mt-3 text-sm text-[var(--accent)] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            >
+              Editar nota
+            </button>
+          </section>
+        )}
+
+        {generationOutcome === 'technical' && (
+          <section
+            role="alert"
+            className="mt-8 rounded-lg border border-[var(--danger)] bg-[var(--surface-1)] p-4"
+          >
+            <h2 className="text-sm font-semibold">No pudimos generar el borrador.</h2>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">Tu nota no se perdió.</p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={requestGeneration}
+                disabled={!canGenerate}
+                className="rounded border border-[var(--accent)] px-3 py-2 text-sm text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+              >
+                Reintentar
+              </button>
+              <button
+                type="button"
+                onClick={continueEditing}
+                className="rounded border border-[var(--border)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              >
+                Seguir editando
+              </button>
+            </div>
+          </section>
+        )}
+
         {generatedDraft && (
           <section className="mt-8 border-t border-[var(--border)] pt-8">
-            <h2 className="text-xs font-semibold tracking-wider text-[var(--text-secondary)]">
-              BORRADOR PARA REVISAR
-            </h2>
+            {generationOutcome === 'success' ? (
+              <div role="status">
+                <h2 className="text-base font-semibold">Borrador generado</h2>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  Revisa el contenido antes de guardar la evolución.
+                </p>
+              </div>
+            ) : generationOutcome === 'partial' ? (
+              <h2 className="text-base font-semibold">Revisa estos puntos</h2>
+            ) : (
+              <h2 className="text-base font-semibold">Borrador para revisar</h2>
+            )}
             {draft.review_flags.length > 0 && (
               <section
                 className="mt-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] p-4"
                 aria-labelledby="review-flags-title"
               >
                 <h3 id="review-flags-title" className="text-sm font-semibold text-[var(--warning)]">
-                  Revisa estos puntos
+                  Detalles de revisión
                 </h3>
                 <ul className="mt-2 space-y-2 text-sm text-[var(--text-primary)]">
                   {draft.review_flags.map((flag) => (
@@ -585,14 +664,14 @@ export function NewEvolution() {
                 aria-describedby={isDraftStale ? 'stale-draft-message' : undefined}
                 className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
               >
-                {saving ? 'Guardando evolución...' : 'Guardar evolución'}
+                {saving ? 'Guardando...' : 'Guardar evolución'}
               </button>
             </div>
           </section>
         )}
 
         <div aria-live="polite" className="mt-4 text-sm text-[var(--text-secondary)]">
-          {workspace === 'generating' ? 'Redactando...' : saving ? 'Guardando evolución...' : error}
+          {workspace === 'generating' ? 'Generando borrador...' : saving ? 'Guardando...' : error}
           {error && (
             <button
               type="button"

@@ -26,10 +26,11 @@ class PatientSummary(BaseModel):
     last_name: str
     rut_masked: str
     last_evolution_at: datetime | None = None
+    birth_date: date | None = None
 
 
 class PatientDetail(PatientSummary):
-    birth_date: date | None = None
+    pass
 
 
 class CreatePatientRequest(BaseModel):
@@ -38,9 +39,37 @@ class CreatePatientRequest(BaseModel):
     rut: str = Field(min_length=1, max_length=32)
     birth_date: date | None = None
 
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return " ".join(value.split())
+
     @field_validator("rut")
     @classmethod
     def validate_rut(cls, value: str) -> str:
+        try:
+            normalize_rut(value)
+        except ValueError as exc:
+            raise ValueError("Formato o DV invalido") from exc
+        return value
+
+
+class UpdatePatientRequest(BaseModel):
+    first_name: Name
+    last_name: Name
+    rut: str | None = Field(default=None, min_length=1, max_length=32)
+    birth_date: date | None = None
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return " ".join(value.split())
+
+    @field_validator("rut")
+    @classmethod
+    def validate_rut(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         try:
             normalize_rut(value)
         except ValueError as exc:
@@ -67,7 +96,7 @@ async def search_patients(
     session: str | None = Cookie(default=None),
 ) -> list[PatientSummary]:
     user = await get_current_user(session)
-    term = request.query.strip()
+    term = " ".join(request.query.split())
     if not term:
         return [_summary(row) for row in await patients_repo.list_patients(user["id"])]
 
@@ -109,6 +138,46 @@ async def create_patient(
     return _summary(row)
 
 
+@router.patch("/{patient_id}", response_model=PatientDetail)
+async def update_patient(
+    patient_id: UUID,
+    request: UpdatePatientRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> PatientDetail:
+    rut_body: int | None = None
+    check_digit: str | None = None
+    if request.rut is not None:
+        rut_body, check_digit = normalize_rut(request.rut)
+
+    try:
+        row = await patients_repo.update_patient(
+            user["id"],
+            patient_id,
+            first_name=request.first_name,
+            last_name=request.last_name,
+            birth_date=request.birth_date,
+            rut_body=rut_body,
+            check_digit=check_digit,
+        )
+    except asyncpg.UniqueViolationError:
+        if rut_body is None:
+            raise
+        existing = await patients_repo.get_patient_by_rut(user["id"], rut_body)
+        if existing is None:
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "patient_exists",
+                "patient": _summary(existing).model_dump(mode="json"),
+            },
+        ) from None
+
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
+    return PatientDetail(**_summary(row).model_dump())
+
+
 @router.get("/{patient_id}", response_model=PatientDetail)
 async def get_patient(
     patient_id: UUID,
@@ -117,4 +186,4 @@ async def get_patient(
     row = await patients_repo.get_patient(user["id"], patient_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
-    return PatientDetail(**_summary(row).model_dump(), birth_date=row.get("birth_date"))
+    return PatientDetail(**_summary(row).model_dump())

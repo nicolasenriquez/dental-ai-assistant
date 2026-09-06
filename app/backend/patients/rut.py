@@ -43,6 +43,7 @@ def public_patient(row: dict[str, Any]) -> dict[str, Any]:
         "last_name": row["last_name"],
         "rut_masked": mask_rut(row["rut_number"], row["rut_dv"]),
         "last_evolution_at": row.get("last_evolution_at"),
+        "birth_date": row.get("birth_date"),
     }
 
 

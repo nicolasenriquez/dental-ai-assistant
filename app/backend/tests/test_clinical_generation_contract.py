@@ -73,12 +73,12 @@ async def test_sensitive_custom_validation_error_returns_json_422() -> None:
     assert "ctx" not in error
 
 
-def test_structured_draft_allows_optional_clinical_text_and_requires_flags_for_empty() -> None:
+def test_structured_draft_requires_clinical_content_even_when_flags_exist() -> None:
     from backend.services.clinical_evolutions import ClinicalDraft, EmptyClinicalDraftError
 
-    flagged = ClinicalDraft.model_validate(
+    partial = ClinicalDraft.model_validate(
         {
-            "context": "",
+            "context": "Control",
             "findings": "",
             "assessment": "",
             "treatment": "",
@@ -86,7 +86,7 @@ def test_structured_draft_allows_optional_clinical_text_and_requires_flags_for_e
             "review_flags": [{"source_text": "ROM leve", "reason": "Expresion ambigua"}],
         }
     )
-    assert flagged.review_flags[0].source_text == "ROM leve"
+    assert partial.review_flags[0].source_text == "ROM leve"
     with pytest.raises(EmptyClinicalDraftError):
         ClinicalDraft.validate_meaningful(
             ClinicalDraft.model_validate(
@@ -96,7 +96,7 @@ def test_structured_draft_allows_optional_clinical_text_and_requires_flags_for_e
                     "assessment": "",
                     "treatment": "",
                     "follow_up": "",
-                    "review_flags": [],
+                    "review_flags": [{"source_text": "ROM leve", "reason": "Expresion ambigua"}],
                 }
             )
         )
@@ -323,6 +323,36 @@ async def test_provider_failure_route_returns_stable_error_code(monkeypatch) -> 
     assert error.value.detail == {
         "code": "clinical_generation_provider_unavailable",
         "message": "La redacción asistida no está disponible temporalmente",
+    }
+
+
+async def test_insufficient_generation_route_returns_recoverable_error_code(monkeypatch) -> None:
+    from fastapi import HTTPException
+
+    from backend.routes import evolutions
+    from backend.services import clinical_evolutions
+
+    async def current_user(session):
+        return {"id": "owner"}
+
+    async def insufficient(*args, **kwargs):
+        raise clinical_evolutions.EmptyClinicalDraftError("empty")
+
+    monkeypatch.setattr(evolutions, "get_current_user", current_user)
+    monkeypatch.setattr(evolutions.clinical_evolutions, "generate_draft", insufficient)
+
+    request = evolutions.GenerateEvolutionRequest(
+        patient_id=UUID("00000000-0000-0000-0000-000000000001"),
+        raw_note="synthetic",
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await evolutions.generate_evolution(request)
+
+    assert error.value.status_code == 422
+    assert error.value.detail == {
+        "code": "clinical_content_insufficient",
+        "message": "No encontramos información clínica suficiente para generar un borrador.",
     }
 
 

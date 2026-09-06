@@ -18,6 +18,30 @@ const conversationFixture = {
   ],
 };
 
+const conversationListFixture = [
+  {
+    id: '00000000-0000-0000-0000-000000000002',
+    title: 'Top conversation',
+    created_at: '2026-01-15T12:00:00Z',
+    updated_at: '2026-01-15T12:00:00Z',
+    preview: 'Top message',
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000007',
+    title: 'Middle conversation',
+    created_at: '2026-01-15T12:00:00Z',
+    updated_at: '2026-01-15T12:00:00Z',
+    preview: 'Middle message',
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000008',
+    title: 'Bottom conversation',
+    created_at: '2026-01-15T12:00:00Z',
+    updated_at: '2026-01-15T12:00:00Z',
+    preview: 'Bottom message',
+  },
+];
+
 async function captureView(page: Page, name: string) {
   await expect(page.locator('body')).toMatchAriaSnapshot({
     name: `${name}.aria.yml`,
@@ -60,8 +84,8 @@ test('captures public views and patients workflow', async ({ page }) => {
   await expect(patientDialog).toBeVisible();
   await captureView(page, 'patients-new-patient-dialog');
 
-  await patientDialog.getByLabel('Nombre').fill('Baseline');
-  await patientDialog.getByLabel('Apellido').fill('Validation');
+  await patientDialog.getByLabel('Nombres').fill('Baseline');
+  await patientDialog.getByLabel('Apellidos').fill('Validation');
   const rutInput = patientDialog.getByLabel('RUT');
   const birthDateInput = patientDialog.getByLabel('Fecha de nacimiento');
   await rutInput.fill('12.345.678-5');
@@ -69,7 +93,11 @@ test('captures public views and patients workflow', async ({ page }) => {
   await expect(birthDateInput).toBeFocused();
   await birthDateInput.fill('31/02/2024');
   await patientDialog.getByRole('button', { name: 'Crear paciente' }).click();
-  await expect(patientDialog.getByRole('alert')).toContainText('Ingresa la fecha');
+  await expect(patientDialog.getByLabel('Fecha de nacimiento')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  await expect(patientDialog.getByText('Ingresa una fecha válida')).toBeVisible();
   await patientDialog.getByRole('button', { name: 'Cancelar' }).click();
 
   const patientLink = page.locator('main a[href^="/patients/"]').first();
@@ -102,7 +130,7 @@ test('captures public views and patients workflow', async ({ page }) => {
   await page
     .getByLabel('Nota clínica')
     .fill('Paciente de baseline para validar el flujo de redacción.');
-  await page.getByRole('button', { name: 'Redactar con IA' }).click();
+  await page.getByRole('button', { name: 'Generar borrador con IA' }).click();
   await expect(page.getByRole('button', { name: 'Guardar evolución' })).toBeEnabled();
   await captureView(page, 'new-evolution-review');
 
@@ -279,6 +307,26 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   await page.goto('/this-route-does-not-exist');
   await expect(page.getByText('Página no encontrada')).toBeVisible();
   await captureView(page, 'not-found');
+});
+
+test('keeps lower conversation menu actions visible', async ({ page }) => {
+  await page.clock.install({ time: '2026-01-15T12:00:00Z' });
+  await mockJsonRoute(page, '**/api/conversations', conversationListFixture, 'GET');
+  await page.goto('/chat');
+
+  const middleConversation = page.locator('#app-sidebar .conversation-item').nth(1);
+  await expect(middleConversation).toBeVisible();
+  await middleConversation.hover();
+  await middleConversation
+    .getByRole('button', { name: /acciones para middle conversation/i })
+    .click();
+
+  const menu = page.getByRole('menu');
+  await expect(menu.getByRole('menuitem', { name: 'Renombrar' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Eliminar' })).toBeVisible();
+  await menu.getByRole('menuitem', { name: 'Eliminar' }).click();
+  await expect(page.getByRole('dialog', { name: '¿Eliminar conversación?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancelar' }).click();
 });
 
 test('captures sidebar responsive states and preserves the rail contract', async ({ page }) => {

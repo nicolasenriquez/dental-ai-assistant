@@ -64,7 +64,7 @@ describe('PatientDetail evolution workspace', () => {
       '/patients/patient-1/evolutions/evolution-1',
     );
     expect(screen.getByRole('link', { name: /Ver evolución del/ })).toBeVisible();
-    expect(screen.getByText(/\d+ años/)).toBeVisible();
+    expect(screen.getByText('Nacimiento 02/01/1990')).toBeVisible();
     expect(getEvolution).toHaveBeenCalledWith('evolution-1');
   });
 
@@ -126,5 +126,84 @@ describe('PatientDetail evolution workspace', () => {
 
     expect(await screen.findByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/patients\/patient-1$/);
+  });
+
+  it('edits patient data without changing the selected history', async () => {
+    mockPatientData();
+    const updatePatient = vi.spyOn(api, 'updatePatient').mockResolvedValue({
+      ...patient,
+      first_name: 'Lucia',
+      birth_date: '1991-03-04',
+    });
+
+    renderPatient('/patients/patient-1', { preserveHistory: true });
+
+    expect(await screen.findByRole('button', { name: 'Editar paciente' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Editar paciente' }));
+
+    expect(screen.getByRole('heading', { name: 'Editar paciente' })).toBeVisible();
+    expect(screen.getByLabelText('Nombres')).toHaveValue('Ana');
+    expect(screen.getByLabelText('Fecha de nacimiento')).toHaveValue('02/01/1990');
+    expect(screen.getByText('12.***.***-*')).toBeVisible();
+    expect(screen.queryByRole('textbox', { name: 'RUT' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: 'Lucia' } });
+    fireEvent.change(screen.getByLabelText('Fecha de nacimiento'), {
+      target: { value: '04/03/1991' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() =>
+      expect(updatePatient).toHaveBeenCalledWith('patient-1', {
+        first_name: 'Lucia',
+        last_name: 'Perez',
+        birth_date: '1991-03-04',
+      }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Lucia Perez' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Editar paciente' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1');
+  });
+
+  it('keeps RUT masked and confirms dirty-form close', async () => {
+    mockPatientData();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    renderPatient('/patients/patient-1', { preserveHistory: true });
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar paciente' }));
+    fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: 'Lucia' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(screen.getByRole('heading', { name: 'Editar paciente' })).toBeVisible();
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByRole('heading', { name: 'Editar paciente' })).not.toBeInTheDocument();
+  });
+
+  it('sends a replacement RUT only after explicit confirmation', async () => {
+    mockPatientData();
+    const updatePatient = vi.spyOn(api, 'updatePatient').mockResolvedValue({
+      ...patient,
+      rut_masked: '1.***.***-*',
+    });
+
+    renderPatient('/patients/patient-1', { preserveHistory: true });
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar paciente' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar RUT' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'RUT' }), {
+      target: { value: '123456785' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() =>
+      expect(updatePatient).toHaveBeenCalledWith('patient-1', {
+        first_name: 'Ana',
+        last_name: 'Perez',
+        birth_date: '1990-01-02',
+        rut: '12.345.678-5',
+      }),
+    );
   });
 });

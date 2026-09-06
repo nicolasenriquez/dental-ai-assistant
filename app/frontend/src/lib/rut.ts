@@ -67,6 +67,37 @@ function formatCompact(compact: string): string {
   return `${formatBody(body)}${dv ? `-${dv}` : ''}`;
 }
 
+function compactRut(value: string): string {
+  return value.toUpperCase().replace(/[.\s-]/g, '');
+}
+
+function checkDigit(number: number): string {
+  let total = 0;
+  let factor = 2;
+  for (const digit of String(number).split('').reverse()) {
+    total += Number(digit) * factor;
+    factor = factor === 7 ? 2 : factor + 1;
+  }
+
+  const remainder = 11 - (total % 11);
+  return remainder === 11 ? '0' : remainder === 10 ? 'K' : String(remainder);
+}
+
+/** Returns true only when the complete RUT body and check digit are valid. */
+export function validateRut(value: string): boolean {
+  const match = /^(\d{1,8})([0-9K])$/.exec(compactRut(value));
+  if (!match) return false;
+
+  const number = Number(match[1]);
+  return number > 0 && checkDigit(number) === match[2];
+}
+
+/** A RUT is complete once it has an explicit DV or enough digits for body + DV. */
+export function isCompleteRutInput(value: string): boolean {
+  const compact = compactRut(value);
+  return value.includes('-') || compact.length >= 8;
+}
+
 export function formatRutInput(value: string, finalize = false): string {
   void finalize;
   const upper = value.toUpperCase();

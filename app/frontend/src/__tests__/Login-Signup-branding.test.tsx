@@ -58,8 +58,7 @@ describe('Login page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByAltText('DynaChat logo')).toBeInTheDocument();
-    expect(screen.getByText('DynaChat')).toBeInTheDocument();
+    expect(screen.getByText('Dental AI Assistant')).toBeInTheDocument();
     expect(screen.getByText(brandingText)).toBeInTheDocument();
   });
 
@@ -95,8 +94,7 @@ describe('Signup page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByAltText('DynaChat logo')).toBeInTheDocument();
-    expect(screen.getByText('DynaChat')).toBeInTheDocument();
+    expect(screen.getByText('Dental AI Assistant')).toBeInTheDocument();
     expect(screen.getByText(brandingText)).toBeInTheDocument();
   });
 
@@ -137,17 +135,19 @@ describe('Login and Signup branding consistency', () => {
       </MemoryRouter>,
     );
 
-    // Both should have the logo img with same alt text
-    const loginLogo = loginContainer.querySelector('img[alt="DynaChat logo"]');
-    const signupLogo = signupContainer.querySelector('img[alt="DynaChat logo"]');
+    // Both should have the same decorative tooth icon
+    const loginLogo = loginContainer.querySelector('svg[aria-hidden="true"]');
+    const signupLogo = signupContainer.querySelector('svg[aria-hidden="true"]');
     expect(loginLogo).toBeInTheDocument();
     expect(signupLogo).toBeInTheDocument();
+    expect(loginLogo).toHaveAttribute('viewBox', '0 0 24 24');
+    expect(signupLogo).toHaveAttribute('viewBox', '0 0 24 24');
 
-    // Both should have DynaChat title
+    // Both should have Dental AI Assistant title
     const loginTitle = loginContainer.querySelector('.text-xl.font-semibold');
     const signupTitle = signupContainer.querySelector('.text-xl.font-semibold');
-    expect(loginTitle?.textContent).toBe('DynaChat');
-    expect(signupTitle?.textContent).toBe('DynaChat');
+    expect(loginTitle?.textContent).toBe('Dental AI Assistant');
+    expect(signupTitle?.textContent).toBe('Dental AI Assistant');
 
     // Both should have the tagline
     expect(loginContainer.textContent).toContain(brandingText);

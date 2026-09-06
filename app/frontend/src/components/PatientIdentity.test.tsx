@@ -13,10 +13,11 @@ const patient: Patient = {
 };
 
 describe('PatientIdentity', () => {
-  it('shows only the masked RUT and birth date', () => {
+  it('shows age, birth date, and only the masked RUT', () => {
     render(<PatientIdentity patient={patient} />);
 
-    expect(screen.getByText(/Nacimiento 2 de enero de 1985/)).toBeVisible();
+    expect(screen.getByText('Nacimiento 02/01/1985')).toBeVisible();
+    expect(screen.getByText(/\d+ años/)).toBeVisible();
     expect(screen.getByText('RUT ••.•••.678-9')).toBeVisible();
     expect(screen.queryByRole('button', { name: /RUT completo/ })).not.toBeInTheDocument();
   });

@@ -125,7 +125,7 @@ describe('AppShell mobile sidebar', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Abrir navegación' }));
-    const first = screen.getByRole('link', { name: 'Pacientes' });
+    const first = screen.getByRole('button', { name: 'Cerrar navegación' });
     const last = screen.getByRole('button', { name: 'Último elemento' });
 
     last.focus();

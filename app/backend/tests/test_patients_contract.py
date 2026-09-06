@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import pytest
+from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
 
 from backend.main import app
@@ -26,6 +27,11 @@ async def test_patient_routes_require_authentication(client: AsyncClient) -> Non
             {"first_name": "Ana", "last_name": "Perez", "rut": "12.345.678-5"},
         ),
         ("POST", "/api/patients/search", {"query": "Ana"}),
+        (
+            "PATCH",
+            "/api/patients/00000000-0000-0000-0000-000000000001",
+            {"first_name": "Ana", "last_name": "Perez"},
+        ),
     ):
         response = await client.request(method, path, json=body)
         assert response.status_code == 401
@@ -54,8 +60,57 @@ def test_patient_repository_contract_is_owner_scoped() -> None:
 
     from backend.db import patients_repo
 
-    for name in ("create_patient", "list_patients", "search_patients", "get_patient"):
+    for name in (
+        "create_patient",
+        "list_patients",
+        "search_patients",
+        "get_patient",
+        "update_patient",
+    ):
         assert "owner_user_id" in inspect.signature(getattr(patients_repo, name)).parameters
+
+
+def test_patient_update_contract_has_no_clinical_fields() -> None:
+    from backend.routes.patients import UpdatePatientRequest
+
+    assert set(UpdatePatientRequest.model_fields) == {
+        "first_name",
+        "last_name",
+        "rut",
+        "birth_date",
+    }
+
+
+def test_patient_names_collapse_repeated_whitespace_at_the_boundary() -> None:
+    from backend.routes.patients import CreatePatientRequest
+
+    request = CreatePatientRequest(
+        first_name="  Ana   María  ",
+        last_name="  Pérez   Soto ",
+        rut="12.345.678-5",
+    )
+
+    assert request.first_name == "Ana María"
+    assert request.last_name == "Pérez Soto"
+
+
+def test_patient_update_route_preserves_masked_response_contract() -> None:
+    route = next(
+        route
+        for route in app.routes
+        if isinstance(route, APIRoute) and route.path == "/api/patients/{patient_id}"
+    )
+    assert "PATCH" in route.methods
+    assert route.response_model.__name__ == "PatientDetail"
+
+
+def test_patient_update_preserves_rut_when_omitted_and_updates_timestamp() -> None:
+    from backend.db import patients_repo
+
+    source = Path(patients_repo.__file__).read_text(encoding="utf-8")
+    assert "rut_number = COALESCE($6, rut_number)" in source
+    assert "rut_dv = COALESCE($7, rut_dv)" in source
+    assert "updated_at = now()" in source
 
 
 def test_patient_contract_never_puts_rut_in_route_templates() -> None:
@@ -69,7 +124,14 @@ def test_patient_responses_are_minimal_and_masked() -> None:
     from backend.routes.patients import PatientSummary
 
     fields = set(PatientSummary.model_fields)
-    assert fields == {"id", "first_name", "last_name", "rut_masked", "last_evolution_at"}
+    assert fields == {
+        "id",
+        "first_name",
+        "last_name",
+        "rut_masked",
+        "last_evolution_at",
+        "birth_date",
+    }
 
 
 def test_patient_rut_display_formats_are_explicit() -> None:

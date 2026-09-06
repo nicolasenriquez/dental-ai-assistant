@@ -1,5 +1,6 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { DentalToothIcon } from '../DentalToothIcon';
 import { SIDEBAR_MOTION } from './sidebarMotion';
 
 interface SidebarHeaderProps {
@@ -23,8 +24,13 @@ export function SidebarHeader({
 
   return (
     <header className="sidebar-header">
-      <div className="sidebar-brand" title="DynaChat">
-        <img src="/logo.svg" alt="" aria-hidden="true" className="sidebar-brand-mark" />
+      <div className="sidebar-brand" title="Dental AI Assistant">
+        <span
+          className="sidebar-brand-mark inline-flex items-center justify-center bg-[#3b82f6] text-white"
+          aria-hidden="true"
+        >
+          <DentalToothIcon className="size-4" />
+        </span>
         <AnimatePresence initial={false}>
           {!isCollapsed && (
             <motion.span
@@ -34,7 +40,7 @@ export function SidebarHeader({
               exit={{ opacity: 0, width: 0 }}
               transition={{ duration: SIDEBAR_MOTION.fast, ease: SIDEBAR_MOTION.ease }}
             >
-              DynaChat
+              Dental AI Assistant
             </motion.span>
           )}
         </AnimatePresence>

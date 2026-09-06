@@ -388,7 +388,7 @@ body,
 
 .patient-workspace__columns {
   display: grid;
-  grid-template-columns: minmax(18rem, 0.85fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(18rem, 0.65fr) minmax(0, 1.2fr);
   align-items: start;
   gap: 16px;
 }
@@ -799,7 +799,7 @@ body,
   }
 }
 
-/* ── DynaChat sidebar ──────────────────────────────────────────── */
+/* ── Dental AI Assistant sidebar ───────────────────────────────── */
 .sidebar-container {
   position: relative;
   z-index: 30;
@@ -1206,8 +1206,6 @@ body,
 
 .conversation-menu,
 .sidebar-user-menu {
-  position: absolute;
-  z-index: 25;
   display: grid;
   min-width: 152px;
   gap: 2px;
@@ -1219,8 +1217,13 @@ body,
 }
 
 .conversation-menu {
-  top: calc(100% - 2px);
-  right: 4px;
+  position: fixed;
+  z-index: 40;
+}
+
+.sidebar-user-menu {
+  position: absolute;
+  z-index: 25;
 }
 
 .sidebar-menu-item {

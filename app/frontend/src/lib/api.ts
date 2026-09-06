@@ -101,6 +101,13 @@ export interface CreatePatientBody {
   birth_date?: string | null;
 }
 
+export interface UpdatePatientBody {
+  first_name: string;
+  last_name: string;
+  rut?: string | null;
+  birth_date?: string | null;
+}
+
 export interface ReviewFlag {
   source_text: string;
   reason: string;
@@ -201,6 +208,8 @@ export const searchPatients = (query: string) =>
 export const createPatient = (body: CreatePatientBody) =>
   request<Patient>('/patients', { method: 'POST', body: JSON.stringify(body) });
 export const getPatient = (id: string) => request<Patient>(`/patients/${id}`);
+export const updatePatient = (id: string, body: UpdatePatientBody) =>
+  request<Patient>(`/patients/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
 export const generateEvolution = (patientId: string, rawNote: string) =>
   request<ClinicalDraft>('/evolutions/generate', {
     method: 'POST',

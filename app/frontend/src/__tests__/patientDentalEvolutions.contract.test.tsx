@@ -31,6 +31,7 @@ describe('patient pages and evolution workspace contracts', () => {
     read('../pages/Patients.tsx') +
     read('../pages/PatientDetail.tsx') +
     read('../pages/NewEvolution.tsx') +
+    read('../components/PatientFormModal.tsx') +
     read('../components/PatientWorkspace.tsx') +
     read('../components/EvolutionDetailContent.tsx');
 
@@ -50,8 +51,16 @@ describe('patient pages and evolution workspace contracts', () => {
     const source = pages();
     for (const text of [
       'Nota clínica',
-      'Redactar con IA',
+      'Borrador asistido',
+      'Revisar y guardar',
+      'Generar borrador con IA',
+      'Generando borrador...',
       'Revisa estos puntos',
+      'No encontramos información clínica suficiente para generar un borrador.',
+      'No pudimos generar el borrador.',
+      'Tu nota no se perdió.',
+      'Editar nota',
+      'Seguir editando',
       'Corregir nota y regenerar',
       'isDraftStale',
     ]) {

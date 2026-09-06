@@ -64,6 +64,7 @@ describe('VideoExplorer', () => {
       render(<VideoExplorer isOpen={true} onClose={onClose} />);
 
       const addButton = await screen.findByRole('button', { name: '+ Agregar video' });
+      addButton.focus();
       fireEvent.click(addButton);
 
       const ingestDialog = screen.getByRole('dialog', { name: 'Agregar video' });

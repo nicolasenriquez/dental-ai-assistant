@@ -1,6 +1,7 @@
 import { ChevronRight, Ellipsis, MessageCircle, Pencil, Search, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Conversation } from '../../lib/api';
 import { SIDEBAR_MOTION } from './sidebarMotion';
 
@@ -29,6 +30,11 @@ interface ConversationRowProps {
   onSelect: () => void;
   onDeleteRequest: () => void;
   onRename: (title: string) => void;
+}
+
+interface MenuPosition {
+  top: number;
+  right: number;
 }
 
 const GROUP_ORDER: ConversationGroup[] = ['Hoy', 'Ayer', 'Anteriores'];
@@ -89,8 +95,11 @@ function ConversationRow({
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(conversation.title);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuLayerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -100,7 +109,10 @@ function ConversationRow({
     if (!menuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !menuLayerRef.current?.contains(target)) {
+        setMenuOpen(false);
+      }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -114,6 +126,36 @@ function ConversationRow({
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  useLayoutEffect(() => {
+    if (!menuOpen) {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updateMenuPosition = () => {
+      const trigger = triggerRef.current;
+      const menu = menuLayerRef.current;
+      if (!trigger || !menu) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      const opensUpward = triggerRect.bottom + menuRect.height > window.innerHeight - 8;
+
+      setMenuPosition({
+        top: opensUpward ? triggerRect.top - menuRect.height + 2 : triggerRect.bottom - 2,
+        right: Math.max(8, window.innerWidth - triggerRect.right + 4),
+      });
+    };
+
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    document.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      document.removeEventListener('scroll', updateMenuPosition, true);
     };
   }, [menuOpen]);
 
@@ -172,6 +214,7 @@ function ConversationRow({
         <button
           type="button"
           className="conversation-menu-trigger conversation-action"
+          ref={triggerRef}
           onClick={(event) => {
             event.stopPropagation();
             setMenuOpen((current) => !current);
@@ -185,40 +228,49 @@ function ConversationRow({
         </button>
       )}
 
-      <AnimatePresence>
-        {menuOpen && !editing && (
-          <motion.div
-            className="conversation-menu"
-            role="menu"
-            initial={{ opacity: 0, y: -3, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -3, scale: 0.98 }}
-            transition={{ duration: SIDEBAR_MOTION.fast, ease: SIDEBAR_MOTION.ease }}
-          >
-            <button
-              type="button"
-              className="sidebar-menu-item"
-              role="menuitem"
-              onClick={startRename}
+      {createPortal(
+        <AnimatePresence>
+          {menuOpen && !editing && (
+            <motion.div
+              ref={menuLayerRef}
+              className="conversation-menu"
+              role="menu"
+              style={
+                menuPosition
+                  ? { top: `${menuPosition.top}px`, right: `${menuPosition.right}px` }
+                  : { visibility: 'hidden' }
+              }
+              initial={{ opacity: 0, y: -3, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -3, scale: 0.98 }}
+              transition={{ duration: SIDEBAR_MOTION.fast, ease: SIDEBAR_MOTION.ease }}
             >
-              <Pencil aria-hidden="true" size={16} strokeWidth={1.7} />
-              Renombrar
-            </button>
-            <button
-              type="button"
-              className="sidebar-menu-item sidebar-menu-item--danger"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false);
-                onDeleteRequest();
-              }}
-            >
-              <Trash2 aria-hidden="true" size={16} strokeWidth={1.7} />
-              Eliminar
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <button
+                type="button"
+                className="sidebar-menu-item"
+                role="menuitem"
+                onClick={startRename}
+              >
+                <Pencil aria-hidden="true" size={16} strokeWidth={1.7} />
+                Renombrar
+              </button>
+              <button
+                type="button"
+                className="sidebar-menu-item sidebar-menu-item--danger"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDeleteRequest();
+                }}
+              >
+                <Trash2 aria-hidden="true" size={16} strokeWidth={1.7} />
+                Eliminar
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   );
 }
