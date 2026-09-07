@@ -130,8 +130,14 @@ export function Message({
   const hasSources = !isUser && Array.isArray(sources) && sources.length > 0;
 
   return (
-    <div className={`message-row ${isUser ? 'is-user' : 'is-assistant'}`}>
+    <article
+      className={`message-row ${isUser ? 'is-user' : 'is-assistant'}`}
+      aria-label={isUser ? 'Tú' : 'Asistente'}
+    >
       <div className="message-content">
+        <div className="message-turn-label" aria-hidden="true">
+          {isUser ? 'Tú' : 'Asistente'}
+        </div>
         {isStreaming && !content ? (
           streamingStatus ? (
             <div className="text-slate-400 text-[13px] italic">
@@ -149,6 +155,6 @@ export function Message({
           </>
         )}
       </div>
-    </div>
+    </article>
   );
 }

@@ -29,7 +29,7 @@ const secondConversationFixture = {
       id: '00000000-0000-0000-0000-000000000009',
       conversation_id: '00000000-0000-0000-0000-000000000007',
       role: 'assistant',
-      content: 'Second hydrated response.',
+      content: `Second hydrated response.\n\n${'Historical detail. '.repeat(400)}`,
       created_at: '2026-01-15T12:00:00Z',
       sources: [],
     },
@@ -425,6 +425,12 @@ test('isolates concurrent conversation streams, stop, retry, and manual scroll',
   await page.getByRole('button', { name: /enviar mensaje/i }).click();
   await expect(aRow).toHaveAttribute('aria-busy', 'true');
 
+  await input.fill('Follow-up en cola');
+  await page.getByRole('button', { name: 'Poner mensaje en cola' }).click();
+  await expect(page.getByLabel('Mensaje en cola')).toContainText('Follow-up en cola');
+  await page.getByRole('button', { name: 'Eliminar mensaje en cola' }).click();
+  await expect(page.getByLabel('Mensaje en cola')).toBeHidden();
+
   await bRow.click();
   await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000007$/);
   await expect(aRow).toHaveAttribute('aria-busy', 'true');
@@ -443,18 +449,33 @@ test('isolates concurrent conversation streams, stop, retry, and manual scroll',
   releaseA();
 
   await bRow.click();
+  const bScroll = page.locator('.chat-message-scroll');
+  await expect
+    .poll(() => bScroll.evaluate((element) => element.scrollHeight - element.clientHeight))
+    .toBeGreaterThan(100);
+  const bScrollTopBeforeResponse = await bScroll.evaluate((element) => {
+    element.scrollTop = 100;
+    element.dispatchEvent(new Event('scroll', { bubbles: true }));
+    return element.scrollTop;
+  });
+  expect(bScrollTopBeforeResponse).toBe(100);
   releaseB();
   await expect(page.getByText('Respuesta B de prueba')).toBeVisible();
+  await expect.poll(() => bScroll.evaluate((element) => element.scrollTop)).toBe(bScrollTopBeforeResponse);
   await expect(bRow).toHaveAttribute('aria-busy', 'false');
+
+  await aRow.click();
+  await bRow.click();
+  await expect.poll(() => bScroll.evaluate((element) => element.scrollTop)).toBe(bScrollTopBeforeResponse);
 
   const chatScroll = page.locator('.chat-message-scroll');
   await chatScroll.evaluate((element) => {
     element.scrollTop = 0;
     element.dispatchEvent(new Event('scroll', { bubbles: true }));
   });
-  await expect(page.getByRole('button', { name: '↓ Ir al final' })).toBeVisible();
-  await page.getByRole('button', { name: '↓ Ir al final' }).click();
-  await expect(page.getByRole('button', { name: '↓ Ir al final' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Ir al mensaje más reciente' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ir al mensaje más reciente' }).click();
+  await expect(page.getByRole('button', { name: 'Ir al mensaje más reciente' })).toBeHidden();
 
   await aRow.click();
   await page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/).fill('Consulta con error');

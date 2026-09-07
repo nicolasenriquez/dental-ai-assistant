@@ -9,10 +9,10 @@ describe('ChatInput', () => {
       expect(screen.getByRole('button', { name: /enviar/i })).toBeInTheDocument();
     });
 
-    it('shows Stop button when streaming', () => {
+    it('shows queue and Stop buttons when streaming', () => {
       render(<ChatInput onSend={vi.fn()} isStreaming={true} />);
       expect(screen.getByRole('button', { name: /detener/i })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /enviar/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /poner mensaje en cola/i })).toBeInTheDocument();
     });
 
     it('Stop button calls onStop when clicked', () => {
@@ -31,9 +31,9 @@ describe('ChatInput', () => {
       expect(onSend).toHaveBeenCalledWith('Hello');
     });
 
-    it('input is disabled while streaming', () => {
+    it('input remains editable while streaming', () => {
       render(<ChatInput onSend={vi.fn()} isStreaming={true} />);
-      expect(screen.getByRole('textbox')).toBeDisabled();
+      expect(screen.getByRole('textbox')).not.toBeDisabled();
     });
 
     it('input is not disabled when not streaming', () => {
@@ -43,7 +43,10 @@ describe('ChatInput', () => {
 
     it('shows correct placeholder when streaming', () => {
       render(<ChatInput onSend={vi.fn()} isStreaming={true} />);
-      expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'Esperando la respuesta…');
+      expect(screen.getByRole('textbox')).toHaveAttribute(
+        'placeholder',
+        'Escribe un mensaje para enviarlo después…',
+      );
     });
 
     it('shows correct placeholder when not streaming', () => {
@@ -59,6 +62,33 @@ describe('ChatInput', () => {
       // Stop button exists but has no handler - clicking should not throw
       const stopBtn = screen.getByRole('button', { name: /detener/i });
       expect(() => fireEvent.click(stopBtn)).not.toThrow();
+    });
+
+    it('keeps the draft when the parent rejects the send', () => {
+      render(<ChatInput onSend={() => false} />);
+      const input = screen.getByRole('textbox');
+      fireEvent.change(input, { target: { value: 'Queued twice' } });
+      fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+      expect(input).toHaveValue('Queued twice');
+    });
+
+    it('resizes when a controlled draft changes', () => {
+      const onValueChange = vi.fn();
+      const view = render(
+        <ChatInput value="Short" onValueChange={onValueChange} onSend={vi.fn()} />,
+      );
+      const input = screen.getByRole('textbox');
+      Object.defineProperty(input, 'scrollHeight', { configurable: true, value: 120 });
+
+      view.rerender(
+        <ChatInput
+          value={'A long restored draft\nwith several lines'}
+          onValueChange={onValueChange}
+          onSend={vi.fn()}
+        />,
+      );
+
+      expect(input).toHaveStyle({ height: '120px' });
     });
   });
 });

@@ -11,8 +11,19 @@ export interface StreamingStatus {
   subject: string;
 }
 
+export type ChatRunState =
+  | 'idle'
+  | 'submitting'
+  | 'waiting_first_token'
+  | 'streaming'
+  | 'stopping'
+  | 'completed'
+  | 'failed'
+  | 'disconnected';
+
 export interface ConversationRuntime {
   status: 'running' | 'error';
+  phase?: ChatRunState;
   content: string;
   sources: Citation[];
   streamingStatus: StreamingStatus | null;
@@ -39,6 +50,15 @@ export function useStreamingResponse() {
   }, []);
 
   const abortStream = useCallback((conversationId: string) => {
+    if (streamAbortRef.current.has(conversationId)) {
+      setRuntimeByConversationId((current) => ({
+        ...current,
+        [conversationId]: {
+          ...current[conversationId],
+          phase: 'stopping',
+        },
+      }));
+    }
     streamAbortRef.current.get(conversationId)?.abort();
   }, []);
 
@@ -54,6 +74,7 @@ export function useStreamingResponse() {
         ...current,
         [conversationId]: {
           status: 'running',
+          phase: 'submitting',
           content: '',
           sources: [],
           streamingStatus: null,
@@ -107,6 +128,14 @@ export function useStreamingResponse() {
           throw new Error(`HTTP ${res.status}${errorText ? `: ${errorText}` : ''}`);
         }
         if (!res.body) throw new Error('No response body');
+
+        setRuntimeByConversationId((current) => ({
+          ...current,
+          [conversationId]: {
+            ...current[conversationId],
+            phase: 'waiting_first_token',
+          },
+        }));
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -215,6 +244,7 @@ export function useStreamingResponse() {
                 ...current,
                 [conversationId]: {
                   ...current[conversationId],
+                  phase: 'streaming',
                   content: fullText,
                   streamingStatus: null,
                 },
@@ -223,11 +253,25 @@ export function useStreamingResponse() {
           }
         }
 
-        clearRuntime(conversationId);
+        setRuntimeByConversationId((current) => ({
+          ...current,
+          [conversationId]: {
+            ...current[conversationId],
+            phase: 'completed',
+            content: fullText,
+            sources,
+          },
+        }));
         return { fullText, sources };
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
-          clearRuntime(conversationId);
+          setRuntimeByConversationId((current) => ({
+            ...current,
+            [conversationId]: {
+              ...current[conversationId],
+              phase: 'stopping',
+            },
+          }));
           return null;
         }
 
@@ -236,6 +280,7 @@ export function useStreamingResponse() {
           ...current,
           [conversationId]: {
             status: 'error',
+            phase: streamError instanceof TypeError ? 'disconnected' : 'failed',
             content: fullText,
             sources,
             streamingStatus: null,
@@ -251,7 +296,7 @@ export function useStreamingResponse() {
         }
       }
     },
-    [clearRuntime],
+    [],
   );
 
   useEffect(() => {

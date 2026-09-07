@@ -55,7 +55,9 @@ function AppLayout({ conversationId }: AppLayoutProps) {
   const conversationsRef = useRef<(() => Promise<void>) | null>(null) as React.MutableRefObject<
     (() => Promise<void>) | null
   >;
-  const { runtimeByConversationId, startStream, abortStream } = useStreamingResponse();
+  const { runtimeByConversationId, startStream, abortStream, clearRuntime } =
+    useStreamingResponse();
+  const { refresh: refreshAuth } = useAuth();
 
   return (
     <AppShell
@@ -70,6 +72,8 @@ function AppLayout({ conversationId }: AppLayoutProps) {
         runtime={conversationId ? runtimeByConversationId[conversationId] : undefined}
         startStream={startStream}
         abortStream={abortStream}
+        clearRuntime={clearRuntime}
+        refreshAuth={refreshAuth}
       />
     </AppShell>
   );

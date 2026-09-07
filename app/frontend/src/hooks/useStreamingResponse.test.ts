@@ -71,6 +71,12 @@ describe('useStreamingResponse', () => {
     });
 
     expect(streamResult).toEqual({ fullText: 'Answer here.', sources: [mockCitation] });
+    expect(result.current.runtimeByConversationId['conv-1']).toMatchObject({
+      status: 'running',
+      phase: 'completed',
+      content: 'Answer here.',
+    });
+    act(() => result.current.clearRuntime('conv-1'));
     expect(result.current.runtimeByConversationId).toEqual({});
   });
 
@@ -117,7 +123,12 @@ describe('useStreamingResponse', () => {
       await Promise.all([aPromise, bPromise]);
     });
 
-    expect(result.current.runtimeByConversationId).toEqual({});
+    expect(result.current.runtimeByConversationId.a?.phase).toBe('completed');
+    expect(result.current.runtimeByConversationId.b?.phase).toBe('completed');
+    act(() => {
+      result.current.clearRuntime('a');
+      result.current.clearRuntime('b');
+    });
   });
 
   it('aborts only the requested conversation stream', async () => {
@@ -148,7 +159,7 @@ describe('useStreamingResponse', () => {
       await expect(aPromise).resolves.toBeNull();
     });
 
-    expect(result.current.runtimeByConversationId.a).toBeUndefined();
+    expect(result.current.runtimeByConversationId.a?.phase).toBe('stopping');
     expect(result.current.runtimeByConversationId.b?.status).toBe('running');
 
     await act(async () => {
@@ -156,6 +167,10 @@ describe('useStreamingResponse', () => {
       streams.b.push('data: [DONE]\n\n');
       streams.b.close();
       await bPromise;
+    });
+    act(() => {
+      result.current.clearRuntime('a');
+      result.current.clearRuntime('b');
     });
     expect(result.current.runtimeByConversationId).toEqual({});
   });
