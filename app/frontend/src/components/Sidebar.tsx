@@ -9,6 +9,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useConversations } from '../hooks/useConversations';
+import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { useToast } from '../hooks/useToast';
 import { createConversation, deleteConversation } from '../lib/api';
 import { VideoExplorer } from './VideoExplorer';
@@ -83,6 +84,7 @@ export interface SidebarProps {
   isMobile?: boolean;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  runtimeByConversationId?: RuntimeByConversationId;
   sidebarRef?: RefObject<HTMLElement>;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
 }
@@ -96,6 +98,7 @@ export function Sidebar({
   isMobile = false,
   isCollapsed = false,
   onToggleCollapse = () => undefined,
+  runtimeByConversationId,
   sidebarRef,
   onKeyDown,
 }: SidebarProps) {
@@ -198,7 +201,7 @@ export function Sidebar({
         aria-hidden={isMobile && !isOpen ? true : undefined}
         initial={false}
         animate={{
-          width: isMobile ? 'min(260px, calc(100vw - 24px))' : isCollapsed ? 56 : 240,
+          width: isMobile ? 'min(260px, calc(100vw - 24px))' : isCollapsed ? 56 : 260,
           x: isMobile && !isOpen ? '-100%' : 0,
         }}
         transition={
@@ -255,6 +258,7 @@ export function Sidebar({
                   loading={loading}
                   query={debouncedQuery}
                   activeConversationId={activeConversationId}
+                  runtimeByConversationId={runtimeByConversationId}
                   onNewChat={handleNewChat}
                   onSelect={(id) => {
                     navigate(`/c/${id}`);

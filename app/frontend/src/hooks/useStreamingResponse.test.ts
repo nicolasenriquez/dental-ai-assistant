@@ -1,14 +1,6 @@
-/**
- * Tests for useStreamingResponse hook SSE parsing.
- *
- * Verifies:
- *   - Parses sources event with Citation[] objects into streamingSources state
- *   - Handles malformed sources JSON gracefully with console.warn
- */
-
-import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useStreamingResponse } from './useStreamingResponse';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type StreamResult, useStreamingResponse } from './useStreamingResponse';
 
 function makeSseStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -18,6 +10,29 @@ function makeSseStream(chunks: string[]): ReadableStream<Uint8Array> {
       controller.close();
     },
   });
+}
+
+function createControlledStream() {
+  const encoder = new TextEncoder();
+  let controller: ReadableStreamDefaultController<Uint8Array>;
+  const stream = new ReadableStream<Uint8Array>({
+    start(nextController) {
+      controller = nextController;
+    },
+  });
+
+  return {
+    stream,
+    push(chunk: string) {
+      controller.enqueue(encoder.encode(chunk));
+    },
+    close() {
+      controller.close();
+    },
+    fail(error: unknown) {
+      controller.error(error);
+    },
+  };
 }
 
 const mockCitation = {
@@ -30,249 +45,184 @@ const mockCitation = {
   snippet: 'Test snippet text',
 };
 
-describe('useStreamingResponse SSE parsing', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+describe('useStreamingResponse', () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.unstubAllGlobals());
 
-  it('parses sources event with Citation objects', () => {
-    const warnMock = vi.fn();
-    const originalWarn = console.warn;
-    console.warn = warnMock;
-
-    // Simulate SSE parsing logic from the hook
-    const data = JSON.stringify([mockCitation]);
-    let sources: unknown[] = [];
-    try {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        sources = parsed;
-      }
-    } catch (e) {
-      console.warn('[useStreamingResponse] Failed to parse sources event:', e);
-    }
-
-    expect(sources).toHaveLength(1);
-    expect((sources[0] as typeof mockCitation).chunk_id).toBe('chunk-1');
-    expect((sources[0] as typeof mockCitation).video_title).toBe('Test Video');
-
-    console.warn = originalWarn;
-  });
-
-  it('warns on malformed sources JSON', () => {
-    const warnMock = vi.fn();
-    const originalWarn = console.warn;
-    console.warn = warnMock;
-
-    const data = 'not valid json {';
-
-    let sources: unknown[] = [];
-    try {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        sources = parsed;
-      }
-    } catch (e) {
-      console.warn('[useStreamingResponse] Failed to parse sources event:', e);
-    }
-
-    expect(sources).toHaveLength(0);
-    expect(warnMock).toHaveBeenCalledWith(
-      '[useStreamingResponse] Failed to parse sources event:',
-      expect.any(Error),
-    );
-
-    console.warn = originalWarn;
-  });
-
-  it('handles empty sources array', () => {
-    const eventType = 'sources';
-    const data = '[]';
-
-    let sources: unknown[] = [];
-    try {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        sources = parsed;
-      }
-    } catch {
-      // ignore
-    }
-
-    expect(sources).toHaveLength(0);
-  });
-
-  it('handles sources event with multiple citations', () => {
-    const multipleCitations = [
-      mockCitation,
-      { ...mockCitation, chunk_id: 'chunk-2', video_title: 'Second Video' },
-    ];
-    const data = JSON.stringify(multipleCitations);
-
-    let sources: unknown[] = [];
-    try {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) {
-        sources = parsed;
-      }
-    } catch {
-      // ignore
-    }
-
-    expect(sources).toHaveLength(2);
-    expect((sources[0] as typeof mockCitation).chunk_id).toBe('chunk-1');
-    expect((sources[1] as typeof mockCitation).chunk_id).toBe('chunk-2');
-  });
-});
-
-describe('status event SSE parsing — hook state transitions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('sets and clears streamingStatus through the real hook (start → done → cleared)', async () => {
-    const startPayload = JSON.stringify({
-      type: 'tool_call_start',
-      tool: 'search_videos',
-      subject: 'building agents',
-    });
-    const donePayload = JSON.stringify({ type: 'tool_call_done', tool: 'search_videos' });
-
-    const sseChunks = [
-      `event: status\ndata: ${startPayload}\n\n`,
-      `event: status\ndata: ${donePayload}\n\n`,
-      `data: "Answer here."\n\n`,
-      'data: [DONE]\n\n',
-    ];
-
+  it('returns the parsed answer and sources for one conversation', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        body: makeSseStream(sseChunks),
+        body: makeSseStream([
+          `event: sources\ndata: ${JSON.stringify([mockCitation])}\n\n`,
+          'data: "Answer here."\n\n',
+          'data: [DONE]\n\n',
+        ]),
       }),
     );
 
-    const onComplete = vi.fn();
     const { result } = renderHook(() => useStreamingResponse());
+    let streamResult: StreamResult | null | undefined;
 
     await act(async () => {
-      await result.current.startStream('conv-1', 'hi', onComplete);
+      streamResult = await result.current.startStream('conv-1', 'hi');
     });
 
-    // After the stream ends, streamingStatus must be null (cleared in finally)
-    expect(result.current.streamingStatus).toBeNull();
-    expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({ fullText: 'Answer here.' }));
+    expect(streamResult).toEqual({ fullText: 'Answer here.', sources: [mockCitation] });
+    expect(result.current.runtimeByConversationId).toEqual({});
   });
 
-  it('clears streamingStatus when first content token arrives (no tool_call_done)', async () => {
-    const startPayload = JSON.stringify({
-      type: 'tool_call_start',
-      tool: 'search_videos',
-      subject: 'building agents',
-    });
-
-    // Deliberately omit tool_call_done — content token must clear status
-    const sseChunks = [
-      `event: status\ndata: ${startPayload}\n\n`,
-      `data: "Token"\n\n`,
-      'data: [DONE]\n\n',
-    ];
-
+  it('keeps simultaneous streams isolated by conversation id', async () => {
+    const streams = { a: createControlledStream(), b: createControlledStream() };
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: makeSseStream(sseChunks),
+      vi.fn((input: RequestInfo | URL) => {
+        const id = String(input).includes('/a/') ? 'a' : 'b';
+        return Promise.resolve({ ok: true, status: 200, body: streams[id].stream });
       }),
     );
 
     const { result } = renderHook(() => useStreamingResponse());
-
+    let aPromise = Promise.resolve<StreamResult | null>(null);
+    let bPromise = Promise.resolve<StreamResult | null>(null);
     await act(async () => {
-      await result.current.startStream('conv-1', 'hi', vi.fn());
+      aPromise = result.current.startStream('a', 'Question A');
+      bPromise = result.current.startStream('b', 'Question B');
+      await Promise.resolve();
     });
 
-    expect(result.current.streamingStatus).toBeNull();
+    await waitFor(() => {
+      expect(result.current.runtimeByConversationId.a?.status).toBe('running');
+      expect(result.current.runtimeByConversationId.b?.status).toBe('running');
+    });
+
+    await act(async () => {
+      streams.a.push('data: "Answer A"\n\n');
+    });
+    expect(result.current.runtimeByConversationId.a?.content).toBe('Answer A');
+    expect(result.current.runtimeByConversationId.b?.content).toBe('');
+
+    await act(async () => {
+      streams.b.push('data: "Answer B"\n\n');
+    });
+    expect(result.current.runtimeByConversationId.b?.content).toBe('Answer B');
+
+    await act(async () => {
+      streams.a.push('data: [DONE]\n\n');
+      streams.a.close();
+      streams.b.push('data: [DONE]\n\n');
+      streams.b.close();
+      await Promise.all([aPromise, bPromise]);
+    });
+
+    expect(result.current.runtimeByConversationId).toEqual({});
   });
 
-  it('warns and leaves status null on malformed status event JSON', async () => {
+  it('aborts only the requested conversation stream', async () => {
+    const streams = { a: createControlledStream(), b: createControlledStream() };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const id = String(input).includes('/a/') ? 'a' : 'b';
+        init?.signal?.addEventListener('abort', () => {
+          streams[id].fail(new DOMException('Aborted', 'AbortError'));
+        });
+        return Promise.resolve({ ok: true, status: 200, body: streams[id].stream });
+      }),
+    );
+
+    const { result } = renderHook(() => useStreamingResponse());
+    let aPromise = Promise.resolve<StreamResult | null>(null);
+    let bPromise = Promise.resolve<StreamResult | null>(null);
+    await act(async () => {
+      aPromise = result.current.startStream('a', 'Question A');
+      bPromise = result.current.startStream('b', 'Question B');
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.runtimeByConversationId.a?.status).toBe('running'));
+
+    await act(async () => {
+      result.current.abortStream('a');
+      await expect(aPromise).resolves.toBeNull();
+    });
+
+    expect(result.current.runtimeByConversationId.a).toBeUndefined();
+    expect(result.current.runtimeByConversationId.b?.status).toBe('running');
+
+    await act(async () => {
+      streams.b.push('data: "Answer B"\n\n');
+      streams.b.push('data: [DONE]\n\n');
+      streams.b.close();
+      await bPromise;
+    });
+    expect(result.current.runtimeByConversationId).toEqual({});
+  });
+
+  it('keeps an error on its owner and clears that runtime independently', async () => {
+    const bStream = createControlledStream();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        if (String(input).includes('/a/')) {
+          return Promise.resolve({ ok: false, status: 500, body: null, text: async () => '' });
+        }
+        return Promise.resolve({ ok: true, status: 200, body: bStream.stream });
+      }),
+    );
+
+    const { result } = renderHook(() => useStreamingResponse());
+    await act(async () => {
+      await expect(result.current.startStream('a', 'Question A')).rejects.toThrow('HTTP 500');
+    });
+    expect(result.current.runtimeByConversationId.a?.status).toBe('error');
+
+    let bPromise = Promise.resolve<StreamResult | null>(null);
+    await act(async () => {
+      bPromise = result.current.startStream('b', 'Question B');
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.runtimeByConversationId.b?.status).toBe('running'));
+    expect(result.current.runtimeByConversationId.b?.error).toBeNull();
+
+    act(() => result.current.clearRuntime('a'));
+    expect(result.current.runtimeByConversationId.a).toBeUndefined();
+    expect(result.current.runtimeByConversationId.b?.status).toBe('running');
+
+    await act(async () => {
+      bStream.push('data: "Answer B"\n\n');
+      bStream.push('data: [DONE]\n\n');
+      bStream.close();
+      await bPromise;
+    });
+  });
+
+  it('warns and continues when a status event is malformed', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const sseChunks = [
-      'event: status\ndata: not valid json {\n\n',
-      'data: "Answer."\n\n',
-      'data: [DONE]\n\n',
-    ];
-
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        body: makeSseStream(sseChunks),
+        body: makeSseStream(['event: status\ndata: not valid json {\n\n', 'data: "Answer"\n\n']),
       }),
     );
 
     const { result } = renderHook(() => useStreamingResponse());
-
     await act(async () => {
-      await result.current.startStream('conv-1', 'hi', vi.fn());
+      await result.current.startStream('conv-1', 'hi');
     });
 
-    expect(result.current.streamingStatus).toBeNull();
     expect(warnSpy).toHaveBeenCalledWith(
       '[useStreamingResponse] Failed to parse status event:',
       expect.any(Error),
     );
   });
 
-  it('ignores unknown status type and leaves streamingStatus null', async () => {
-    const unknownPayload = JSON.stringify({ type: 'future_event', tool: 'foo' });
-
-    const sseChunks = [
-      `event: status\ndata: ${unknownPayload}\n\n`,
-      'data: "Answer."\n\n',
-      'data: [DONE]\n\n',
-    ];
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: makeSseStream(sseChunks),
-      }),
-    );
-
+  it('is safe to abort or clear an idle conversation', () => {
     const { result } = renderHook(() => useStreamingResponse());
-
-    await act(async () => {
-      await result.current.startStream('conv-1', 'hi', vi.fn());
-    });
-
-    expect(result.current.streamingStatus).toBeNull();
-  });
-});
-
-describe('abortStream', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should be a no-op when no stream is active', () => {
-    const { result } = renderHook(() => useStreamingResponse());
-    expect(result.current.abortStream).not.toThrow();
-    expect(result.current.isStreaming).toBe(false);
-  });
-
-  it('should be callable multiple times without throwing', () => {
-    const { result } = renderHook(() => useStreamingResponse());
-    result.current.abortStream();
-    result.current.abortStream();
-    result.current.abortStream();
-    expect(result.current.isStreaming).toBe(false);
+    expect(() => result.current.abortStream('missing')).not.toThrow();
+    expect(() => result.current.clearRuntime('missing')).not.toThrow();
   });
 });

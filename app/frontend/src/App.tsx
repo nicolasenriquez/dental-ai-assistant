@@ -14,6 +14,7 @@ import { AppShell } from './components/AppShell';
 import { ChatArea } from './components/ChatArea';
 import { ToastProvider } from './components/ToastProvider';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { useStreamingResponse } from './hooks/useStreamingResponse';
 import { AdminVideos } from './pages/AdminVideos';
 import { Login } from './pages/Login';
 import { NewEvolution } from './pages/NewEvolution';
@@ -54,14 +55,22 @@ function AppLayout({ conversationId }: AppLayoutProps) {
   const conversationsRef = useRef<(() => Promise<void>) | null>(null) as React.MutableRefObject<
     (() => Promise<void>) | null
   >;
+  const { runtimeByConversationId, startStream, abortStream } = useStreamingResponse();
 
   return (
     <AppShell
       activeConversationId={conversationId}
       showConversations
       conversationsRef={conversationsRef}
+      runtimeByConversationId={runtimeByConversationId}
     >
-      <ChatArea conversationId={conversationId} refreshConversationsRef={conversationsRef} />
+      <ChatArea
+        conversationId={conversationId}
+        refreshConversationsRef={conversationsRef}
+        runtime={conversationId ? runtimeByConversationId[conversationId] : undefined}
+        startStream={startStream}
+        abortStream={abortStream}
+      />
     </AppShell>
   );
 }

@@ -18,6 +18,24 @@ const conversationFixture = {
   ],
 };
 
+const secondConversationFixture = {
+  id: '00000000-0000-0000-0000-000000000007',
+  title: 'Second conversation',
+  created_at: '2026-01-15T12:00:00Z',
+  updated_at: '2026-01-15T12:00:00Z',
+  preview: 'Second message',
+  messages: [
+    {
+      id: '00000000-0000-0000-0000-000000000009',
+      conversation_id: '00000000-0000-0000-0000-000000000007',
+      role: 'assistant',
+      content: 'Second hydrated response.',
+      created_at: '2026-01-15T12:00:00Z',
+      sources: [],
+    },
+  ],
+};
+
 const conversationListFixture = [
   {
     id: '00000000-0000-0000-0000-000000000002',
@@ -327,6 +345,139 @@ test('keeps lower conversation menu actions visible', async ({ page }) => {
   await menu.getByRole('menuitem', { name: 'Eliminar' }).click();
   await expect(page.getByRole('dialog', { name: '¿Eliminar conversación?' })).toBeVisible();
   await page.getByRole('button', { name: 'Cancelar' }).click();
+});
+
+test('isolates concurrent conversation streams, stop, retry, and manual scroll', async ({ page }) => {
+  await page.clock.install({ time: '2026-01-15T12:00:00Z' });
+  await mockJsonRoute(page, '**/api/conversations', [conversationFixture, secondConversationFixture], 'GET');
+  await mockJsonRoute(
+    page,
+    '**/api/conversations/00000000-0000-0000-0000-000000000002',
+    conversationFixture,
+  );
+  await mockJsonRoute(
+    page,
+    '**/api/conversations/00000000-0000-0000-0000-000000000007',
+    secondConversationFixture,
+  );
+
+  let releaseA!: () => void;
+  const streamA = new Promise<void>((resolve) => {
+    releaseA = resolve;
+  });
+  let releaseB!: () => void;
+  const streamB = new Promise<void>((resolve) => {
+    releaseB = resolve;
+  });
+  let aRequestCount = 0;
+
+  await page.route(
+    '**/api/conversations/00000000-0000-0000-0000-000000000002/messages',
+    async (route) => {
+      aRequestCount += 1;
+      if (aRequestCount === 1) {
+        await streamA;
+        try {
+          await route.fulfill({
+            status: 200,
+            contentType: 'text/event-stream',
+            body: `data: ${JSON.stringify('Respuesta A')}\n\ndata: [DONE]\n\n`,
+          });
+        } catch {
+          // The first A request is intentionally aborted by the test.
+        }
+        return;
+      }
+
+      if (aRequestCount === 2) {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'A failed' }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: `data: ${JSON.stringify('Respuesta A recuperada')}\n\ndata: [DONE]\n\n`,
+      });
+    },
+  );
+  await page.route(
+    '**/api/conversations/00000000-0000-0000-0000-000000000007/messages',
+    async (route) => {
+      await streamB;
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: `data: ${JSON.stringify(`Respuesta B de prueba\n\n${'Detalle clínico de B. '.repeat(120)}`)}\n\ndata: [DONE]\n\n`,
+      });
+    },
+  );
+
+  await page.goto('/c/00000000-0000-0000-0000-000000000002');
+  const aRow = page.getByRole('button', { name: /Baseline conversation/ });
+  const bRow = page.getByRole('button', { name: /Second conversation/ });
+  const input = page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/);
+  await input.fill('Consulta A');
+  await page.getByRole('button', { name: /enviar mensaje/i }).click();
+  await expect(aRow).toHaveAttribute('aria-busy', 'true');
+
+  await bRow.click();
+  await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000007$/);
+  await expect(aRow).toHaveAttribute('aria-busy', 'true');
+  await expect(bRow).toHaveAttribute('aria-busy', 'false');
+
+  await page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/).fill('Consulta B');
+  await page.getByRole('button', { name: /enviar mensaje/i }).click();
+  await expect(bRow).toHaveAttribute('aria-busy', 'true');
+
+  await aRow.click();
+  await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000002$/);
+  await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
+  await page.getByRole('button', { name: 'Detener respuesta' }).click();
+  await expect(aRow).toHaveAttribute('aria-busy', 'false');
+  await expect(bRow).toHaveAttribute('aria-busy', 'true');
+  releaseA();
+
+  await bRow.click();
+  releaseB();
+  await expect(page.getByText('Respuesta B de prueba')).toBeVisible();
+  await expect(bRow).toHaveAttribute('aria-busy', 'false');
+
+  const chatScroll = page.locator('.chat-message-scroll');
+  await chatScroll.evaluate((element) => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
+  await expect(page.getByRole('button', { name: '↓ Ir al final' })).toBeVisible();
+  await page.getByRole('button', { name: '↓ Ir al final' }).click();
+  await expect(page.getByRole('button', { name: '↓ Ir al final' })).toBeHidden();
+
+  await aRow.click();
+  await page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/).fill('Consulta con error');
+  await page.getByRole('button', { name: /enviar mensaje/i }).click();
+  await expect(aRow).toHaveAttribute('aria-busy', 'false');
+  await expect(aRow.getByRole('img', { name: 'Error en la respuesta' })).toBeVisible();
+  await expect(bRow.getByRole('img', { name: 'Error en la respuesta' })).toBeHidden();
+  await page.getByRole('button', { name: 'Reintentar' }).click();
+  await expect(aRow).toHaveAttribute('aria-busy', 'true');
+  await expect(page.getByText('Respuesta A recuperada')).toBeVisible();
+  await expect(aRow.getByRole('img', { name: 'Error en la respuesta' })).toBeHidden();
+
+  for (let index = 0; index < 10; index += 1) {
+    await bRow.click();
+    await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000007$/);
+    await aRow.click();
+    await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000002$/);
+  }
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(await page.locator('.chat-message-scroll').evaluate((element) => getComputedStyle(element).scrollBehavior)).toBe(
+    'auto',
+  );
 });
 
 test('captures sidebar responsive states and preserves the rail contract', async ({ page }) => {

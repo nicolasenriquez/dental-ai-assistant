@@ -12,9 +12,9 @@
  * This test verifies the wiring in ChatArea works correctly.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatArea } from '../components/ChatArea';
 import * as api from '../lib/api';
 
@@ -36,33 +36,7 @@ vi.mock('../hooks/useMessages', () => ({
     loading: false,
     error: null,
     conversation: null,
-  }),
-}));
-
-vi.mock('../hooks/useStreamingResponse', () => ({
-  useStreamingResponse: () => ({
-    streamingContent: '',
-    streamingSources: [],
-    isStreaming: false,
-    startStream: vi.fn().mockImplementation(async (conversationId, content, onComplete) => {
-      // Actually call the real fetch logic to properly test error handling
-      const res = await fetch(`/api/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      if (!res.body) throw new Error('No response body');
-
-      // Simulate successful SSE completion
-      onComplete({ fullText: 'Test response', sources: [] });
-    }),
-    abortStream: vi.fn(),
+    reload: vi.fn(),
   }),
 }));
 
@@ -87,6 +61,10 @@ beforeEach(() => {
 
 // Mutable ref captured by the useToast mock factory - updated in beforeEach
 const addToastRef = { current: vi.fn() };
+const startStreamMock = vi.fn().mockResolvedValue({ fullText: 'Test response', sources: [] });
+const abortStreamMock = vi.fn();
+
+afterEach(cleanup);
 
 describe('ChatArea refreshConversationsRef', () => {
   beforeEach(() => {
@@ -96,36 +74,16 @@ describe('ChatArea refreshConversationsRef', () => {
     addToastRef.current = vi.fn();
   });
 
-  /**
-   * Create a mock ReadableStream for SSE response
-   */
-  function createSSEStream(body: string): ReadableStream<Uint8Array> {
-    const encoder = new TextEncoder();
-    const data = `data: ${JSON.stringify(body)}\n\ndata: [DONE]\n\n`;
-    return new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(data));
-        controller.close();
-      },
-    });
-  }
-
   it('should call refreshConversationsRef after successful message send', async () => {
     const mockRefetch = vi.fn().mockResolvedValue(undefined);
     const refreshConversationsRef = { current: mockRefetch };
-
-    // Mock the streaming fetch response
-    const mockResponse = {
-      ok: true,
-      status: 200,
-      body: createSSEStream('Test response'),
-    };
-    vi.spyOn(global, 'fetch').mockResolvedValue(mockResponse as unknown as Response);
 
     render(
       <MemoryRouter>
         <ChatArea
           conversationId="conv-1"
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
           refreshConversationsRef={
             refreshConversationsRef as React.MutableRefObject<(() => Promise<void>) | null>
           }
@@ -158,18 +116,14 @@ describe('ChatArea refreshConversationsRef', () => {
     const mockRefetch = vi.fn().mockResolvedValue(undefined);
     const refreshConversationsRef = { current: mockRefetch };
 
-    // Mock fetch to return an error
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-      body: null,
-    } as unknown as Response);
+    startStreamMock.mockRejectedValueOnce(new Error('HTTP 500'));
 
     render(
       <MemoryRouter>
         <ChatArea
           conversationId="conv-1"
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
           refreshConversationsRef={
             refreshConversationsRef as React.MutableRefObject<(() => Promise<void>) | null>
           }
@@ -198,16 +152,15 @@ describe('ChatArea refreshConversationsRef', () => {
     // This tests that refreshConversationsRef?.current?.() doesn't throw
     // when ref is undefined/null
 
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: createSSEStream('Response'),
-    } as unknown as Response);
-
     // No error should be thrown when refreshConversationsRef is undefined
     render(
       <MemoryRouter>
-        <ChatArea conversationId="conv-1" refreshConversationsRef={undefined} />
+        <ChatArea
+          conversationId="conv-1"
+          refreshConversationsRef={undefined}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
       </MemoryRouter>,
     );
 
@@ -228,12 +181,6 @@ describe('ChatArea refreshConversationsRef', () => {
     const mockRefetch = vi.fn().mockResolvedValue(undefined);
     const refreshConversationsRef = { current: mockRefetch };
 
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: createSSEStream('Test response'),
-    } as unknown as Response);
-
     // Spy on requestAnimationFrame
     let rafCallback: ((time: number) => void) | null = null;
     const mockRaf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -247,6 +194,17 @@ describe('ChatArea refreshConversationsRef', () => {
       <MemoryRouter>
         <ChatArea
           conversationId="conv-1"
+          runtime={{
+            status: 'running',
+            content: '',
+            sources: [],
+            streamingStatus: null,
+            error: null,
+            failedMessage: 'Test message',
+            canRetry: false,
+          }}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
           refreshConversationsRef={
             refreshConversationsRef as React.MutableRefObject<(() => Promise<void>) | null>
           }
@@ -276,7 +234,12 @@ describe('ChatArea refreshConversationsRef', () => {
 
     render(
       <MemoryRouter>
-        <ChatArea conversationId={undefined} refreshConversationsRef={undefined} />
+        <ChatArea
+          conversationId={undefined}
+          refreshConversationsRef={undefined}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
       </MemoryRouter>,
     );
 
@@ -298,7 +261,11 @@ describe('ChatArea refreshConversationsRef', () => {
 
     render(
       <MemoryRouter>
-        <ChatArea conversationId={undefined} />
+        <ChatArea
+          conversationId={undefined}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
       </MemoryRouter>,
     );
 

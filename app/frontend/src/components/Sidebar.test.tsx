@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
 import { Sidebar } from './Sidebar';
 
@@ -54,6 +54,8 @@ vi.mock('../hooks/useToast', () => ({
     addToast: vi.fn(),
   })),
 }));
+
+afterEach(cleanup);
 
 describe('Sidebar handleNewChat', () => {
   beforeEach(() => {
@@ -280,7 +282,9 @@ describe('Sidebar logout', () => {
     expect(screen.getByText('test@example.com')).toBeInTheDocument();
     const userMenuTrigger = screen.getByRole('button', { name: /abrir menú de usuario/i });
     fireEvent.click(userMenuTrigger);
-    expect(screen.getByRole('menuitem', { name: /cerrar sesión/i })).toBeInTheDocument();
+    const logoutItem = screen.getByRole('menuitem', { name: /cerrar sesión/i });
+    expect(logoutItem).toBeInTheDocument();
+    expect(logoutItem).toHaveFocus();
   });
 
   it('calls logout and navigates to /login when the button is clicked', async () => {
@@ -426,6 +430,7 @@ describe('Sidebar navigation and conversations', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /acciones para consulta contextual/i }));
     expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Renombrar' })).toHaveFocus();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Renombrar' }));
     const input = screen.getByRole('textbox', { name: 'Renombrar conversación' });
     fireEvent.change(input, { target: { value: 'Consulta renombrada' } });
@@ -465,6 +470,63 @@ describe('Sidebar navigation and conversations', () => {
     expect(screen.getByRole('menuitem', { name: 'Administración' })).toHaveAttribute(
       'href',
       '/admin',
+    );
+  });
+
+  it('shows the progress indicator only for the in-progress conversation', async () => {
+    const { useConversations } = await import('../hooks/useConversations');
+    vi.mocked(useConversations).mockReturnValueOnce({
+      conversations: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      rename: vi.fn(),
+      filteredConversations: [
+        {
+          id: 'in-progress',
+          title: 'Respuesta en curso',
+          preview: 'Tiene mensajes',
+          created_at: '2026-09-05T10:00:00Z',
+          updated_at: '2026-09-05T10:00:00Z',
+        },
+        {
+          id: 'idle',
+          title: 'Conversación pausada',
+          preview: 'Tiene mensajes',
+          created_at: '2026-09-05T09:00:00Z',
+          updated_at: '2026-09-05T09:00:00Z',
+        },
+      ] as api.Conversation[],
+    });
+
+    render(
+      <MemoryRouter>
+        <Sidebar
+          isOpen={true}
+          onClose={vi.fn()}
+          runtimeByConversationId={{
+            'in-progress': {
+              status: 'running',
+              content: '',
+              sources: [],
+              streamingStatus: null,
+              error: null,
+              failedMessage: null,
+              canRetry: false,
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('status', { name: 'Respuesta en progreso' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Respuesta en curso$/ })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Conversación pausada' })).toHaveAttribute(
+      'aria-busy',
+      'false',
     );
   });
 

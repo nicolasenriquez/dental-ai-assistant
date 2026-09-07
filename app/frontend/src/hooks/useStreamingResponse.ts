@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Citation, RateLimitError } from '../lib/api';
 
 export interface StreamResult {
@@ -11,40 +11,62 @@ export interface StreamingStatus {
   subject: string;
 }
 
+export interface ConversationRuntime {
+  status: 'running' | 'error';
+  content: string;
+  sources: Citation[];
+  streamingStatus: StreamingStatus | null;
+  error: Error | null;
+  failedMessage: string | null;
+  canRetry: boolean;
+}
+
+export type RuntimeByConversationId = Record<string, ConversationRuntime>;
+
 export function useStreamingResponse() {
-  const [streamingContent, setStreamingContent] = useState<string>('');
-  const [streamingSources, setStreamingSources] = useState<Citation[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingStatus, setStreamingStatus] = useState<StreamingStatus | null>(null);
+  const [runtimeByConversationId, setRuntimeByConversationId] = useState<RuntimeByConversationId>(
+    {},
+  );
+  const streamAbortRef = useRef(new Map<string, AbortController>());
 
-  const streamAbortRef = useRef<AbortController | null>(null);
+  const clearRuntime = useCallback((conversationId: string) => {
+    setRuntimeByConversationId((current) => {
+      if (!(conversationId in current)) return current;
+      const next = { ...current };
+      delete next[conversationId];
+      return next;
+    });
+  }, []);
 
-  const abortStream = useCallback(() => {
-    if (streamAbortRef.current) {
-      streamAbortRef.current.abort();
-      streamAbortRef.current = null;
-    }
+  const abortStream = useCallback((conversationId: string) => {
+    streamAbortRef.current.get(conversationId)?.abort();
   }, []);
 
   const startStream = useCallback(
-    async (
-      conversationId: string,
-      userMessage: string,
-      onComplete: (result: StreamResult) => void,
-    ): Promise<void> => {
-      setIsStreaming(true);
-      setStreamingContent('');
-      setStreamingSources([]);
-      setStreamingStatus(null);
+    async (conversationId: string, userMessage: string): Promise<StreamResult | null> => {
+      if (streamAbortRef.current.has(conversationId)) {
+        throw new Error('A response is already in progress for this conversation');
+      }
+
+      const abortController = new AbortController();
+      streamAbortRef.current.set(conversationId, abortController);
+      setRuntimeByConversationId((current) => ({
+        ...current,
+        [conversationId]: {
+          status: 'running',
+          content: '',
+          sources: [],
+          streamingStatus: null,
+          error: null,
+          failedMessage: null,
+          canRetry: false,
+        },
+      }));
 
       let fullText = '';
       let sources: Citation[] = [];
-      let streamError: Error | null = null;
 
       try {
-        const abortController = new AbortController();
-        streamAbortRef.current = abortController;
-
         const res = await fetch(`/api/conversations/${conversationId}/messages`, {
           method: 'POST',
           credentials: 'include',
@@ -126,7 +148,13 @@ export function useStreamingResponse() {
                 const parsed = JSON.parse(data);
                 if (Array.isArray(parsed)) {
                   sources = parsed;
-                  setStreamingSources(parsed);
+                  setRuntimeByConversationId((current) => ({
+                    ...current,
+                    [conversationId]: {
+                      ...current[conversationId],
+                      sources: parsed,
+                    },
+                  }));
                 }
               } catch (e) {
                 console.warn('[useStreamingResponse] Failed to parse sources event:', e);
@@ -136,12 +164,25 @@ export function useStreamingResponse() {
                 const parsed = JSON.parse(data);
                 if (parsed && typeof parsed === 'object' && 'type' in parsed) {
                   if (parsed.type === 'tool_call_start') {
-                    setStreamingStatus({
+                    const streamingStatus = {
                       tool: String(parsed.tool ?? ''),
                       subject: String(parsed.subject ?? ''),
-                    });
+                    };
+                    setRuntimeByConversationId((current) => ({
+                      ...current,
+                      [conversationId]: {
+                        ...current[conversationId],
+                        streamingStatus,
+                      },
+                    }));
                   } else if (parsed.type === 'tool_call_done') {
-                    setStreamingStatus(null);
+                    setRuntimeByConversationId((current) => ({
+                      ...current,
+                      [conversationId]: {
+                        ...current[conversationId],
+                        streamingStatus: null,
+                      },
+                    }));
                   }
                 }
               } catch (e) {
@@ -157,8 +198,7 @@ export function useStreamingResponse() {
               } catch {
                 // Use default message
               }
-              streamError = new Error(errMsg);
-              break;
+              throw new Error(errMsg);
             } else if (data) {
               // Tokens are JSON-encoded strings to safely handle newlines/special chars
               let token = data;
@@ -170,34 +210,61 @@ export function useStreamingResponse() {
               } catch {
                 // Not JSON-encoded — use raw data (backward compat)
               }
-              setStreamingStatus(null);
               fullText += token;
-              setStreamingContent(fullText);
+              setRuntimeByConversationId((current) => ({
+                ...current,
+                [conversationId]: {
+                  ...current[conversationId],
+                  content: fullText,
+                  streamingStatus: null,
+                },
+              }));
             }
           }
         }
 
-        // Stream completed successfully
-        onComplete({ fullText, sources });
+        clearRuntime(conversationId);
+        return { fullText, sources };
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          clearRuntime(conversationId);
+          return null;
+        }
+
+        const streamError = error instanceof Error ? error : new Error(String(error));
+        setRuntimeByConversationId((current) => ({
+          ...current,
+          [conversationId]: {
+            status: 'error',
+            content: fullText,
+            sources,
+            streamingStatus: null,
+            error: streamError,
+            failedMessage: userMessage,
+            canRetry: !(streamError instanceof RateLimitError),
+          },
+        }));
+        throw streamError;
       } finally {
-        // Always reset streaming state — React 18 batches this with the onComplete
-        // state updates, ensuring a seamless transition to the persisted message.
-        setIsStreaming(false);
-        setStreamingContent('');
-        setStreamingSources([]);
-        setStreamingStatus(null);
+        if (streamAbortRef.current.get(conversationId) === abortController) {
+          streamAbortRef.current.delete(conversationId);
+        }
       }
-      if (streamError) throw streamError;
     },
-    [],
+    [clearRuntime],
   );
 
+  useEffect(() => {
+    return () => {
+      for (const controller of streamAbortRef.current.values()) controller.abort();
+      streamAbortRef.current.clear();
+    };
+  }, []);
+
   return {
-    streamingContent,
-    streamingSources,
-    streamingStatus,
-    isStreaming,
+    runtimeByConversationId,
     startStream,
     abortStream,
+    clearRuntime,
   };
 }

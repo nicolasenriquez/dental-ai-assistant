@@ -92,7 +92,7 @@ describe('AppShell mobile sidebar', () => {
     );
     expect(screen.getByRole('link', { name: 'Pacientes' })).toHaveFocus();
 
-    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.keyDown(screen.getByRole('link', { name: 'Pacientes' }), { key: 'Escape' });
 
     expect(screen.getByRole('button', { name: 'Abrir navegación' })).toHaveFocus();
     expect(screen.getByRole('button', { name: 'Abrir navegación' })).toHaveAttribute(

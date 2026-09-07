@@ -1,6 +1,6 @@
 import { Ellipsis, LogOut, Shield } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SIDEBAR_MOTION } from './sidebarMotion';
 
@@ -23,6 +23,11 @@ export function SidebarUserMenu({
 }: SidebarUserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useLayoutEffect(() => {
+    if (open) menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -34,7 +39,21 @@ export function SidebarUserMenu({
       if (event.key === 'Escape') {
         event.preventDefault();
         setOpen(false);
+        triggerRef.current?.focus();
+        return;
       }
+
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      const menuItems = Array.from(
+        menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+      );
+      if (menuItems.length === 0) return;
+
+      event.preventDefault();
+      const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement);
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = (currentIndex + direction + menuItems.length) % menuItems.length;
+      menuItems[nextIndex].focus();
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
@@ -50,6 +69,7 @@ export function SidebarUserMenu({
       <button
         type="button"
         className="sidebar-user-trigger"
+        ref={triggerRef}
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -92,7 +112,10 @@ export function SidebarUserMenu({
               type="button"
               className="sidebar-menu-item sidebar-menu-item--danger"
               role="menuitem"
-              onClick={onLogout}
+              onClick={() => {
+                setOpen(false);
+                onLogout();
+              }}
               disabled={loggingOut}
             >
               <LogOut aria-hidden="true" size={16} strokeWidth={1.7} />

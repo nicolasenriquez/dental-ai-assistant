@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { Sidebar } from './Sidebar';
 
 const FOCUSABLE_SELECTOR =
@@ -17,6 +18,7 @@ interface AppShellProps {
   activeConversationId?: string;
   showConversations?: boolean;
   conversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
+  runtimeByConversationId?: RuntimeByConversationId;
 }
 
 export function AppShell({
@@ -24,6 +26,7 @@ export function AppShell({
   activeConversationId,
   showConversations = false,
   conversationsRef: suppliedConversationsRef,
+  runtimeByConversationId,
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -76,22 +79,17 @@ export function AppShell({
     }
   }, [sidebarOpen]);
 
-  useEffect(() => {
+  const handleSidebarKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (!sidebarOpen) return;
 
-    const handleEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setSidebarOpen(false);
-      }
-    };
+    if (event.key === 'Escape') {
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      setSidebarOpen(false);
+      return;
+    }
 
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [sidebarOpen]);
-
-  const handleSidebarKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (!sidebarOpen || event.key !== 'Tab') return;
+    if (event.key !== 'Tab') return;
 
     const focusable = sidebarRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
     if (!focusable?.length) return;
@@ -121,6 +119,7 @@ export function AppShell({
         isMobile={isMobileSidebar}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        runtimeByConversationId={runtimeByConversationId}
         sidebarRef={sidebarRef}
         onKeyDown={handleSidebarKeyDown}
       />

@@ -2,7 +2,7 @@ import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useMessages } from '../hooks/useMessages';
-import { useStreamingResponse } from '../hooks/useStreamingResponse';
+import type { ConversationRuntime, StreamResult } from '../hooks/useStreamingResponse';
 import { useToast } from '../hooks/useToast';
 import type { Citation, Message as MessageType } from '../lib/api';
 import { RateLimitError, createConversation } from '../lib/api';
@@ -174,7 +174,7 @@ function LoadErrorState({ message, onRetry }: { message: string; onRetry: () => 
 // ── Inline send error ─────────────────────────────────────────────
 interface InlineErrorProps {
   message: string;
-  onRetry: () => void;
+  onRetry?: () => void;
 }
 
 function InlineError({ message, onRetry }: InlineErrorProps) {
@@ -206,31 +206,14 @@ function InlineError({ message, onRetry }: InlineErrorProps) {
         <circle cx="8" cy="11" r="0.5" fill="#ef4444" stroke="none" />
       </svg>
       <p style={{ flex: 1, margin: 0, fontSize: 14, color: '#f1f5f9' }}>{message}</p>
-      <button
-        onClick={onRetry}
-        className="min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-        style={{
-          background: 'transparent',
-          border: '1px solid rgba(239,68,68,0.5)',
-          borderRadius: 6,
-          color: '#ef4444',
-          cursor: 'pointer',
-          fontSize: 13,
-          padding: '5px 12px',
-          flexShrink: 0,
-          transition: 'background 0.15s, color 0.15s',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
-          e.currentTarget.style.color = '#f1f5f9';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#ef4444';
-        }}
-      >
-        Reintentar
-      </button>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="inline-error-retry min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+        >
+          Reintentar
+        </button>
+      )}
     </div>
   );
 }
@@ -239,23 +222,29 @@ function InlineError({ message, onRetry }: InlineErrorProps) {
 interface ChatAreaProps {
   conversationId?: string;
   refreshConversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
+  runtime?: ConversationRuntime;
+  startStream: (conversationId: string, userMessage: string) => Promise<StreamResult | null>;
+  abortStream: (conversationId: string) => void;
 }
 
-export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaProps) {
+export function ChatArea({
+  conversationId,
+  refreshConversationsRef,
+  runtime,
+  startStream,
+  abortStream,
+}: ChatAreaProps) {
   const navigate = useNavigate();
-  const { messages, setMessages, loading, error, conversation } = useMessages(
+  const { messages, setMessages, loading, error, conversation, reload } = useMessages(
     conversationId || null,
   );
-  const {
-    streamingContent,
-    streamingSources,
-    streamingStatus,
-    isStreaming,
-    startStream,
-    abortStream,
-  } = useStreamingResponse();
   const { addToast } = useToast();
   const { refresh: refreshAuth } = useAuth();
+  const isStreaming = runtime?.status === 'running';
+  const runtimeError = runtime?.status === 'error' ? runtime.error : null;
+  const failedMessageText = runtime?.failedMessage ?? null;
+  const currentConversationIdRef = useRef(conversationId);
+  currentConversationIdRef.current = conversationId;
 
   // Pending message to send after creating a conversation on the landing page
   const pendingMessageRef = useRef<string | null>(null);
@@ -264,41 +253,54 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
-
-  // Inline error state (for failed sends)
-  const [inlineError, setInlineError] = useState<string | null>(null);
-  const [failedMessageText, setFailedMessageText] = useState<string | null>(null);
-  // Track the temp user message ID so we can remove it on failure
-  const pendingUserMsgIdRef = useRef<string | null>(null);
+  const followFrameRef = useRef<number | null>(null);
+  const pendingUserMsgIdsRef = useRef(new Map<string, string>());
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   // Citation modal state
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
 
   // ── Auto-scroll logic ──
-  // Defer scroll to the next paint cycle so streaming DOM updates are applied first.
-  // Without rAF, scroll fires before React's DOM reconciliation completes (issue #76).
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+    setShowJumpToBottom(false);
   }, []);
 
-  useEffect(() => {
-    if (autoScrollRef.current) {
-      requestAnimationFrame(() => {
-        scrollToBottom();
-      });
-    }
-  }, [messages.length, streamingContent, scrollToBottom]);
+  const scheduleFollow = useCallback(() => {
+    if (!autoScrollRef.current || followFrameRef.current !== null) return;
+    followFrameRef.current = requestAnimationFrame(() => {
+      followFrameRef.current = null;
+      if (autoScrollRef.current) scrollToBottom('auto');
+    });
+  }, [scrollToBottom]);
 
   useEffect(() => {
+    if (isStreaming) scheduleFollow();
+  }, [isStreaming, runtime?.content, messages.length, scheduleFollow]);
+
+  useEffect(() => {
+    autoScrollRef.current = true;
+    setShowJumpToBottom(false);
     if (!loading && messages.length > 0) {
-      setTimeout(() => scrollToBottom('instant' as ScrollBehavior), 50);
+      const timeoutId = setTimeout(() => {
+        if (autoScrollRef.current) scrollToBottom('auto');
+      }, 50);
+      return () => clearTimeout(timeoutId);
     }
-  }, [loading, scrollToBottom]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conversationId, loading, messages.length, scrollToBottom]);
+
+  useEffect(() => {
+    return () => {
+      if (followFrameRef.current !== null) cancelAnimationFrame(followFrameRef.current);
+    };
+  }, []);
 
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    autoScrollRef.current = distFromBottom < 100;
+    const nearBottom = distFromBottom < 100;
+    autoScrollRef.current = nearBottom;
+    setShowJumpToBottom((visible) => (visible === !nearBottom ? visible : !nearBottom));
   }, []);
 
   // ── Citation click handler (opens modal) ──
@@ -311,7 +313,6 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
     async (content: string) => {
       // If no conversation, create one first then send
       if (!conversationId) {
-        if (isStreaming) return;
         pendingMessageRef.current = content;
         try {
           const conv = await createConversation();
@@ -329,13 +330,9 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
 
       if (isStreaming) return;
 
-      // Clear any previous inline error
-      setInlineError(null);
-      setFailedMessageText(null);
-
       // ── Optimistic user message ──
       const tempId = `temp-user-${Date.now()}`;
-      pendingUserMsgIdRef.current = tempId;
+      pendingUserMsgIdsRef.current.set(conversationId, tempId);
 
       const tempUserMsg: MessageType = {
         id: tempId,
@@ -349,51 +346,50 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
       scrollToBottom();
 
       try {
-        await startStream(conversationId, content, ({ fullText, sources }) => {
-          // Append the persisted assistant message
+        const result = await startStream(conversationId, content);
+        pendingUserMsgIdsRef.current.delete(conversationId);
+        if (result && currentConversationIdRef.current === conversationId) {
           const assistantMsg: MessageType = {
             id: `temp-assistant-${Date.now()}`,
             conversation_id: conversationId,
             role: 'assistant',
-            content: fullText,
+            content: result.fullText,
             created_at: new Date().toISOString(),
-            sources: sources.length > 0 ? sources : undefined,
+            sources: result.sources.length > 0 ? result.sources : undefined,
           };
           setMessages((prev) => [...prev, assistantMsg]);
-        });
-        pendingUserMsgIdRef.current = null;
+        }
         // Pull fresh quota counter so the sidebar updates after each send.
         refreshAuth();
         // Refresh conversations list so sidebar shows auto-generated title.
         refreshConversationsRef?.current?.();
       } catch (e) {
-        // Remove the optimistic user message
-        if (pendingUserMsgIdRef.current) {
-          const removedId = pendingUserMsgIdRef.current;
+        const removedId = pendingUserMsgIdsRef.current.get(conversationId);
+        if (removedId && currentConversationIdRef.current === conversationId) {
           setMessages((prev) => prev.filter((m) => m.id !== removedId));
-          pendingUserMsgIdRef.current = null;
         }
+        pendingUserMsgIdsRef.current.delete(conversationId);
 
         if (e instanceof RateLimitError) {
           // MISSION §10 #1 — daily cap hit. No retry; the user literally
           // can't send another message until the window slides forward.
           const friendly = `Alcanzaste el límite diario de mensajes (${e.limit}/día). Se reinicia a las ${formatResetTime(e.resetAt)}.`;
-          setInlineError(friendly);
-          setFailedMessageText(null);
-          addToast(friendly, 'error');
+          if (currentConversationIdRef.current === conversationId) addToast(friendly, 'error');
           // Sync counter so the sidebar flips to 25/25 with a reset time.
           refreshAuth();
           // Restore message text so the user can resend after the window resets.
-          setTimeout(() => chatInputRef.current?.setInputText(content), 50);
+          if (currentConversationIdRef.current === conversationId) {
+            setTimeout(() => chatInputRef.current?.setInputText(content), 50);
+          }
           return;
         }
 
         const errorMessage = e instanceof Error ? e.message : String(e);
         console.error('[ChatArea] Failed to send message:', errorMessage);
-        setInlineError('No pudimos obtener una respuesta. Intenta nuevamente.');
-        setFailedMessageText(content);
-        addToast('No pudimos enviar el mensaje. Intenta nuevamente.', 'error');
-        setTimeout(() => chatInputRef.current?.setInputText(content), 50);
+        if (currentConversationIdRef.current === conversationId) {
+          addToast('No pudimos enviar el mensaje. Intenta nuevamente.', 'error');
+          setTimeout(() => chatInputRef.current?.setInputText(content), 50);
+        }
       }
     },
     [
@@ -427,12 +423,9 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
 
   // ── Retry failed message — re-attempt the API call with same content ──
   const handleRetry = useCallback(() => {
-    if (!failedMessageText) return;
-    const text = failedMessageText;
-    setInlineError(null);
-    setFailedMessageText(null);
-    handleSend(text);
-  }, [failedMessageText, handleSend]);
+    if (!conversationId || !runtime?.canRetry || !failedMessageText) return;
+    void handleSend(failedMessageText);
+  }, [conversationId, failedMessageText, handleSend, runtime?.canRetry]);
 
   // ── Starter click handler ──
   const handleStarterClick = useCallback((text: string) => {
@@ -461,60 +454,16 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
   }, [conversation, messages, addToast]);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-        position: 'relative',
-      }}
-    >
+    <div className="chat-area">
       {/* ── Message list area ── */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '24px 0 0',
-          paddingBottom: 140,
-          position: 'relative',
-        }}
-      >
+      <div ref={scrollContainerRef} onScroll={handleScroll} className="chat-message-scroll">
         {/* ── Export button (visible when conversation is active) ── */}
         {conversation && messages.length > 0 && (
           <button
+            type="button"
             onClick={handleExport}
             title="Exportar conversación como Markdown"
-            className="min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 24,
-              background: '#1e293b',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 7,
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '5px 8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              fontSize: 12,
-              zIndex: 5,
-              transition: 'background 0.15s, color 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1e293b';
-              e.currentTarget.style.color = '#f1f5f9';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#1e293b';
-              e.currentTarget.style.color = '#94a3b8';
-            }}
+            className="chat-export-button min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           >
             <svg
               width="13"
@@ -541,13 +490,13 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
         {showError && (
           <LoadErrorState
             message="No pudimos cargar los mensajes. Intenta nuevamente."
-            onRetry={() => window.location.reload()}
+            onRetry={() => void reload()}
           />
         )}
 
         {showMessages && (
-          <div style={{ padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
-            {messages.length === 0 && !inlineError ? (
+          <div className="chat-message-stack">
+            {messages.length === 0 && !runtimeError ? (
               <EmptyState onStarterClick={handleStarterClick} />
             ) : (
               messages.map((msg) => (
@@ -562,58 +511,58 @@ export function ChatArea({ conversationId, refreshConversationsRef }: ChatAreaPr
             )}
 
             {/* Streaming assistant bubble */}
-            {showStreamingBubble && (
+            {showStreamingBubble && runtime && (
               <Message
                 role="assistant"
-                content={streamingContent}
+                content={runtime.content}
                 isStreaming={true}
-                sources={streamingSources.length > 0 ? streamingSources : undefined}
+                sources={runtime.sources.length > 0 ? runtime.sources : undefined}
                 onCitationClick={handleCitationClick}
-                streamingStatus={streamingStatus}
+                streamingStatus={runtime.streamingStatus}
               />
             )}
 
             {/* Inline send error with retry */}
-            {inlineError && !isStreaming && (
-              <InlineError message={inlineError} onRetry={handleRetry} />
+            {runtimeError && !isStreaming && (
+              <InlineError
+                message={
+                  runtimeError instanceof RateLimitError
+                    ? `Alcanzaste el límite diario de mensajes (${runtimeError.limit}/día). Se reinicia a las ${formatResetTime(runtimeError.resetAt)}.`
+                    : 'No pudimos obtener una respuesta. Intenta nuevamente.'
+                }
+                onRetry={runtime?.canRetry ? handleRetry : undefined}
+              />
             )}
           </div>
         )}
 
-        <div ref={bottomRef} style={{ height: 1 }} />
+        <div ref={bottomRef} className="chat-scroll-anchor" />
       </div>
 
+      {showJumpToBottom && (
+        <button
+          type="button"
+          className="chat-jump-to-bottom min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+          onClick={() => {
+            autoScrollRef.current = true;
+            scrollToBottom('smooth');
+          }}
+        >
+          ↓ Ir al final
+        </button>
+      )}
+
       {/* ── Gradient fade above input ── */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 120,
-          background: 'linear-gradient(to bottom, transparent, #0a0a0f)',
-          pointerEvents: 'none',
-          zIndex: 1,
-        }}
-      />
+      <div className="chat-input-fade" aria-hidden="true" />
 
       {/* ── Chat input ── */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: '0 24px 24px',
-          zIndex: 2,
-        }}
-      >
+      <div className="chat-input-dock">
         <ChatInput
           ref={chatInputRef}
           onSend={handleSend}
           isStreaming={isStreaming}
           disabled={isStreaming}
-          onStop={abortStream}
+          onStop={conversationId ? () => abortStream(conversationId) : undefined}
         />
       </div>
 

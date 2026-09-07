@@ -1,7 +1,19 @@
-import { ChevronRight, Ellipsis, MessageCircle, Pencil, Search, Trash2 } from 'lucide-react';
+import {
+  ChevronRight,
+  CircleAlert,
+  Ellipsis,
+  MessageCircle,
+  Pencil,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type {
+  ConversationRuntime,
+  RuntimeByConversationId,
+} from '../../hooks/useStreamingResponse';
 import type { Conversation } from '../../lib/api';
 import { SIDEBAR_MOTION } from './sidebarMotion';
 
@@ -12,6 +24,7 @@ interface ConversationListProps {
   loading: boolean;
   query: string;
   activeConversationId?: string;
+  runtimeByConversationId?: RuntimeByConversationId;
   onNewChat: () => void;
   onSelect: (id: string) => void;
   onDeleteRequest: (id: string) => void;
@@ -27,6 +40,7 @@ interface ConversationRowProps {
   conversation: Conversation;
   query: string;
   isActive: boolean;
+  runtime?: ConversationRuntime;
   onSelect: () => void;
   onDeleteRequest: () => void;
   onRename: (title: string) => void;
@@ -88,6 +102,7 @@ function ConversationRow({
   conversation,
   query,
   isActive,
+  runtime,
   onSelect,
   onDeleteRequest,
   onRename,
@@ -118,7 +133,21 @@ function ConversationRow({
       if (event.key === 'Escape') {
         event.preventDefault();
         setMenuOpen(false);
+        triggerRef.current?.focus();
+        return;
       }
+
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      const menuItems = Array.from(
+        menuLayerRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+      );
+      if (menuItems.length === 0) return;
+
+      event.preventDefault();
+      const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement);
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = (currentIndex + direction + menuItems.length) % menuItems.length;
+      menuItems[nextIndex].focus();
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
@@ -159,6 +188,12 @@ function ConversationRow({
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (menuOpen && menuPosition) {
+      menuLayerRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    }
+  }, [menuOpen, menuPosition]);
+
   const commitRename = () => {
     const title = editValue.trim();
     if (title && title !== conversation.title) onRename(title);
@@ -198,8 +233,16 @@ function ConversationRow({
             event.stopPropagation();
             startRename();
           }}
+          aria-label={conversation.title}
           aria-current={isActive ? 'page' : undefined}
-          title={conversation.title}
+          aria-busy={runtime?.status === 'running'}
+          title={
+            runtime?.status === 'running'
+              ? `${conversation.title} · Respuesta en progreso`
+              : runtime?.status === 'error'
+                ? `${conversation.title} · Error en la respuesta`
+                : conversation.title
+          }
         >
           <span className="conversation-title-icon" aria-hidden="true">
             <MessageCircle size={16} strokeWidth={1.7} />
@@ -207,6 +250,23 @@ function ConversationRow({
           <span className="conversation-title-label">
             {highlightMatch(conversation.title, query)}
           </span>
+          {runtime?.status === 'running' && (
+            <span
+              className="conversation-progress-indicator"
+              role="status"
+              aria-label="Respuesta en progreso"
+              title="Respuesta en progreso"
+            />
+          )}
+          {runtime?.status === 'error' && (
+            <CircleAlert
+              className="conversation-error-indicator"
+              aria-label="Error en la respuesta"
+              role="img"
+              size={15}
+              strokeWidth={1.8}
+            />
+          )}
         </button>
       )}
 
@@ -290,6 +350,7 @@ export function ConversationList({
   loading,
   query,
   activeConversationId,
+  runtimeByConversationId,
   onNewChat,
   onSelect,
   onDeleteRequest,
@@ -326,6 +387,7 @@ export function ConversationList({
           items={items}
           query={query}
           activeConversationId={activeConversationId}
+          runtimeByConversationId={runtimeByConversationId}
           onSelect={onSelect}
           onDeleteRequest={onDeleteRequest}
           onRename={onRename}
@@ -340,6 +402,7 @@ interface ConversationGroupProps {
   items: Conversation[];
   query: string;
   activeConversationId?: string;
+  runtimeByConversationId?: RuntimeByConversationId;
   onSelect: (id: string) => void;
   onDeleteRequest: (id: string) => void;
   onRename: (id: string, title: string) => void;
@@ -350,6 +413,7 @@ function ConversationGroup({
   items,
   query,
   activeConversationId,
+  runtimeByConversationId,
   onSelect,
   onDeleteRequest,
   onRename,
@@ -390,6 +454,7 @@ function ConversationGroup({
                 conversation={conversation}
                 query={query}
                 isActive={conversation.id === activeConversationId}
+                runtime={runtimeByConversationId?.[conversation.id]}
                 onSelect={() => onSelect(conversation.id)}
                 onDeleteRequest={() => onDeleteRequest(conversation.id)}
                 onRename={(title) => onRename(conversation.id, title)}
