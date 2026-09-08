@@ -7,6 +7,18 @@ from typing import Any
 
 _RUT_PATTERN = re.compile(r"^([0-9]{1,8})([0-9K])$")
 
+# Boundary candidates for redaction: formatted, masked, and compact RUTs.
+# Compact bodies are 5-8 digits and must pass normalize_rut() before anything
+# is redacted, so plain numbers in prose are not corrupted.
+_FORMATTED_CANDIDATE = r"(?<!\d)(?:(?:[\d•]{1,2}(?:[.\s][\d•]{3}){1,2}|[\d•]{4,8})-[0-9kK])(?!\d)"
+_COMPACT_CANDIDATE = r"(?<![\d.])(\d{5,8})([0-9kK])(?!\d)"
+RUT_CANDIDATE_RE = re.compile(f"(?:{_FORMATTED_CANDIDATE}|{_COMPACT_CANDIDATE})")
+
+
+def redact_rut_candidates(text: str, replacement: str = "[RUT_REDACTED]") -> str:
+    """Replace every RUT-like boundary candidate in text with `replacement`."""
+    return RUT_CANDIDATE_RE.sub(replacement, text)
+
 
 def normalize_rut(value: str) -> tuple[int, str]:
     if not isinstance(value, str):

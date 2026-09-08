@@ -85,10 +85,18 @@ MEMBERSHIP_REFRESH_SECONDS: int = int(os.environ.get("MEMBERSHIP_REFRESH_SECONDS
 
 OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
-CHAT_MODEL: str = "dots-studio/dots-3-note-preview:free"
+CHAT_MODEL: str = "anthropic/claude-sonnet-4.6"
 CLINICAL_EXTERNAL_LLM_ENABLED: bool = os.environ.get(
     "CLINICAL_EXTERNAL_LLM_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "on")
+CLINICAL_TURN_LIMIT_PER_24H: int = int(os.environ.get("CLINICAL_TURN_LIMIT_PER_24H", "25"))
+VOICE_TRANSCRIPTION_ENABLED: bool = os.environ.get(
+    "VOICE_TRANSCRIPTION_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "on")
+WHISPER_URL: str = os.environ.get("WHISPER_URL", "http://whisper:9000").rstrip("/")
+VOICE_MAX_BYTES: int = 12 * 1024 * 1024
+VOICE_MAX_DURATION_SECONDS: int = 120
+VOICE_RATE_LIMIT_PER_HOUR: int = 20
 
 # Postgres — required for all data (chat + auth). The app fails fast without it.
 # In prod, docker-compose injects DATABASE_URL from the POSTGRES_* vars.

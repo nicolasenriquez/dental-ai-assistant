@@ -7,6 +7,7 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractiv
 
 compose := "docker compose --project-directory deploy --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml"
 local_services := "postgres app-blue"
+voice_services := "postgres app-blue whisper"
 e2e_image := "mcr.microsoft.com/playwright:v1.62.1-noble"
 repo_dir := justfile_directory()
 
@@ -27,6 +28,14 @@ dev-up-build:
 [windows]
 dev-up-build:
     Remove-Item Env:OPENROUTER_API_KEY -ErrorAction SilentlyContinue; {{compose}} up -d --build {{local_services}}
+
+[unix]
+dev-up-voice:
+    unset OPENROUTER_API_KEY; {{compose}} --profile voice up -d --build {{voice_services}}
+
+[windows]
+dev-up-voice:
+    Remove-Item Env:OPENROUTER_API_KEY -ErrorAction SilentlyContinue; {{compose}} --profile voice up -d --build {{voice_services}}
 
 # Stop local services and preserve named volumes.
 dev-down:

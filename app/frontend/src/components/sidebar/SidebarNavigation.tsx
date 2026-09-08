@@ -1,4 +1,4 @@
-import { Library, MessageCircle, SquarePen, UsersRound } from 'lucide-react';
+import { Library, MessageCircle, SquarePen, Stethoscope, UsersRound } from 'lucide-react';
 import { LayoutGroup, motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -43,6 +43,8 @@ export function SidebarNavigation({
 }: SidebarNavigationProps) {
   const location = useLocation();
   const patientsActive = location.pathname.startsWith('/patients');
+  const assistantActive = location.pathname.startsWith('/assistant') || location.pathname.startsWith('/a/');
+  const chatActive = location.pathname === '/chat' || location.pathname.startsWith('/c/');
 
   return (
     <LayoutGroup id="sidebar-navigation">
@@ -62,11 +64,26 @@ export function SidebarNavigation({
           </Link>
         </NavigationItem>
 
-        <NavigationItem active={showConversations}>
+        <NavigationItem active={assistantActive}>
+          <Link
+            to="/assistant"
+            onClick={onClose}
+            aria-current={assistantActive ? 'page' : undefined}
+            className="sidebar-nav-button"
+            aria-label={isCollapsed ? 'Asistente' : undefined}
+            title={isCollapsed ? 'Asistente' : undefined}
+            data-tooltip={isCollapsed ? 'Asistente' : undefined}
+          >
+            <Stethoscope aria-hidden="true" size={16} strokeWidth={1.7} />
+            <span className="sidebar-label">Asistente</span>
+          </Link>
+        </NavigationItem>
+
+        <NavigationItem active={chatActive}>
           <Link
             to="/chat"
             onClick={onClose}
-            aria-current={showConversations ? 'page' : undefined}
+            aria-current={chatActive ? 'page' : undefined}
             className="sidebar-nav-button"
             aria-label={isCollapsed ? 'Chat' : undefined}
             title={isCollapsed ? 'Chat' : undefined}

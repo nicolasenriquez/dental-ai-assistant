@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Citation, RateLimitError } from '../lib/api';
+import { consumeSse } from '../lib/sse';
 
 export interface StreamResult {
   fullText: string;
   sources: Citation[];
+  stopped?: boolean;
 }
 
 export interface StreamingStatus {
@@ -137,40 +139,10 @@ export function useStreamingResponse() {
           },
         }));
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        // Buffer for incomplete SSE data between reader.read() calls
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          // SSE events are separated by blank lines (\n\n)
-          const parts = buffer.split('\n\n');
-          // The last part may be incomplete — keep it in the buffer
-          buffer = parts.pop() ?? '';
-
-          for (const rawEvent of parts) {
-            if (!rawEvent.trim()) continue;
-
-            let eventType = 'message';
-            const dataLines: string[] = [];
-
-            for (const line of rawEvent.split('\n')) {
-              if (line.startsWith('event:')) {
-                eventType = line.slice(6).trim();
-              } else if (line.startsWith('data:')) {
-                // Support both "data: value" and "data:value"
-                const val = line.slice(5);
-                dataLines.push(val.startsWith(' ') ? val.slice(1) : val);
-              }
-            }
-
-            const data = dataLines.join('\n');
-
+        await consumeSse(
+          res,
+          ({ event: eventType, data }) => {
+            const resolvedEventType = eventType ?? 'message';
             if (eventType === 'sources') {
               // Parse the sources JSON array of video titles
               try {
@@ -188,7 +160,7 @@ export function useStreamingResponse() {
               } catch (e) {
                 console.warn('[useStreamingResponse] Failed to parse sources event:', e);
               }
-            } else if (eventType === 'status') {
+            } else if (resolvedEventType === 'status') {
               try {
                 const parsed = JSON.parse(data);
                 if (parsed && typeof parsed === 'object' && 'type' in parsed) {
@@ -250,8 +222,9 @@ export function useStreamingResponse() {
                 },
               }));
             }
-          }
-        }
+          },
+          abortController.signal,
+        );
 
         setRuntimeByConversationId((current) => ({
           ...current,
@@ -272,7 +245,7 @@ export function useStreamingResponse() {
               phase: 'stopping',
             },
           }));
-          return null;
+          return { fullText, sources, stopped: true };
         }
 
         const streamError = error instanceof Error ? error : new Error(String(error));

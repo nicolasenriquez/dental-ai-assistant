@@ -59,6 +59,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       CLINICAL_EXTERNAL_LLM_ENABLED: ${CLINICAL_EXTERNAL_LLM_ENABLED:-false}
+      VOICE_TRANSCRIPTION_ENABLED: ${VOICE_TRANSCRIPTION_ENABLED:-false}
+      WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
       ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-}
       # Issue #147: Circle membership verification + Dynamous content ingest.
       CIRCLE_ADMIN_TOKEN: ${CIRCLE_ADMIN_TOKEN:-}
@@ -86,6 +88,25 @@ services:
       start_period: 30s
       retries: 5
 
+  whisper:
+    profiles: ["voice"]
+    build:
+      context: ./whisper
+      dockerfile: Dockerfile
+    image: dynachat-whisper:latest
+    container_name: dynachat-whisper
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-turbo}
+    volumes:
+      - whisper_model_cache:/root/.cache/whisper
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
   app-green:
     build:
       context: ..
@@ -104,6 +125,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       CLINICAL_EXTERNAL_LLM_ENABLED: ${CLINICAL_EXTERNAL_LLM_ENABLED:-false}
+      VOICE_TRANSCRIPTION_ENABLED: ${VOICE_TRANSCRIPTION_ENABLED:-false}
+      WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
       ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-}
       # Issue #147: Circle membership verification + Dynamous content ingest.
       CIRCLE_ADMIN_TOKEN: ${CIRCLE_ADMIN_TOKEN:-}
@@ -131,3 +154,4 @@ volumes:
   caddy_config:
   postgres_data:
   app_data:
+  whisper_model_cache:

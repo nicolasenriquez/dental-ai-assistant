@@ -242,7 +242,7 @@ bun run test
 - **Styling:** Tailwind utility classes only. No inline `style={{...}}` except for dynamic values. No CSS modules, no styled-components.
 - **Event handlers:** typed callbacks (`(e: React.ChangeEvent<HTMLInputElement>) => void`), not `any`.
 - **State:** React built-ins (`useState`, `useReducer`, Context) only. Do not add Redux, Zustand, or Jotai.
-- **SSE parsing:** all SSE consumption goes through `useStreamingResponse`. Do not parse SSE in components or new hooks.
+- **SSE parsing:** all SSE byte framing goes through `app/frontend/src/lib/sse.ts`. RAG state remains in `useStreamingResponse`; feature-specific stream hooks may interpret their own event protocol only through the shared framing helper.
 
 ---
 

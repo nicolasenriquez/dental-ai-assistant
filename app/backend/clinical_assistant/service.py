@@ -1,0 +1,448 @@
+"""Deep module for the Clinical Assistant workflow."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+from collections.abc import AsyncIterator
+from datetime import UTC
+from typing import Any
+from uuid import UUID, uuid4
+
+from backend.db import patients_repo
+from backend.services import clinical_evolutions
+
+from . import repository, tools
+from .events import event
+from .policy import ClinicalTurnContext
+from .schemas import ClinicalDraft, PrepareSaveRequest
+from .sensitive_input import safe_patient, sanitize_content
+
+logger = logging.getLogger(__name__)
+
+_FIELDS: tuple[tuple[str, str], ...] = (
+    ("context", "Motivo / contexto"),
+    ("findings", "Hallazgos"),
+    ("assessment", "Diagnóstico / impresión clínica"),
+    ("treatment", "Tratamiento / conducta"),
+    ("follow_up", "Seguimiento"),
+)
+
+
+def _intent_label(content: str) -> str:
+    lowered = content.casefold()
+    if "urgencia" in lowered or "dolor" in lowered:
+        return "Urgencia"
+    if "postoperator" in lowered or "post operator" in lowered:
+        return "Postoperatorio"
+    if "control" in lowered:
+        return "Control"
+    if "limpieza" in lowered or "higiene" in lowered:
+        return "Higiene"
+    return "Evolución"
+
+
+async def _set_contextual_title(
+    owner: UUID, thread: UUID, patient_id: UUID | None, content: str
+) -> None:
+    if patient_id is None:
+        return
+    patient = await patients_repo.get_patient(owner, patient_id)
+    if patient is None:
+        return
+    title = f"{patient['first_name']} {patient['last_name']} · {_intent_label(content)}"
+    await repository.update_title_if_default(owner, thread, title)
+
+
+def compose_draft(draft: ClinicalDraft) -> str:
+    """Keep the saved representation aligned with the guided evolution flow."""
+    return "\n\n".join(
+        f"{label}: {getattr(draft, key).strip()}"
+        for key, label in _FIELDS
+        if getattr(draft, key).strip()
+    )
+
+
+def canonical_proposal(payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """Return the exact JSON payload and its stable approval hash."""
+    canonical = json.loads(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    )
+    digest = hashlib.sha256(
+        json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return canonical, digest
+
+
+async def _assistant_item(
+    owner_user_id: UUID,
+    thread_id: UUID,
+    turn_id: UUID,
+    content: str,
+) -> AsyncIterator[str]:
+    item_id = str(uuid4())
+    await repository.append_message(owner_user_id, thread_id, turn_id, "assistant", content)
+    yield event(
+        "item.completed",
+        {
+            "thread_id": str(thread_id),
+            "turn_id": str(turn_id),
+            "item_id": item_id,
+            "item_type": "assistant_message",
+            "status": "completed",
+            "content": content,
+        },
+    )
+
+
+def _activity(
+    name: str,
+    thread_id: UUID,
+    turn_id: UUID,
+    label: str,
+    status: str = "completed",
+    item_id: str | None = None,
+) -> str:
+    return event(
+        name,
+        {
+            "thread_id": str(thread_id),
+            "turn_id": str(turn_id),
+            "item_id": item_id or str(uuid4()),
+            "item_type": "activity",
+            "status": status,
+            "label": label,
+        },
+    )
+
+
+async def stream_turn(
+    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, content: str
+) -> AsyncIterator[str]:
+    """Run one safe clinical turn and emit typed lifecycle events."""
+    owner = UUID(str(owner_user_id))
+    thread = UUID(str(thread_id))
+    turn = UUID(str(turn_id))
+    try:
+        sanitized = await sanitize_content(owner, content)
+    except Exception:
+        logger.warning("clinical_turn_failed code=SENSITIVE_INPUT_FAILURE turn_id=%s", turn)
+        yield event(
+            "turn.failed",
+            {
+                "thread_id": str(thread),
+                "turn_id": str(turn),
+                "item_id": str(uuid4()),
+                "error_code": "SENSITIVE_INPUT_FAILURE",
+            },
+        )
+        return
+    claimed = await repository.claim_turn(owner, thread, turn, sanitized.display_text)
+
+    yield event(
+        "turn.started",
+        {
+            "thread_id": str(thread),
+            "turn_id": str(turn),
+            "item_id": str(uuid4()),
+            "status": "running",
+            "user_content": sanitized.display_text,
+        },
+    )
+
+    if claimed["replay"]:
+        for message in claimed["messages"]:
+            if message["role"] == "assistant":
+                yield event(
+                    "item.completed",
+                    {
+                        "thread_id": str(thread),
+                        "turn_id": str(turn),
+                        "item_id": str(uuid4()),
+                        "item_type": "assistant_message",
+                        "status": "completed",
+                        "content": message["content"],
+                    },
+                )
+        yield event(
+            "turn.completed",
+            {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
+        )
+        return
+
+    active_patient_id = claimed["active_patient_id"]
+    if sanitized.invalid_candidates or sanitized.unresolved_candidates:
+        message = (
+            "No encontré un paciente asociado a ese RUT."
+            if sanitized.unresolved_candidates
+            else "El RUT indicado no es válido."
+        )
+        async for item in _assistant_item(owner, thread, turn, message):
+            yield item
+        await repository.finish_turn(owner, thread, turn)
+        yield event(
+            "turn.completed",
+            {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
+        )
+        return
+
+    if len(sanitized.patient_ids) > 1:
+        message = "Detecté más de un paciente en la nota. Selecciona un paciente activo antes de continuar."
+        async for item in _assistant_item(owner, thread, turn, message):
+            yield item
+        await repository.finish_turn(owner, thread, turn)
+        yield event(
+            "turn.failed",
+            {
+                "thread_id": str(thread),
+                "turn_id": str(turn),
+                "item_id": str(uuid4()),
+                "error_code": "PATIENT_REFERENCE_AMBIGUOUS",
+            },
+        )
+        return
+
+    if sanitized.patient_ids:
+        detected = sanitized.patient_ids[0]
+        if active_patient_id is None:
+            updated = await repository.set_active_patient(owner, thread, detected)
+            if updated is None:
+                await repository.finish_turn(owner, thread, turn)
+                yield event(
+                    "turn.failed",
+                    {
+                        "thread_id": str(thread),
+                        "turn_id": str(turn),
+                        "item_id": str(uuid4()),
+                        "error_code": "THREAD_NOT_FOUND",
+                    },
+                )
+                return
+            active_patient_id = detected
+            patient = await patients_repo.get_patient(owner, detected)
+            if patient is not None:
+                yield event(
+                    "patient.bound",
+                    {
+                        "thread_id": str(thread),
+                        "turn_id": str(turn),
+                        "item_id": str(uuid4()),
+                        "patient": safe_patient(patient),
+                    },
+                )
+        elif UUID(str(active_patient_id)) != detected:
+            patient = await patients_repo.get_patient(owner, detected)
+            active_patient = await patients_repo.get_patient(owner, active_patient_id)
+            if patient is None or active_patient is None:
+                await repository.finish_turn(owner, thread, turn)
+                yield event(
+                    "turn.failed",
+                    {
+                        "thread_id": str(thread),
+                        "turn_id": str(turn),
+                        "item_id": str(uuid4()),
+                        "error_code": "PATIENT_SWITCH_REQUIRED",
+                    },
+                )
+                return
+            yield event(
+                "patient.switch_required",
+                {
+                    "thread_id": str(thread),
+                    "turn_id": str(turn),
+                    "item_id": str(uuid4()),
+                    "current_patient": safe_patient(active_patient),
+                    "detected_patient": safe_patient(patient),
+                },
+            )
+            await repository.finish_turn(owner, thread, turn)
+            yield event(
+                "turn.failed",
+                {
+                    "thread_id": str(thread),
+                    "turn_id": str(turn),
+                    "item_id": str(uuid4()),
+                    "error_code": "PATIENT_SWITCH_REQUIRED",
+                },
+            )
+            return
+
+    context = ClinicalTurnContext(
+        user_id=owner,
+        thread_id=thread,
+        turn_id=turn,
+        patient_id=UUID(str(active_patient_id)) if active_patient_id is not None else None,
+    )
+
+    await _set_contextual_title(owner, thread, context.patient_id, sanitized.display_text)
+
+    if context.patient_id is None:
+        message = (
+            "Selecciona un paciente activo para preparar una evolución. "
+            "Puedes elegirlo desde el contexto del asistente."
+        )
+        if "[RUT no encontrado]" in sanitized.display_text:
+            message = "No encontré un paciente asociado a ese RUT."
+        elif "[RUT no válido]" in sanitized.display_text:
+            message = "El RUT indicado no es válido."
+        async for item in _assistant_item(owner, thread, turn, message):
+            yield item
+        await repository.finish_turn(owner, thread, turn)
+        yield event(
+            "turn.completed",
+            {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
+        )
+        return
+
+    try:
+        yield _activity("item.completed", thread, turn, "Paciente identificado")
+        history_item_id = str(uuid4())
+        yield _activity(
+            "item.started", thread, turn, "Consultando evoluciones", "running", history_item_id
+        )
+        history = await tools.get_recent_evolutions(context)
+        yield _activity(
+            "item.completed",
+            thread,
+            turn,
+            f"{history.get('count', 0)} evoluciones revisadas",
+            item_id=history_item_id,
+        )
+        if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
+            raise clinical_evolutions.ClinicalGenerationDisabledError
+        draft_item_id = str(uuid4())
+        yield _activity(
+            "item.started", thread, turn, "Preparando borrador", "running", draft_item_id
+        )
+        draft = await tools.draft_evolution(context, sanitized.model_text)
+        yield event(
+            "item.completed",
+            {
+                "thread_id": str(thread),
+                "turn_id": str(turn),
+                "item_id": str(uuid4()),
+                "item_type": "clinical_draft",
+                "status": "completed",
+                "draft": draft.model_dump(mode="json"),
+                "source_note": sanitized.display_text,
+            },
+        )
+        yield _activity("item.completed", thread, turn, "Borrador listo", item_id=draft_item_id)
+        message = "Preparé un borrador para tu revisión. Todavía no se ha guardado."
+        async for item in _assistant_item(owner, thread, turn, message):
+            yield item
+        yield event(
+            "turn.completed",
+            {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
+        )
+    except clinical_evolutions.ClinicalGenerationDisabledError:
+        logger.warning("clinical_turn_blocked code=CLINICAL_EXTERNAL_LLM_DISABLED turn_id=%s", turn)
+        yield event(
+            "turn.failed",
+            {
+                "thread_id": str(thread),
+                "turn_id": str(turn),
+                "item_id": str(uuid4()),
+                "error_code": "CLINICAL_EXTERNAL_LLM_DISABLED",
+            },
+        )
+    except clinical_evolutions.EmptyClinicalDraftError:
+        yield event(
+            "turn.failed",
+            {
+                "thread_id": str(thread),
+                "turn_id": str(turn),
+                "item_id": str(uuid4()),
+                "error_code": "CLINICAL_CONTENT_INSUFFICIENT",
+            },
+        )
+    except clinical_evolutions.ClinicalGenerationError:
+        logger.warning("clinical_turn_failed code=CLINICAL_MODEL_UNAVAILABLE turn_id=%s", turn)
+        yield event(
+            "turn.failed",
+            {
+                "thread_id": str(thread),
+                "turn_id": str(turn),
+                "item_id": str(uuid4()),
+                "error_code": "CLINICAL_MODEL_UNAVAILABLE",
+            },
+        )
+    except Exception:
+        logger.warning("clinical_turn_failed code=TOOL_EXECUTION_FAILED turn_id=%s", turn)
+        yield event(
+            "turn.failed",
+            {
+                "thread_id": str(thread),
+                "turn_id": str(turn),
+                "item_id": str(uuid4()),
+                "error_code": "TOOL_EXECUTION_FAILED",
+            },
+        )
+    finally:
+        await repository.finish_turn(owner, thread, turn)
+
+
+async def prepare_save(
+    owner_user_id: UUID | str, thread_id: UUID | str, request: PrepareSaveRequest
+) -> dict[str, Any]:
+    owner = UUID(str(owner_user_id))
+    thread = UUID(str(thread_id))
+    stored = await repository.get_thread(owner, thread)
+    if stored is None or stored.get("active_patient_id") is None:
+        raise LookupError("Thread or patient not found")
+    patient_id = UUID(str(stored["active_patient_id"]))
+    patient = await patients_repo.get_patient(owner, patient_id)
+    if patient is None:
+        raise LookupError("Patient not found")
+    raw_note = await sanitize_content(owner, request.raw_note)
+    current_draft = request.draft
+    baseline = request.generated_draft or current_draft
+    safe_fields: dict[str, str] = {}
+    safe_baseline_fields: dict[str, str] = {}
+    for key, _ in _FIELDS:
+        safe_fields[key] = (await sanitize_content(owner, getattr(current_draft, key))).display_text
+        safe_baseline_fields[key] = (
+            await sanitize_content(owner, getattr(baseline, key))
+        ).display_text
+    generated = compose_draft(ClinicalDraft(**safe_baseline_fields, review_flags=[]))
+    final = request.final_text or compose_draft(ClinicalDraft(**safe_fields, review_flags=[]))
+    final = (await sanitize_content(owner, final)).display_text
+    if not final.strip():
+        raise ValueError("No hay contenido clínico para guardar")
+    payload, proposal_hash = canonical_proposal(
+        {
+            "evolution_id": str(uuid4()),
+            "patient_id": str(patient_id),
+            "evolution_at": request.evolution_at.astimezone(UTC).isoformat(),
+            "raw_note": raw_note.display_text,
+            "generated_text": generated,
+            "final_text": final,
+        }
+    )
+    return await repository.create_pending_action(
+        owner,
+        thread,
+        UUID(str(stored["latest_turn_id"])) if stored.get("latest_turn_id") else uuid4(),
+        patient_id,
+        "save_evolution",
+        payload,
+        proposal_hash,
+    ) | {"patient": safe_patient(patient), "proposal_hash": proposal_hash}
+
+
+async def regenerate_draft(
+    owner_user_id: UUID | str, thread_id: UUID | str, raw_note: str
+) -> ClinicalDraft:
+    """Regenerate one review draft without creating a message or a record."""
+    owner = UUID(str(owner_user_id))
+    stored = await repository.get_thread(owner, UUID(str(thread_id)))
+    if stored is None or stored.get("active_patient_id") is None:
+        raise LookupError("Thread or patient not found")
+    patient_id = UUID(str(stored["active_patient_id"]))
+    if await patients_repo.get_patient(owner, patient_id) is None:
+        raise LookupError("Patient not found")
+    sanitized = await sanitize_content(owner, raw_note)
+    if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
+        raise clinical_evolutions.ClinicalGenerationDisabledError
+    return await clinical_evolutions.generate_draft(owner, patient_id, sanitized.model_text)

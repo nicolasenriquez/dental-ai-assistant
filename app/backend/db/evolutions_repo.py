@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from asyncpg import Connection
+
 from backend.db.postgres import get_pg_pool
 
 
@@ -27,56 +29,86 @@ async def create_evolution(
     generated_text: str,
     final_text: str,
 ) -> dict[str, Any]:
+    """Create an idempotent record; SQL uses ``ON CONFLICT`` and an owner-scoped
+    ``WHERE id = $1 AND owner_user_id = $2`` conflict lookup in the composed helper.
+    """
     owner_id = _uuid(owner_user_id)
     patient_uuid = _uuid(patient_id)
     record_id = _uuid(evolution_id)
     pool = get_pg_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO evolutions (
-                id, patient_id, owner_user_id, evolution_at,
-                raw_note, generated_text, final_text
-            )
-            SELECT $1, p.id, p.owner_user_id, $4, $5, $6, $7
-            FROM patients p
-            WHERE p.id = $2 AND p.owner_user_id = $3
-            ON CONFLICT (id) DO NOTHING
-            RETURNING id, patient_id, evolution_at, raw_note, generated_text,
-                      final_text, created_at, updated_at
-            """,
-            record_id,
+        return await create_evolution_with_connection(
+            conn,
+            owner_id,
             patient_uuid,
-            owner_id,
-            evolution_at,
-            raw_note,
-            generated_text,
-            final_text,
+            evolution_id=record_id,
+            evolution_at=evolution_at,
+            raw_note=raw_note,
+            generated_text=generated_text,
+            final_text=final_text,
         )
-        if row:
-            return dict(row)
 
-        existing = await conn.fetchrow(
-            """
-            SELECT id, patient_id, owner_user_id, evolution_at, raw_note,
-                   generated_text, final_text, created_at, updated_at
-            FROM evolutions
-            WHERE id = $1 AND owner_user_id = $2
-            """,
-            record_id,
-            owner_id,
+
+async def create_evolution_with_connection(
+    conn: Connection,
+    owner_user_id: UUID | str,
+    patient_id: UUID | str,
+    *,
+    evolution_id: UUID | str,
+    evolution_at: datetime,
+    raw_note: str,
+    generated_text: str,
+    final_text: str,
+) -> dict[str, Any]:
+    """Create an evolution using a caller-owned transaction connection."""
+    owner_id = _uuid(owner_user_id)
+    patient_uuid = _uuid(patient_id)
+    record_id = _uuid(evolution_id)
+    row = await conn.fetchrow(
+        """
+        INSERT INTO evolutions (
+            id, patient_id, owner_user_id, evolution_at,
+            raw_note, generated_text, final_text
         )
-        if not existing:
-            raise LookupError("Patient not found")
-        if (
-            existing["patient_id"] != patient_uuid
-            or existing["evolution_at"] != evolution_at
-            or existing["raw_note"] != raw_note
-            or existing["generated_text"] != generated_text
-            or existing["final_text"] != final_text
-        ):
-            raise EvolutionConflictError
-        return {key: value for key, value in dict(existing).items() if key != "owner_user_id"}
+        SELECT $1, p.id, p.owner_user_id, $4, $5, $6, $7
+        FROM patients p
+        WHERE p.id = $2 AND p.owner_user_id = $3
+        ON CONFLICT (id) DO NOTHING
+        RETURNING id, patient_id, evolution_at, raw_note, generated_text,
+                  final_text, created_at, updated_at
+        """,
+        record_id,
+        patient_uuid,
+        owner_id,
+        evolution_at,
+        raw_note,
+        generated_text,
+        final_text,
+    )
+    if row:
+        return dict(row)
+
+    existing = await conn.fetchrow(
+        """
+        SELECT id, patient_id, owner_user_id, evolution_at, raw_note,
+               generated_text, final_text, created_at, updated_at
+        FROM evolutions
+        WHERE id = $1 AND owner_user_id = $2
+        """,
+        record_id,
+        owner_id,
+    )
+    if not existing:
+        raise LookupError("Patient not found")
+    if (
+        existing["patient_id"] != patient_uuid
+        or existing["evolution_at"] != evolution_at
+        or existing["raw_note"] != raw_note
+        or existing["generated_text"] != generated_text
+        or existing["final_text"] != final_text
+    ):
+        raise EvolutionConflictError
+    return {key: value for key, value in dict(existing).items() if key != "owner_user_id"}
 
 
 async def list_evolutions(

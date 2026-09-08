@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints, ValidationError
 from backend.config import CLINICAL_EXTERNAL_LLM_ENABLED
 from backend.db import patients_repo
 from backend.llm.openrouter import create_structured_completion
+from backend.patients.rut import redact_rut_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class ClinicalDraft(BaseModel):
             draft.treatment,
             draft.follow_up,
         )
-        if not any(value.strip() for value in clinical):
+        if not any(value.strip() for value in clinical) and not draft.review_flags:
             raise EmptyClinicalDraftError("No se pudo redactar contenido clinico verificable")
         return draft
 
@@ -90,11 +91,11 @@ def _provider_messages(
             "PREVIOUS_EVOLUTIONS": [
                 {
                     "evolution_at": row["evolution_at"].isoformat(),
-                    "final_text": row["final_text"],
+                    "final_text": redact_rut_candidates(str(row["final_text"])),
                 }
                 for row in reversed(history)
             ],
-            "CURRENT_RAW_NOTE": raw_note,
+            "CURRENT_RAW_NOTE": redact_rut_candidates(raw_note),
         },
         ensure_ascii=False,
     )

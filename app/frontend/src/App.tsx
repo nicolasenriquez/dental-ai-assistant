@@ -16,6 +16,7 @@ import { ToastProvider } from './components/ToastProvider';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useStreamingResponse } from './hooks/useStreamingResponse';
 import { AdminVideos } from './pages/AdminVideos';
+import { ClinicalAssistant } from './pages/ClinicalAssistant';
 import { Login } from './pages/Login';
 import { NewEvolution } from './pages/NewEvolution';
 import { NotFound } from './pages/NotFound';
@@ -153,6 +154,22 @@ const router = createBrowserRouter(
         element={
           <RequireAuth>
             <AppLayout />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/assistant"
+        element={
+          <RequireAuth>
+            <ClinicalAssistant />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/a/:threadId"
+        element={
+          <RequireAuth>
+            <ClinicalAssistant />
           </RequireAuth>
         }
       />

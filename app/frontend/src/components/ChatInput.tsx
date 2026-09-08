@@ -115,21 +115,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     );
 
     return (
-      <div
-        className="chat-composer"
-        style={{
-          background: '#111827',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '6px 12px',
-          opacity: isDisabled ? 0.7 : 1,
-          transition: 'opacity 0.2s, box-shadow 0.15s',
-          boxShadow: focused && !isDisabled ? '0 0 0 2px var(--accent-glow)' : 'none',
-        }}
-      >
+      <div className={`chat-composer${focused ? ' is-focused' : ''}${isDisabled ? ' is-disabled' : ''}`}>
         <textarea
           ref={textareaRef}
           aria-label="Pregunta sobre la biblioteca de videos"
@@ -145,22 +131,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           rows={1}
-          style={{
-            flex: 1,
-            background: 'transparent',
-            border: 'none',
-            color: isDisabled ? 'var(--text-tertiary)' : '#f1f5f9',
-            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-            fontSize: 15,
-            lineHeight: '24px',
-            padding: 0,
-            resize: 'none',
-            outline: 'none',
-            overflowY: 'hidden',
-            minHeight: 24,
-            maxHeight: 144,
-            cursor: isDisabled ? 'not-allowed' : 'text',
-          }}
+          className="chat-composer-input"
         />
 
         {activeRun && (
@@ -169,22 +140,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             onClick={onStop}
             disabled={isStopping || isDisabled}
             aria-label="Detener respuesta"
-            className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            style={{
-              background: '#dc2626',
-              border: 'none',
-              borderRadius: 8,
-              color: '#fff',
-              cursor: isStopping || isDisabled ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              height: 44,
-              width: 44,
-              opacity: isStopping ? 0.55 : 1,
-              transition: 'background 0.15s, filter 0.15s, opacity 0.15s',
-            }}
+            className="chat-stop-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
               <rect x="1" y="1" width="10" height="10" rx="1" />
@@ -197,21 +153,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           onClick={handleSend}
           disabled={isDisabled || !inputValue.trim()}
           aria-label={activeRun ? 'Poner mensaje en cola' : 'Enviar mensaje'}
-          className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          style={{
-            background: isDisabled || !inputValue.trim() ? '#1e293b' : '#3b82f6',
-            border: 'none',
-            borderRadius: 8,
-            color: isDisabled || !inputValue.trim() ? 'var(--text-tertiary)' : '#fff',
-            cursor: isDisabled || !inputValue.trim() ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            height: 44,
-            width: 44,
-            transition: 'background 0.15s, color 0.15s, filter 0.15s',
-          }}
+          className={`chat-send-button${!inputValue.trim() || isDisabled ? ' is-disabled' : ''} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none`}
         >
           <svg
             width="16"

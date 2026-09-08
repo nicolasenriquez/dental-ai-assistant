@@ -3,6 +3,7 @@ import {
   type KeyboardEventHandler,
   type MutableRefObject,
   type RefObject,
+  type ReactNode,
   useEffect,
   useState,
 } from 'react';
@@ -87,6 +88,7 @@ export interface SidebarProps {
   runtimeByConversationId?: RuntimeByConversationId;
   sidebarRef?: RefObject<HTMLElement>;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
+  secondaryContent?: ReactNode;
 }
 
 export function Sidebar({
@@ -101,6 +103,7 @@ export function Sidebar({
   runtimeByConversationId,
   sidebarRef,
   onKeyDown,
+  secondaryContent,
 }: SidebarProps) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
@@ -229,6 +232,8 @@ export function Sidebar({
               onClose();
             }}
           />
+
+          {secondaryContent}
 
           {showConversations && (
             <>

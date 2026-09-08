@@ -122,6 +122,68 @@ export interface ClinicalDraft {
   review_flags: ReviewFlag[];
 }
 
+export interface ClinicalMessage {
+  id: string;
+  thread_id: string;
+  turn_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+
+export interface ClinicalPatient {
+  id: string;
+  first_name: string;
+  last_name: string;
+  rut_masked: string;
+  birth_date?: string | null;
+}
+
+export interface ClinicalPendingAction {
+  id: string;
+  thread_id: string;
+  turn_id: string;
+  patient_id: string;
+  action_type: string;
+  proposal_payload: {
+    evolution_id: string;
+    patient_id: string;
+    evolution_at: string;
+    raw_note: string;
+    generated_text: string;
+    final_text: string;
+  } | null;
+  proposal_hash: string;
+  status: 'pending' | 'approved' | 'declined' | 'expired' | 'failed';
+  expires_at: string;
+  created_at: string;
+  resolved_at?: string | null;
+  result_resource_id?: string | null;
+}
+
+export interface ClinicalThread {
+  id: string;
+  owner_user_id: string;
+  title: string;
+  active_patient: ClinicalPatient | null;
+  pending_action_patient: ClinicalPatient | null;
+  active_turn_id: string | null;
+  created_at: string;
+  updated_at: string;
+  messages: ClinicalMessage[];
+  pending_action: ClinicalPendingAction | null;
+}
+
+export interface ClinicalThreadSummary {
+  id: string;
+  title: string;
+  active_patient_id: string | null;
+  active_turn_id: string | null;
+  updated_at: string;
+  preview: string | null;
+  approval_pending: boolean;
+}
+
 export interface SaveEvolutionBody {
   id: string;
   evolution_at: string;
@@ -153,6 +215,17 @@ export class ApiError extends Error {
   ) {
     super(`API error ${status}`);
   }
+}
+
+async function parseApiError(res: Response): Promise<never> {
+  const text = await res.text();
+  let body: unknown = text;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // Keep non-JSON errors as text.
+  }
+  throw new ApiError(res.status, body);
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -224,6 +297,81 @@ export const getPatientEvolutions = (patientId: string) =>
   request<EvolutionSummary[]>(`/patients/${patientId}/evolutions`);
 export const getEvolution = (evolutionId: string) =>
   request<EvolutionDetail>(`/evolutions/${evolutionId}`);
+
+// Clinical Assistant — intentionally separate from RAG conversations.
+export const createClinicalThread = (title = 'Asistente clínico') =>
+  request<ClinicalThread>('/clinical-threads', {
+    method: 'POST',
+    body: JSON.stringify({ title }),
+  });
+export const getClinicalThreads = () =>
+  request<ClinicalThreadSummary[]>('/clinical-threads');
+export const getClinicalThread = (id: string) =>
+  request<ClinicalThread>(`/clinical-threads/${id}`);
+export const setClinicalActivePatient = (threadId: string, patientId: string | null) =>
+  request<ClinicalThread>(`/clinical-threads/${threadId}/active-patient`, {
+    method: 'PATCH',
+    body: JSON.stringify({ patient_id: patientId }),
+  });
+export const streamClinicalTurn = async (
+  threadId: string,
+  body: { turn_id: string; content: string },
+  signal?: AbortSignal,
+): Promise<Response> => {
+  const res = await fetch(`${BASE}/clinical-threads/${threadId}/turns`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (res.status === 401) {
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.assign(`/login?from=${encodeURIComponent(window.location.pathname)}`);
+    }
+    throw new Error('Not authenticated');
+  }
+  if (!res.ok) return parseApiError(res);
+  return res;
+};
+export const prepareClinicalSave = (
+  threadId: string,
+  body: {
+    raw_note: string;
+    draft: ClinicalDraft;
+    generated_draft?: ClinicalDraft;
+    evolution_at: string;
+    final_text?: string | null;
+  },
+) =>
+  request<ClinicalPendingAction & { patient: ClinicalPatient }>(
+    `/clinical-threads/${threadId}/prepare-save`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+export const regenerateClinicalDraft = (threadId: string, rawNote: string) =>
+  request<ClinicalDraft>(`/clinical-threads/${threadId}/drafts`, {
+    method: 'POST',
+    body: JSON.stringify({ raw_note: rawNote }),
+  });
+export const resolveClinicalAction = (
+  actionId: string,
+  decision: 'approve' | 'decline',
+  proposalHash: string,
+) =>
+  request<ClinicalPendingAction & { result?: EvolutionDetail }>(
+    `/clinical-actions/${actionId}/resolve`,
+    { method: 'POST', body: JSON.stringify({ decision, proposal_hash: proposalHash }) },
+  );
+export const transcribeAudio = async (audio: Blob): Promise<{ text: string }> => {
+  const res = await fetch(`${BASE}/transcriptions`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': audio.type || 'audio/webm' },
+    body: audio,
+  });
+  if (!res.ok) return parseApiError(res);
+  return res.json() as Promise<{ text: string }>;
+};
 
 export interface IngestVideoBody {
   title: string;

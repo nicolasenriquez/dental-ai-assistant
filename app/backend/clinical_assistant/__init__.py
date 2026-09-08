@@ -1,0 +1,1 @@
+"""Clinical Assistant vertical slice."""

@@ -19,6 +19,8 @@ interface AppShellProps {
   showConversations?: boolean;
   conversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
   runtimeByConversationId?: RuntimeByConversationId;
+  secondarySidebarContent?: ReactNode;
+  workspaceMode?: boolean;
 }
 
 export function AppShell({
@@ -27,6 +29,8 @@ export function AppShell({
   showConversations = false,
   conversationsRef: suppliedConversationsRef,
   runtimeByConversationId,
+  secondarySidebarContent,
+  workspaceMode = false,
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -120,10 +124,13 @@ export function AppShell({
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
         runtimeByConversationId={runtimeByConversationId}
+        secondaryContent={secondarySidebarContent}
         sidebarRef={sidebarRef}
         onKeyDown={handleSidebarKeyDown}
       />
-      <div className={`main-area${showConversations ? '' : ' patient-shell'}`}>
+      <div
+        className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}`}
+      >
         {isMobileSidebar && !sidebarOpen && (
           <button
             ref={menuButtonRef}

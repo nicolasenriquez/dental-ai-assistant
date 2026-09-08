@@ -1,4 +1,4 @@
-import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChatAutoFollow } from '../hooks/useChatAutoFollow';
 import { useConversationViewportCache } from '../hooks/useConversationViewportCache';
@@ -225,6 +225,8 @@ export function ChatArea({
   currentConversationIdRef.current = conversationId;
 
   const chatInputRef = useRef<ChatInputHandle>(null);
+  const chatAreaRef = useRef<HTMLDivElement>(null);
+  const chatInputDockRef = useRef<HTMLDivElement>(null);
   const creatingConversationRef = useRef(false);
   const mountedRef = useRef(true);
   const nextOptimisticTurnIdRef = useRef(0);
@@ -235,7 +237,19 @@ export function ChatArea({
   const queuedMessagesRef = useRef(queuedMessages);
   queuedMessagesRef.current = queuedMessages;
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
+  const [stoppedMessageIds, setStoppedMessageIds] = useState<Set<string>>(new Set());
   const restoredConversationIdRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    const area = chatAreaRef.current;
+    const dock = chatInputDockRef.current;
+    if (!area || !dock || typeof ResizeObserver === 'undefined') return;
+    const updateClearance = () => area.style.setProperty('--composer-clearance', `${dock.getBoundingClientRect().height + 16}px`);
+    const observer = new ResizeObserver(updateClearance);
+    observer.observe(dock);
+    updateClearance();
+    return () => observer.disconnect();
+  }, []);
 
   const {
     scrollContainerRef,
@@ -362,7 +376,7 @@ export function ChatArea({
         const result = await startStream(id, content);
         pendingUserMsgIdsRef.current.delete(id);
 
-        if (result && currentConversationIdRef.current === id) {
+        if (result && currentConversationIdRef.current === id && (result.fullText || !result.stopped)) {
           const assistantMessage: MessageType = {
             id: `assistant-stream-${id}-${turnId}`,
             conversation_id: id,
@@ -372,6 +386,7 @@ export function ChatArea({
             sources: result.sources.length > 0 ? result.sources : undefined,
           };
           setMessages((previous) => [...previous, assistantMessage]);
+          if (result.stopped) setStoppedMessageIds((current) => new Set(current).add(assistantMessage.id));
           onContentAppended();
         }
 
@@ -530,7 +545,7 @@ export function ChatArea({
   }, [addToast, conversation, conversationId, messages]);
 
   return (
-    <div className="chat-area">
+    <div ref={chatAreaRef} className="chat-area">
       <div ref={scrollContainerRef} onScroll={onScroll} className="chat-message-scroll">
         {conversation && conversation.id === conversationId && messages.length > 0 && !loading && (
           <button
@@ -578,6 +593,7 @@ export function ChatArea({
                   role={message.role}
                   content={message.content}
                   sources={message.sources}
+                  statusText={stoppedMessageIds.has(message.id) ? 'Generación detenida.' : undefined}
                   onCitationClick={handleCitationClick}
                 />
               ))
@@ -647,7 +663,7 @@ export function ChatArea({
 
       <div className="chat-input-fade" aria-hidden="true" />
 
-      <div className="chat-input-dock">
+      <div ref={chatInputDockRef} className="chat-input-dock">
         <div className="chat-input-dock-inner">
           <ChatInput
             ref={chatInputRef}

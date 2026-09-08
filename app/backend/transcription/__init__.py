@@ -1,0 +1,1 @@
+"""Ephemeral audio transcription adapters."""

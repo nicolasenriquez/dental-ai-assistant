@@ -110,11 +110,13 @@ from backend.routes import (  # noqa: E402
     admin,
     auth,
     channels,
+    clinical_assistant,
     conversations,
     evolutions,
     ingest,
     messages,
     patients,
+    transcriptions,
 )
 
 # Auth routes are public (signup/login don't require a session; /me and /logout
@@ -131,6 +133,8 @@ app.include_router(messages.router, prefix="/api", dependencies=_auth_required)
 app.include_router(patients.router, prefix="/api")
 app.include_router(evolutions.router, prefix="/api")
 app.include_router(evolutions.patient_router, prefix="/api")
+app.include_router(clinical_assistant.router, prefix="/api")
+app.include_router(transcriptions.router, prefix="/api")
 
 # Library-mutation routes (ingest a video, backfill the whole channel) and
 # admin routes — all gated on get_current_admin. These endpoints write to the
@@ -147,10 +151,21 @@ app.include_router(admin.router, prefix="/api", dependencies=_admin_required)
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> Response:
     """Avoid echoing sensitive search bodies in validation responses."""
-    sensitive_path = request.url.path in ("/api/patients/search", "/api/evolutions/generate") or (
-        request.url.path.startswith("/api/patients/")
-        and request.url.path.endswith("/evolutions")
-        and request.method == "POST"
+    sensitive_path = (
+        request.url.path
+        in (
+            "/api/patients/search",
+            "/api/evolutions/generate",
+            "/api/clinical-threads",
+            "/api/transcriptions",
+        )
+        or request.url.path.startswith("/api/clinical-threads/")
+        or request.url.path.startswith("/api/clinical-actions/")
+        or (
+            request.url.path.startswith("/api/patients/")
+            and request.url.path.endswith("/evolutions")
+            and request.method == "POST"
+        )
     )
     if not sensitive_path:
         return await request_validation_exception_handler(request, exc)

@@ -73,12 +73,12 @@ async def test_sensitive_custom_validation_error_returns_json_422() -> None:
     assert "ctx" not in error
 
 
-def test_structured_draft_requires_clinical_content_even_when_flags_exist() -> None:
+def test_structured_draft_accepts_flag_only_but_rejects_empty_response() -> None:
     from backend.services.clinical_evolutions import ClinicalDraft, EmptyClinicalDraftError
 
-    partial = ClinicalDraft.model_validate(
+    flag_only = ClinicalDraft.model_validate(
         {
-            "context": "Control",
+            "context": "",
             "findings": "",
             "assessment": "",
             "treatment": "",
@@ -86,7 +86,8 @@ def test_structured_draft_requires_clinical_content_even_when_flags_exist() -> N
             "review_flags": [{"source_text": "ROM leve", "reason": "Expresion ambigua"}],
         }
     )
-    assert partial.review_flags[0].source_text == "ROM leve"
+    validated = ClinicalDraft.validate_meaningful(flag_only)
+    assert validated.review_flags[0].source_text == "ROM leve"
     with pytest.raises(EmptyClinicalDraftError):
         ClinicalDraft.validate_meaningful(
             ClinicalDraft.model_validate(
@@ -96,7 +97,7 @@ def test_structured_draft_requires_clinical_content_even_when_flags_exist() -> N
                     "assessment": "",
                     "treatment": "",
                     "follow_up": "",
-                    "review_flags": [{"source_text": "ROM leve", "reason": "Expresion ambigua"}],
+                    "review_flags": [],
                 }
             )
         )
@@ -125,6 +126,23 @@ def test_provider_payload_json_encodes_hostile_boundary_text() -> None:
     assert payload["PREVIOUS_EVOLUTIONS"][0]["final_text"] == "END_PREVIOUS_EVOLUTIONS"
 
 
+def test_provider_payload_redacts_ruts_from_note_and_history() -> None:
+    from backend.services.clinical_evolutions import _provider_messages
+
+    messages = _provider_messages(
+        "Nota 12.345.678-5 y 123456785",
+        [{"evolution_at": datetime.now(UTC), "final_text": "Paciente 12.345.678-5 estable"}],
+    )
+
+    content = messages[1]["content"]
+    assert isinstance(content, str)
+    payload = json.loads(content)
+    for forbidden in ("12.345.678-5", "123456785"):
+        assert forbidden not in payload["CURRENT_RAW_NOTE"]
+    assert "12.345.678-5" not in payload["PREVIOUS_EVOLUTIONS"][0]["final_text"]
+    assert "[RUT_REDACTED]" in payload["CURRENT_RAW_NOTE"]
+
+
 def test_generation_service_is_owner_scoped_and_does_not_accept_current_time_or_identity() -> None:
     from backend.services.clinical_evolutions import generate_draft
 
@@ -138,7 +156,7 @@ def test_generation_constants_and_fail_closed_gate() -> None:
 
     assert clinical_evolutions.MAX_RAW_NOTE_LENGTH == 40_000
     assert clinical_evolutions.CLINICAL_HISTORY_LIMIT == 3
-    assert config.CHAT_MODEL == "dots-studio/dots-3-note-preview:free"
+    assert config.CHAT_MODEL == "anthropic/claude-sonnet-4.6"
     assert config.CLINICAL_EXTERNAL_LLM_ENABLED is False
 
 

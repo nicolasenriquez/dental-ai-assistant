@@ -156,7 +156,7 @@ describe('useStreamingResponse', () => {
 
     await act(async () => {
       result.current.abortStream('a');
-      await expect(aPromise).resolves.toBeNull();
+      await expect(aPromise).resolves.toMatchObject({ fullText: '', stopped: true });
     });
 
     expect(result.current.runtimeByConversationId.a?.phase).toBe('stopping');
@@ -233,6 +233,26 @@ describe('useStreamingResponse', () => {
       '[useStreamingResponse] Failed to parse status event:',
       expect.any(Error),
     );
+  });
+
+  it('keeps the final token when the stream closes without a frame delimiter', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: makeSseStream(['data: "respuesta final"']),
+      }),
+    );
+
+    const { result } = renderHook(() => useStreamingResponse());
+    let streamResult: StreamResult | null | undefined;
+    await act(async () => {
+      streamResult = await result.current.startStream('conv-1', 'hi');
+    });
+
+    expect(streamResult?.fullText).toBe('respuesta final');
+    expect(result.current.runtimeByConversationId['conv-1']?.content).toBe('respuesta final');
   });
 
   it('is safe to abort or clear an idle conversation', () => {

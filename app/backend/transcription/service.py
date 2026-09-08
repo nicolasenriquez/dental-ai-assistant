@@ -1,0 +1,83 @@
+"""Rate-limited, non-persistent transcription service."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections import defaultdict, deque
+from datetime import UTC, datetime, timedelta
+from typing import Final
+from uuid import UUID
+
+from backend.config import (
+    VOICE_MAX_BYTES,
+    VOICE_RATE_LIMIT_PER_HOUR,
+    VOICE_TRANSCRIPTION_ENABLED,
+)
+
+from .port import TranscriptionPort
+from .schemas import TranscriptionResult
+
+logger = logging.getLogger(__name__)
+ALLOWED_MIME_TYPES: Final = frozenset({"audio/webm", "audio/webm;codecs=opus", "audio/mp4"})
+_requests: defaultdict[UUID, deque[datetime]] = defaultdict(deque)
+_rate_lock = asyncio.Lock()
+
+
+class TranscriptionError(RuntimeError):
+    code = "TRANSCRIPTION_FAILED"
+
+
+class VoiceDisabledError(TranscriptionError):
+    code = "VOICE_TRANSCRIPTION_DISABLED"
+
+
+class InvalidAudioError(TranscriptionError):
+    code = "INVALID_AUDIO"
+
+
+class VoiceRateLimitError(TranscriptionError):
+    code = "VOICE_RATE_LIMIT_EXCEEDED"
+
+
+async def _check_rate_limit(user_id: UUID) -> None:
+    now = datetime.now(UTC)
+    cutoff = now - timedelta(hours=1)
+    async with _rate_lock:
+        calls = _requests[user_id]
+        while calls and calls[0] <= cutoff:
+            calls.popleft()
+        if len(calls) >= VOICE_RATE_LIMIT_PER_HOUR:
+            raise VoiceRateLimitError
+        calls.append(now)
+
+
+async def transcribe(
+    user_id: UUID, audio: bytes, *, mime_type: str, adapter: TranscriptionPort
+) -> TranscriptionResult:
+    if not VOICE_TRANSCRIPTION_ENABLED:
+        raise VoiceDisabledError
+    if mime_type not in ALLOWED_MIME_TYPES or not audio or len(audio) > VOICE_MAX_BYTES:
+        raise InvalidAudioError
+    await _check_rate_limit(user_id)
+    try:
+        result = await adapter.transcribe(audio, mime_type=mime_type)
+        logger.info(
+            "transcription_completed user_id=%s size_bucket=%s status=200",
+            user_id,
+            _size_bucket(len(audio)),
+        )
+        return result
+    except TranscriptionError:
+        raise
+    except Exception as exc:
+        logger.warning("transcription_failed user_id=%s error_code=TRANSCRIPTION_FAILED", user_id)
+        raise TranscriptionError from exc
+
+
+def _size_bucket(size: int) -> str:
+    if size <= 256 * 1024:
+        return "small"
+    if size <= 2 * 1024 * 1024:
+        return "medium"
+    return "large"

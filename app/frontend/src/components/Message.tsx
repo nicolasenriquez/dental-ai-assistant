@@ -14,6 +14,7 @@ interface MessageProps {
   onCitationClick?: (citation: Citation) => void;
   /** Current tool-call status during streaming (ephemeral progress indicator) */
   streamingStatus?: { tool: string; subject: string } | null;
+  statusText?: string;
 }
 
 // ── Typing indicator (3 pulsing dots) ────────────────────────────
@@ -125,6 +126,7 @@ export function Message({
   sources,
   onCitationClick,
   streamingStatus,
+  statusText,
 }: MessageProps) {
   const isUser = role === 'user';
   const hasSources = !isUser && Array.isArray(sources) && sources.length > 0;
@@ -152,6 +154,7 @@ export function Message({
           <>
             <MarkdownRenderer content={content} />
             {hasSources && <SourceCitations sources={sources} onCitationClick={onCitationClick} />}
+            {statusText && <p className="message-status" role="status">{statusText}</p>}
           </>
         )}
       </div>
