@@ -126,6 +126,10 @@ export function decodeClinicalEvent(
   if (status !== null && status !== undefined && (!nonEmptyString(status) || !VALID_STATUSES.has(status as ClinicalItemStatus))) {
     return null;
   }
+  const dataStatus = parsed.data.status;
+  if (dataStatus !== null && dataStatus !== undefined && (!nonEmptyString(dataStatus) || !VALID_STATUSES.has(dataStatus as ClinicalItemStatus))) {
+    return null;
+  }
   return {
     name,
     schemaVersion: 1,
@@ -171,7 +175,7 @@ function upsertStreamItem(
   if (index < 0) return [...items, incoming];
   const current = items[index];
   if (current.type !== incoming.type) return items;
-  if (terminalStatuses.has(current.status) && current.status !== incoming.status) return items;
+  if (terminalStatuses.has(current.status)) return items;
   return items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...incoming } : item));
 }
 
@@ -186,7 +190,7 @@ function itemFromEvent(event: ClinicalEvent): ClinicalTranscriptItem | null {
   }
   if (event.itemType === 'clinical_draft' && isRecord(event.data.draft)) {
     const draft = event.data.draft as unknown as ClinicalDraft;
-    if (typeof draft.context !== 'string' || typeof draft.findings !== 'string' || typeof draft.assessment !== 'string' || typeof draft.treatment !== 'string' || typeof draft.follow_up !== 'string' || !Array.isArray(draft.review_flags)) return null;
+    if (typeof draft.context !== 'string' || typeof draft.findings !== 'string' || typeof draft.assessment !== 'string' || typeof draft.treatment !== 'string' || typeof draft.follow_up !== 'string' || !Array.isArray(draft.review_flags) || !draft.review_flags.every((flag) => isRecord(flag) && typeof flag.source_text === 'string' && typeof flag.reason === 'string')) return null;
     const sourceNote = typeof event.data.source_note === 'string' ? event.data.source_note : '';
     return { id: event.itemId, turnId: event.turnId, status: 'completed', createdAt, type: 'draft', draft, baseline: draft, sourceNote, edited: false, stale: false };
   }

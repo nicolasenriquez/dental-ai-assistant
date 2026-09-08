@@ -197,6 +197,26 @@ async def set_active_patient(
     return dict(row) if row else None
 
 
+async def turn_exists(
+    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str
+) -> bool:
+    async with get_pg_pool().acquire() as conn:
+        return bool(
+            await conn.fetchval(
+                """
+                SELECT 1
+                FROM clinical_messages m
+                JOIN clinical_threads t ON t.id = m.thread_id
+                WHERE m.thread_id = $1 AND m.turn_id = $2 AND t.owner_user_id = $3
+                LIMIT 1
+                """,
+                _uuid(thread_id),
+                _uuid(turn_id),
+                _uuid(owner_user_id),
+            )
+        )
+
+
 async def update_title_if_default(
     owner_user_id: UUID | str, thread_id: UUID | str, title: str
 ) -> None:

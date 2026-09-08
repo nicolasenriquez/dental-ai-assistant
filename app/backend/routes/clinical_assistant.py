@@ -64,7 +64,7 @@ async def set_active_patient(
     updated = await service.set_active_patient(_user_id(user), thread_id, request.patient_id)
     if updated is None:
         raise HTTPException(status_code=404, detail="Hilo o paciente no encontrado")
-    return await _response(_user_id(user), thread_id)
+    return updated
 
 
 @router.post("/clinical-threads/{thread_id}/turns")

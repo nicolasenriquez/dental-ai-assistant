@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 const threadId = '11111111-1111-4111-8111-111111111111';
 const patientId = '22222222-2222-4222-8222-222222222222';
 const actionId = '33333333-3333-4333-8333-333333333333';
+const secondActionId = '33333333-3333-4333-8333-333333333334';
 const evolutionId = '44444444-4444-4444-8444-444444444444';
 type MockAction = Record<string, unknown>;
 
@@ -63,6 +64,7 @@ function sseEvent(
 
 test('clinical assistant preserves the complete two-turn review flow', async ({ page }) => {
   let turnCount = 0;
+  let actionCount = 0;
   let threadState = thread();
 
   await page.route('**/api/auth/me', (route) => route.fulfill({
@@ -102,8 +104,10 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await page.route(`**/api/clinical-threads/${threadId}/drafts`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(draft) }));
   await page.route(`**/api/clinical-threads/${threadId}/prepare-save`, async (route) => {
     const body = route.request().postDataJSON() as { turn_id: string; raw_note: string };
+    actionCount += 1;
+    const nextActionId = actionCount === 1 ? actionId : secondActionId;
     const action = {
-      id: actionId,
+      id: nextActionId,
       thread_id: threadId,
       turn_id: body.turn_id,
       patient_id: patientId,
@@ -117,15 +121,17 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       result_resource_id: null,
       patient,
     };
-    threadState = thread([action]);
+    threadState = thread([...threadState.actions, action]);
     threadState.pending_action = action;
     threadState.pending_action_patient = patient;
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(action) });
   });
-  await page.route(`**/api/clinical-actions/${actionId}/resolve`, async (route) => {
+  await page.route('**/api/clinical-actions/*/resolve', async (route) => {
     const decision = (route.request().postDataJSON() as { decision: string }).decision;
-    const resolved = { ...threadState.actions[0], status: decision === 'decline' ? 'declined' : 'approved', result_resource_id: evolutionId, resolved_at: '2026-01-15T12:03:00Z' };
-    threadState = thread([resolved]);
+    const resolvedId = route.request().url().split('/').slice(-2, -1)[0];
+    const current = threadState.actions.find((candidate) => candidate.id === resolvedId) ?? threadState.actions[0];
+    const resolved = { ...current, status: decision === 'decline' ? 'declined' : 'approved', result_resource_id: evolutionId, resolved_at: '2026-01-15T12:03:00Z' };
+    threadState = thread(threadState.actions.map((candidate) => candidate.id === resolvedId ? resolved : candidate));
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(resolved) });
   });
 
@@ -155,8 +161,11 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
 
   await composer.fill('Segundo control independiente.');
   await page.getByRole('button', { name: 'Enviar', exact: true }).click();
-  await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(1);
+  await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(2);
   await page.screenshot({ path: 'test-results/clinical-second-turn.png', fullPage: true });
+  await page.getByRole('button', { name: 'Preparar para guardar' }).last().click();
+  await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/clinical-second-approval.png', fullPage: true });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/clinical-mobile.png', fullPage: true });

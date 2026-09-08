@@ -470,6 +470,8 @@ async def prepare_save(
     stored = await repository.get_thread(owner, thread)
     if stored is None or stored.get("active_patient_id") is None:
         raise LookupError("Thread or patient not found")
+    if not await repository.turn_exists(owner, thread, request.turn_id):
+        raise LookupError("Turn not found")
     patient_id = UUID(str(stored["active_patient_id"]))
     patient = await patients_repo.get_patient(owner, patient_id)
     if patient is None:
