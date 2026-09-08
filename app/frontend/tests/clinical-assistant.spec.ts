@@ -6,6 +6,7 @@ const actionId = '33333333-3333-4333-8333-333333333333';
 const secondActionId = '33333333-3333-4333-8333-333333333334';
 const evolutionId = '44444444-4444-4444-8444-444444444444';
 type MockAction = Record<string, unknown>;
+type MockArtifact = Record<string, unknown>;
 
 const patient = {
   id: patientId,
@@ -35,6 +36,7 @@ function thread(actions: MockAction[] = []) {
     created_at: '2026-01-15T12:00:00Z',
     updated_at: '2026-01-15T12:00:00Z',
     messages: [],
+    artifacts: [] as MockArtifact[],
     pending_action: null as MockAction | null,
     actions,
   };
@@ -67,52 +69,168 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   let actionCount = 0;
   let threadState = thread();
 
-  await page.route('**/api/auth/me', (route) => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({
-      id: '55555555-5555-4555-8555-555555555555',
-      email: 'demo@example.com',
-      is_admin: false,
-      messages_used_today: 0,
-      messages_remaining_today: 25,
-      rate_window_resets_at: null,
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: '55555555-5555-4555-8555-555555555555',
+        email: 'demo@example.com',
+        is_admin: false,
+        messages_used_today: 0,
+        messages_remaining_today: 25,
+        rate_window_resets_at: null,
+      }),
     }),
-  }));
-  await page.route('**/api/patients', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([patient]) }));
+  );
+  await page.route('**/api/patients', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([patient]),
+    }),
+  );
   await page.route('**/api/clinical-threads', async (route) => {
     if (route.request().method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ ...threadState, preview: null, active_patient_id: patientId, approval_pending: Boolean(threadState.pending_action) }]) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            ...threadState,
+            preview: null,
+            active_patient_id: patientId,
+            approval_pending: Boolean(threadState.pending_action),
+          },
+        ]),
+      });
       return;
     }
-    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(threadState) });
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(threadState),
+    });
   });
-  await page.route(`**/api/clinical-threads/${threadId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(threadState) }));
+  await page.route(`**/api/clinical-threads/${threadId}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(threadState),
+    }),
+  );
   await page.route(`**/api/clinical-threads/${threadId}/turns`, async (route) => {
     const body = route.request().postDataJSON() as { turn_id: string; content: string };
     turnCount += 1;
     const draftId = `draft-${turnCount}`;
     const assistantId = `assistant-${turnCount}`;
+    const artifact = {
+      id: draftId,
+      owner_user_id: '55555555-5555-4555-8555-555555555555',
+      thread_id: threadId,
+      turn_id: body.turn_id,
+      patient_id: patientId,
+      artifact_type: 'clinical_draft',
+      status: 'draft',
+      source_note: body.content,
+      generated_draft: draft,
+      draft,
+      evolution_at: '2026-01-15T12:01:00-03:00',
+      created_at: '2026-01-15T12:01:00Z',
+      updated_at: '2026-01-15T12:01:00Z',
+      resolved_at: null,
+    };
+    threadState = {
+      ...threadState,
+      artifacts: [...threadState.artifacts, artifact],
+    };
     const payload = [
-      sseEvent('turn.started', 1, body.turn_id, `turn-${turnCount}`, 'turn', { user_content: body.content }, 'running'),
-      sseEvent('item.completed', 2, body.turn_id, draftId, 'clinical_draft', { draft, source_note: body.content, created_at: '2026-01-15T12:01:00Z' }, 'completed'),
-      sseEvent('item.completed', 3, body.turn_id, assistantId, 'assistant_message', { content: 'Preparé un borrador para tu revisión.', created_at: '2026-01-15T12:01:01Z' }, 'completed'),
+      sseEvent(
+        'turn.started',
+        1,
+        body.turn_id,
+        `turn-${turnCount}`,
+        'turn',
+        { user_content: body.content },
+        'running',
+      ),
+      sseEvent(
+        'item.completed',
+        2,
+        body.turn_id,
+        draftId,
+        'clinical_draft',
+        {
+          draft,
+          source_note: body.content,
+          patient_id: patientId,
+          evolution_at: '2026-01-15T12:01:00-03:00',
+          created_at: '2026-01-15T12:01:00Z',
+        },
+        'completed',
+      ),
+      sseEvent(
+        'item.completed',
+        3,
+        body.turn_id,
+        assistantId,
+        'assistant_message',
+        { content: 'Preparé un borrador para tu revisión.', created_at: '2026-01-15T12:01:01Z' },
+        'completed',
+      ),
       sseEvent('turn.completed', 4, body.turn_id, `complete-${turnCount}`, 'turn', {}, 'completed'),
     ].join('');
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
   });
-  await page.route(`**/api/clinical-threads/${threadId}/drafts`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(draft) }));
+  await page.route(`**/api/clinical-threads/${threadId}/drafts`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(draft) }),
+  );
+  await page.route(`**/api/clinical-threads/${threadId}/artifacts/*`, async (route) => {
+    const body = route.request().postDataJSON() as {
+      source_note: string;
+      draft: typeof draft;
+      evolution_at: string;
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: route.request().url().split('/').pop(),
+        owner_user_id: '55555555-5555-4555-8555-555555555555',
+        thread_id: threadId,
+        turn_id: 'turn-1',
+        patient_id: patientId,
+        artifact_type: 'clinical_draft',
+        status: body.source_note === 'Nota fuente corregida.' ? 'stale' : 'draft',
+        source_note: body.source_note,
+        generated_draft: draft,
+        draft: body.draft,
+        evolution_at: body.evolution_at,
+        created_at: '2026-01-15T12:01:00Z',
+        updated_at: '2026-01-15T12:02:00Z',
+        resolved_at: null,
+      }),
+    });
+  });
   await page.route(`**/api/clinical-threads/${threadId}/prepare-save`, async (route) => {
-    const body = route.request().postDataJSON() as { turn_id: string; raw_note: string };
+    const body = route.request().postDataJSON() as { turn_id: string; artifact_id: string };
     actionCount += 1;
     const nextActionId = actionCount === 1 ? actionId : secondActionId;
     const action = {
       id: nextActionId,
       thread_id: threadId,
       turn_id: body.turn_id,
+      artifact_id: body.artifact_id,
       patient_id: patientId,
       action_type: 'save_evolution',
-      proposal_payload: { evolution_id: evolutionId, patient_id: patientId, evolution_at: '2026-01-15T12:00:00Z', raw_note: body.raw_note, generated_text: 'Generado', final_text: draft.findings },
+      proposal_payload: {
+        evolution_id: evolutionId,
+        patient_id: patientId,
+        evolution_at: '2026-01-15T12:00:00Z',
+        raw_note: 'Nota clínica',
+        generated_text: 'Generado',
+        final_text: draft.findings,
+      },
       proposal_hash: 'a'.repeat(64),
       status: 'pending',
       expires_at: '2026-01-15T12:30:00Z',
@@ -124,49 +242,159 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     threadState = thread([...threadState.actions, action]);
     threadState.pending_action = action;
     threadState.pending_action_patient = patient;
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(action) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(action),
+    });
   });
   await page.route('**/api/clinical-actions/*/resolve', async (route) => {
     const decision = (route.request().postDataJSON() as { decision: string }).decision;
     const resolvedId = route.request().url().split('/').slice(-2, -1)[0];
-    const current = threadState.actions.find((candidate) => candidate.id === resolvedId) ?? threadState.actions[0];
-    const resolved = { ...current, status: decision === 'decline' ? 'declined' : 'approved', result_resource_id: evolutionId, resolved_at: '2026-01-15T12:03:00Z' };
-    threadState = thread(threadState.actions.map((candidate) => candidate.id === resolvedId ? resolved : candidate));
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(resolved) });
+    const current =
+      threadState.actions.find((candidate) => candidate.id === resolvedId) ??
+      threadState.actions[0];
+    const resolved = {
+      ...current,
+      status: decision === 'decline' ? 'declined' : 'approved',
+      result_resource_id: evolutionId,
+      resolved_at: '2026-01-15T12:03:00Z',
+    };
+    threadState = thread(
+      threadState.actions.map((candidate) => (candidate.id === resolvedId ? resolved : candidate)),
+    );
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(resolved),
+    });
   });
 
+  const initialThreadLoad = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/clinical-threads/${threadId}`) &&
+      response.request().method() === 'GET',
+  );
   await page.goto(`/a/${threadId}`);
+  await initialThreadLoad;
   await expect(page.getByRole('heading', { name: 'Asistente clínico' })).toBeVisible();
-  await page.screenshot({ path: 'test-results/clinical-empty.png', fullPage: true });
 
-  const composer = page.getByLabel('Nota clínica');
+  const sidebar = page.locator('#app-sidebar');
+  await sidebar.getByRole('button', { name: 'Colapsar navegación' }).click();
+  await expect(sidebar).toHaveClass(/collapsed/);
+  await expect
+    .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
+    .toBe(56);
+  await expect
+    .poll(() => sidebar.evaluate((element) => element.scrollWidth <= element.clientWidth))
+    .toBe(true);
+  await expect(sidebar.locator('.workspace-thread-list')).toHaveClass(/is-collapsed/);
+  await expect(sidebar.locator('.workspace-thread-list')).toHaveCSS('overflow-y', 'visible');
+  await expect(sidebar.locator('.sidebar-secondary-scroll')).toHaveCSS('overflow-y', 'auto');
+  await expect(sidebar.locator('.workspace-thread-list__heading')).toHaveCount(0);
+  await expect(sidebar.locator('.workspace-thread-list__group-heading')).toHaveCount(0);
+  await expect(sidebar.getByRole('button', { name: 'Ana Pérez · Control' })).toBeVisible();
+  await expect(sidebar.getByRole('button', { name: 'Nuevo hilo' })).toHaveAttribute(
+    'title',
+    'Nuevo hilo',
+  );
+  await expect(sidebar).toHaveScreenshot('clinical-sidebar-collapsed.png', {
+    animations: 'disabled',
+    maxDiffPixels: 100,
+  });
+  await sidebar.getByRole('button', { name: 'Expandir navegación' }).click();
+
+  await expect(page).toHaveScreenshot('clinical-empty.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixels: 300,
+  });
+
+  const composer = page.getByTestId('clinical-composer').getByLabel('Nota clínica');
   await composer.fill('Control preventivo sin hallazgos nuevos.');
   await page.getByRole('button', { name: 'Enviar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Evolución propuesta' })).toBeVisible();
-  await page.screenshot({ path: 'test-results/clinical-draft.png', fullPage: true });
+  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const card = document.querySelector('[aria-label="Evolución propuesta"]:last-of-type');
+        const buttons = card?.querySelectorAll('button');
+        const prepareButton = buttons?.item((buttons.length ?? 0) - 1);
+        const composer = document.querySelector('.clinical-composer');
+        if (!prepareButton || !composer) return false;
+
+        const buttonBounds = prepareButton.getBoundingClientRect();
+        const composerBounds = composer.getBoundingClientRect();
+        const hitTarget = document.elementFromPoint(
+          buttonBounds.left + buttonBounds.width / 2,
+          buttonBounds.top + buttonBounds.height / 2,
+        );
+
+        return buttonBounds.bottom <= composerBounds.top && prepareButton.contains(hitTarget);
+      }),
+    )
+    .toBe(true);
+  await page.getByRole('article', { name: 'Evolución propuesta' }).scrollIntoViewIfNeeded();
+  await expect(page).toHaveScreenshot('clinical-draft.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixels: 300,
+  });
 
   await page.getByRole('button', { name: 'Editar nota fuente' }).click();
   await page.getByLabel('Editar nota clínica original').fill('Nota fuente corregida.');
   await expect(page.getByText('Necesita regeneración')).toBeVisible();
-  await page.screenshot({ path: 'test-results/clinical-editing.png', fullPage: true });
+  await page.getByRole('article', { name: 'Evolución propuesta' }).scrollIntoViewIfNeeded();
+  await expect(page).toHaveScreenshot('clinical-editing.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixels: 300,
+  });
   await page.getByRole('button', { name: 'Regenerar', exact: true }).click();
   await expect(page.getByText('Borrador asistido')).toBeVisible();
+  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
 
   await page.getByRole('button', { name: 'Preparar para guardar' }).click();
   await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toBeVisible();
-  await page.screenshot({ path: 'test-results/clinical-approval-pending.png', fullPage: true });
+  await page.getByRole('article', { name: 'Antes de guardar' }).scrollIntoViewIfNeeded();
+  await expect(page).toHaveScreenshot('clinical-approval-pending.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixels: 300,
+  });
   await page.getByRole('button', { name: 'Confirmar y guardar' }).click();
   await expect(page.getByRole('heading', { name: 'Evolución guardada' })).toBeVisible();
-  await page.screenshot({ path: 'test-results/clinical-approval-resolved.png', fullPage: true });
+  await page.getByRole('article', { name: 'Evolución guardada' }).scrollIntoViewIfNeeded();
+  await expect(page).toHaveScreenshot('clinical-approval-resolved.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixels: 300,
+  });
 
   await composer.fill('Segundo control independiente.');
   await page.getByRole('button', { name: 'Enviar', exact: true }).click();
   await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(2);
-  await page.screenshot({ path: 'test-results/clinical-second-turn.png', fullPage: true });
+  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(2);
+  await page.locator('[aria-label="Evolución propuesta"]').last().scrollIntoViewIfNeeded();
+  await expect(page).toHaveScreenshot('clinical-second-turn.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixels: 300,
+  });
   await page.getByRole('button', { name: 'Preparar para guardar' }).last().click();
   await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toHaveCount(1);
-  await page.screenshot({ path: 'test-results/clinical-second-approval.png', fullPage: true });
+  await page.getByRole('article', { name: 'Antes de guardar' }).scrollIntoViewIfNeeded();
+  await expect(page).toHaveScreenshot('clinical-second-approval.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixels: 300,
+  });
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: 'test-results/clinical-mobile.png', fullPage: true });
+  await expect(page).toHaveScreenshot('clinical-mobile.png', {
+    fullPage: true,
+    animations: 'disabled',
+    maxDiffPixels: 300,
+  });
 });

@@ -1,6 +1,12 @@
 import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Link, useBeforeUnload, useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { PatientIdentity } from '../components/PatientIdentity';
+import { EvolutionReviewArtifact } from '../components/clinical/EvolutionReviewArtifact';
+import {
+  clinicalFields,
+  composeClinicalDraft,
+  hasClinicalContent as draftHasClinicalContent,
+} from '../components/clinical/evolutionFields';
 import { useToast } from '../hooks/useToast';
 import {
   ApiError,
@@ -25,17 +31,10 @@ const EMPTY_DRAFT: ClinicalDraft = {
   review_flags: [],
 };
 
-type ClinicalField = Exclude<keyof ClinicalDraft, 'review_flags'>;
 type WorkspaceState = 'editing_raw' | 'generating' | 'reviewing';
 type GenerationOutcome = 'success' | 'partial' | 'insufficient' | 'technical' | null;
 
-const fields: Array<{ key: ClinicalField; label: string }> = [
-  { key: 'context', label: 'Motivo / contexto' },
-  { key: 'findings', label: 'Hallazgos' },
-  { key: 'assessment', label: 'Diagnóstico / impresión clínica' },
-  { key: 'treatment', label: 'Tratamiento / conducta' },
-  { key: 'follow_up', label: 'Seguimiento' },
-];
+const fields = clinicalFields;
 
 const workflowSteps = ['Nota clínica', 'Borrador asistido', 'Revisar y guardar'] as const;
 
@@ -44,14 +43,6 @@ function localInputParts(value: Date) {
     .toISOString()
     .slice(0, 16);
   return { date: local.slice(0, 10), time: local.slice(11) };
-}
-
-function composeDraft(draft: ClinicalDraft) {
-  return fields
-    .map(({ key, label }) => ({ label, value: draft[key].trim() }))
-    .filter(({ value }) => value)
-    .map(({ label, value }) => `${label}: ${value}`)
-    .join('\n\n');
 }
 
 function toOffsetISOString(value: Date) {
@@ -84,6 +75,7 @@ export function NewEvolution() {
   const [patientLoading, setPatientLoading] = useState(true);
   const [patientError, setPatientError] = useState(false);
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
+  const [navigationAllowed, setNavigationAllowed] = useState(false);
   const patientRequestId = useRef(0);
   const historyRequestId = useRef(0);
   const rawNoteRef = useRef<HTMLTextAreaElement>(null);
@@ -96,7 +88,7 @@ export function NewEvolution() {
   const sourceLength = rawNote.trim().length;
   const overLimit = sourceLength > MAX_RAW_NOTE_LENGTH;
   const isDraftStale = generatedDraft !== null && rawNote !== generatedRawNote;
-  const hasClinicalContent = fields.some(({ key }) => draft[key].trim());
+  const hasClinicalContent = draftHasClinicalContent(draft);
   const hasHumanEdits = generatedDraft
     ? fields.some(({ key }) => draft[key] !== generatedDraft[key])
     : false;
@@ -119,7 +111,7 @@ export function NewEvolution() {
     generatedDraft !== null ||
     hasHumanEdits ||
     evolutionAt.getTime() !== initialEvolutionAt.current.getTime();
-  const blocker = useBlocker(isDirty && !saving);
+  const blocker = useBlocker(isDirty && !saving && !navigationAllowed);
 
   useBeforeUnload((event) => {
     if (isDirty) {
@@ -297,10 +289,6 @@ export function NewEvolution() {
     }
   };
 
-  const changeClinicalField = (key: ClinicalField, value: string) => {
-    setDraft((current) => ({ ...current, [key]: value }));
-  };
-
   const changeDateTime = (date: string, time: string) => {
     if (!date || !time) return;
     setEvolutionAt(new Date(`${date}T${time}`));
@@ -322,18 +310,21 @@ export function NewEvolution() {
         id: saveId,
         evolution_at: toOffsetISOString(evolutionAt),
         raw_note: rawNote,
-        generated_text: composeDraft(generatedDraft),
-        final_text: composeDraft(draft),
+        generated_text: composeClinicalDraft(generatedDraft),
+        final_text: composeClinicalDraft(draft),
       });
       addToast('Evolución guardada', 'success');
-      navigate(
-        savedEvolution.id
-          ? `/patients/${patientId}/evolutions/${savedEvolution.id}`
-          : `/patients/${patientId}`,
-        {
-          state: { announcement: 'Evolución guardada' },
-        },
-      );
+      setNavigationAllowed(true);
+      window.requestAnimationFrame(() => {
+        navigate(
+          savedEvolution.id
+            ? `/patients/${patientId}/evolutions/${savedEvolution.id}`
+            : `/patients/${patientId}`,
+          {
+            state: { announcement: 'Evolución guardada' },
+          },
+        );
+      });
     } catch {
       setError('No pudimos guardar la evolución. Puedes reintentar.');
     } finally {
@@ -598,43 +589,21 @@ export function NewEvolution() {
             ) : (
               <h2 className="text-base font-semibold">Borrador para revisar</h2>
             )}
-            {draft.review_flags.length > 0 && (
-              <section
-                className="mt-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] p-4"
-                aria-labelledby="review-flags-title"
-              >
-                <h3 id="review-flags-title" className="text-sm font-semibold text-[var(--warning)]">
-                  Detalles de revisión
-                </h3>
-                <ul className="mt-2 space-y-2 text-sm text-[var(--text-primary)]">
-                  {draft.review_flags.map((flag) => (
-                    <li key={`${flag.source_text}-${flag.reason}`}>
-                      <q>{flag.source_text}</q> · {flag.reason}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              {fields.map(({ key, label }) => (
-                <label
-                  key={key}
-                  className={
-                    key === 'context' || key === 'findings' || key === 'assessment'
-                      ? 'lg:col-span-2'
-                      : ''
-                  }
-                >
-                  <span className="text-sm text-[var(--text-secondary)]">{label}</span>
-                  <textarea
-                    value={draft[key]}
-                    onChange={(event) => changeClinicalField(key, event.target.value)}
-                    rows={3}
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-3 outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                  />
-                </label>
-              ))}
-            </div>
+            <EvolutionReviewArtifact
+              mode="manual"
+              sourceNote={rawNote}
+              draft={draft}
+              generatedDraft={generatedDraft}
+              evolutionAt={toOffsetISOString(evolutionAt)}
+              stale={isDraftStale}
+              edited={hasHumanEdits}
+              showSource={false}
+              onChange={setDraft}
+              onSave={() => void save()}
+              staleMessageId="stale-draft-message"
+              canSave={canSave}
+              saving={saving}
+            />
             {!hasClinicalContent && (
               <p className="mt-5 text-sm text-[var(--warning)]">
                 No hay contenido clínico para guardar. Corrige la nota y vuelve a redactar, o
@@ -651,22 +620,6 @@ export function NewEvolution() {
                 de guardar.
               </p>
             )}
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-              {patient && (
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Evolución de {patient.first_name} {patient.last_name}
-                </p>
-              )}
-              <button
-                type="button"
-                disabled={!canSave}
-                onClick={() => void save()}
-                aria-describedby={isDraftStale ? 'stale-draft-message' : undefined}
-                className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
-              >
-                {saving ? 'Guardando...' : 'Guardar evolución'}
-              </button>
-            </div>
           </section>
         )}
 

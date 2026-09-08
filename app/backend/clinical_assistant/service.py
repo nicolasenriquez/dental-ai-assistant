@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 from collections.abc import AsyncIterator
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -16,7 +16,12 @@ from backend.services import clinical_evolutions
 
 from .events import event
 from .policy import ClinicalTurnContext
-from .schemas import ClinicalDraft, ClinicalThreadResponse, PrepareSaveRequest
+from .schemas import (
+    ClinicalArtifactUpdate,
+    ClinicalDraft,
+    ClinicalThreadResponse,
+    PrepareSaveRequest,
+)
 from .sensitive_input import safe_patient, sanitize_content
 
 logger = logging.getLogger(__name__)
@@ -61,24 +66,33 @@ async def get_thread_response(owner: UUID, thread: UUID) -> ClinicalThreadRespon
     pending = stored.get("pending_action")
     if pending:
         pending_patient = await patients_repo.get_patient(owner, pending["patient_id"])
-        stored["pending_action_patient"] = safe_patient(pending_patient) if pending_patient else None
+        stored["pending_action_patient"] = (
+            safe_patient(pending_patient) if pending_patient else None
+        )
         pending["patient"] = stored["pending_action_patient"]
     else:
         stored["pending_action_patient"] = None
     for action in stored.get("actions", []):
         action_patient = await patients_repo.get_patient(owner, action["patient_id"])
         action["patient"] = safe_patient(action_patient) if action_patient else None
+    for artifact in stored.get("artifacts", []):
+        artifact_patient = await patients_repo.get_patient(owner, artifact["patient_id"])
+        artifact["patient"] = safe_patient(artifact_patient) if artifact_patient else None
     return ClinicalThreadResponse(**stored)
 
 
-async def set_active_patient(owner: UUID, thread: UUID, patient_id: UUID | None) -> ClinicalThreadResponse | None:
+async def set_active_patient(
+    owner: UUID, thread: UUID, patient_id: UUID | None
+) -> ClinicalThreadResponse | None:
     updated = await repository.set_active_patient(owner, thread, patient_id)
     if updated is None:
         return None
     return await get_thread_response(owner, thread)
 
 
-async def resolve_action(owner: UUID, action_id: UUID, decision: str, proposal_hash: str) -> dict[str, Any]:
+async def resolve_action(
+    owner: UUID, action_id: UUID, decision: str, proposal_hash: str
+) -> dict[str, Any]:
     return await repository.resolve_action(owner, action_id, decision, proposal_hash)
 
 
@@ -154,13 +168,30 @@ def canonical_proposal(payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
     return canonical, digest
 
 
+def _artifact_payload(
+    *,
+    source_note: str,
+    generated_draft: ClinicalDraft,
+    draft: ClinicalDraft,
+    evolution_at: datetime,
+) -> dict[str, Any]:
+    return {
+        "source_note": source_note,
+        "generated_draft": generated_draft.model_dump(mode="json"),
+        "draft": draft.model_dump(mode="json"),
+        "evolution_at": evolution_at.astimezone(UTC).isoformat(),
+    }
+
+
 async def _assistant_item(
     owner_user_id: UUID,
     thread_id: UUID,
     turn_id: UUID,
     content: str,
 ) -> AsyncIterator[str]:
-    message = await repository.append_message(owner_user_id, thread_id, turn_id, "assistant", content)
+    message = await repository.append_message(
+        owner_user_id, thread_id, turn_id, "assistant", content
+    )
     item_id = str(message["id"])
     yield event(
         "item.completed",
@@ -395,6 +426,20 @@ async def stream_turn(
             "item.started", thread, turn, "Preparando borrador", "running", draft_item_id
         )
         draft = await _draft_evolution(context, sanitized.model_text)
+        evolution_at = datetime.now(UTC)
+        await repository.create_artifact(
+            owner,
+            thread,
+            turn,
+            context.patient_id,
+            draft_item_id,
+            _artifact_payload(
+                source_note=sanitized.display_text,
+                generated_draft=draft,
+                draft=draft,
+                evolution_at=evolution_at,
+            ),
+        )
         yield event(
             "item.completed",
             {
@@ -405,6 +450,8 @@ async def stream_turn(
                 "status": "completed",
                 "draft": draft.model_dump(mode="json"),
                 "source_note": sanitized.display_text,
+                "patient_id": str(context.patient_id),
+                "evolution_at": evolution_at.isoformat(),
             },
         )
         yield _activity("item.completed", thread, turn, "Borrador listo", item_id=draft_item_id)
@@ -468,17 +515,20 @@ async def prepare_save(
     owner = UUID(str(owner_user_id))
     thread = UUID(str(thread_id))
     stored = await repository.get_thread(owner, thread)
-    if stored is None or stored.get("active_patient_id") is None:
+    if stored is None:
         raise LookupError("Thread or patient not found")
-    if not await repository.turn_exists(owner, thread, request.turn_id):
+    artifact = await repository.get_artifact(owner, thread, request.artifact_id)
+    if artifact is None or UUID(str(artifact["turn_id"])) != request.turn_id:
         raise LookupError("Turn not found")
-    patient_id = UUID(str(stored["active_patient_id"]))
+    if artifact["status"] == "stale":
+        raise ValueError("El artifact requiere regeneración")
+    patient_id = UUID(str(artifact["patient_id"]))
     patient = await patients_repo.get_patient(owner, patient_id)
     if patient is None:
         raise LookupError("Patient not found")
-    raw_note = await sanitize_content(owner, request.raw_note)
-    current_draft = request.draft
-    baseline = request.generated_draft or current_draft
+    raw_note = await sanitize_content(owner, str(artifact["source_note"]))
+    current_draft = ClinicalDraft.model_validate(artifact["draft"])
+    baseline = ClinicalDraft.model_validate(artifact["generated_draft"])
     safe_fields: dict[str, str] = {}
     safe_baseline_fields: dict[str, str] = {}
     for key, _ in _FIELDS:
@@ -487,7 +537,7 @@ async def prepare_save(
             await sanitize_content(owner, getattr(baseline, key))
         ).display_text
     generated = compose_draft(ClinicalDraft(**safe_baseline_fields, review_flags=[]))
-    final = request.final_text or compose_draft(ClinicalDraft(**safe_fields, review_flags=[]))
+    final = compose_draft(ClinicalDraft(**safe_fields, review_flags=[]))
     final = (await sanitize_content(owner, final)).display_text
     if not final.strip():
         raise ValueError("No hay contenido clínico para guardar")
@@ -495,7 +545,9 @@ async def prepare_save(
         {
             "evolution_id": str(uuid4()),
             "patient_id": str(patient_id),
-            "evolution_at": request.evolution_at.astimezone(UTC).isoformat(),
+            "evolution_at": datetime.fromisoformat(str(artifact["evolution_at"]))
+            .astimezone(UTC)
+            .isoformat(),
             "raw_note": raw_note.display_text,
             "generated_text": generated,
             "final_text": final,
@@ -505,6 +557,7 @@ async def prepare_save(
         owner,
         thread,
         request.turn_id,
+        request.artifact_id,
         patient_id,
         "save_evolution",
         payload,
@@ -513,17 +566,75 @@ async def prepare_save(
 
 
 async def regenerate_draft(
-    owner_user_id: UUID | str, thread_id: UUID | str, raw_note: str
+    owner_user_id: UUID | str, thread_id: UUID | str, artifact_id: UUID
 ) -> ClinicalDraft:
-    """Regenerate one review draft without creating a message or a record."""
+    """Regenerate one persisted review draft without creating a message or record."""
     owner = UUID(str(owner_user_id))
-    stored = await repository.get_thread(owner, UUID(str(thread_id)))
-    if stored is None or stored.get("active_patient_id") is None:
+    thread = UUID(str(thread_id))
+    artifact = await repository.get_artifact(owner, thread, artifact_id)
+    if artifact is None:
         raise LookupError("Thread or patient not found")
-    patient_id = UUID(str(stored["active_patient_id"]))
+    patient_id = UUID(str(artifact["patient_id"]))
     if await patients_repo.get_patient(owner, patient_id) is None:
         raise LookupError("Patient not found")
-    sanitized = await sanitize_content(owner, raw_note)
+    sanitized = await sanitize_content(owner, str(artifact["source_note"]))
     if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
         raise clinical_evolutions.ClinicalGenerationDisabledError
-    return await clinical_evolutions.generate_draft(owner, patient_id, sanitized.model_text)
+    draft = await clinical_evolutions.generate_draft(owner, patient_id, sanitized.model_text)
+    evolution_at = datetime.fromisoformat(str(artifact["evolution_at"]))
+    await repository.update_artifact(
+        owner,
+        thread,
+        artifact_id,
+        payload=_artifact_payload(
+            source_note=sanitized.display_text,
+            generated_draft=draft,
+            draft=draft,
+            evolution_at=evolution_at,
+        ),
+        status="draft",
+    )
+    return draft
+
+
+async def update_artifact(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    artifact_id: UUID,
+    request: ClinicalArtifactUpdate,
+) -> dict[str, Any]:
+    owner = UUID(str(owner_user_id))
+    thread = UUID(str(thread_id))
+    artifact = await repository.get_artifact(owner, thread, artifact_id)
+    if artifact is None:
+        raise LookupError("Artifact not found")
+    patient_id = UUID(str(artifact["patient_id"]))
+    if await patients_repo.get_patient(owner, patient_id) is None:
+        raise LookupError("Patient not found")
+    source_note = (await sanitize_content(owner, request.source_note)).display_text
+    draft_fields: dict[str, str] = {}
+    for key, _ in _FIELDS:
+        draft_fields[key] = (
+            await sanitize_content(owner, getattr(request.draft, key))
+        ).display_text
+    draft = ClinicalDraft(**draft_fields, review_flags=request.draft.review_flags)
+    status = "stale" if source_note != str(artifact["source_note"]) else str(artifact["status"])
+    if status not in {"draft", "stale"}:
+        raise ValueError("Artifact is no longer editable")
+    updated = await repository.update_artifact(
+        owner,
+        thread,
+        artifact_id,
+        payload={
+            **_artifact_payload(
+                source_note=source_note,
+                generated_draft=ClinicalDraft.model_validate(artifact["generated_draft"]),
+                draft=draft,
+                evolution_at=request.evolution_at,
+            ),
+        },
+        status=status,
+    )
+    if updated is None:
+        raise LookupError("Artifact not found")
+    return updated

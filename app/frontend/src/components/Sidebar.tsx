@@ -2,8 +2,8 @@ import { motion } from 'motion/react';
 import {
   type KeyboardEventHandler,
   type MutableRefObject,
-  type RefObject,
   type ReactNode,
+  type RefObject,
   useEffect,
   useState,
 } from 'react';
@@ -14,7 +14,8 @@ import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { useToast } from '../hooks/useToast';
 import { createConversation, deleteConversation } from '../lib/api';
 import { VideoExplorer } from './VideoExplorer';
-import { ConfirmDialog, ConversationList } from './sidebar/ConversationList';
+import { ChatThreadList } from './sidebar/ChatThreadList';
+import { ConfirmDialog } from './sidebar/ConversationList';
 import { SidebarHeader } from './sidebar/SidebarHeader';
 import { SidebarNavigation } from './sidebar/SidebarNavigation';
 import { SidebarSearch } from './sidebar/SidebarSearch';
@@ -233,7 +234,7 @@ export function Sidebar({
             }}
           />
 
-          {secondaryContent}
+          {secondaryContent && <div className="sidebar-secondary-scroll">{secondaryContent}</div>}
 
           {showConversations && (
             <>
@@ -253,15 +254,11 @@ export function Sidebar({
                 />
               </div>
               <div className="sidebar-conversations-scroll">
-                {error && (
-                  <p className="sidebar-error" role="alert">
-                    No pudimos cargar tus conversaciones.
-                  </p>
-                )}
-                <ConversationList
+                <ChatThreadList
                   conversations={filteredConversations}
                   loading={loading}
                   query={debouncedQuery}
+                  isCollapsed={isCollapsed}
                   activeConversationId={activeConversationId}
                   runtimeByConversationId={runtimeByConversationId}
                   onNewChat={handleNewChat}
@@ -271,6 +268,9 @@ export function Sidebar({
                   }}
                   onDeleteRequest={handleDeleteRequest}
                   onRename={handleRename}
+                  error={Boolean(error)}
+                  onRetry={() => void refetch()}
+                  creating={creatingNew}
                 />
               </div>
             </>

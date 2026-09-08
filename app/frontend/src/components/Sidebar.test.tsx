@@ -583,4 +583,39 @@ describe('Sidebar navigation and conversations', () => {
       'Buscar conversaciones (Ctrl K)',
     );
   });
+
+  it('keeps the compact rail free of workspace list chrome', async () => {
+    const { useConversations } = await import('../hooks/useConversations');
+    const conversations = [
+      {
+        id: 'compact-chat',
+        title: 'Compact chat',
+        preview: 'A message',
+        created_at: '2026-01-15T10:00:00Z',
+        updated_at: '2026-01-15T10:00:00Z',
+      },
+    ] as api.Conversation[];
+
+    vi.mocked(useConversations).mockReturnValueOnce({
+      conversations,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      rename: vi.fn(),
+      filteredConversations: conversations,
+    });
+
+    const { container } = render(
+      <MemoryRouter>
+        <Sidebar isOpen={true} isCollapsed={true} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    expect(container.querySelector('.workspace-thread-list__heading')).not.toBeInTheDocument();
+    expect(
+      container.querySelector('.workspace-thread-list__group-heading'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Compact chat' })).toBeInTheDocument();
+    expect(container.querySelector('.conversation-title-icon')).toBeInTheDocument();
+  });
 });

@@ -42,11 +42,15 @@ class PrepareSaveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     turn_id: UUID
-    raw_note: ClinicalText
+    artifact_id: UUID
+
+
+class ClinicalArtifactUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_note: ClinicalText
     draft: ClinicalDraft
-    generated_draft: ClinicalDraft | None = None
     evolution_at: datetime
-    final_text: ClinicalText | None = None
 
     @field_validator("evolution_at")
     @classmethod
@@ -59,7 +63,7 @@ class PrepareSaveRequest(BaseModel):
 class RegenerateDraftRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    raw_note: ClinicalText
+    artifact_id: UUID
 
 
 class ActionResolutionRequest(BaseModel):
@@ -80,6 +84,7 @@ class ClinicalPendingAction(BaseModel):
     id: UUID
     thread_id: UUID
     turn_id: UUID
+    artifact_id: UUID | None = None
     patient_id: UUID
     action_type: str
     proposal_payload: dict[str, object] | None = None
@@ -89,6 +94,24 @@ class ClinicalPendingAction(BaseModel):
     created_at: datetime
     resolved_at: datetime | None = None
     result_resource_id: UUID | None = None
+    patient: SafePatient | None = None
+
+
+class ClinicalTurnArtifact(BaseModel):
+    id: UUID
+    owner_user_id: UUID
+    thread_id: UUID
+    turn_id: UUID
+    patient_id: UUID
+    artifact_type: str
+    status: str
+    source_note: str
+    generated_draft: ClinicalDraft
+    draft: ClinicalDraft
+    evolution_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    resolved_at: datetime | None = None
     patient: SafePatient | None = None
 
 
@@ -102,5 +125,6 @@ class ClinicalThreadResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     messages: list[dict[str, object]] = Field(default_factory=list)
+    artifacts: list[ClinicalTurnArtifact] = Field(default_factory=list)
     pending_action: ClinicalPendingAction | None = None
     actions: list[ClinicalPendingAction] = Field(default_factory=list)

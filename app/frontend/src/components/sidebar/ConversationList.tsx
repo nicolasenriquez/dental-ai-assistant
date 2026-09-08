@@ -36,7 +36,7 @@ interface GroupedConversations {
   items: Conversation[];
 }
 
-interface ConversationRowProps {
+export interface ConversationRowProps {
   conversation: Conversation;
   query: string;
   isActive: boolean;
@@ -98,7 +98,7 @@ function highlightMatch(title: string, query: string) {
   );
 }
 
-function ConversationRow({
+export function ConversationRow({
   conversation,
   query,
   isActive,

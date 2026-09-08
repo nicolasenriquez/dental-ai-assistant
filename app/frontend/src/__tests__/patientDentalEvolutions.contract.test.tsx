@@ -31,6 +31,8 @@ describe('patient pages and evolution workspace contracts', () => {
     read('../pages/Patients.tsx') +
     read('../pages/PatientDetail.tsx') +
     read('../pages/NewEvolution.tsx') +
+    read('../components/clinical/EvolutionReviewArtifact.tsx') +
+    read('../components/clinical/evolutionFields.ts') +
     read('../components/PatientFormModal.tsx') +
     read('../components/PatientWorkspace.tsx') +
     read('../components/EvolutionDetailContent.tsx');
@@ -75,11 +77,11 @@ describe('patient pages and evolution workspace contracts', () => {
     expect(source).toContain('aria-live');
     expect(source).toContain('Cambiar fecha y hora');
     expect(source).toContain("workspace === 'reviewing'");
-    expect(source).toContain('disabled={!canSave}');
-    expect(source).toContain('review-flags-title');
+    expect(source).toContain('canSave');
+    expect(source).toContain('Detalles de revisión');
     expect(source).toContain('data-state');
     expect(source).toContain('El borrador quedó desactualizado');
-    expect(source).toContain('aria-describedby={isDraftStale');
+    expect(source).toContain('staleMessageId');
   });
 
   it('confirms before replacing human edits and preserves retryable work', () => {

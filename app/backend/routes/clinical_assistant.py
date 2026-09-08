@@ -151,8 +151,13 @@ async def prepare_save(
         raise HTTPException(
             status_code=409, detail={"code": "CLINICAL_PENDING_ACTION_EXISTS"}
         ) from None
-    except ValueError:
-        raise HTTPException(status_code=422, detail={"code": "CLINICAL_CONTENT_REQUIRED"}) from None
+    except ValueError as error:
+        code = (
+            "CLINICAL_ARTIFACT_STALE"
+            if "regeneración" in str(error)
+            else "CLINICAL_CONTENT_REQUIRED"
+        )
+        raise HTTPException(status_code=422, detail={"code": code}) from None
 
 
 @router.post("/clinical-threads/{thread_id}/drafts", response_model=ClinicalDraft)
@@ -162,7 +167,7 @@ async def regenerate_draft(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ClinicalDraft:
     try:
-        return await service.regenerate_draft(_user_id(user), thread_id, request.raw_note)
+        return await service.regenerate_draft(_user_id(user), thread_id, request.artifact_id)
     except LookupError:
         raise HTTPException(status_code=404, detail="Hilo o paciente no encontrado") from None
     except service.ClinicalGenerationDisabledError:

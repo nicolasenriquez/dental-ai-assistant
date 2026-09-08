@@ -1435,6 +1435,11 @@ body,
   padding: 0 24px;
 }
 
+.clinical-turn-group {
+  display: grid;
+  gap: 8px;
+}
+
 .clinical-user-message {
   align-self: flex-end;
   max-width: min(75%, 600px);
@@ -1611,6 +1616,126 @@ body,
   margin-top: 18px;
 }
 
+.clinical-artifact-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.clinical-artifact-date time {
+  color: var(--text-secondary);
+}
+
+.evolution-review-artifact {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  padding: 18px;
+}
+
+.evolution-review-artifact__heading,
+.evolution-review-artifact__actions,
+.evolution-review-artifact__date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.evolution-review-artifact__heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.evolution-review-artifact__heading p,
+.evolution-review-artifact__date {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.evolution-review-artifact__fields {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .evolution-review-artifact__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .evolution-review-artifact__wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.evolution-review-artifact__fields label {
+  display: grid;
+  gap: 5px;
+}
+
+.evolution-review-artifact__fields label > span,
+.evolution-review-artifact__source > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.evolution-review-artifact__fields textarea,
+.evolution-review-artifact__source textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: 9px 10px;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.evolution-review-artifact__flags {
+  border: 1px solid var(--warning-border);
+  border-radius: 8px;
+  background: var(--warning-bg);
+  padding: 10px 12px;
+}
+
+.evolution-review-artifact__flags h4 {
+  margin: 0;
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.evolution-review-artifact__flags ul {
+  display: grid;
+  gap: 5px;
+  margin: 7px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.evolution-review-artifact__date-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.evolution-review-artifact__date-controls input {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: 6px 8px;
+}
+
 .clinical-primary-button,
 .clinical-secondary-button {
   min-height: 40px;
@@ -1678,9 +1803,42 @@ body,
 }
 
 .clinical-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 8px auto;
   color: #fca5a5;
   font-size: 13px;
+}
+
+.clinical-error button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.clinical-receipt {
+  border-left: 2px solid var(--success);
+  border-radius: 0 8px 8px 0;
+  background: rgba(16, 185, 129, 0.06);
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.clinical-receipt strong,
+.clinical-receipt a {
+  color: var(--text-primary);
+}
+
+.clinical-receipt a {
+  margin-left: 8px;
+  color: var(--accent);
 }
 
 .clinical-patient-switch {
@@ -1862,6 +2020,152 @@ body,
   padding: 6px 8px 12px;
 }
 
+.workspace-thread-list {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  overflow: visible;
+  padding: 6px 8px 12px;
+}
+
+.workspace-thread-list__heading,
+.workspace-thread-list__group-heading,
+.workspace-thread-list__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workspace-thread-list__heading {
+  padding: 4px 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workspace-thread-list__heading button,
+.workspace-thread-list__group-heading,
+.workspace-thread-list__item,
+.workspace-thread-list__state button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.workspace-thread-list__heading button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.workspace-thread-list__heading button:hover,
+.workspace-thread-list__heading button:focus-visible,
+.workspace-thread-list__group-heading:hover,
+.workspace-thread-list__item:hover,
+.workspace-thread-list__item.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.workspace-thread-list__search {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.workspace-thread-list__group {
+  display: grid;
+  gap: 2px;
+}
+
+.workspace-thread-list__group-items {
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.workspace-thread-list__group-heading {
+  justify-content: flex-start;
+  padding: 5px 8px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.workspace-thread-list__group-heading span:last-child {
+  margin-left: auto;
+}
+
+.workspace-thread-list__item {
+  min-height: 34px;
+  border-radius: 7px;
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.workspace-thread-list__item-icon {
+  display: none;
+  flex: 0 0 auto;
+}
+
+.workspace-thread-list__compact-create {
+  display: none;
+}
+
+.workspace-thread-list__custom-item {
+  min-width: 0;
+}
+
+.workspace-thread-list__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.workspace-thread-list__copy strong {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-thread-list__copy small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.workspace-thread-list__status {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.workspace-thread-list__state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.workspace-thread-list__state button {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .clinical-thread-list-heading {
   padding: 4px 8px;
   font-weight: 600;
@@ -1986,6 +2290,7 @@ body,
   .clinical-patient-context .clinical-patient-label { grid-column: 1 / -1; }
   .clinical-patient-context select { grid-column: 1; grid-row: 2; }
   .clinical-patient-context .clinical-patient-clear { grid-column: 2; grid-row: 2; }
+  .evolution-review-artifact__wide { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2291,6 +2596,14 @@ body,
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0 8px 12px;
+}
+
+.sidebar-secondary-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 0 12px;
 }
 
 .conversation-group {
@@ -2755,6 +3068,59 @@ body,
 
 .sidebar-container.collapsed .conversation-menu-trigger {
   display: none;
+}
+
+.sidebar-container.collapsed .workspace-thread-list {
+  gap: 4px;
+}
+
+.sidebar-container.collapsed .workspace-thread-list__compact-create {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+}
+
+.sidebar-container.collapsed .workspace-thread-list__compact-create:hover,
+.sidebar-container.collapsed .workspace-thread-list__compact-create:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.sidebar-container.collapsed .workspace-thread-list__group-heading,
+.sidebar-container.collapsed .workspace-thread-list__search,
+.sidebar-container.collapsed .workspace-thread-list__state {
+  display: none;
+}
+
+.sidebar-container.collapsed .workspace-thread-list__item {
+  position: relative;
+  justify-content: center;
+  padding: 7px;
+}
+
+.sidebar-container.collapsed .workspace-thread-list__item-icon {
+  display: inline-flex;
+}
+
+.sidebar-container.collapsed .workspace-thread-list__copy {
+  display: none;
+}
+
+.sidebar-container.collapsed .workspace-thread-list__status {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 10px;
 }
 
 .sidebar-container.collapsed .sidebar-navigation {

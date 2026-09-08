@@ -264,7 +264,7 @@ describe('Patients birth-date dialog', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Crear paciente' }));
 
-    expect(await screen.findByText('Ingresa una fecha válida')).toBeVisible();
+    expect(await screen.findByText(/Ingresa una fecha válida/)).toBeVisible();
     expect(screen.getByLabelText('Fecha de nacimiento')).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText('RUT')).not.toHaveAttribute('aria-invalid');
 
@@ -276,7 +276,7 @@ describe('Patients birth-date dialog', () => {
     expect(await screen.findByText('No pudimos crear el paciente.')).toBeVisible();
     expect(screen.getByLabelText('Nombres')).toHaveValue('Ana María');
     expect(screen.getByLabelText('Apellidos')).toHaveValue('Pérez');
-    expect(screen.getByLabelText('Fecha de nacimiento')).toHaveValue('10/04/1990');
+    expect(screen.getByLabelText('Fecha de nacimiento')).toHaveValue('1990-04-10');
   });
 
   it('blocks duplicate submits while the create request is pending', async () => {

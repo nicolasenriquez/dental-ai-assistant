@@ -152,21 +152,25 @@ async def test_fake_transcriber_uses_the_transcription_port() -> None:
 def test_clinical_events_are_versioned_and_sequenced() -> None:
     from backend.clinical_assistant.events import event
 
-    first = json.loads(event(
-        "item.completed",
-        {
-            "thread_id": "thread-1",
-            "turn_id": "turn-1",
-            "item_id": "item-1",
-            "item_type": "activity",
-            "status": "completed",
-            "label": "Listo",
-        },
-    ).split("data: ", 1)[1])
-    second = json.loads(event(
-        "turn.completed",
-        {"thread_id": "thread-1", "turn_id": "turn-1", "item_id": "item-2"},
-    ).split("data: ", 1)[1])
+    first = json.loads(
+        event(
+            "item.completed",
+            {
+                "thread_id": "thread-1",
+                "turn_id": "turn-1",
+                "item_id": "item-1",
+                "item_type": "activity",
+                "status": "completed",
+                "label": "Listo",
+            },
+        ).split("data: ", 1)[1]
+    )
+    second = json.loads(
+        event(
+            "turn.completed",
+            {"thread_id": "thread-1", "turn_id": "turn-1", "item_id": "item-2"},
+        ).split("data: ", 1)[1]
+    )
 
     assert first["schema_version"] == 1
     assert first["event_id"]
@@ -180,26 +184,68 @@ def test_prepare_save_requires_the_source_turn() -> None:
     from backend.clinical_assistant.schemas import PrepareSaveRequest
 
     with pytest.raises(ValidationError):
-        PrepareSaveRequest.model_validate({
-            "raw_note": "Nota",
-            "draft": {
-                "context": "",
-                "findings": "",
-                "assessment": "",
-                "treatment": "",
-                "follow_up": "",
-                "review_flags": [],
-            },
-            "evolution_at": "2026-09-08T12:00:00Z",
-        })
+        PrepareSaveRequest.model_validate(
+            {
+                "raw_note": "Nota",
+                "draft": {
+                    "context": "",
+                    "findings": "",
+                    "assessment": "",
+                    "treatment": "",
+                    "follow_up": "",
+                    "review_flags": [],
+                },
+                "evolution_at": "2026-09-08T12:00:00Z",
+            }
+        )
+
+
+def test_clinical_artifact_migration_binds_owner_patient_and_turn() -> None:
+    migration = (
+        Path(__file__).parents[1] / "alembic" / "versions" / "0010_add_clinical_turn_artifacts.py"
+    ).read_text(encoding="utf-8")
+    assert "clinical_turn_artifacts" in migration
+    assert "fk_clinical_artifacts_patient_owner" in migration
+    assert "uq_clinical_turn_artifacts_patient_turn" in migration
+    assert "artifact_id" in migration
+    assert "status IN ('draft', 'stale', 'pending', 'approved', 'declined', 'failed')" in migration
+
+
+def test_artifact_update_requires_timezone_and_canonical_payload() -> None:
+    from datetime import UTC, datetime
+
+    from pydantic import ValidationError
+
+    from backend.clinical_assistant.schemas import ClinicalArtifactUpdate
+    from backend.services.clinical_evolutions import ClinicalDraft
+
+    draft = ClinicalDraft(
+        context="Control",
+        findings="Sin hallazgos",
+        assessment="Estable",
+        treatment="Mantener higiene",
+        follow_up="Seis meses",
+        review_flags=[],
+    )
+    with pytest.raises(ValidationError):
+        ClinicalArtifactUpdate.model_validate(
+            {
+                "source_note": "Nota",
+                "draft": draft.model_dump(),
+                "evolution_at": "2026-09-08T12:00:00",
+            }
+        )
+    artifact = ClinicalArtifactUpdate(
+        source_note="Nota",
+        draft=draft,
+        evolution_at=datetime(2026, 9, 8, 12, tzinfo=UTC),
+    )
+    assert artifact.draft.context == "Control"
 
 
 def test_voice_rate_limit_migration_is_owner_scoped() -> None:
     migration = (
-        Path(__file__).parents[1]
-        / "alembic"
-        / "versions"
-        / "0009_add_voice_rate_limit.py"
+        Path(__file__).parents[1] / "alembic" / "versions" / "0009_add_voice_rate_limit.py"
     ).read_text(encoding="utf-8")
     assert "voice_transcription_requests" in migration
     assert "users.id" in migration

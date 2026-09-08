@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { ClinicalPendingAction } from '../lib/api';
 import {
+  type ClinicalApprovalItem,
+  classifyClinicalDecodeFailure,
   clinicalReducer,
   createClinicalReducerState,
   decodeClinicalEvent,
-  type ClinicalApprovalItem,
 } from './clinicalRuntime';
 
-const action = (id: string, turnId: string, status: ClinicalPendingAction['status']): ClinicalApprovalItem => ({
+const action = (
+  id: string,
+  turnId: string,
+  status: ClinicalPendingAction['status'],
+): ClinicalApprovalItem => ({
   id,
   turnId,
   status: status === 'pending' ? 'pending' : status === 'declined' ? 'declined' : 'completed',
@@ -63,27 +68,72 @@ function event(overrides: Record<string, unknown> = {}): string {
 
 describe('clinical runtime', () => {
   it('rejects malformed or foreign events before state changes', () => {
-    expect(decodeClinicalEvent('item.completed', event({ thread_id: 'other-thread' }), { threadId: 'thread-1', turnId: 'turn-1' })).toBeNull();
-    expect(decodeClinicalEvent('item.completed', event({ item_id: '' }), { threadId: 'thread-1', turnId: 'turn-1' })).toBeNull();
-    expect(decodeClinicalEvent('item.completed', event({ schema_version: 2 }), { threadId: 'thread-1', turnId: 'turn-1' })).toBeNull();
+    expect(
+      decodeClinicalEvent('item.completed', event({ thread_id: 'other-thread' }), {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+      }),
+    ).toBeNull();
+    expect(
+      decodeClinicalEvent('item.completed', event({ item_id: '' }), {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+      }),
+    ).toBeNull();
+    expect(
+      decodeClinicalEvent('item.completed', event({ schema_version: 2 }), {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+      }),
+    ).toBeNull();
+  });
+
+  it('treats a malformed clinical draft as a visible critical failure', () => {
+    const malformedDraft = event({
+      item_type: 'clinical_draft',
+      data: { source_note: 'Nota original' },
+    });
+    expect(
+      decodeClinicalEvent('item.completed', malformedDraft, {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+      }),
+    ).toBeNull();
+    expect(classifyClinicalDecodeFailure('item.completed', malformedDraft)).toBe('critical');
   });
 
   it('keeps one approval per action and does not replace history', () => {
     let state = createClinicalReducerState();
-    state = clinicalReducer(state, { type: 'upsertApproval', item: action('action-a', 'turn-1', 'approved') });
-    state = clinicalReducer(state, { type: 'upsertApproval', item: action('action-b', 'turn-2', 'pending') });
+    state = clinicalReducer(state, {
+      type: 'upsertApproval',
+      item: action('action-a', 'turn-1', 'approved'),
+    });
+    state = clinicalReducer(state, {
+      type: 'upsertApproval',
+      item: action('action-b', 'turn-2', 'pending'),
+    });
     expect(state.items.map((item) => item.id)).toEqual(['action-a', 'action-b']);
 
-    state = clinicalReducer(state, { type: 'upsertApproval', item: action('action-a', 'turn-1', 'pending') });
+    state = clinicalReducer(state, {
+      type: 'upsertApproval',
+      item: action('action-a', 'turn-1', 'pending'),
+    });
     expect(state.items.find((item) => item.id === 'action-a')?.status).toBe('completed');
   });
 
   it('drops duplicate and out-of-order events for the active turn', () => {
-    const first = decodeClinicalEvent('item.completed', event(), { threadId: 'thread-1', turnId: 'turn-1' });
-    expect(first).not.toBeNull();
-    let state = clinicalReducer(createClinicalReducerState(), { type: 'event', event: first! });
-    state = clinicalReducer(state, { type: 'event', event: first! });
-    const older = decodeClinicalEvent('item.completed', event({ event_id: 'event-2', sequence: 0 }), { threadId: 'thread-1', turnId: 'turn-1' });
+    const first = decodeClinicalEvent('item.completed', event(), {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+    });
+    if (!first) throw new Error('expected a valid clinical event');
+    let state = clinicalReducer(createClinicalReducerState(), { type: 'event', event: first });
+    state = clinicalReducer(state, { type: 'event', event: first });
+    const older = decodeClinicalEvent(
+      'item.completed',
+      event({ event_id: 'event-2', sequence: 0 }),
+      { threadId: 'thread-1', turnId: 'turn-1' },
+    );
     expect(older).toBeNull();
     expect(state.items).toHaveLength(1);
   });

@@ -49,12 +49,9 @@ export function useChatAutoFollow(): ChatAutoFollowResult {
   const followLatest = useCallback(
     (behavior: ScrollBehavior = 'auto') => {
       const container = scrollContainerRef.current;
-      const sentinel = bottomSentinelRef.current;
       setFollowing(true);
 
-      if (sentinel) {
-        sentinel.scrollIntoView({ behavior, block: 'end' });
-      } else if (container) {
+      if (container) {
         container.scrollTo({ top: container.scrollHeight, behavior });
       }
     },
@@ -82,9 +79,9 @@ export function useChatAutoFollow(): ChatAutoFollowResult {
     frameRef.current = window.requestAnimationFrame(() => {
       frameRef.current = null;
       if (followingRef.current) {
-        const sentinel = bottomSentinelRef.current;
-        if (sentinel) {
-          sentinel.scrollIntoView({ behavior: 'auto', block: 'end' });
+        const container = scrollContainerRef.current;
+        if (container) {
+          container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
         }
         setHasNewContentBelow(false);
       }

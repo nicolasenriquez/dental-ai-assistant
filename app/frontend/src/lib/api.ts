@@ -143,6 +143,7 @@ export interface ClinicalPendingAction {
   id: string;
   thread_id: string;
   turn_id: string;
+  artifact_id?: string | null;
   patient_id: string;
   action_type: string;
   proposal_payload: {
@@ -162,6 +163,24 @@ export interface ClinicalPendingAction {
   patient?: ClinicalPatient | null;
 }
 
+export interface ClinicalTurnArtifact {
+  id: string;
+  owner_user_id: string;
+  thread_id: string;
+  turn_id: string;
+  patient_id: string;
+  artifact_type: 'clinical_draft';
+  status: 'draft' | 'stale' | 'pending' | 'approved' | 'declined' | 'failed';
+  source_note: string;
+  generated_draft: ClinicalDraft;
+  draft: ClinicalDraft;
+  evolution_at: string;
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string | null;
+  patient?: ClinicalPatient | null;
+}
+
 export interface ClinicalThread {
   id: string;
   owner_user_id: string;
@@ -172,6 +191,7 @@ export interface ClinicalThread {
   created_at: string;
   updated_at: string;
   messages: ClinicalMessage[];
+  artifacts: ClinicalTurnArtifact[];
   pending_action: ClinicalPendingAction | null;
   actions?: ClinicalPendingAction[];
 }
@@ -306,10 +326,8 @@ export const createClinicalThread = (title = 'Asistente clínico') =>
     method: 'POST',
     body: JSON.stringify({ title }),
   });
-export const getClinicalThreads = () =>
-  request<ClinicalThreadSummary[]>('/clinical-threads');
-export const getClinicalThread = (id: string) =>
-  request<ClinicalThread>(`/clinical-threads/${id}`);
+export const getClinicalThreads = () => request<ClinicalThreadSummary[]>('/clinical-threads');
+export const getClinicalThread = (id: string) => request<ClinicalThread>(`/clinical-threads/${id}`);
 export const setClinicalActivePatient = (threadId: string, patientId: string | null) =>
   request<ClinicalThread>(`/clinical-threads/${threadId}/active-patient`, {
     method: 'PATCH',
@@ -340,21 +358,26 @@ export const prepareClinicalSave = (
   threadId: string,
   body: {
     turn_id: string;
-    raw_note: string;
-    draft: ClinicalDraft;
-    generated_draft?: ClinicalDraft;
-    evolution_at: string;
-    final_text?: string | null;
+    artifact_id: string;
   },
 ) =>
   request<ClinicalPendingAction & { patient: ClinicalPatient }>(
     `/clinical-threads/${threadId}/prepare-save`,
     { method: 'POST', body: JSON.stringify(body) },
   );
-export const regenerateClinicalDraft = (threadId: string, rawNote: string) =>
+export const regenerateClinicalDraft = (threadId: string, artifactId: string) =>
   request<ClinicalDraft>(`/clinical-threads/${threadId}/drafts`, {
     method: 'POST',
-    body: JSON.stringify({ raw_note: rawNote }),
+    body: JSON.stringify({ artifact_id: artifactId }),
+  });
+export const updateClinicalArtifact = (
+  threadId: string,
+  artifactId: string,
+  body: { source_note: string; draft: ClinicalDraft; evolution_at: string },
+) =>
+  request<ClinicalTurnArtifact>(`/clinical-threads/${threadId}/artifacts/${artifactId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
   });
 export const resolveClinicalAction = (
   actionId: string,
@@ -365,7 +388,10 @@ export const resolveClinicalAction = (
     `/clinical-actions/${actionId}/resolve`,
     { method: 'POST', body: JSON.stringify({ decision, proposal_hash: proposalHash }) },
   );
-export const transcribeAudio = async (audio: Blob, signal?: AbortSignal): Promise<{ text: string }> => {
+export const transcribeAudio = async (
+  audio: Blob,
+  signal?: AbortSignal,
+): Promise<{ text: string }> => {
   const res = await fetch(`${BASE}/transcriptions`, {
     method: 'POST',
     credentials: 'include',

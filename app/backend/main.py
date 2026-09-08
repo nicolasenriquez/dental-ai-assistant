@@ -117,6 +117,7 @@ from backend.routes import (  # noqa: E402
     admin,
     auth,
     channels,
+    clinical_artifacts,
     clinical_assistant,
     conversations,
     evolutions,
@@ -141,6 +142,7 @@ app.include_router(patients.router, prefix="/api")
 app.include_router(evolutions.router, prefix="/api")
 app.include_router(evolutions.patient_router, prefix="/api")
 app.include_router(clinical_assistant.router, prefix="/api")
+app.include_router(clinical_artifacts.router, prefix="/api")
 app.include_router(transcriptions.router, prefix="/api")
 
 # Library-mutation routes (ingest a video, backfill the whole channel) and

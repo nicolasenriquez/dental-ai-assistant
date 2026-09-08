@@ -207,6 +207,17 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   await expect(conversationItem).toBeVisible();
   await conversationItem.getByRole('button', { name: 'Baseline conversation' }).click();
   await expect(page).toHaveURL(/\/c\/.+$/);
+
+  const sidebar = page.locator('#app-sidebar');
+  await sidebar.getByRole('button', { name: 'Colapsar navegación' }).click();
+  await expect(sidebar).toHaveClass(/collapsed/);
+  await expect(sidebar.locator('.workspace-thread-list')).toHaveClass(/is-collapsed/);
+  await expect(sidebar.locator('.workspace-thread-list__heading')).toHaveCount(0);
+  await expect(sidebar.locator('.workspace-thread-list__group-heading')).toHaveCount(0);
+  await expect(sidebar.locator('.workspace-thread-list')).toHaveCSS('overflow-y', 'visible');
+  await expect(sidebar.locator('.conversation-title-icon').first()).toBeVisible();
+  await sidebar.getByRole('button', { name: 'Expandir navegación' }).click();
+
   await conversationItem.hover();
   await conversationItem
     .getByRole('button', { name: /acciones para baseline conversation/i })

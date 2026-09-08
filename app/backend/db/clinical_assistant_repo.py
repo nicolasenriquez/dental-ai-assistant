@@ -24,6 +24,17 @@ def _action_dict(row: Any) -> dict[str, Any]:
     return result
 
 
+def _artifact_dict(row: Any) -> dict[str, Any]:
+    result = dict(row)
+    payload = result.pop("payload", {})
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    if not isinstance(payload, dict):
+        payload = {}
+    result.update(payload)
+    return result
+
+
 class TurnAlreadyRunningError(Exception):
     """The thread already has another turn in progress."""
 
@@ -73,11 +84,23 @@ async def create_thread(owner_user_id: UUID | str, title: str) -> dict[str, Any]
             title,
             now,
         )
-    return {**dict(row), "messages": [], "pending_action": None}
+    return {**dict(row), "messages": [], "artifacts": [], "pending_action": None}
 
 
 async def list_threads(owner_user_id: UUID | str) -> list[dict[str, Any]]:
     async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts a
+            SET status = 'failed', resolved_at = now(), updated_at = now()
+            WHERE a.owner_user_id = $1 AND a.status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM clinical_pending_actions p
+                WHERE p.artifact_id = a.id AND p.status = 'pending' AND p.expires_at <= now()
+              )
+            """,
+            _uuid(owner_user_id),
+        )
         await conn.execute(
             """
             UPDATE clinical_pending_actions
@@ -135,15 +158,38 @@ async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[s
         )
         await conn.execute(
             """
+            UPDATE clinical_turn_artifacts a
+            SET status = 'failed', resolved_at = now(), updated_at = now()
+            WHERE a.thread_id = $1 AND a.status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM clinical_pending_actions p
+                WHERE p.artifact_id = a.id AND p.status = 'pending' AND p.expires_at <= now()
+              )
+            """,
+            thread_uuid,
+        )
+        await conn.execute(
+            """
             UPDATE clinical_pending_actions
             SET status = 'expired', proposal_payload = NULL, resolved_at = now()
             WHERE thread_id = $1 AND status = 'pending' AND expires_at <= now()
             """,
             thread_uuid,
         )
+        artifacts = await conn.fetch(
+            """
+            SELECT id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                   status, payload, created_at, updated_at, resolved_at
+            FROM clinical_turn_artifacts
+            WHERE thread_id = $1 AND owner_user_id = $2
+            ORDER BY created_at ASC
+            """,
+            thread_uuid,
+            _uuid(owner_user_id),
+        )
         pending = await conn.fetchrow(
             """
-            SELECT id, thread_id, turn_id, patient_id, action_type, proposal_payload,
+            SELECT id, thread_id, turn_id, artifact_id, patient_id, action_type, proposal_payload,
                    proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
             FROM clinical_pending_actions
             WHERE thread_id = $1 AND status = 'pending'
@@ -153,7 +199,7 @@ async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[s
         )
         actions = await conn.fetch(
             """
-            SELECT id, thread_id, turn_id, patient_id, action_type, proposal_payload,
+            SELECT id, thread_id, turn_id, artifact_id, patient_id, action_type, proposal_payload,
                    proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
             FROM clinical_pending_actions
             WHERE thread_id = $1
@@ -164,9 +210,107 @@ async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[s
     return {
         **dict(thread),
         "messages": [dict(row) for row in messages],
+        "artifacts": [_artifact_dict(row) for row in artifacts],
         "pending_action": _action_dict(pending) if pending else None,
         "actions": [_action_dict(row) for row in actions],
     }
+
+
+async def create_artifact(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    patient_id: UUID | str,
+    artifact_id: UUID | str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    async with get_pg_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO clinical_turn_artifacts (
+                id, owner_user_id, thread_id, turn_id, patient_id,
+                artifact_type, status, payload
+            ) VALUES ($1, $2, $3, $4, $5, 'clinical_draft', 'draft', $6::jsonb)
+            ON CONFLICT (thread_id, turn_id, artifact_type) DO UPDATE
+            SET payload = EXCLUDED.payload, updated_at = now(), status = 'draft', resolved_at = NULL
+            RETURNING id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                      status, payload, created_at, updated_at, resolved_at
+            """,
+            _uuid(artifact_id),
+            _uuid(owner_user_id),
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(patient_id),
+            json.dumps(payload, ensure_ascii=False, default=str),
+        )
+    return _artifact_dict(row)
+
+
+async def get_artifact(
+    owner_user_id: UUID | str, thread_id: UUID | str, artifact_id: UUID | str
+) -> dict[str, Any] | None:
+    async with get_pg_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                   status, payload, created_at, updated_at, resolved_at
+            FROM clinical_turn_artifacts
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
+            """,
+            _uuid(artifact_id),
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+        )
+    return _artifact_dict(row) if row else None
+
+
+async def update_artifact(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    artifact_id: UUID | str,
+    *,
+    payload: dict[str, Any],
+    status: str,
+) -> dict[str, Any] | None:
+    async with get_pg_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE clinical_turn_artifacts
+            SET payload = $4::jsonb, status = $5, updated_at = now()
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
+              AND status IN ('draft', 'stale')
+            RETURNING id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                      status, payload, created_at, updated_at, resolved_at
+            """,
+            _uuid(artifact_id),
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+            json.dumps(payload, ensure_ascii=False, default=str),
+            status,
+        )
+    return _artifact_dict(row) if row else None
+
+
+async def set_artifact_status(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    artifact_id: UUID | str,
+    status: str,
+) -> None:
+    async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts
+            SET status = $4,
+                updated_at = now(),
+                resolved_at = CASE WHEN $4 IN ('approved', 'declined', 'failed') THEN now() ELSE resolved_at END
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
+            """,
+            _uuid(artifact_id),
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+            status,
+        )
 
 
 async def set_active_patient(
@@ -360,6 +504,7 @@ async def create_pending_action(
     owner_user_id: UUID | str,
     thread_id: UUID | str,
     turn_id: UUID | str,
+    artifact_id: UUID | str,
     patient_id: UUID | str,
     action_type: str,
     payload: dict[str, Any],
@@ -369,6 +514,19 @@ async def create_pending_action(
     owner = _uuid(owner_user_id)
     thread = _uuid(thread_id)
     async with get_pg_pool().acquire() as conn, conn.transaction():
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts a
+            SET status = 'failed', resolved_at = now(), updated_at = now()
+            WHERE a.thread_id = $1 AND a.owner_user_id = $2 AND a.status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM clinical_pending_actions p
+                WHERE p.artifact_id = a.id AND p.status = 'pending' AND p.expires_at <= now()
+              )
+            """,
+            thread,
+            owner,
+        )
         await conn.execute(
             """
             UPDATE clinical_pending_actions
@@ -382,17 +540,18 @@ async def create_pending_action(
         row = await conn.fetchrow(
             """
             INSERT INTO clinical_pending_actions (
-                id, owner_user_id, thread_id, turn_id, patient_id, action_type,
+                id, owner_user_id, thread_id, turn_id, artifact_id, patient_id, action_type,
                 proposal_payload, proposal_hash, status, expires_at, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 'pending', $9, now())
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'pending', $10, now())
             ON CONFLICT (thread_id) WHERE status = 'pending' DO NOTHING
-            RETURNING id, thread_id, turn_id, patient_id, action_type, proposal_payload,
+            RETURNING id, thread_id, turn_id, artifact_id, patient_id, action_type, proposal_payload,
                       proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
             """,
             uuid4(),
             owner,
             thread,
             _uuid(turn_id),
+            _uuid(artifact_id),
             _uuid(patient_id),
             action_type,
             json.dumps(payload, ensure_ascii=False),
@@ -401,6 +560,16 @@ async def create_pending_action(
         )
         if row is None:
             raise PendingActionExistsError
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts
+            SET status = 'pending', updated_at = now()
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
+            """,
+            _uuid(artifact_id),
+            thread,
+            owner,
+        )
     return _action_dict(row)
 
 
@@ -428,6 +597,16 @@ async def resolve_action(
                 """,
                 _uuid(action_id),
             )
+            if action["artifact_id"] is not None:
+                await conn.execute(
+                    """
+                    UPDATE clinical_turn_artifacts
+                    SET status = 'failed', resolved_at = now(), updated_at = now()
+                    WHERE id = $1 AND owner_user_id = $2
+                    """,
+                    action["artifact_id"],
+                    owner,
+                )
             return {
                 "id": action["id"],
                 "status": "expired",
@@ -454,6 +633,16 @@ async def resolve_action(
                 _uuid(action_id),
                 owner,
             )
+            if action["artifact_id"] is not None:
+                await conn.execute(
+                    """
+                    UPDATE clinical_turn_artifacts
+                    SET status = 'declined', resolved_at = now(), updated_at = now()
+                    WHERE id = $1 AND owner_user_id = $2
+                    """,
+                    action["artifact_id"],
+                    owner,
+                )
             return dict(row)
 
         payload = action["proposal_payload"]
@@ -516,6 +705,16 @@ async def resolve_action(
                 _uuid(action_id),
                 owner,
             )
+            if action["artifact_id"] is not None:
+                await conn.execute(
+                    """
+                    UPDATE clinical_turn_artifacts
+                    SET status = 'failed', resolved_at = now(), updated_at = now()
+                    WHERE id = $1 AND owner_user_id = $2
+                    """,
+                    action["artifact_id"],
+                    owner,
+                )
             return dict(row)
         row = await conn.fetchrow(
             """
@@ -529,4 +728,14 @@ async def resolve_action(
             owner,
             UUID(str(result["id"])),
         )
+        if action["artifact_id"] is not None:
+            await conn.execute(
+                """
+                UPDATE clinical_turn_artifacts
+                SET status = 'approved', resolved_at = now(), updated_at = now()
+                WHERE id = $1 AND owner_user_id = $2
+                """,
+                action["artifact_id"],
+                owner,
+            )
         return {**dict(row), "result": result}

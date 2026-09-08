@@ -34,9 +34,13 @@ export function ClinicalAssistant() {
     <AppShell
       showConversations={false}
       workspaceMode
-      secondarySidebarContent={
-        <ClinicalThreadList activeThreadId={activeId ?? undefined} refreshKey={threadListVersion} />
-      }
+      secondarySidebarContent={(isCollapsed) => (
+        <ClinicalThreadList
+          activeThreadId={activeId ?? undefined}
+          isCollapsed={isCollapsed}
+          refreshKey={threadListVersion}
+        />
+      )}
     >
       {activeId ? (
         <ClinicalAssistantArea
@@ -48,7 +52,13 @@ export function ClinicalAssistant() {
           {creationFailed && (
             <section className="clinical-empty-state" role="alert">
               <h2>No pudimos abrir un hilo clínico</h2>
-              <button type="button" className="clinical-primary-button" onClick={() => setCreateAttempt((attempt) => attempt + 1)}>Reintentar</button>
+              <button
+                type="button"
+                className="clinical-primary-button"
+                onClick={() => setCreateAttempt((attempt) => attempt + 1)}
+              >
+                Reintentar
+              </button>
             </section>
           )}
         </main>

@@ -17,7 +17,7 @@ export async function consumeSse(
 
   const onAbort = () => {
     aborted = true;
-    void reader.cancel();
+    void reader.cancel().catch(() => undefined);
   };
   signal?.addEventListener('abort', onAbort, { once: true });
 
