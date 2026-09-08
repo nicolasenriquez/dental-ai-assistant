@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getPatients, type ClinicalDraft, type Patient } from '../../lib/api';
 import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
 import { useClinicalVoiceInput } from '../../hooks/useClinicalVoiceInput';
@@ -10,12 +10,25 @@ interface ClinicalAssistantAreaProps {
   onThreadStateChanged?: () => void;
 }
 
+type QueuedEntry = { id: string; content: string; patientId: string | null; patientName: string };
+
 export function ClinicalAssistantArea({ threadId, onThreadStateChanged }: ClinicalAssistantAreaProps) {
   const assistant = useClinicalAssistant(threadId);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [value, setValue] = useState('');
-  const [queued, setQueued] = useState<Array<{ id: string; content: string; patientId: string | null; patientName: string }>>([]);
-  const voice = useClinicalVoiceInput((text) => setValue((current) => current ? `${current}\n${text}` : text));
+  const [draftByThread, setDraftByThread] = useState<Record<string, string>>({});
+  const [queueByThread, setQueueByThread] = useState<Record<string, QueuedEntry[]>>({});
+  const value = draftByThread[threadId] ?? '';
+  const queued = queueByThread[threadId] ?? [];
+  const setValue = useCallback((next: string | ((current: string) => string)) => {
+    setDraftByThread((current) => ({
+      ...current,
+      [threadId]: typeof next === 'function' ? next(current[threadId] ?? '') : next,
+    }));
+  }, [threadId]);
+  const updateQueue = useCallback((next: (current: QueuedEntry[]) => QueuedEntry[]) => {
+    setQueueByThread((current) => ({ ...current, [threadId]: next(current[threadId] ?? []) }));
+  }, [threadId]);
+  const voice = useClinicalVoiceInput(threadId, (text) => setValue((current) => current ? `${current}\n${text}` : text));
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -33,9 +46,9 @@ export function ClinicalAssistantArea({ threadId, onThreadStateChanged }: Clinic
     const patientId = assistant.thread?.active_patient?.id ?? null;
     const next = queued[0];
     if (assistant.runtime !== 'idle' || !next || next.patientId !== patientId) return;
-    setQueued((current) => current.slice(1));
+    updateQueue((current) => current.slice(1));
     void assistant.send(next.content);
-  }, [assistant.runtime, assistant.send, assistant.thread?.active_patient?.id, queued]);
+  }, [assistant.runtime, assistant.send, assistant.thread?.active_patient?.id, queued, threadId, updateQueue]);
 
   const send = () => {
     if (!value.trim()) return;
@@ -44,7 +57,7 @@ export function ClinicalAssistantArea({ threadId, onThreadStateChanged }: Clinic
     const busy = assistant.runtime === 'streaming' || assistant.runtime === 'awaiting_approval' || assistant.runtime === 'saving';
     if (busy) {
       if (queued.length < 3) {
-        setQueued((current) => [...current, {
+        updateQueue((current) => [...current, {
           id: crypto.randomUUID(),
           content: message,
           patientId: assistant.thread?.active_patient?.id ?? null,
@@ -59,11 +72,11 @@ export function ClinicalAssistantArea({ threadId, onThreadStateChanged }: Clinic
   };
 
   const onDraftChange = (id: string, draft: ClinicalDraft) => assistant.updateDraft(id, draft);
-  const editQueued = (id: string, content: string) => {
+  const editQueued = useCallback((id: string, content: string) => {
     setValue(content);
-    setQueued((current) => current.filter((item) => item.id !== id));
+    updateQueue((current) => current.filter((item) => item.id !== id));
     textareaRef.current?.focus();
-  };
+  }, [setValue, updateQueue]);
 
   return (
     <main className="clinical-assistant-area">
@@ -102,7 +115,7 @@ export function ClinicalAssistantArea({ threadId, onThreadStateChanged }: Clinic
       <div ref={composerRef} className="clinical-composer-dock">
         {queued.length > 0 && <div className="clinical-queue" aria-label="Mensajes en cola">
           <strong>{queued.length} {queued.length === 1 ? 'mensaje' : 'mensajes'} en cola</strong>
-          {queued.map((entry) => <div key={entry.id} className="clinical-queue-item"><span>{entry.content}</span><small>{entry.patientName}</small><div className="clinical-queue-actions"><button type="button" onClick={() => editQueued(entry.id, entry.content)}>Editar</button><button type="button" onClick={() => setQueued((current) => current.filter((item) => item.id !== entry.id))} aria-label="Quitar mensaje de la cola">×</button></div></div>)}
+          {queued.map((entry) => <div key={entry.id} className="clinical-queue-item"><span>{entry.content}</span><small>{entry.patientName}</small><div className="clinical-queue-actions"><button type="button" onClick={() => editQueued(entry.id, entry.content)}>Editar</button><button type="button" onClick={() => updateQueue((current) => current.filter((item) => item.id !== entry.id))} aria-label="Quitar mensaje de la cola">×</button></div></div>)}
           {queued[0]?.patientId !== (assistant.thread?.active_patient?.id ?? null) && <div className="clinical-queue-conflict">
             <p className="clinical-warning">Este mensaje fue escrito para {queued[0]?.patientName}. El paciente activo cambió; vuelve a seleccionarlo para continuar.</p>
             {queued[0]?.patientId && <button type="button" className="clinical-secondary-button" onClick={() => void assistant.setActivePatient(queued[0].patientId)}>Volver a {queued[0].patientName}</button>}

@@ -38,8 +38,12 @@ async def create_transcription(
         chunks.append(chunk)
     audio = b"".join(chunks)
     try:
+        adapter = getattr(request.app.state, "whisper_adapter", None) or WhisperHttpAdapter()
         result = await transcribe(
-            user["id"], audio, mime_type=mime_type, adapter=WhisperHttpAdapter()
+            user["id"],
+            audio,
+            mime_type=mime_type,
+            adapter=adapter,
         )
     except VoiceDisabledError:
         raise HTTPException(status_code=503, detail={"code": VoiceDisabledError.code}) from None

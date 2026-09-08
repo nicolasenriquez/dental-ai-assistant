@@ -50,5 +50,9 @@ export default defineConfig({
       testMatch: /app-baseline\.spec\.ts/,
       use: { storageState: authStatePath },
     },
+    {
+      name: 'clinical',
+      testMatch: /clinical-assistant\.spec\.ts/,
+    },
   ],
 });

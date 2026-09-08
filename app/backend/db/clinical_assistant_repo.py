@@ -44,6 +44,10 @@ class ClinicalRateLimitError(Exception):
     """The independent clinical turn limit has been reached."""
 
 
+class PendingActionExistsError(Exception):
+    """The thread already has a pending approval."""
+
+
 ACTIVE_TURN_STALE_SECONDS = 10 * 60
 
 
@@ -147,10 +151,21 @@ async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[s
             """,
             thread_uuid,
         )
+        actions = await conn.fetch(
+            """
+            SELECT id, thread_id, turn_id, patient_id, action_type, proposal_payload,
+                   proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
+            FROM clinical_pending_actions
+            WHERE thread_id = $1
+            ORDER BY created_at ASC
+            """,
+            thread_uuid,
+        )
     return {
         **dict(thread),
         "messages": [dict(row) for row in messages],
         "pending_action": _action_dict(pending) if pending else None,
+        "actions": [_action_dict(row) for row in actions],
     }
 
 
@@ -365,17 +380,7 @@ async def create_pending_action(
             expires_at,
         )
         if row is None:
-            row = await conn.fetchrow(
-                """
-                SELECT id, thread_id, turn_id, patient_id, action_type, proposal_payload,
-                       proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
-                FROM clinical_pending_actions
-                WHERE thread_id = $1 AND owner_user_id = $2 AND status = 'pending'
-                ORDER BY created_at DESC LIMIT 1
-                """,
-                thread,
-                owner,
-            )
+            raise PendingActionExistsError
     return _action_dict(row)
 
 
@@ -422,7 +427,7 @@ async def resolve_action(
             row = await conn.fetchrow(
                 """
                 UPDATE clinical_pending_actions
-                SET status = 'declined', proposal_payload = NULL, resolved_at = now(), resolved_by = $2
+                SET status = 'declined', resolved_at = now(), resolved_by = $2
                 WHERE id = $1
                 RETURNING *
                 """,
@@ -495,7 +500,7 @@ async def resolve_action(
         row = await conn.fetchrow(
             """
             UPDATE clinical_pending_actions
-            SET status = 'approved', proposal_payload = NULL, resolved_at = now(),
+            SET status = 'approved', resolved_at = now(),
                 resolved_by = $2, result_resource_id = $3
             WHERE id = $1
             RETURNING *

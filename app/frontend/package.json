@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e:baseline": "playwright test --project=baseline",
+    "e2e:clinical": "playwright test --project=clinical",
     "e2e:baseline:update": "playwright test --project=baseline --update-snapshots"
   },
   "dependencies": {

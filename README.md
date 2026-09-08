@@ -1,10 +1,10 @@
-# AI Tutor
+# Dental AI Assistant
 
-A production RAG chat application — ask questions about a creator's video catalog and get streaming, **cited** answers that deep-link to the exact timestamp in the source video.
+Dental AI Assistant helps clinicians manage patients, prepare dental evolutions with AI, and review every proposed change before saving it.
 
 This repository is the **running project for the Dynamous Agentic Engineering Course**. Across the course you onboard onto this codebase, plan an epic against it, and ship real features using the PIV loop (Plan → Implement → Validate). It is a genuine production application deployed at `chat.dynamous.ai` — real features, real bugs, real architectural decisions — not a toy demo.
 
-> The application is internally named **DynaChat** (you'll see `dynachat` in config and deploy files). Throughout the course it is referred to as **the AI Tutor**. Same application.
+> The repository began as the AI Tutor / DynaChat course project. Those names remain in deployment identifiers and the secondary RAG chat, while the primary product is Dental AI Assistant.
 
 ![Main chat interface](app/screenshots/screenshot-main.png)
 
@@ -12,10 +12,10 @@ This repository is the **running project for the Dynamous Agentic Engineering Co
 
 ## What it does
 
-1. **Ingest** — content sources are chunked with Docling's `HybridChunker` and embedded via OpenRouter. Two ingestion paths exist today: YouTube transcripts (fetched via Supadata) and paid Dynamous course transcripts (parsed from markdown).
-2. **Sync** — `POST /api/channels/sync` enumerates and ingests new videos from a YouTube channel automatically.
-3. **Retrieve** — user queries run through **Reciprocal Rank Fusion (RRF)**: Postgres `tsvector` full-text search combined with `pgvector` cosine similarity, top-5 chunks.
-4. **Generate** — retrieved chunks are passed to Claude (via OpenRouter), which streams a cited response over Server-Sent Events. Every citation carries the video title, link, exact-timestamp deep-link, and the quoted transcript snippet.
+1. **Clinical Assistant** — clinicians select a patient, write or dictate a note, review a generated evolution, and explicitly approve or discard the save.
+2. **Patients and evolutions** — patient identity is owner-scoped and RUT values are masked outside the privacy boundary.
+3. **Voice dictation** — short-lived audio is transcribed by the Whisper sidecar and returned as editable text. Audio is not persisted.
+4. **RAG chat** — the secondary library chat ingests YouTube and Dynamous transcripts, retrieves with hybrid RRF search, and streams cited answers.
 
 ---
 

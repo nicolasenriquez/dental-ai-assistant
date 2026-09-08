@@ -1530,6 +1530,32 @@ body,
   font-weight: 600;
 }
 
+.clinical-source-note blockquote {
+  margin: 0;
+  border-left: 2px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--text-secondary);
+  padding: 9px 10px;
+  white-space: pre-wrap;
+}
+
+.clinical-source-note textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--text-primary);
+  padding: 9px 10px;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.clinical-source-note .clinical-secondary-button {
+  justify-self: start;
+}
+
 .clinical-draft-fields label {
   display: grid;
   gap: 5px;
@@ -1729,29 +1755,23 @@ body,
 }
 
 .clinical-patient-context {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
   min-height: 48px;
   padding: 10px 14px;
+  gap: 8px;
   border-bottom: 1px solid var(--border);
 }
 
-.clinical-patient-context > div {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.clinical-patient-context strong {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.clinical-patient-context span:last-child {
-  color: var(--text-secondary);
-  font-size: 12px;
+.clinical-patient-context .clinical-patient-label {
+  white-space: nowrap;
 }
 
 .clinical-patient-context select {
-  max-width: 210px;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-2);
@@ -1962,8 +1982,10 @@ body,
   .clinical-transcript-stack { padding: 0 16px; }
   .clinical-composer-dock { padding: 0 12px 12px; }
   .clinical-user-message { max-width: 88%; }
-  .clinical-patient-context { align-items: flex-start; flex-direction: column; }
-  .clinical-patient-context select { max-width: none; width: 100%; }
+  .clinical-patient-context { grid-template-columns: 1fr auto; }
+  .clinical-patient-context .clinical-patient-label { grid-column: 1 / -1; }
+  .clinical-patient-context select { grid-column: 1; grid-row: 2; }
+  .clinical-patient-context .clinical-patient-clear { grid-column: 2; grid-row: 2; }
 }
 
 @media (prefers-reduced-motion: reduce) {

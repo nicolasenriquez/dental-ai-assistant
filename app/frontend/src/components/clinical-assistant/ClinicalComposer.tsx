@@ -1,7 +1,6 @@
 import type { KeyboardEvent, RefObject } from 'react';
 import type { ClinicalPatient } from '../../lib/api';
 import type { VoiceState } from '../../hooks/useClinicalVoiceInput';
-import { PatientContext } from './PatientContext';
 
 interface ClinicalComposerProps {
   patient: ClinicalPatient | null;
@@ -49,7 +48,14 @@ export function ClinicalComposer({
 
   return (
     <div className="clinical-composer" data-testid="clinical-composer">
-      <PatientContext patient={patient} patients={patients} onChange={onPatientChange} />
+      <div className="clinical-patient-context">
+        <span className="clinical-patient-label">Paciente activo</span>
+        <select aria-label="Seleccionar paciente activo" value={patient?.id ?? ''} onChange={(event) => onPatientChange(event.target.value || null)}>
+          <option value="">Seleccionar paciente</option>
+          {patients.map((option) => <option key={option.id} value={option.id}>{option.first_name} {option.last_name} · {option.rut_masked}</option>)}
+        </select>
+        {patient && <button type="button" className="clinical-patient-clear" onClick={() => onPatientChange(null)} aria-label="Quitar paciente activo">×</button>}
+      </div>
       {(voiceState === 'recording' || voiceState === 'stopping') && <div className="clinical-voice-state" role="status" aria-live="polite">
         <strong>{voiceState === 'stopping' ? '○ Preparando audio…' : '● Grabando'}</strong>
         <span>{Math.floor(voiceElapsed / 1000).toString().padStart(2, '0')}s</span>

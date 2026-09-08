@@ -20,6 +20,7 @@ interface ClinicalDraftItemProps {
 
 export function ClinicalDraftItem({ item, onChange, onSourceChange, onRegenerate, onPrepare }: ClinicalDraftItemProps) {
   const [confirmReplace, setConfirmReplace] = useState(false);
+  const [editingSource, setEditingSource] = useState(false);
   const stale = item.stale;
   const emptyDraft = fields.every(([key]) => !item.draft[key].trim());
   return (
@@ -32,17 +33,25 @@ export function ClinicalDraftItem({ item, onChange, onSourceChange, onRegenerate
         <span className="clinical-artifact-status">Borrador asistido</span>
       </div>
       {stale && <p className="clinical-warning">La nota original cambió. Regenera antes de preparar el guardado.</p>}
-      <label className="clinical-source-note">
+      <div className="clinical-source-note">
         <span>Nota clínica original</span>
-        <textarea
-          rows={2}
-          value={item.sourceNote}
-          onChange={(event) => {
-            setConfirmReplace(false);
-            onSourceChange(event.target.value);
-          }}
-        />
-      </label>
+        {editingSource ? (
+          <textarea
+            rows={2}
+            value={item.sourceNote}
+            onChange={(event) => {
+              setConfirmReplace(false);
+              onSourceChange(event.target.value);
+            }}
+            aria-label="Editar nota clínica original"
+          />
+        ) : (
+          <blockquote>{item.sourceNote || 'Sin nota fuente disponible.'}</blockquote>
+        )}
+        <button type="button" className="clinical-secondary-button" onClick={() => setEditingSource((current) => !current)}>
+          {editingSource ? 'Cerrar edición' : 'Editar nota fuente'}
+        </button>
+      </div>
       <div className="clinical-draft-fields">
         {fields.map(([key, label]) => (
           <label key={key}>
@@ -64,7 +73,6 @@ export function ClinicalDraftItem({ item, onChange, onSourceChange, onRegenerate
         </section>
       )}
       <div className="clinical-artifact-actions">
-        <button type="button" className="clinical-secondary-button" onClick={() => onChange(item.draft)}>Editar</button>
         {stale ? (
           confirmReplace ? (
             <span className="clinical-regeneration-confirmation">

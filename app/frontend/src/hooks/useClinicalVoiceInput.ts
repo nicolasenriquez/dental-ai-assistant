@@ -38,7 +38,7 @@ function voiceErrorMessage(error: unknown): string {
   return 'No pudimos transcribir esta grabación.';
 }
 
-export function useClinicalVoiceInput(onText: (text: string) => void) {
+export function useClinicalVoiceInput(scopeId: string, onText: (text: string) => void) {
   const [state, setState] = useState<VoiceState>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +51,8 @@ export function useClinicalVoiceInput(onText: (text: string) => void) {
   const timerRef = useRef<number | null>(null);
   const stopTimerRef = useRef<number | null>(null);
   const onTextRef = useRef(onText);
+  const transcriptionAbortRef = useRef<AbortController | null>(null);
+  const operationRef = useRef(0);
   onTextRef.current = onText;
 
   const clearTimers = useCallback(() => {
@@ -67,19 +69,27 @@ export function useClinicalVoiceInput(onText: (text: string) => void) {
     recorderRef.current = null;
   }, [clearTimers]);
 
-  const transcribe = useCallback(async (blob: Blob) => {
+  const transcribe = useCallback(async (blob: Blob, operation = operationRef.current) => {
+    const sourceScope = scopeId;
+    const controller = new AbortController();
+    transcriptionAbortRef.current = controller;
     setState('transcribing');
     setError(null);
     try {
-      const result = await transcribeAudio(blob);
+      const result = await transcribeAudio(blob, controller.signal);
+      if (operation !== operationRef.current || sourceScope !== scopeId) return;
       if (!result.text.trim()) throw new Error('empty transcription');
       onTextRef.current(result.text.trim());
       setState('success');
     } catch (caught) {
+      if (caught instanceof DOMException && caught.name === 'AbortError') return;
+      if (operation !== operationRef.current || sourceScope !== scopeId) return;
       setState('error');
       setError(voiceErrorMessage(caught));
+    } finally {
+      if (transcriptionAbortRef.current === controller) transcriptionAbortRef.current = null;
     }
-  }, []);
+  }, [scopeId]);
 
   const stop = useCallback(() => {
     if (recorderRef.current?.state === 'recording') {
@@ -89,6 +99,8 @@ export function useClinicalVoiceInput(onText: (text: string) => void) {
   }, []);
 
   const cancel = useCallback(() => {
+    operationRef.current += 1;
+    transcriptionAbortRef.current?.abort();
     cancelledRef.current = true;
     clearTimers();
     chunksRef.current = [];
@@ -100,7 +112,7 @@ export function useClinicalVoiceInput(onText: (text: string) => void) {
   }, [cleanup, clearTimers]);
 
   const retry = useCallback(() => {
-    if (blobRef.current) void transcribe(blobRef.current);
+    if (blobRef.current) void transcribe(blobRef.current, operationRef.current);
   }, [transcribe]);
 
   const start = useCallback(async () => {
@@ -115,7 +127,13 @@ export function useClinicalVoiceInput(onText: (text: string) => void) {
     }
     setState('requesting_permission');
     try {
+      const operation = ++operationRef.current;
+      const sourceScope = scopeId;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (sourceScope !== scopeId || operation !== operationRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       const mimeType = MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
@@ -130,7 +148,7 @@ export function useClinicalVoiceInput(onText: (text: string) => void) {
           return;
         }
         blobRef.current = blob;
-        void transcribe(blob);
+        void transcribe(blob, operation);
       };
       startedAtRef.current = Date.now();
       setElapsed(0);
@@ -145,9 +163,21 @@ export function useClinicalVoiceInput(onText: (text: string) => void) {
         ? 'El navegador no permitió usar el micrófono.'
         : 'No pude iniciar la grabación.');
     }
-  }, [cleanup, state, stop]);
+  }, [cleanup, scopeId, state, stop, transcribe]);
 
   useEffect(() => cleanup, [cleanup]);
+
+  useEffect(() => {
+    operationRef.current += 1;
+    transcriptionAbortRef.current?.abort();
+    cancelledRef.current = true;
+    chunksRef.current = [];
+    blobRef.current = null;
+    cleanup();
+    setElapsed(0);
+    setError(null);
+    setState('idle');
+  }, [cleanup, scopeId]);
 
   return { state, elapsed, error, start, stop, cancel, retry };
 }

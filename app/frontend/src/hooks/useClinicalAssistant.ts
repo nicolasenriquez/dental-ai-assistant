@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { consumeSse } from '../lib/sse';
 import {
+  ApiError,
   type ClinicalDraft,
-  type ClinicalPendingAction,
   type ClinicalPatient,
   type ClinicalThread,
   getClinicalThread,
@@ -12,74 +12,25 @@ import {
   setClinicalActivePatient,
   streamClinicalTurn,
 } from '../lib/api';
+import {
+  clinicalReducer,
+  createClinicalReducerState,
+  decodeClinicalEvent,
+  type ClinicalApprovalItem,
+  type ClinicalDraftItem,
+  type ClinicalPatientSwitch,
+  type ClinicalTranscriptItem,
+  type ClinicalItemStatus,
+  type ClinicalRuntime,
+} from './clinicalRuntime';
 
-export type ClinicalItemStatus = 'pending' | 'running' | 'completed' | 'failed' | 'declined';
-
-export interface ClinicalBaseItem {
-  id: string;
-  turnId: string;
-  status: ClinicalItemStatus;
-  createdAt: string;
-}
-
-export interface ClinicalUserItem extends ClinicalBaseItem {
-  type: 'user';
-  content: string;
-}
-
-export interface ClinicalAssistantItem extends ClinicalBaseItem {
-  type: 'assistant';
-  content: string;
-}
-
-export interface ClinicalActivityItem extends ClinicalBaseItem {
-  type: 'activity';
-  label: string;
-}
-
-export interface ClinicalDraftItem extends ClinicalBaseItem {
-  type: 'draft';
-  draft: ClinicalDraft;
-  baseline: ClinicalDraft;
-  sourceNote: string;
-  edited: boolean;
-  stale: boolean;
-}
-
-export interface ClinicalApprovalItem extends ClinicalBaseItem {
-  type: 'approval';
-  action: ClinicalPendingAction;
-  patient: ClinicalPatient;
-}
-
-export interface ClinicalResultItem extends ClinicalBaseItem {
-  type: 'result';
-  message: string;
-  evolutionId?: string | null;
-  patientId?: string | null;
-}
-
-export interface ClinicalErrorItem extends ClinicalBaseItem {
-  type: 'error';
-  code: string;
-  message: string;
-}
-
-export type ClinicalTranscriptItem =
-  | ClinicalUserItem
-  | ClinicalAssistantItem
-  | ClinicalActivityItem
-  | ClinicalDraftItem
-  | ClinicalApprovalItem
-  | ClinicalResultItem
-  | ClinicalErrorItem;
-
-export interface ClinicalPatientSwitch {
-  current: ClinicalPatient;
-  detected: ClinicalPatient;
-}
-
-export type ClinicalRuntime = 'idle' | 'streaming' | 'awaiting_approval' | 'saving' | 'failed';
+export type {
+  ClinicalApprovalItem,
+  ClinicalDraftItem,
+  ClinicalPatientSwitch,
+  ClinicalTranscriptItem,
+  ClinicalRuntime,
+} from './clinicalRuntime';
 
 const now = () => new Date().toISOString();
 const RUT_CANDIDATE = /(?<!\d)(?:(?:[\d•]{1,2}(?:[.\s]\d{3}){1,2}|[\d•]{4,8})-[0-9kK](?!\d)|(?<![\d.])(\d{5,8})([0-9kK])(?!\d))/g;
@@ -94,6 +45,7 @@ function safeError(code: string): string {
     CLINICAL_EXTERNAL_LLM_DISABLED: 'La asistencia clínica externa está deshabilitada.',
     CLINICAL_CONTENT_INSUFFICIENT: 'Añade un poco más de contexto para preparar la evolución.',
     CLINICAL_MODEL_UNAVAILABLE: 'No pudimos preparar la evolución. Tu nota se conserva.',
+    CLINICAL_PENDING_ACTION_EXISTS: 'Ya existe una confirmación pendiente en este hilo.',
     CLINICAL_RATE_LIMIT_EXCEEDED: 'Alcanzaste el límite diario del asistente clínico.',
     PATIENT_REFERENCE_AMBIGUOUS: 'Detecté más de un paciente. Selecciona uno antes de continuar.',
     PATIENT_SWITCH_REQUIRED: 'Revisa el cambio de paciente antes de continuar.',
@@ -104,6 +56,16 @@ function safeError(code: string): string {
     EVOLUTION_SAVE_FAILED: 'No pudimos guardar la evolución. Tu borrador se conserva.',
   };
   return messages[code] ?? 'No pudimos completar la acción. Tu trabajo se conserva.';
+}
+
+function apiErrorCode(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const detail = error.body && typeof error.body === 'object' && 'detail' in error.body
+    ? (error.body as { detail?: unknown }).detail
+    : null;
+  return detail && typeof detail === 'object' && 'code' in detail && typeof detail.code === 'string'
+    ? detail.code
+    : null;
 }
 
 function messageItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
@@ -117,9 +79,37 @@ function messageItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
   }));
 }
 
+function actionItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
+  return (thread.actions ?? [])
+    .map((action) => ({
+      id: action.id,
+      turnId: action.turn_id,
+      status: action.status === 'pending'
+        ? 'pending'
+        : action.status === 'approved'
+          ? 'completed'
+          : action.status === 'declined'
+            ? 'declined'
+            : 'failed',
+      createdAt: action.created_at,
+      type: 'approval' as const,
+      action,
+      patient: action.patient ?? thread.active_patient ?? {
+        id: action.patient_id,
+        first_name: 'Paciente',
+        last_name: '',
+        rut_masked: '••••',
+      },
+    }));
+}
+
 export function useClinicalAssistant(threadId: string | undefined) {
   const [thread, setThread] = useState<ClinicalThread | null>(null);
-  const [items, setItems] = useState<ClinicalTranscriptItem[]>([]);
+  const [clinicalState, dispatch] = useReducer(
+    clinicalReducer,
+    undefined,
+    () => createClinicalReducerState(),
+  );
   const [runtime, setRuntime] = useState<ClinicalRuntime>('idle');
   const [error, setError] = useState<string | null>(null);
   const [patientSwitch, setPatientSwitch] = useState<ClinicalPatientSwitch | null>(null);
@@ -133,27 +123,10 @@ export function useClinicalAssistant(threadId: string | undefined) {
     const loaded = await getClinicalThread(threadId);
     if (seq !== loadSeqRef.current) return;
     setThread(loaded);
-    const hydrated = messageItems(loaded);
-    if (loaded.pending_action?.proposal_payload) {
-      hydrated.push({
-        id: loaded.pending_action.id,
-        turnId: loaded.pending_action.turn_id,
-        status: 'pending',
-        createdAt: loaded.pending_action.created_at,
-        type: 'approval',
-        action: loaded.pending_action,
-        patient: loaded.pending_action_patient ?? loaded.active_patient ?? {
-          id: loaded.pending_action.patient_id,
-          first_name: 'Paciente',
-          last_name: '',
-          rut_masked: '••••',
-        },
-      });
-      setRuntime('awaiting_approval');
-    } else {
-      setRuntime('idle');
-    }
-    setItems(hydrated);
+    const actions = loaded.actions ?? [];
+    const hydrated = [...messageItems(loaded), ...actionItems({ ...loaded, actions })];
+    dispatch({ type: 'reset', items: hydrated });
+    setRuntime(actions.some((action) => action.status === 'pending') ? 'awaiting_approval' : 'idle');
   }, [threadId]);
 
   useEffect(() => {
@@ -161,14 +134,14 @@ export function useClinicalAssistant(threadId: string | undefined) {
     loadSeqRef.current += 1;
     if (!threadId) {
       setThread(null);
-      setItems([]);
+      dispatch({ type: 'reset', items: [] });
       setRuntime('idle');
       setError(null);
       setPatientSwitch(null);
       return;
     }
     setThread(null);
-    setItems([]);
+    dispatch({ type: 'reset', items: [] });
     setRuntime('idle');
     setError(null);
     setPatientSwitch(null);
@@ -192,88 +165,51 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const send = useCallback(
     async (content: string): Promise<boolean> => {
-      if (!threadId || !content.trim()) return false;
+      const currentThreadId = threadId;
+      if (!currentThreadId || !content.trim()) return false;
       const turnId = crypto.randomUUID();
       const createdAt = now();
       turnFailedRef.current = false;
       setError(null);
       setRuntime('streaming');
-      setItems((current) => [
-        ...current,
-        { id: crypto.randomUUID(), turnId, status: 'completed', createdAt, type: 'user', content: redactIdentifiers(content) },
-      ]);
+      dispatch({
+        type: 'append',
+        item: {
+          id: `user:${turnId}`,
+          turnId,
+          status: 'completed',
+          createdAt,
+          type: 'user',
+          content: redactIdentifiers(content),
+        },
+      });
       const controller = new AbortController();
       abortRef.current = controller;
       try {
-        const response = await streamClinicalTurn(threadId, { turn_id: turnId, content }, controller.signal);
+        const response = await streamClinicalTurn(currentThreadId, { turn_id: turnId, content }, controller.signal);
         await consumeSse(response, ({ event, data }) => {
-          let payload: Record<string, unknown>;
-          try {
-            payload = JSON.parse(data) as Record<string, unknown>;
-          } catch {
+          if (!event) return;
+          const decoded = decodeClinicalEvent(event, data, { threadId: currentThreadId, turnId });
+          if (!decoded) {
+            console.warn('clinical_event_discarded', { event, threadId: currentThreadId, turnId });
             return;
           }
-          const itemId = typeof payload.item_id === 'string' ? payload.item_id : crypto.randomUUID();
-          const itemStatus: ClinicalItemStatus = payload.status === 'running' ? 'running' : 'completed';
+          const payload = decoded.data;
+          dispatch({ type: 'event', event: decoded });
           if (event === 'turn.started' && typeof payload.user_content === 'string') {
-            setItems((current) => current.map((item) => (
-              item.turnId === turnId && item.type === 'user'
-                ? { ...item, content: payload.user_content as string }
-                : item
-            )));
+            dispatch({
+              type: 'append',
+              item: {
+                id: `user:${turnId}`,
+                turnId,
+                status: 'completed',
+                createdAt: typeof payload.created_at === 'string' ? payload.created_at : now(),
+                type: 'user',
+                content: payload.user_content,
+              },
+            });
           }
-          if (event === 'item.started' || event === 'item.completed') {
-            const itemType = payload.item_type;
-            const contentValue = payload.content;
-            const labelValue = payload.label;
-            if (itemType === 'assistant_message' && typeof contentValue === 'string') {
-              setItems((current) => [
-                ...current,
-                {
-                  id: itemId,
-                  turnId,
-                  status: 'completed',
-                  createdAt: typeof payload.created_at === 'string' ? payload.created_at : now(),
-                  type: 'assistant',
-                  content: contentValue,
-                },
-              ]);
-            } else if (itemType === 'clinical_draft' && payload.draft) {
-              const draft = payload.draft as ClinicalDraft;
-              const sourceNote = typeof payload.source_note === 'string'
-                ? payload.source_note
-                : redactIdentifiers(content);
-              setItems((current) => [
-                ...current,
-                {
-                  id: itemId,
-                  turnId,
-                  status: 'completed',
-                  createdAt: typeof payload.created_at === 'string' ? payload.created_at : now(),
-                  type: 'draft',
-                  draft,
-                  baseline: draft,
-                  sourceNote,
-                  edited: false,
-                  stale: false,
-                },
-              ]);
-            } else if (itemType === 'activity' && typeof labelValue === 'string') {
-              setItems((current) => {
-                const activity = {
-                  id: itemId,
-                  turnId,
-                  status: itemStatus,
-                  createdAt: typeof payload.created_at === 'string' ? payload.created_at : now(),
-                  type: 'activity' as const,
-                  label: labelValue,
-                };
-                const existing = current.findIndex((entry) => entry.id === itemId);
-                if (existing < 0) return [...current, activity];
-                return current.map((entry, index) => index === existing ? { ...entry, ...activity } : entry);
-              });
-            }
-          } else if (event === 'patient.bound') {
+          if (event === 'patient.bound') {
             const patient = payload.patient as ClinicalPatient | undefined;
             if (patient?.id) {
               setThread((current) => current ? { ...current, active_patient: patient } : current);
@@ -308,32 +244,18 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
 
   const updateDraft = useCallback((itemId: string, draft: ClinicalDraft) => {
-    setItems((current) =>
-      current.map((item) =>
-        item.id === itemId && item.type === 'draft'
-          ? { ...item, draft, edited: JSON.stringify(draft) !== JSON.stringify(item.baseline) }
-          : item,
-      ),
-    );
+    dispatch({ type: 'updateDraft', itemId, draft });
   }, []);
 
   const updateDraftSource = useCallback((itemId: string, sourceNote: string) => {
-    setItems((current) => current.map((item) => (
-      item.id === itemId && item.type === 'draft'
-        ? { ...item, sourceNote, stale: true }
-        : item
-    )));
+    dispatch({ type: 'updateSource', itemId, sourceNote });
   }, []);
 
   const regenerateDraft = useCallback(async (item: ClinicalDraftItem) => {
     if (!threadId) return;
     try {
       const draft = await regenerateClinicalDraft(threadId, item.sourceNote);
-      setItems((current) => current.map((entry) => (
-        entry.id === item.id && entry.type === 'draft'
-          ? { ...entry, draft, baseline: draft, edited: false, stale: false }
-          : entry
-      )));
+      dispatch({ type: 'replaceDraft', itemId: item.id, draft });
       setError(null);
     } catch {
       setError(safeError('CLINICAL_MODEL_UNAVAILABLE'));
@@ -346,30 +268,28 @@ export function useClinicalAssistant(threadId: string | undefined) {
       if (!threadId || item.stale) return;
       try {
         const action = await prepareClinicalSave(threadId, {
+          turn_id: item.turnId,
           raw_note: item.sourceNote,
           draft: item.draft,
           generated_draft: item.baseline,
           evolution_at: new Date().toISOString(),
           final_text: undefined,
         });
-        setItems((current) => {
-          const approval: ClinicalApprovalItem = {
-            id: action.id,
-            turnId: item.turnId,
-            status: 'pending',
-            createdAt: action.created_at,
-            type: 'approval',
-            action,
-            patient: action.patient,
-          };
-          const existing = current.findIndex((entry) => entry.type === 'approval');
-          if (existing < 0) return [...current, approval];
-          return current.map((entry, index) => index === existing ? approval : entry);
-        });
+        const approval: ClinicalApprovalItem = {
+          id: action.id,
+          turnId: item.turnId,
+          status: 'pending',
+          createdAt: action.created_at,
+          type: 'approval',
+          action,
+          patient: action.patient,
+        };
+        dispatch({ type: 'upsertApproval', item: approval });
         setRuntime('awaiting_approval');
-      } catch {
-        setError('No pudimos preparar la evolución. Tu borrador se conserva.');
-        setRuntime('failed');
+      } catch (caught) {
+        const code = apiErrorCode(caught) ?? 'CLINICAL_PREPARE_FAILED';
+        setError(safeError(code));
+        setRuntime(code === 'CLINICAL_PENDING_ACTION_EXISTS' ? 'awaiting_approval' : 'failed');
       }
     },
     [threadId],
@@ -378,33 +298,43 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const resolve = useCallback(
     async (item: ClinicalApprovalItem, decision: 'approve' | 'decline') => {
       setRuntime('saving');
-      setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: 'running' } : entry));
+      dispatch({ type: 'resolveApproval', itemId: item.id, status: 'running' });
       try {
         const result = await resolveClinicalAction(item.action.id, decision, item.action.proposal_hash);
-        setItems((current) =>
-          current.map((entry) =>
-            entry.id === item.id ? { ...entry, status: decision === 'decline' ? 'declined' : 'completed' } : entry,
-          ),
-        );
-        setItems((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
+        const resolvedStatus: ClinicalItemStatus = result.status === 'approved'
+          ? 'completed'
+          : result.status === 'declined' ? 'declined' : 'failed';
+        dispatch({
+          type: 'resolveApproval',
+          itemId: item.id,
+          status: resolvedStatus,
+        });
+        dispatch({
+          type: 'append',
+          item: {
+            id: `result:${item.action.id}`,
             turnId: item.turnId,
-            status: result.status === 'declined' ? 'declined' : 'completed',
+            status: resolvedStatus,
             createdAt: now(),
             type: 'result',
-            message: result.status === 'declined' ? 'Guardado descartado. No se realizaron cambios.' : 'Evolución guardada.',
+            actionId: item.action.id,
+            message: resolvedStatus === 'completed'
+              ? 'Evolución guardada.'
+              : resolvedStatus === 'declined'
+                ? 'Guardado descartado. No se realizaron cambios.'
+                : 'La confirmación no pudo completarse.',
             evolutionId: result.result_resource_id,
             patientId: item.action.patient_id,
           },
-        ]);
+        });
         setRuntime('idle');
         setThread((current) => (current ? { ...current, pending_action: null } : current));
-      } catch {
-        setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: 'pending' } : entry));
-        setError('No pudimos guardar la evolución. Tu borrador se conserva.');
-        setRuntime('awaiting_approval');
+      } catch (caught) {
+        const code = apiErrorCode(caught);
+        const unavailable = code === 'ACTION_EXPIRED' || code === 'EVOLUTION_SAVE_FAILED';
+        dispatch({ type: 'resolveApproval', itemId: item.id, status: unavailable ? 'failed' : 'pending' });
+        setError(safeError(code ?? 'EVOLUTION_SAVE_FAILED'));
+        setRuntime(unavailable ? 'failed' : 'awaiting_approval');
       }
     },
     [],
@@ -432,7 +362,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   return {
     thread,
-    items,
+    items: clinicalState.items,
     runtime,
     error,
     send,

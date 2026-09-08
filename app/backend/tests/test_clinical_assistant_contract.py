@@ -8,7 +8,7 @@ from uuid import UUID
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from backend.transcription.port import FakeTranscriber
+from tests.fakes import FakeTranscriber
 
 
 def test_turn_context_is_immutable() -> None:
@@ -147,6 +147,63 @@ async def test_fake_transcriber_uses_the_transcription_port() -> None:
     result = await FakeTranscriber("texto dictado").transcribe(b"audio", mime_type="audio/webm")
 
     assert result.text == "texto dictado"
+
+
+def test_clinical_events_are_versioned_and_sequenced() -> None:
+    from backend.clinical_assistant.events import event
+
+    first = json.loads(event(
+        "item.completed",
+        {
+            "thread_id": "thread-1",
+            "turn_id": "turn-1",
+            "item_id": "item-1",
+            "item_type": "activity",
+            "status": "completed",
+            "label": "Listo",
+        },
+    ).split("data: ", 1)[1])
+    second = json.loads(event(
+        "turn.completed",
+        {"thread_id": "thread-1", "turn_id": "turn-1", "item_id": "item-2"},
+    ).split("data: ", 1)[1])
+
+    assert first["schema_version"] == 1
+    assert first["event_id"]
+    assert first["sequence"] + 1 == second["sequence"]
+    assert first["data"]["label"] == "Listo"
+
+
+def test_prepare_save_requires_the_source_turn() -> None:
+    from pydantic import ValidationError
+
+    from backend.clinical_assistant.schemas import PrepareSaveRequest
+
+    with pytest.raises(ValidationError):
+        PrepareSaveRequest.model_validate({
+            "raw_note": "Nota",
+            "draft": {
+                "context": "",
+                "findings": "",
+                "assessment": "",
+                "treatment": "",
+                "follow_up": "",
+                "review_flags": [],
+            },
+            "evolution_at": "2026-09-08T12:00:00Z",
+        })
+
+
+def test_voice_rate_limit_migration_is_owner_scoped() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "alembic"
+        / "versions"
+        / "0009_add_voice_rate_limit.py"
+    ).read_text(encoding="utf-8")
+    assert "voice_transcription_requests" in migration
+    assert "users.id" in migration
+    assert "requested_at" in migration
 
 
 def test_clinical_persistence_is_separate_from_rag() -> None:

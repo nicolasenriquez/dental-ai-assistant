@@ -159,6 +159,7 @@ export interface ClinicalPendingAction {
   created_at: string;
   resolved_at?: string | null;
   result_resource_id?: string | null;
+  patient?: ClinicalPatient | null;
 }
 
 export interface ClinicalThread {
@@ -172,6 +173,7 @@ export interface ClinicalThread {
   updated_at: string;
   messages: ClinicalMessage[];
   pending_action: ClinicalPendingAction | null;
+  actions?: ClinicalPendingAction[];
 }
 
 export interface ClinicalThreadSummary {
@@ -337,6 +339,7 @@ export const streamClinicalTurn = async (
 export const prepareClinicalSave = (
   threadId: string,
   body: {
+    turn_id: string;
     raw_note: string;
     draft: ClinicalDraft;
     generated_draft?: ClinicalDraft;
@@ -362,12 +365,13 @@ export const resolveClinicalAction = (
     `/clinical-actions/${actionId}/resolve`,
     { method: 'POST', body: JSON.stringify({ decision, proposal_hash: proposalHash }) },
   );
-export const transcribeAudio = async (audio: Blob): Promise<{ text: string }> => {
+export const transcribeAudio = async (audio: Blob, signal?: AbortSignal): Promise<{ text: string }> => {
   const res = await fetch(`${BASE}/transcriptions`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': audio.type || 'audio/webm' },
     body: audio,
+    signal,
   });
   if (!res.ok) return parseApiError(res);
   return res.json() as Promise<{ text: string }>;

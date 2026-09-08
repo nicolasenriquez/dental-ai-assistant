@@ -41,6 +41,7 @@ class ClinicalTurnRequest(BaseModel):
 class PrepareSaveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    turn_id: UUID
     raw_note: ClinicalText
     draft: ClinicalDraft
     generated_draft: ClinicalDraft | None = None
@@ -88,6 +89,7 @@ class ClinicalPendingAction(BaseModel):
     created_at: datetime
     resolved_at: datetime | None = None
     result_resource_id: UUID | None = None
+    patient: SafePatient | None = None
 
 
 class ClinicalThreadResponse(BaseModel):
@@ -101,3 +103,4 @@ class ClinicalThreadResponse(BaseModel):
     updated_at: datetime
     messages: list[dict[str, object]] = Field(default_factory=list)
     pending_action: ClinicalPendingAction | None = None
+    actions: list[ClinicalPendingAction] = Field(default_factory=list)

@@ -10,13 +10,13 @@ from datetime import UTC
 from typing import Any
 from uuid import UUID, uuid4
 
+from backend.db import clinical_assistant_repo as repository
 from backend.db import patients_repo
 from backend.services import clinical_evolutions
 
-from . import repository, tools
 from .events import event
 from .policy import ClinicalTurnContext
-from .schemas import ClinicalDraft, PrepareSaveRequest
+from .schemas import ClinicalDraft, ClinicalThreadResponse, PrepareSaveRequest
 from .sensitive_input import safe_patient, sanitize_content
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,85 @@ _FIELDS: tuple[tuple[str, str], ...] = (
     ("treatment", "Tratamiento / conducta"),
     ("follow_up", "Seguimiento"),
 )
+
+TurnAlreadyRunningError = repository.TurnAlreadyRunningError
+TurnIdempotencyConflictError = repository.TurnIdempotencyConflictError
+ClinicalRateLimitError = repository.ClinicalRateLimitError
+PendingActionExistsError = repository.PendingActionExistsError
+ActionExpiredError = repository.ActionExpiredError
+ProposalStaleError = repository.ProposalStaleError
+ClinicalGenerationDisabledError = clinical_evolutions.ClinicalGenerationDisabledError
+EmptyClinicalDraftError = clinical_evolutions.EmptyClinicalDraftError
+ClinicalGenerationError = clinical_evolutions.ClinicalGenerationError
+
+
+async def list_threads(owner: UUID) -> list[dict[str, Any]]:
+    return await repository.list_threads(owner)
+
+
+async def create_thread(owner: UUID, title: str) -> ClinicalThreadResponse:
+    safe_title = (await sanitize_content(owner, title)).display_text
+    return ClinicalThreadResponse(**await repository.create_thread(owner, safe_title))
+
+
+async def get_thread_response(owner: UUID, thread: UUID) -> ClinicalThreadResponse | None:
+    stored = await repository.get_thread(owner, thread)
+    if stored is None:
+        return None
+    if stored.get("active_patient_id"):
+        patient = await patients_repo.get_patient(owner, stored["active_patient_id"])
+        stored["active_patient"] = safe_patient(patient) if patient else None
+    else:
+        stored["active_patient"] = None
+    pending = stored.get("pending_action")
+    if pending:
+        pending_patient = await patients_repo.get_patient(owner, pending["patient_id"])
+        stored["pending_action_patient"] = safe_patient(pending_patient) if pending_patient else None
+        pending["patient"] = stored["pending_action_patient"]
+    else:
+        stored["pending_action_patient"] = None
+    for action in stored.get("actions", []):
+        action_patient = await patients_repo.get_patient(owner, action["patient_id"])
+        action["patient"] = safe_patient(action_patient) if action_patient else None
+    return ClinicalThreadResponse(**stored)
+
+
+async def set_active_patient(owner: UUID, thread: UUID, patient_id: UUID | None) -> ClinicalThreadResponse | None:
+    updated = await repository.set_active_patient(owner, thread, patient_id)
+    if updated is None:
+        return None
+    return await get_thread_response(owner, thread)
+
+
+async def resolve_action(owner: UUID, action_id: UUID, decision: str, proposal_hash: str) -> dict[str, Any]:
+    return await repository.resolve_action(owner, action_id, decision, proposal_hash)
+
+
+async def _get_recent_evolutions(context: ClinicalTurnContext) -> dict[str, Any]:
+    if context.patient_id is None:
+        return {"ok": False, "error": "PATIENT_REQUIRED"}
+    patient = await patients_repo.get_patient(context.user_id, context.patient_id)
+    if patient is None:
+        return {"ok": False, "error": "PATIENT_NOT_FOUND"}
+    history = await patients_repo.get_recent_approved_evolutions(
+        context.user_id,
+        context.patient_id,
+        limit=clinical_evolutions.CLINICAL_HISTORY_LIMIT,
+    )
+    return {
+        "ok": True,
+        "count": len(history),
+        "evolutions": [
+            {"evolution_at": row["evolution_at"], "final_text": row["final_text"]}
+            for row in history
+        ],
+    }
+
+
+async def _draft_evolution(context: ClinicalTurnContext, raw_note: str) -> ClinicalDraft:
+    if context.patient_id is None:
+        raise LookupError("Patient required")
+    return await clinical_evolutions.generate_draft(context.user_id, context.patient_id, raw_note)
 
 
 def _intent_label(content: str) -> str:
@@ -81,8 +160,8 @@ async def _assistant_item(
     turn_id: UUID,
     content: str,
 ) -> AsyncIterator[str]:
-    item_id = str(uuid4())
-    await repository.append_message(owner_user_id, thread_id, turn_id, "assistant", content)
+    message = await repository.append_message(owner_user_id, thread_id, turn_id, "assistant", content)
+    item_id = str(message["id"])
     yield event(
         "item.completed",
         {
@@ -159,7 +238,7 @@ async def stream_turn(
                     {
                         "thread_id": str(thread),
                         "turn_id": str(turn),
-                        "item_id": str(uuid4()),
+                        "item_id": str(message["id"]),
                         "item_type": "assistant_message",
                         "status": "completed",
                         "content": message["content"],
@@ -301,7 +380,7 @@ async def stream_turn(
         yield _activity(
             "item.started", thread, turn, "Consultando evoluciones", "running", history_item_id
         )
-        history = await tools.get_recent_evolutions(context)
+        history = await _get_recent_evolutions(context)
         yield _activity(
             "item.completed",
             thread,
@@ -315,13 +394,13 @@ async def stream_turn(
         yield _activity(
             "item.started", thread, turn, "Preparando borrador", "running", draft_item_id
         )
-        draft = await tools.draft_evolution(context, sanitized.model_text)
+        draft = await _draft_evolution(context, sanitized.model_text)
         yield event(
             "item.completed",
             {
                 "thread_id": str(thread),
                 "turn_id": str(turn),
-                "item_id": str(uuid4()),
+                "item_id": draft_item_id,
                 "item_type": "clinical_draft",
                 "status": "completed",
                 "draft": draft.model_dump(mode="json"),
@@ -423,7 +502,7 @@ async def prepare_save(
     return await repository.create_pending_action(
         owner,
         thread,
-        UUID(str(stored["latest_turn_id"])) if stored.get("latest_turn_id") else uuid4(),
+        request.turn_id,
         patient_id,
         "save_evolution",
         payload,

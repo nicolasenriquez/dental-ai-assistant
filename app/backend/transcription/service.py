@@ -1,27 +1,22 @@
-"""Rate-limited, non-persistent transcription service."""
+"""Rate-limited transcription service with ephemeral audio handling."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections import defaultdict, deque
-from datetime import UTC, datetime, timedelta
 from typing import Final
 from uuid import UUID
 
 from backend.config import (
     VOICE_MAX_BYTES,
-    VOICE_RATE_LIMIT_PER_HOUR,
     VOICE_TRANSCRIPTION_ENABLED,
 )
+from backend.db.voice_rate_limit_repo import VoiceRateLimitReached, check_and_record
 
 from .port import TranscriptionPort
 from .schemas import TranscriptionResult
 
 logger = logging.getLogger(__name__)
 ALLOWED_MIME_TYPES: Final = frozenset({"audio/webm", "audio/webm;codecs=opus", "audio/mp4"})
-_requests: defaultdict[UUID, deque[datetime]] = defaultdict(deque)
-_rate_lock = asyncio.Lock()
 
 
 class TranscriptionError(RuntimeError):
@@ -41,15 +36,10 @@ class VoiceRateLimitError(TranscriptionError):
 
 
 async def _check_rate_limit(user_id: UUID) -> None:
-    now = datetime.now(UTC)
-    cutoff = now - timedelta(hours=1)
-    async with _rate_lock:
-        calls = _requests[user_id]
-        while calls and calls[0] <= cutoff:
-            calls.popleft()
-        if len(calls) >= VOICE_RATE_LIMIT_PER_HOUR:
-            raise VoiceRateLimitError
-        calls.append(now)
+    try:
+        await check_and_record(user_id)
+    except VoiceRateLimitReached:
+        raise VoiceRateLimitError from None
 
 
 async def transcribe(

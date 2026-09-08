@@ -22,6 +22,7 @@ from backend.auth.dependencies import get_current_admin, get_current_user
 from backend.config import CORS_ORIGINS, FRONTEND_DIST
 from backend.data.seed import seed_if_empty
 from backend.db.postgres import close_pg_pool, init_pg_pool
+from backend.transcription.whisper_adapter import WhisperHttpAdapter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -86,10 +87,16 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Dynamous content ingest failed; continuing without it")
 
+    whisper_adapter = WhisperHttpAdapter()
+    await whisper_adapter.start()
+    app.state.whisper_adapter = whisper_adapter
     logger.info("Startup complete.")
-    yield
-    logger.info("Shutting down.")
-    await close_pg_pool()
+    try:
+        yield
+    finally:
+        logger.info("Shutting down.")
+        await whisper_adapter.close()
+        await close_pg_pool()
 
 
 app = FastAPI(title="RAG YouTube Chat API", lifespan=lifespan)
