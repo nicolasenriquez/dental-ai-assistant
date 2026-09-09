@@ -12,27 +12,17 @@ from backend.config import (
 )
 from backend.db.voice_rate_limit_repo import VoiceRateLimitReached, check_and_record
 
+from .errors import (
+    InvalidAudioError,
+    TranscriptionError,
+    VoiceDisabledError,
+    VoiceRateLimitError,
+)
 from .port import TranscriptionPort
 from .schemas import TranscriptionResult
 
 logger = logging.getLogger(__name__)
-ALLOWED_MIME_TYPES: Final = frozenset({"audio/webm", "audio/webm;codecs=opus", "audio/mp4"})
-
-
-class TranscriptionError(RuntimeError):
-    code = "TRANSCRIPTION_FAILED"
-
-
-class VoiceDisabledError(TranscriptionError):
-    code = "VOICE_TRANSCRIPTION_DISABLED"
-
-
-class InvalidAudioError(TranscriptionError):
-    code = "INVALID_AUDIO"
-
-
-class VoiceRateLimitError(TranscriptionError):
-    code = "VOICE_RATE_LIMIT_EXCEEDED"
+ALLOWED_MIME_TYPES: Final = frozenset({"audio/webm", "audio/mp4"})
 
 
 async def _check_rate_limit(user_id: UUID) -> None:

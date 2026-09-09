@@ -31,4 +31,5 @@
 - button "How do I turn Claude Code into an engineering team?"
 - textbox "Pregunta sobre la biblioteca de videos":
   - /placeholder: Pregunta sobre la biblioteca de videos…
+- button "Iniciar dictado": Dictar
 - button "Enviar mensaje" [disabled]

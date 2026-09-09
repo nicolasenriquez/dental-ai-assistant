@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import whisper
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 MAX_BYTES = 12 * 1024 * 1024
 MAX_DURATION_SECONDS = 120
@@ -59,7 +59,9 @@ def _finish_timed_out_inference(task: asyncio.Task[Any], path: str) -> None:
 
 
 @app.post("/transcribe")
-async def transcribe(audio: UploadFile = File(...)) -> dict[str, str]:
+async def transcribe(
+    audio: UploadFile = File(...), language: str = Form("es")
+) -> dict[str, str]:
     if audio.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=422, detail="invalid audio")
     if inference_slot.locked():
@@ -85,7 +87,7 @@ async def transcribe(audio: UploadFile = File(...)) -> dict[str, str]:
             asyncio.to_thread(
                 model.transcribe,
                 temporary_path,
-                language="es",
+                language=language,
                 task="transcribe",
                 temperature=0,
             )

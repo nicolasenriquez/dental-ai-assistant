@@ -60,6 +60,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CLINICAL_EXTERNAL_LLM_ENABLED: ${CLINICAL_EXTERNAL_LLM_ENABLED:-false}
       VOICE_TRANSCRIPTION_ENABLED: ${VOICE_TRANSCRIPTION_ENABLED:-false}
+      VOICE_LANGUAGE: ${VOICE_LANGUAGE:-es}
       WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
       ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-}
       # Issue #147: Circle membership verification + Dynamous content ingest.
@@ -126,6 +127,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CLINICAL_EXTERNAL_LLM_ENABLED: ${CLINICAL_EXTERNAL_LLM_ENABLED:-false}
       VOICE_TRANSCRIPTION_ENABLED: ${VOICE_TRANSCRIPTION_ENABLED:-false}
+      VOICE_LANGUAGE: ${VOICE_LANGUAGE:-es}
       WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
       ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-}
       # Issue #147: Circle membership verification + Dynamous content ingest.

@@ -25,13 +25,16 @@ function renderComposer(value = '') {
       onChange={vi.fn()}
       onPatientChange={vi.fn()}
       onSubmit={vi.fn()}
-      onVoice={vi.fn()}
-      onStopVoice={vi.fn()}
-      onCancelVoice={vi.fn()}
-      onRetryVoice={vi.fn()}
-      voiceState="idle"
-      voiceElapsed={0}
-      voiceError={null}
+      voice={{
+        state: 'idle',
+        elapsed: 0,
+        error: null,
+        canRetry: false,
+        onStart: vi.fn(),
+        onStop: vi.fn(),
+        onCancel: vi.fn(),
+        onRetry: vi.fn(),
+      }}
     />,
   );
 }
@@ -42,7 +45,7 @@ describe('ClinicalComposer', () => {
 
     expect(screen.getByTestId('clinical-composer')).toHaveClass('chat-composer');
     expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Dictar nota' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Iniciar dictado' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
     expect(screen.queryByText('🎙 Dictar')).not.toBeInTheDocument();
   });
@@ -59,13 +62,16 @@ describe('ClinicalComposer', () => {
         onChange={vi.fn()}
         onPatientChange={onPatientChange}
         onSubmit={vi.fn()}
-        onVoice={vi.fn()}
-        onStopVoice={vi.fn()}
-        onCancelVoice={vi.fn()}
-        onRetryVoice={vi.fn()}
-        voiceState="idle"
-        voiceElapsed={0}
-        voiceError={null}
+        voice={{
+          state: 'idle',
+          elapsed: 0,
+          error: null,
+          canRetry: false,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onCancel: vi.fn(),
+          onRetry: vi.fn(),
+        }}
       />,
     );
 
@@ -100,13 +106,16 @@ describe('ClinicalComposer', () => {
         onChange={vi.fn()}
         onPatientChange={vi.fn()}
         onSubmit={onSubmit}
-        onVoice={vi.fn()}
-        onStopVoice={vi.fn()}
-        onCancelVoice={vi.fn()}
-        onRetryVoice={vi.fn()}
-        voiceState="idle"
-        voiceElapsed={0}
-        voiceError={null}
+        voice={{
+          state: 'idle',
+          elapsed: 0,
+          error: null,
+          canRetry: false,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onCancel: vi.fn(),
+          onRetry: vi.fn(),
+        }}
       />,
     );
 
@@ -114,5 +123,47 @@ describe('ClinicalComposer', () => {
     expect(send).not.toBeDisabled();
     fireEvent.click(send);
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps note editable but locks patient and submit controls during transcription', () => {
+    const onChange = vi.fn();
+    const onSubmit = vi.fn();
+    render(
+      <ClinicalComposer
+        patient={patient}
+        patients={patients}
+        value="Nota existente"
+        busy={false}
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={onChange}
+        onPatientChange={vi.fn()}
+        onSubmit={onSubmit}
+        voice={{
+          state: 'transcribing',
+          elapsed: 0,
+          error: null,
+          canRetry: false,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onCancel: vi.fn(),
+          onRetry: vi.fn(),
+        }}
+        submitDisabled
+      />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Nota clínica' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Quitar paciente activo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+    expect(screen.getByText('Transcribiendo… Puedes seguir editando.')).toBeVisible();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Nota editada' },
+    });
+    expect(onChange).toHaveBeenCalledWith('Nota editada');
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Nota clínica' }), {
+      key: 'Enter',
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

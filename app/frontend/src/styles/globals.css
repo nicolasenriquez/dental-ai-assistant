@@ -503,6 +503,17 @@ body,
   color: var(--text-tertiary);
   cursor: not-allowed;
 }
+.chat-composer .voice-dictation-state,
+.chat-composer .voice-dictation-status,
+.chat-composer .voice-dictation-recovery {
+  flex: 1 1 auto;
+}
+.chat-voice-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
 .chat-stop-button,
 .chat-send-button {
   display: flex;

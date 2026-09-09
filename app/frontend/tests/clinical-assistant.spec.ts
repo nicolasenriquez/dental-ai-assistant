@@ -467,3 +467,103 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     maxDiffPixels: 300,
   });
 });
+
+test('locks clinical patient scope while handing off dictation', async ({ page }) => {
+  await page.addInitScript(() => {
+    class DeterministicMediaRecorder {
+      static isTypeSupported() {
+        return true;
+      }
+      state: RecordingState = 'inactive';
+      mimeType = 'audio/webm';
+      ondataavailable: ((event: BlobEvent) => void) | null = null;
+      onstop: (() => void) | null = null;
+      start() {
+        this.state = 'recording';
+      }
+      stop() {
+        this.state = 'inactive';
+        this.ondataavailable?.({
+          data: new Blob(['deterministic voice'], { type: 'audio/webm' }),
+        } as BlobEvent);
+        this.onstop?.();
+      }
+    }
+
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: DeterministicMediaRecorder,
+    });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: async () => ({ getTracks: () => [{ stop: () => undefined }] }),
+      },
+    });
+  });
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: '55555555-5555-4555-8555-555555555555',
+        email: 'demo@example.com',
+        is_admin: false,
+        messages_used_today: 0,
+        messages_remaining_today: 25,
+        rate_window_resets_at: null,
+      }),
+    }),
+  );
+  await page.route('**/api/patients', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([patient]),
+    }),
+  );
+  await page.route('**/api/clinical-threads', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ ...thread(), preview: null, active_patient_id: patientId }]),
+    }),
+  );
+  await page.route(`**/api/clinical-threads/${threadId}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(thread()),
+    }),
+  );
+  let releaseTranscription!: () => void;
+  const transcriptionReady = new Promise<void>((resolve) => {
+    releaseTranscription = resolve;
+  });
+  await page.route('**/api/transcriptions', async (route) => {
+    await transcriptionReady;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ text: 'Texto dictado.' }),
+    });
+  });
+
+  await page.goto(`/a/${threadId}`);
+  const input = page.getByLabel('Nota clínica');
+  await expect(input).toBeVisible();
+  await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+  await expect(page.getByRole('button', { name: 'Detener grabación' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Quitar paciente activo' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Detener grabación' }).click();
+
+  await expect(input).toBeEditable();
+  await expect(page.getByText('Transcribiendo… Puedes seguir editando.')).toBeVisible();
+  await input.fill('Nota manual');
+  await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+  releaseTranscription();
+  await expect(input).toHaveValue('Nota manual\nTexto dictado.');
+  await expect(page.getByText('Dictado añadido.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeEnabled();
+});

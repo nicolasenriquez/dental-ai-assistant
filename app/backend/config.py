@@ -93,7 +93,9 @@ CLINICAL_TURN_LIMIT_PER_24H: int = int(os.environ.get("CLINICAL_TURN_LIMIT_PER_2
 VOICE_TRANSCRIPTION_ENABLED: bool = os.environ.get(
     "VOICE_TRANSCRIPTION_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "on")
+VOICE_LANGUAGE: str = os.environ.get("VOICE_LANGUAGE", "es")
 WHISPER_URL: str = os.environ.get("WHISPER_URL", "http://whisper:9000").rstrip("/")
+WHISPER_HTTP_TIMEOUT_SECONDS: int = 100
 VOICE_MAX_BYTES: int = 12 * 1024 * 1024
 VOICE_MAX_DURATION_SECONDS: int = 120
 VOICE_RATE_LIMIT_PER_HOUR: int = 20

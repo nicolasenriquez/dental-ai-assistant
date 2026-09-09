@@ -1,4 +1,4 @@
-import { ListPlus } from 'lucide-react';
+import { ListPlus, Mic } from 'lucide-react';
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -10,8 +10,10 @@ import {
   useState,
 } from 'react';
 import type { ChatRunState } from '../hooks/useStreamingResponse';
+import { type VoiceState, isVoiceInFlight } from '../hooks/useVoiceDictation';
 import { ComposerShell } from './ComposerShell';
 import { Spinner } from './Spinner';
+import { VoiceDictationStatus } from './voice/VoiceDictationStatus';
 
 export interface ChatInputHandle {
   /** Restore text to the input (e.g. after a failed send) and focus */
@@ -27,6 +29,15 @@ interface ChatInputProps {
   runState?: ChatRunState;
   disabled?: boolean;
   onStop?: () => void;
+  voiceState?: VoiceState;
+  voiceElapsed?: number;
+  voiceError?: string | null;
+  voiceCanRetry?: boolean;
+  onVoice?: () => void;
+  onStopVoice?: () => void;
+  onCancelVoice?: () => void;
+  onRetryVoice?: () => void;
+  submitDisabled?: boolean;
 }
 
 const ACTIVE_RUN_STATES: ChatRunState[] = [
@@ -38,7 +49,24 @@ const ACTIVE_RUN_STATES: ChatRunState[] = [
 
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
   (
-    { onSend, value, onValueChange, isStreaming = false, runState, disabled = false, onStop },
+    {
+      onSend,
+      value,
+      onValueChange,
+      isStreaming = false,
+      runState,
+      disabled = false,
+      onStop,
+      voiceState,
+      voiceElapsed = 0,
+      voiceError = null,
+      voiceCanRetry = false,
+      onVoice,
+      onStopVoice,
+      onCancelVoice,
+      onRetryVoice,
+      submitDisabled = false,
+    },
     ref,
   ) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -50,6 +78,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const activeRun = runState ? ACTIVE_RUN_STATES.includes(runState) : isStreaming;
     const isStopping = runState === 'stopping';
     const isDisabled = disabled;
+    const voiceInFlight = voiceState ? isVoiceInFlight(voiceState) : false;
+    const voiceRecording = voiceState === 'recording' || voiceState === 'stopping';
+    const isSubmitDisabled = isDisabled || submitDisabled || voiceInFlight;
 
     const setValue = useCallback(
       (nextValue: string) => {
@@ -87,7 +118,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const handleSend = useCallback(() => {
       const content = inputValue.trim();
-      if (!content || isDisabled) return;
+      if (!content || isSubmitDisabled) return;
 
       const accepted = onSend(content);
       if (accepted !== false) {
@@ -98,7 +129,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           el.style.overflowY = 'hidden';
         }
       }
-    }, [inputValue, isDisabled, onSend, setValue]);
+    }, [inputValue, isSubmitDisabled, onSend, setValue]);
 
     const handleChange = useCallback(
       (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -111,31 +142,62 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
+          if (isSubmitDisabled) return;
           handleSend();
         }
       },
-      [handleSend],
+      [handleSend, isSubmitDisabled],
     );
 
     return (
       <ComposerShell focused={focused} disabled={isDisabled}>
-        <textarea
-          ref={textareaRef}
-          aria-label="Pregunta sobre la biblioteca de videos"
-          placeholder={
-            activeRun
-              ? 'Escribe un mensaje para enviarlo después…'
-              : 'Pregunta sobre la biblioteca de videos…'
-          }
-          value={inputValue}
-          disabled={isDisabled}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          rows={1}
-          className="chat-composer-input"
-        />
+        {!voiceRecording && (
+          <textarea
+            ref={textareaRef}
+            aria-label="Pregunta sobre la biblioteca de videos"
+            placeholder={
+              activeRun
+                ? 'Escribe un mensaje para enviarlo después…'
+                : 'Pregunta sobre la biblioteca de videos…'
+            }
+            value={inputValue}
+            disabled={isDisabled}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            rows={1}
+            className="chat-composer-input"
+            aria-busy={voiceState === 'transcribing'}
+          />
+        )}
+
+        {voiceState && (
+          <VoiceDictationStatus
+            voiceState={voiceState}
+            voiceElapsed={voiceElapsed}
+            voiceError={voiceError}
+            canRetry={voiceCanRetry}
+            onStopVoice={onStopVoice ?? (() => {})}
+            onCancelVoice={onCancelVoice ?? (() => {})}
+            onRetryVoice={onRetryVoice ?? (() => {})}
+          />
+        )}
+
+        {onVoice && !voiceRecording && (
+          <button
+            type="button"
+            className="clinical-secondary-button chat-voice-button"
+            onClick={onVoice}
+            disabled={isDisabled || voiceInFlight}
+            aria-label="Iniciar dictado"
+            aria-pressed={voiceInFlight}
+            title="Iniciar dictado"
+          >
+            <Mic size={15} strokeWidth={1.8} aria-hidden="true" />
+            Dictar
+          </button>
+        )}
 
         {activeRun && (
           <button
@@ -165,10 +227,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         <button
           type="button"
           onClick={handleSend}
-          disabled={isDisabled || !inputValue.trim()}
+          disabled={isSubmitDisabled || !inputValue.trim()}
           aria-label={activeRun ? 'Poner mensaje en cola' : 'Enviar mensaje'}
           title={activeRun ? 'Agregar a cola' : 'Enviar'}
-          className={`chat-send-button${!inputValue.trim() || isDisabled ? ' is-disabled' : ''} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none`}
+          className={`chat-send-button${!inputValue.trim() || isSubmitDisabled ? ' is-disabled' : ''} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none`}
         >
           {activeRun ? (
             <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />

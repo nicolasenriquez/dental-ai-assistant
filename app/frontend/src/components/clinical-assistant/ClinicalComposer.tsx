@@ -1,9 +1,20 @@
 import { Check, ChevronsUpDown, ListPlus, Mic, Search, X } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
-import type { VoiceState } from '../../hooks/useClinicalVoiceInput';
+import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
 import type { ClinicalPatient } from '../../lib/api';
 import { ComposerShell } from '../ComposerShell';
-import { Spinner } from '../Spinner';
+import { VoiceDictationStatus } from '../voice/VoiceDictationStatus';
+
+export interface ClinicalVoiceControls {
+  state: VoiceState;
+  elapsed: number;
+  error: string | null;
+  canRetry: boolean;
+  onStart: () => void;
+  onStop: () => void;
+  onCancel: () => void;
+  onRetry: () => void;
+}
 
 interface ClinicalComposerProps {
   patient: ClinicalPatient | null;
@@ -17,13 +28,9 @@ interface ClinicalComposerProps {
   onChange: (value: string) => void;
   onPatientChange: (patientId: string | null) => void;
   onSubmit: () => void;
-  onVoice: () => void;
-  onStopVoice: () => void;
-  onCancelVoice: () => void;
-  onRetryVoice: () => void;
-  voiceState: VoiceState;
-  voiceElapsed: number;
-  voiceError: string | null;
+  voice: ClinicalVoiceControls;
+  patientControlsDisabled?: boolean;
+  submitDisabled?: boolean;
 }
 
 export function ClinicalComposer({
@@ -38,13 +45,9 @@ export function ClinicalComposer({
   onChange,
   onPatientChange,
   onSubmit,
-  onVoice,
-  onStopVoice,
-  onCancelVoice,
-  onRetryVoice,
-  voiceState,
-  voiceElapsed,
-  voiceError,
+  voice,
+  patientControlsDisabled = false,
+  submitDisabled = false,
 }: ClinicalComposerProps) {
   const [focused, setFocused] = useState(false);
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
@@ -52,6 +55,8 @@ export function ClinicalComposer({
   const [activeOption, setActiveOption] = useState(0);
   const patientPickerRef = useRef<HTMLDivElement>(null);
   const patientTriggerRef = useRef<HTMLButtonElement>(null);
+  const voiceInFlight = isVoiceInFlight(voice.state);
+  const patientControlsLocked = patientControlsDisabled || voiceInFlight;
   const filteredPatients = useMemo(() => {
     const query = patientQuery.trim().toLocaleLowerCase();
     if (!query) return patients;
@@ -62,6 +67,7 @@ export function ClinicalComposer({
     );
   }, [patientQuery, patients]);
   const choosePatient = (patientId: string) => {
+    if (patientControlsLocked) return;
     onPatientChange(patientId);
     setPatientPickerOpen(false);
     setPatientQuery('');
@@ -71,6 +77,9 @@ export function ClinicalComposer({
     setPatientPickerOpen(false);
     requestAnimationFrame(() => patientTriggerRef.current?.focus());
   };
+  useEffect(() => {
+    if (patientControlsLocked) setPatientPickerOpen(false);
+  }, [patientControlsLocked]);
   useEffect(() => {
     if (!patientPickerOpen) return;
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -82,6 +91,7 @@ export function ClinicalComposer({
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
+      if (submitDisabled || voiceInFlight) return;
       onSubmit();
     }
   };
@@ -98,6 +108,7 @@ export function ClinicalComposer({
             aria-label="Seleccionar paciente activo"
             aria-haspopup="listbox"
             aria-expanded={patientPickerOpen}
+            disabled={patientControlsLocked}
             onClick={() => setPatientPickerOpen((current) => !current)}
           >
             <span>
@@ -119,6 +130,7 @@ export function ClinicalComposer({
                   aria-expanded="true"
                   aria-activedescendant={filteredPatients[activeOption]?.id}
                   value={patientQuery}
+                  disabled={patientControlsLocked}
                   onChange={(event) => {
                     setPatientQuery(event.target.value);
                     setActiveOption(0);
@@ -167,6 +179,7 @@ export function ClinicalComposer({
                       id={option.id}
                       key={option.id}
                       aria-selected={option.id === patient?.id}
+                      disabled={patientControlsLocked}
                       className={index === activeOption ? 'is-active' : undefined}
                       onMouseEnter={() => setActiveOption(index)}
                       onClick={() => choosePatient(option.id)}
@@ -190,65 +203,23 @@ export function ClinicalComposer({
             type="button"
             className="clinical-patient-clear focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
             onClick={() => onPatientChange(null)}
+            disabled={patientControlsLocked}
             aria-label="Quitar paciente activo"
           >
             <X aria-hidden="true" size={17} />
           </button>
         )}
       </div>
-      {(voiceState === 'recording' || voiceState === 'stopping') && (
-        <div className="clinical-voice-state" role="status" aria-live="polite">
-          <strong>
-            {voiceState === 'stopping' ? (
-              <>
-                <Spinner /> Preparando audio…
-              </>
-            ) : (
-              <>
-                <span className="clinical-recording-dot" aria-hidden="true" /> Grabando
-              </>
-            )}
-          </strong>
-          <span>
-            {Math.floor(voiceElapsed / 1000)
-              .toString()
-              .padStart(2, '0')}
-            s
-          </span>
-          <small>Habla con naturalidad.</small>
-          <div className="clinical-voice-actions">
-            <button
-              type="button"
-              className="clinical-secondary-button"
-              onClick={onCancelVoice}
-              disabled={voiceState === 'stopping'}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="clinical-primary-button"
-              onClick={onStopVoice}
-              disabled={voiceState === 'stopping'}
-            >
-              {voiceState === 'stopping' ? (
-                <>
-                  <Spinner /> Terminando…
-                </>
-              ) : (
-                'Terminar'
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-      {voiceState === 'transcribing' && (
-        <p className="clinical-voice-status" role="status" aria-live="polite">
-          <Spinner />
-          <span>Transcribiendo… Puedes seguir editando la nota.</span>
-        </p>
-      )}
-      {voiceState !== 'recording' && voiceState !== 'stopping' && (
+      <VoiceDictationStatus
+        voiceState={voice.state}
+        voiceElapsed={voice.elapsed}
+        voiceError={voice.error}
+        canRetry={voice.canRetry}
+        onStopVoice={voice.onStop}
+        onCancelVoice={voice.onCancel}
+        onRetryVoice={voice.onRetry}
+      />
+      {voice.state !== 'recording' && voice.state !== 'stopping' && (
         <textarea
           ref={textareaRef}
           value={value}
@@ -264,34 +235,18 @@ export function ClinicalComposer({
               : 'Selecciona un paciente y escribe una nota…'
           }
           className="chat-composer-input clinical-composer-input"
-          aria-busy={voiceState === 'transcribing'}
+          aria-busy={voice.state === 'transcribing'}
         />
       )}
-      {voiceError && (
-        <div className="clinical-voice-recovery" role="alert">
-          <p className="clinical-voice-error">{voiceError}</p>
-          <div className="clinical-voice-actions">
-            <button type="button" className="clinical-secondary-button" onClick={onCancelVoice}>
-              Descartar
-            </button>
-            <button type="button" className="clinical-primary-button" onClick={onRetryVoice}>
-              Reintentar transcripción
-            </button>
-          </div>
-        </div>
-      )}
-      {voiceState === 'success' && (
-        <p className="clinical-voice-status" role="status">
-          Dictado añadido a la nota.
-        </p>
-      )}
       <div className="clinical-composer-actions">
-        {voiceState !== 'recording' && voiceState !== 'stopping' && (
+        {voice.state !== 'recording' && voice.state !== 'stopping' && (
           <button
             type="button"
             className="clinical-secondary-button"
-            onClick={onVoice}
-            aria-label="Dictar nota"
+            onClick={voice.onStart}
+            disabled={voiceInFlight}
+            aria-label="Iniciar dictado"
+            aria-pressed={voiceInFlight}
           >
             <Mic size={15} strokeWidth={1.8} aria-hidden="true" />
             Dictar
@@ -301,7 +256,7 @@ export function ClinicalComposer({
           type="button"
           className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}
           onClick={onSubmit}
-          disabled={!value.trim()}
+          disabled={!value.trim() || submitDisabled || voiceInFlight}
           aria-label={busy ? 'Poner mensaje en cola' : 'Enviar mensaje'}
           title={busy ? 'Agregar a cola' : 'Enviar'}
         >

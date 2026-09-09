@@ -1,7 +1,7 @@
 import { Stethoscope } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
-import { useClinicalVoiceInput } from '../../hooks/useClinicalVoiceInput';
+import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
 import { type ClinicalDraft, type Patient, getPatients } from '../../lib/api';
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { ClinicalComposer } from './ClinicalComposer';
@@ -41,9 +41,13 @@ export function ClinicalAssistantArea({
     },
     [threadId],
   );
-  const voice = useClinicalVoiceInput(threadId, (text) =>
-    setValue((current) => (current ? `${current}\n${text}` : text)),
+  const voiceScope = `clinical:${threadId}:${assistant.thread?.active_patient?.id ?? 'none'}`;
+  const appendVoiceText = useCallback(
+    (text: string) => setValue((current) => (current ? `${current}\n${text}` : text)),
+    [setValue],
   );
+  const voice = useVoiceDictation(voiceScope, appendVoiceText);
+  const voiceInFlight = isVoiceInFlight(voice.state);
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -75,7 +79,8 @@ export function ClinicalAssistantArea({
   useEffect(() => {
     const patientId = assistant.thread?.active_patient?.id ?? null;
     const next = queued[0];
-    if (assistant.runtime !== 'idle' || !next || next.patientId !== patientId) return;
+    if (assistant.runtime !== 'idle' || voiceInFlight || !next || next.patientId !== patientId)
+      return;
     updateQueue((current) => current.slice(1));
     void assistant.send(next.content);
   }, [
@@ -85,10 +90,11 @@ export function ClinicalAssistantArea({
     queued,
     threadId,
     updateQueue,
+    voiceInFlight,
   ]);
 
   const send = () => {
-    if (!value.trim()) return;
+    if (!value.trim() || voiceInFlight) return;
     const message = value.trim();
     setValue('');
     const busy =
@@ -194,6 +200,7 @@ export function ClinicalAssistantArea({
               type="button"
               className="clinical-secondary-button"
               onClick={assistant.cancelPatientSwitch}
+              disabled={voiceInFlight}
             >
               Cancelar
             </button>
@@ -201,6 +208,7 @@ export function ClinicalAssistantArea({
               type="button"
               className="clinical-primary-button"
               onClick={() => void assistant.confirmPatientSwitch()}
+              disabled={voiceInFlight}
             >
               Cambiar paciente
             </button>
@@ -246,6 +254,7 @@ export function ClinicalAssistantArea({
                       type="button"
                       className="clinical-secondary-button"
                       onClick={() => void assistant.setActivePatient(queued[0].patientId)}
+                      disabled={voiceInFlight}
                     >
                       Volver a {queued[0].patientName}
                     </button>
@@ -270,13 +279,18 @@ export function ClinicalAssistantArea({
             onChange={setValue}
             onPatientChange={(patientId) => void assistant.setActivePatient(patientId)}
             onSubmit={send}
-            onVoice={() => void voice.start()}
-            onStopVoice={voice.stop}
-            onCancelVoice={voice.cancel}
-            onRetryVoice={voice.retry}
-            voiceState={voice.state}
-            voiceElapsed={voice.elapsed}
-            voiceError={voice.error}
+            voice={{
+              state: voice.state,
+              elapsed: voice.elapsed,
+              error: voice.error,
+              canRetry: voice.canRetry,
+              onStart: () => void voice.start(),
+              onStop: voice.stop,
+              onCancel: voice.cancel,
+              onRetry: voice.retry,
+            }}
+            patientControlsDisabled={voiceInFlight}
+            submitDisabled={voiceInFlight}
           />
         </div>
       </div>

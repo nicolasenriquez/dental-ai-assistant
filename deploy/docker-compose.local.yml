@@ -5,3 +5,4 @@ services:
     environment:
       SEED_ENABLE: "true"
       VOICE_TRANSCRIPTION_ENABLED: ${VOICE_TRANSCRIPTION_ENABLED:-false}
+      VOICE_LANGUAGE: ${VOICE_LANGUAGE:-es}

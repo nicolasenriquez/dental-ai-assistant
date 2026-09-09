@@ -12,6 +12,7 @@ import { useConversationViewportCache } from '../hooks/useConversationViewportCa
 import { useMessages } from '../hooks/useMessages';
 import type { ConversationRuntime, StreamResult } from '../hooks/useStreamingResponse';
 import { useToast } from '../hooks/useToast';
+import { isVoiceInFlight, useVoiceDictation } from '../hooks/useVoiceDictation';
 import type { Citation, Message as MessageType } from '../lib/api';
 import { RateLimitError, createConversation } from '../lib/api';
 import { exportConversationAsMarkdown } from '../lib/exportMarkdown';
@@ -240,6 +241,8 @@ export function ChatArea({
   const nextOptimisticTurnIdRef = useRef(0);
   const pendingUserMsgIdsRef = useRef(new Map<string, string>());
   const activeSendIdsRef = useRef(new Set<string>());
+  const queuedDispatchReadyRef = useRef(new Set<string>());
+  const voiceInFlightRef = useRef(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [queuedMessages, setQueuedMessages] = useState<Record<string, string>>({});
   const queuedMessagesRef = useRef(queuedMessages);
@@ -298,6 +301,17 @@ export function ChatArea({
       getPendingNavigationMessage(location.state))
     : null;
 
+  const appendVoiceText = useCallback((text: string) => {
+    const key = currentConversationIdRef.current ?? NEW_CHAT_KEY;
+    setDrafts((current) => {
+      const draft = current[key] ?? '';
+      return { ...current, [key]: draft ? `${draft}\n${text}` : text };
+    });
+  }, []);
+  const voice = useVoiceDictation(`chat:${currentKey}`, appendVoiceText);
+  const voiceInFlight = isVoiceInFlight(voice.state);
+  voiceInFlightRef.current = voiceInFlight;
+
   const setDraft = useCallback((value: string) => {
     const key = currentConversationIdRef.current ?? NEW_CHAT_KEY;
     setDrafts((current) => ({ ...current, [key]: value }));
@@ -306,8 +320,10 @@ export function ChatArea({
   const setQueuedMessage = useCallback((id: string, value: string | null) => {
     setQueuedMessages((current) => {
       const next = { ...current };
-      if (value === null) delete next[id];
-      else next[id] = value;
+      if (value === null) {
+        delete next[id];
+        queuedDispatchReadyRef.current.delete(id);
+      } else next[id] = value;
       queuedMessagesRef.current = next;
       return next;
     });
@@ -410,8 +426,12 @@ export function ChatArea({
         if (mountedRef.current) {
           const queued = queuedMessagesRef.current[id];
           if (queued) {
-            setQueuedMessage(id, null);
-            queuedToDispatch = queued;
+            if (id === currentConversationIdRef.current && voiceInFlightRef.current) {
+              queuedDispatchReadyRef.current.add(id);
+            } else {
+              setQueuedMessage(id, null);
+              queuedToDispatch = queued;
+            }
           }
         }
 
@@ -463,8 +483,25 @@ export function ChatArea({
     ],
   );
 
+  useEffect(() => {
+    if (
+      !conversationId ||
+      voiceInFlight ||
+      activeSendIdsRef.current.has(conversationId) ||
+      !queuedMessages[conversationId] ||
+      (isStreaming && !queuedDispatchReadyRef.current.has(conversationId))
+    ) {
+      return;
+    }
+    const queued = queuedMessages[conversationId];
+    queuedDispatchReadyRef.current.delete(conversationId);
+    setQueuedMessage(conversationId, null);
+    void sendMessage(conversationId, queued);
+  }, [conversationId, isStreaming, queuedMessages, sendMessage, setQueuedMessage, voiceInFlight]);
+
   const handleSend = useCallback(
     (content: string): boolean => {
+      if (voiceInFlightRef.current) return false;
       if (!conversationId) {
         if (creatingConversationRef.current) return false;
         creatingConversationRef.current = true;
@@ -697,6 +734,15 @@ export function ChatArea({
             isStreaming={isStreaming}
             runState={runtime?.phase}
             onStop={conversationId ? () => abortStream(conversationId) : undefined}
+            voiceState={voice.state}
+            voiceElapsed={voice.elapsed}
+            voiceError={voice.error}
+            voiceCanRetry={voice.canRetry}
+            onVoice={() => void voice.start()}
+            onStopVoice={voice.stop}
+            onCancelVoice={voice.cancel}
+            onRetryVoice={voice.retry}
+            submitDisabled={voiceInFlight}
           />
         </div>
       </div>

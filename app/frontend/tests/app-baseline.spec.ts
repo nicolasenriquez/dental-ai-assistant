@@ -400,6 +400,70 @@ test('keeps lower conversation menu actions visible', async ({ page }) => {
   await page.getByRole('button', { name: 'Cancelar' }).click();
 });
 
+test('hands off chat dictation without losing edits during transcription', async ({ page }) => {
+  await page.addInitScript(() => {
+    class DeterministicMediaRecorder {
+      static isTypeSupported() {
+        return true;
+      }
+      state: RecordingState = 'inactive';
+      mimeType = 'audio/webm';
+      ondataavailable: ((event: BlobEvent) => void) | null = null;
+      onstop: (() => void) | null = null;
+      start() {
+        this.state = 'recording';
+      }
+      stop() {
+        this.state = 'inactive';
+        this.ondataavailable?.({
+          data: new Blob(['deterministic voice'], { type: 'audio/webm' }),
+        } as BlobEvent);
+        this.onstop?.();
+      }
+    }
+
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      value: DeterministicMediaRecorder,
+    });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: async () => ({ getTracks: () => [{ stop: () => undefined }] }),
+      },
+    });
+  });
+  await mockJsonRoute(page, '**/api/conversations', [], 'GET');
+  let releaseTranscription!: () => void;
+  const transcriptionReady = new Promise<void>((resolve) => {
+    releaseTranscription = resolve;
+  });
+  await page.route('**/api/transcriptions', async (route) => {
+    await transcriptionReady;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ text: 'Texto dictado.' }),
+    });
+  });
+
+  await page.goto('/chat');
+  const input = page.getByLabel('Pregunta sobre la biblioteca de videos');
+  await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+  await expect(page.getByRole('button', { name: 'Detener grabación' })).toBeVisible();
+  await expect(input).toBeHidden();
+  await page.getByRole('button', { name: 'Detener grabación' }).click();
+
+  await expect(input).toBeEditable();
+  await expect(page.getByText('Transcribiendo… Puedes seguir editando.')).toBeVisible();
+  await input.fill('Edición manual');
+  await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+  releaseTranscription();
+  await expect(input).toHaveValue('Edición manual\nTexto dictado.');
+  await expect(page.getByText('Dictado añadido.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeEnabled();
+});
+
 test('isolates concurrent conversation streams, stop, retry, and manual scroll', async ({
   page,
 }) => {

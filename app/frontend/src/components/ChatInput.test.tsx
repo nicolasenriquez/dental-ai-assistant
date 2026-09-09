@@ -90,5 +90,60 @@ describe('ChatInput', () => {
 
       expect(input).toHaveStyle({ height: '120px' });
     });
+
+    it('keeps chat draft editable but blocks submit during transcription', () => {
+      const onSend = vi.fn();
+      const onValueChange = vi.fn();
+      render(
+        <ChatInput
+          value="Draft"
+          onValueChange={onValueChange}
+          onSend={onSend}
+          voiceState="transcribing"
+          voiceElapsed={0}
+          voiceError={null}
+          voiceCanRetry={false}
+          onVoice={vi.fn()}
+          onStopVoice={vi.fn()}
+          onCancelVoice={vi.fn()}
+          onRetryVoice={vi.fn()}
+          submitDisabled
+        />,
+      );
+
+      const input = screen.getByRole('textbox');
+      expect(input).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+      fireEvent.change(input, { target: { value: 'Edited draft' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(onValueChange).toHaveBeenCalledWith('Edited draft');
+      expect(onSend).not.toHaveBeenCalled();
+      expect(screen.getByText('Transcribiendo… Puedes seguir editando.')).toBeVisible();
+    });
+
+    it('exposes voice controls while recording', () => {
+      const onStopVoice = vi.fn();
+      const onCancelVoice = vi.fn();
+      render(
+        <ChatInput
+          onSend={vi.fn()}
+          voiceState="recording"
+          voiceElapsed={1_000}
+          voiceError={null}
+          voiceCanRetry={false}
+          onVoice={vi.fn()}
+          onStopVoice={onStopVoice}
+          onCancelVoice={onCancelVoice}
+          onRetryVoice={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole('button', { name: 'Detener grabación' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Cancelar dictado' })).toBeEnabled();
+      fireEvent.click(screen.getByRole('button', { name: 'Detener grabación' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar dictado' }));
+      expect(onStopVoice).toHaveBeenCalledTimes(1);
+      expect(onCancelVoice).toHaveBeenCalledTimes(1);
+    });
   });
 });
