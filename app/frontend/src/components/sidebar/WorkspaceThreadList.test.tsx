@@ -7,7 +7,7 @@ const items = [
     id: 'thread-1',
     title: 'Control de Ana',
     updatedAt: new Date().toISOString(),
-    statusLabel: '!',
+    statusLabel: 'Pendiente de aprobación',
   },
 ];
 
@@ -34,7 +34,7 @@ describe('WorkspaceThreadList', () => {
 
     expect(screen.getByRole('region', { name: 'Hoy' })).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Control de Ana · Aprobación pendiente' }),
+      screen.getByRole('button', { name: 'Control de Ana · Pendiente de aprobación' }),
     ).toBeVisible();
   });
 

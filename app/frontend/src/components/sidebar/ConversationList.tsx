@@ -41,6 +41,7 @@ export interface ConversationRowProps {
   query: string;
   isActive: boolean;
   runtime?: ConversationRuntime;
+  statusLabel?: string;
   onSelect: () => void;
   onDeleteRequest: () => void;
   onRename: (title: string) => void;
@@ -103,6 +104,7 @@ export function ConversationRow({
   query,
   isActive,
   runtime,
+  statusLabel,
   onSelect,
   onDeleteRequest,
   onRename,
@@ -266,6 +268,15 @@ export function ConversationRow({
               size={15}
               strokeWidth={1.8}
             />
+          )}
+          {statusLabel && (
+            <span
+              className="workspace-thread-list__status"
+              aria-label={statusLabel}
+              title={statusLabel}
+            >
+              <CircleAlert aria-hidden="true" size={15} strokeWidth={1.8} />
+            </span>
           )}
         </button>
       )}

@@ -160,9 +160,13 @@ export function WorkspaceThreadList({
         />
       )}
       {loading && (
-        <div className="workspace-thread-list__state" role="status">
-          <Spinner />
-          <span>Cargando…</span>
+        <div
+          className="conversation-skeletons"
+          aria-label={`Cargando ${title.toLocaleLowerCase()}`}
+        >
+          {[1, 2, 3].map((item) => (
+            <div className="conversation-skeleton" key={item} />
+          ))}
         </div>
       )}
       {!loading && error && (
@@ -229,9 +233,7 @@ export function WorkspaceThreadList({
                         onClick={() => onSelect(item.id)}
                         aria-current={item.active ? 'page' : undefined}
                         aria-label={
-                          item.statusLabel
-                            ? `${item.title} · ${item.statusLabel === '!' ? 'Aprobación pendiente' : item.statusLabel}`
-                            : item.title
+                          item.statusLabel ? `${item.title} · ${item.statusLabel}` : item.title
                         }
                         title={item.title}
                       >

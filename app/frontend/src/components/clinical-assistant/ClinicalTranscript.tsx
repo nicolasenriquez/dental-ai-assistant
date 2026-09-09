@@ -78,7 +78,11 @@ export function ClinicalTranscript({
 
   useLayoutEffect(() => {
     if (latestItem?.type === 'user') {
-      follow.followLatest();
+      const container = follow.scrollContainerRef.current;
+      const turn = container?.querySelector<HTMLElement>(`[data-turn-id="${latestItem.turnId}"]`);
+      if (container && turn) {
+        container.scrollTo({ top: Math.max(0, turn.offsetTop - 24), behavior: 'smooth' });
+      }
       return;
     }
     follow.onContentAppended();

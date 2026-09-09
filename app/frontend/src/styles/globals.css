@@ -1526,12 +1526,14 @@ body,
   min-width: 0;
   margin: 0 auto;
   flex-direction: column;
-  gap: 8px;
+  gap: 24px;
   padding: 0 24px;
 }
 
 .clinical-turn-group {
-  display: contents;
+  display: grid;
+  gap: 12px;
+  scroll-margin-top: 24px;
 }
 
 .clinical-activity {
@@ -1956,7 +1958,8 @@ body,
 
 .clinical-primary-button:focus-visible,
 .clinical-secondary-button:focus-visible,
-.clinical-patient-context select:focus-visible,
+.clinical-patient-trigger:focus-visible,
+.clinical-patient-search input:focus-visible,
 .clinical-patient-clear:focus-visible,
 .clinical-queue-actions button:focus-visible {
   outline: 2px solid var(--accent);
@@ -2039,6 +2042,9 @@ body,
 }
 
 .clinical-receipt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border-left: 2px solid var(--success);
   border-radius: 0 8px 8px 0;
   background: rgba(16, 185, 129, 0.06);
@@ -2053,7 +2059,7 @@ body,
 }
 
 .clinical-receipt a {
-  margin-left: 8px;
+  margin-left: auto;
   color: var(--accent);
 }
 
@@ -2121,7 +2127,8 @@ body,
   border-radius: var(--conversation-composer-radius);
   background: #111827;
   box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
-  overflow: hidden;
+  overflow: visible;
+  padding: 0;
   pointer-events: auto;
   transition: opacity 200ms ease, box-shadow 150ms ease;
 }
@@ -2134,8 +2141,8 @@ body,
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 48px;
-  padding: 10px 14px;
+  min-height: 40px;
+  padding: 6px 12px;
   gap: 8px;
   border-bottom: 1px solid var(--border);
 }
@@ -2144,22 +2151,105 @@ body,
   white-space: nowrap;
 }
 
-.clinical-patient-context select {
+.clinical-patient-picker {
+  position: relative;
   min-width: 0;
+}
+
+.clinical-patient-trigger {
+  display: flex;
   width: 100%;
-  max-width: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-2);
   color: var(--text-primary);
-  padding: 6px;
+  padding: 7px 9px;
   font: inherit;
   font-size: 12px;
+  text-align: left;
+}
+
+.clinical-patient-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-patient-popover {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  box-shadow: 0 14px 38px rgb(0 0 0 / 35%);
+}
+
+.clinical-patient-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding: 9px 10px;
+}
+
+.clinical-patient-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.clinical-patient-popover [role="listbox"] {
+  max-height: 240px;
+  overflow: auto;
+  padding: 5px;
+}
+
+.clinical-patient-popover [role="listbox"] > button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 8px;
+  text-align: left;
+}
+
+.clinical-patient-popover [role="listbox"] > button.is-active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.clinical-patient-popover [role="listbox"] span {
+  display: grid;
+  gap: 2px;
+}
+
+.clinical-patient-popover [role="listbox"] small,
+.clinical-patient-popover [role="listbox"] p {
+  color: var(--text-secondary);
+}
+
+.clinical-patient-popover [role="alert"] {
+  padding: 8px;
 }
 
 .clinical-patient-clear {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -2177,16 +2267,66 @@ body,
 .clinical-composer-input {
   display: block;
   width: 100%;
-  min-height: 56px;
+  min-height: 42px;
   max-height: 144px;
   border: 0;
   outline: 0;
   background: transparent;
   color: #f1f5f9;
-  padding: 13px 14px 5px;
+  padding: 10px 14px 4px;
   font: inherit;
   line-height: 1.5;
   resize: none;
+}
+
+.clinical-approval-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.clinical-approval-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(640px, calc(100vh - 32px));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: 0;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 55%);
+}
+
+.clinical-approval-dialog::backdrop {
+  background: rgb(2 6 23 / 70%);
+}
+
+.clinical-approval-dialog__body {
+  overflow: auto;
+  padding: 20px;
+}
+
+.clinical-approval-dialog__body h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.clinical-approval-dialog__body p {
+  color: var(--text-secondary);
+}
+
+.clinical-approval-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding: 14px 20px;
+}
+
+.clinical-jump {
+  bottom: calc(var(--composer-clearance) + 12px);
 }
 
 .clinical-voice-state {
@@ -2243,7 +2383,7 @@ body,
 
 .clinical-composer-actions {
   justify-content: flex-end;
-  padding: 6px 10px 10px;
+  padding: 4px 10px 8px;
 }
 
 .clinical-bottom-sentinel {

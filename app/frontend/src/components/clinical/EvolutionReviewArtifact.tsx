@@ -372,7 +372,7 @@ export function EvolutionReviewArtifact({
             disabled={emptyDraft || editingField !== null}
             onClick={onPrepare}
           >
-            Preparar para guardar
+            Revisar y guardar
           </button>
         ) : null}
       </div>

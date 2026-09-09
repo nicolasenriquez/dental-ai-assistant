@@ -58,6 +58,18 @@ async def create_thread(owner: UUID, title: str) -> ClinicalThreadResponse:
     return ClinicalThreadResponse(**await repository.create_thread(owner, safe_title))
 
 
+async def rename_thread(owner: UUID, thread: UUID, title: str) -> ClinicalThreadResponse | None:
+    safe_title = (await sanitize_content(owner, title)).display_text
+    updated = await repository.rename_thread(owner, thread, safe_title)
+    if updated is None:
+        return None
+    return await get_thread_response(owner, thread)
+
+
+async def delete_thread(owner: UUID, thread: UUID) -> bool:
+    return await repository.delete_thread(owner, thread)
+
+
 async def get_thread_response(owner: UUID, thread: UUID) -> ClinicalThreadResponse | None:
     stored = await repository.get_thread(owner, thread)
     if stored is None:

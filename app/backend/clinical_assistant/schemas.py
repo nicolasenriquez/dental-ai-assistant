@@ -23,6 +23,12 @@ class ClinicalThreadCreate(BaseModel):
     ] = "Asistente clínico"
 
 
+class ClinicalThreadUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+
+
 class ActivePatientUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   type ClinicalThreadSummary,
   createClinicalThread,
+  deleteClinicalThread,
   getClinicalThreads,
+  renameClinicalThread,
 } from '../../lib/api';
+import { ConversationRow } from '../sidebar/ConversationList';
 import { WorkspaceThreadList } from '../sidebar/WorkspaceThreadList';
 
 interface ClinicalThreadListProps {
@@ -54,6 +57,20 @@ export function ClinicalThreadList({
     }
   };
 
+  const rename = async (id: string, title: string) => {
+    await renameClinicalThread(id, title);
+    setThreads((current) =>
+      current.map((thread) => (thread.id === id ? { ...thread, title } : thread)),
+    );
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm('Eliminar esta conversación clínica?')) return;
+    await deleteClinicalThread(id);
+    setThreads((current) => current.filter((thread) => thread.id !== id));
+    if (id === activeThreadId) navigate('/assistant');
+  };
+
   return (
     <WorkspaceThreadList
       ariaLabel="Hilos del asistente clínico"
@@ -64,7 +81,7 @@ export function ClinicalThreadList({
         title: thread.title,
         updatedAt: thread.updated_at,
         active: thread.id === activeThreadId,
-        statusLabel: thread.approval_pending ? '!' : undefined,
+        statusLabel: thread.approval_pending ? 'Pendiente de aprobación' : undefined,
       }))}
       loading={loading}
       error={error}
@@ -75,7 +92,25 @@ export function ClinicalThreadList({
       creating={creating}
       onRetry={() => void refresh()}
       onRequestExpand={onRequestExpand}
-      createLabel="Nuevo hilo"
+      createLabel="Nueva evolución"
+      emptyMessage="Aún no hay conversaciones"
+      emptyActionLabel="Nueva evolución"
+      renderItem={(item) => (
+        <ConversationRow
+          conversation={{
+            id: item.id,
+            title: item.title,
+            created_at: item.updatedAt,
+            updated_at: item.updatedAt,
+          }}
+          query={query}
+          isActive={Boolean(item.active)}
+          statusLabel={item.statusLabel}
+          onSelect={() => navigate(`/a/${item.id}`)}
+          onDeleteRequest={() => void remove(item.id)}
+          onRename={(title) => void rename(item.id, title)}
+        />
+      )}
     />
   );
 }

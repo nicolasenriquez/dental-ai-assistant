@@ -123,6 +123,42 @@ async def test_stale_turn_lock_is_reclaimable() -> None:
     assert _turn_is_stale(datetime.now(UTC) - timedelta(minutes=20))
 
 
+async def test_clinical_thread_lifecycle_stays_owner_scoped(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    calls: list[tuple[object, ...]] = []
+
+    async def sanitize(_owner, title):
+        return type("Sanitized", (), {"display_text": title.strip()})()
+
+    async def rename(owner_id, thread_id, title):
+        calls.append(("rename", owner_id, thread_id, title))
+        return {"id": thread_id}
+
+    async def get_response(owner_id, thread_id):
+        calls.append(("get", owner_id, thread_id))
+        return "updated"
+
+    async def delete(owner_id, thread_id):
+        calls.append(("delete", owner_id, thread_id))
+        return True
+
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.repository, "rename_thread", rename)
+    monkeypatch.setattr(service, "get_thread_response", get_response)
+    monkeypatch.setattr(service.repository, "delete_thread", delete)
+
+    assert await service.rename_thread(owner, thread, " Control ") == "updated"
+    assert await service.delete_thread(owner, thread)
+    assert calls == [
+        ("rename", owner, thread, "Control"),
+        ("get", owner, thread),
+        ("delete", owner, thread),
+    ]
+
+
 async def test_clinical_turn_releases_lock_when_setup_fails(monkeypatch) -> None:
     from backend.clinical_assistant import service
 

@@ -41,10 +41,51 @@ describe('ClinicalComposer', () => {
     renderComposer();
 
     expect(screen.getByTestId('clinical-composer')).toHaveClass('chat-composer');
-    expect(screen.getByLabelText('Seleccionar paciente activo')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Dictar nota' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
     expect(screen.queryByText('🎙 Dictar')).not.toBeInTheDocument();
+  });
+
+  it('filters patients and supports keyboard selection', () => {
+    const onPatientChange = vi.fn();
+    render(
+      <ClinicalComposer
+        patient={null}
+        patients={patients}
+        value=""
+        busy={false}
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onPatientChange={onPatientChange}
+        onSubmit={vi.fn()}
+        onVoice={vi.fn()}
+        onStopVoice={vi.fn()}
+        onCancelVoice={vi.fn()}
+        onRetryVoice={vi.fn()}
+        voiceState="idle"
+        voiceElapsed={0}
+        voiceError={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente activo' }));
+    const search = screen.getByRole('combobox', { name: 'Buscar paciente por nombre o RUT' });
+    fireEvent.change(search, { target: { value: 'Ana' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(onPatientChange).toHaveBeenCalledWith('patient-1');
+  });
+
+  it('keeps empty results stable and closes on outside click', () => {
+    renderComposer();
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente activo' }));
+    const search = screen.getByRole('combobox', { name: 'Buscar paciente por nombre o RUT' });
+    fireEvent.change(search, { target: { value: 'Nadie' } });
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(screen.getByText('No se encontraron pacientes.')).toBeVisible();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
   it('uses the shared send control for a typed clinical note', () => {

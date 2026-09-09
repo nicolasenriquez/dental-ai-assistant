@@ -474,25 +474,6 @@ export function useClinicalAssistant(threadId: string | undefined) {
           itemId: item.id,
           status: resolvedStatus,
         });
-        dispatch({
-          type: 'append',
-          item: {
-            id: `result:${item.action.id}`,
-            turnId: item.turnId,
-            status: resolvedStatus,
-            createdAt: now(),
-            type: 'result',
-            actionId: item.action.id,
-            message:
-              resolvedStatus === 'completed'
-                ? 'Evolución guardada.'
-                : resolvedStatus === 'declined'
-                  ? 'Guardado descartado. No se realizaron cambios.'
-                  : 'La confirmación no pudo completarse.',
-            evolutionId: result.result_resource_id,
-            patientId: item.action.patient_id,
-          },
-        });
         setRuntime('idle');
         setThread((current) => (current ? { ...current, pending_action: null } : current));
       } catch (caught) {

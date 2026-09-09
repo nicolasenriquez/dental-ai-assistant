@@ -328,6 +328,18 @@ export const createClinicalThread = (title = 'Asistente clínico') =>
   });
 export const getClinicalThreads = () => request<ClinicalThreadSummary[]>('/clinical-threads');
 export const getClinicalThread = (id: string) => request<ClinicalThread>(`/clinical-threads/${id}`);
+export const renameClinicalThread = (id: string, title: string) =>
+  request<ClinicalThread>(`/clinical-threads/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  });
+export const deleteClinicalThread = async (id: string): Promise<void> => {
+  const response = await fetch(`${BASE}/clinical-threads/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!response.ok) return parseApiError(response);
+};
 export const setClinicalActivePatient = (threadId: string, patientId: string | null) =>
   request<ClinicalThread>(`/clinical-threads/${threadId}/active-patient`, {
     method: 'PATCH',

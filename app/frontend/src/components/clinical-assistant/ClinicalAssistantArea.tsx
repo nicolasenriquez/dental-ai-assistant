@@ -20,6 +20,8 @@ export function ClinicalAssistantArea({
 }: ClinicalAssistantAreaProps) {
   const assistant = useClinicalAssistant(threadId);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [patientsLoading, setPatientsLoading] = useState(true);
+  const [patientsError, setPatientsError] = useState(false);
   const [draftByThread, setDraftByThread] = useState<Record<string, string>>({});
   const [queueByThread, setQueueByThread] = useState<Record<string, QueuedEntry[]>>({});
   const value = draftByThread[threadId] ?? '';
@@ -45,11 +47,20 @@ export function ClinicalAssistantArea({
   const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    void getPatients()
-      .then(setPatients)
-      .catch(() => setPatients([]));
+  const loadPatients = useCallback(async () => {
+    setPatientsLoading(true);
+    setPatientsError(false);
+    try {
+      setPatients(await getPatients());
+    } catch {
+      setPatientsError(true);
+    } finally {
+      setPatientsLoading(false);
+    }
   }, []);
+  useEffect(() => {
+    void loadPatients();
+  }, [loadPatients]);
   useEffect(() => {
     const composer = composerRef.current;
     const root = composer?.parentElement;
@@ -121,7 +132,7 @@ export function ClinicalAssistantArea({
         title={assistant.thread?.title ?? 'Asistente'}
         description={
           assistant.thread?.active_patient
-            ? `${assistant.thread.active_patient.first_name} ${assistant.thread.active_patient.last_name}`
+            ? `Paciente · ${assistant.thread.active_patient.rut_masked}`
             : 'Sin paciente activo'
         }
       />
@@ -246,6 +257,9 @@ export function ClinicalAssistantArea({
           <ClinicalComposer
             patient={assistant.thread?.active_patient ?? null}
             patients={patients}
+            patientsLoading={patientsLoading}
+            patientsError={patientsError}
+            onRetryPatients={() => void loadPatients()}
             value={value}
             busy={
               assistant.runtime === 'streaming' ||

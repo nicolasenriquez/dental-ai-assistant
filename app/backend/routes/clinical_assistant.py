@@ -17,6 +17,7 @@ from backend.clinical_assistant.schemas import (
     ClinicalDraft,
     ClinicalThreadCreate,
     ClinicalThreadResponse,
+    ClinicalThreadUpdate,
     ClinicalTurnRequest,
     PrepareSaveRequest,
     RegenerateDraftRequest,
@@ -53,6 +54,24 @@ async def get_thread(
     thread_id: UUID, user: dict[str, Any] = Depends(get_current_user)
 ) -> ClinicalThreadResponse:
     return await _response(_user_id(user), thread_id)
+
+
+@router.patch("/clinical-threads/{thread_id}", response_model=ClinicalThreadResponse)
+async def rename_thread(
+    thread_id: UUID,
+    request: ClinicalThreadUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ClinicalThreadResponse:
+    updated = await service.rename_thread(_user_id(user), thread_id, request.title)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
+    return updated
+
+
+@router.delete("/clinical-threads/{thread_id}", status_code=204)
+async def delete_thread(thread_id: UUID, user: dict[str, Any] = Depends(get_current_user)) -> None:
+    if not await service.delete_thread(_user_id(user), thread_id):
+        raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
 
 
 @router.patch("/clinical-threads/{thread_id}/active-patient", response_model=ClinicalThreadResponse)

@@ -131,6 +131,34 @@ async def list_threads(owner_user_id: UUID | str) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+async def rename_thread(
+    owner_user_id: UUID | str, thread_id: UUID | str, title: str
+) -> dict[str, Any] | None:
+    async with get_pg_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE clinical_threads SET title = $3, updated_at = now()
+            WHERE id = $1 AND owner_user_id = $2
+            RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                      created_at, updated_at
+            """,
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+            title,
+        )
+    return dict(row) if row else None
+
+
+async def delete_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> bool:
+    async with get_pg_pool().acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM clinical_threads WHERE id = $1 AND owner_user_id = $2",
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+        )
+    return result == "DELETE 1"
+
+
 async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[str, Any] | None:
     thread_uuid = _uuid(thread_id)
     async with get_pg_pool().acquire() as conn:

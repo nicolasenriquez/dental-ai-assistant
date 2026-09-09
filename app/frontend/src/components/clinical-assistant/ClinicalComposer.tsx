@@ -1,5 +1,5 @@
-import { ListPlus, Mic } from 'lucide-react';
-import { type KeyboardEvent, type RefObject, useState } from 'react';
+import { Check, ChevronsUpDown, ListPlus, Mic, Search, X } from 'lucide-react';
+import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import type { VoiceState } from '../../hooks/useClinicalVoiceInput';
 import type { ClinicalPatient } from '../../lib/api';
 import { ComposerShell } from '../ComposerShell';
@@ -8,6 +8,9 @@ import { Spinner } from '../Spinner';
 interface ClinicalComposerProps {
   patient: ClinicalPatient | null;
   patients: import('../../lib/api').Patient[];
+  patientsLoading?: boolean;
+  patientsError?: boolean;
+  onRetryPatients?: () => void;
   value: string;
   busy: boolean;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -26,6 +29,9 @@ interface ClinicalComposerProps {
 export function ClinicalComposer({
   patient,
   patients,
+  patientsLoading = false,
+  patientsError = false,
+  onRetryPatients,
   value,
   busy,
   textareaRef,
@@ -41,6 +47,38 @@ export function ClinicalComposer({
   voiceError,
 }: ClinicalComposerProps) {
   const [focused, setFocused] = useState(false);
+  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
+  const [patientQuery, setPatientQuery] = useState('');
+  const [activeOption, setActiveOption] = useState(0);
+  const patientPickerRef = useRef<HTMLDivElement>(null);
+  const patientTriggerRef = useRef<HTMLButtonElement>(null);
+  const filteredPatients = useMemo(() => {
+    const query = patientQuery.trim().toLocaleLowerCase();
+    if (!query) return patients;
+    return patients.filter((option) =>
+      `${option.first_name} ${option.last_name} ${option.rut_masked}`
+        .toLocaleLowerCase()
+        .includes(query),
+    );
+  }, [patientQuery, patients]);
+  const choosePatient = (patientId: string) => {
+    onPatientChange(patientId);
+    setPatientPickerOpen(false);
+    setPatientQuery('');
+    setActiveOption(0);
+  };
+  const closePatientPicker = () => {
+    setPatientPickerOpen(false);
+    requestAnimationFrame(() => patientTriggerRef.current?.focus());
+  };
+  useEffect(() => {
+    if (!patientPickerOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!patientPickerRef.current?.contains(event.target as Node)) setPatientPickerOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [patientPickerOpen]);
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -52,18 +90,101 @@ export function ClinicalComposer({
     <ComposerShell className="clinical-composer" focused={focused} testId="clinical-composer">
       <div className="clinical-patient-context">
         <span className="clinical-patient-label">Paciente activo</span>
-        <select
-          aria-label="Seleccionar paciente activo"
-          value={patient?.id ?? ''}
-          onChange={(event) => onPatientChange(event.target.value || null)}
-        >
-          <option value="">Seleccionar paciente</option>
-          {patients.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.first_name} {option.last_name} · {option.rut_masked}
-            </option>
-          ))}
-        </select>
+        <div ref={patientPickerRef} className="clinical-patient-picker">
+          <button
+            ref={patientTriggerRef}
+            type="button"
+            className="clinical-patient-trigger"
+            aria-label="Seleccionar paciente activo"
+            aria-haspopup="listbox"
+            aria-expanded={patientPickerOpen}
+            onClick={() => setPatientPickerOpen((current) => !current)}
+          >
+            <span>
+              {patient
+                ? `${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`
+                : 'Seleccionar paciente'}
+            </span>
+            <ChevronsUpDown aria-hidden="true" size={15} />
+          </button>
+          {patientPickerOpen && (
+            <div className="clinical-patient-popover">
+              <label className="clinical-patient-search">
+                <Search aria-hidden="true" size={15} />
+                <input
+                  autoFocus
+                  role="combobox"
+                  aria-label="Buscar paciente por nombre o RUT"
+                  aria-controls="clinical-patient-options"
+                  aria-expanded="true"
+                  aria-activedescendant={filteredPatients[activeOption]?.id}
+                  value={patientQuery}
+                  onChange={(event) => {
+                    setPatientQuery(event.target.value);
+                    setActiveOption(0);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') closePatientPicker();
+                    if (event.key === 'ArrowDown') {
+                      event.preventDefault();
+                      if (filteredPatients.length > 0) {
+                        setActiveOption((current) =>
+                          Math.min(current + 1, filteredPatients.length - 1),
+                        );
+                      }
+                    }
+                    if (event.key === 'ArrowUp') {
+                      event.preventDefault();
+                      setActiveOption((current) => Math.max(current - 1, 0));
+                    }
+                    if (event.key === 'Enter' && filteredPatients[activeOption]) {
+                      event.preventDefault();
+                      choosePatient(filteredPatients[activeOption].id);
+                    }
+                  }}
+                  placeholder="Buscar por nombre o RUT…"
+                />
+              </label>
+              <div id="clinical-patient-options" role="listbox" tabIndex={-1}>
+                {patientsLoading ? (
+                  <p role="status">Cargando pacientes…</p>
+                ) : patientsError ? (
+                  <div role="alert">
+                    <p>No pudimos cargar los pacientes.</p>
+                    {onRetryPatients && (
+                      <button type="button" onClick={onRetryPatients}>
+                        Reintentar
+                      </button>
+                    )}
+                  </div>
+                ) : filteredPatients.length === 0 ? (
+                  <p>No se encontraron pacientes.</p>
+                ) : (
+                  filteredPatients.map((option, index) => (
+                    <button
+                      type="button"
+                      role="option"
+                      id={option.id}
+                      key={option.id}
+                      aria-selected={option.id === patient?.id}
+                      className={index === activeOption ? 'is-active' : undefined}
+                      onMouseEnter={() => setActiveOption(index)}
+                      onClick={() => choosePatient(option.id)}
+                    >
+                      <span>
+                        <strong>
+                          {option.first_name} {option.last_name}
+                        </strong>
+                        <small>{option.rut_masked}</small>
+                      </span>
+                      {option.id === patient?.id && <Check aria-hidden="true" size={15} />}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         {patient && (
           <button
             type="button"
@@ -71,7 +192,7 @@ export function ClinicalComposer({
             onClick={() => onPatientChange(null)}
             aria-label="Quitar paciente activo"
           >
-            ×
+            <X aria-hidden="true" size={17} />
           </button>
         )}
       </div>
@@ -135,7 +256,7 @@ export function ClinicalComposer({
           onKeyDown={onKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          rows={2}
+          rows={1}
           aria-label="Nota clínica"
           placeholder={
             patient
