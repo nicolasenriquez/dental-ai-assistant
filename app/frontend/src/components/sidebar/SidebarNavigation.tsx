@@ -1,4 +1,4 @@
-import { Library, MessageCircle, SquarePen, Stethoscope, UsersRound } from 'lucide-react';
+import { MessageCircle, SquarePen, Stethoscope, UsersRound } from 'lucide-react';
 import { LayoutGroup, motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -10,7 +10,6 @@ interface SidebarNavigationProps {
   creatingNew: boolean;
   onClose: () => void;
   onNewChat: () => void;
-  onOpenLibrary: () => void;
 }
 
 interface NavigationItemProps {
@@ -39,7 +38,6 @@ export function SidebarNavigation({
   creatingNew,
   onClose,
   onNewChat,
-  onOpenLibrary,
 }: SidebarNavigationProps) {
   const location = useLocation();
   const patientsActive = location.pathname.startsWith('/patients');
@@ -94,22 +92,6 @@ export function SidebarNavigation({
             <span className="sidebar-label">Chat</span>
           </Link>
         </NavigationItem>
-
-        {showConversations && (
-          <NavigationItem active={false}>
-            <button
-              type="button"
-              className="sidebar-nav-button"
-              onClick={onOpenLibrary}
-              aria-label={isCollapsed ? 'Biblioteca' : undefined}
-              title={isCollapsed ? 'Biblioteca' : undefined}
-              data-tooltip={isCollapsed ? 'Biblioteca' : undefined}
-            >
-              <Library aria-hidden="true" size={16} strokeWidth={1.7} />
-              <span className="sidebar-label">Biblioteca</span>
-            </button>
-          </NavigationItem>
-        )}
 
         {showConversations && (
           <NavigationItem active={false}>

@@ -77,6 +77,25 @@ describe('NewEvolution generation states', () => {
     expect(screen.getByText('posible lesión')).toBeVisible();
   });
 
+  it('reviews a flag-only generation with saving disabled', async () => {
+    vi.spyOn(api, 'generateEvolution').mockResolvedValue({
+      context: '',
+      findings: '',
+      assessment: '',
+      treatment: '',
+      follow_up: '',
+      review_flags: [{ source_text: 'ROM leve', reason: 'Requiere interpretación' }],
+    });
+    renderNewEvolution();
+    await enterNote();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generar borrador con IA' }));
+
+    expect(await screen.findByRole('heading', { name: 'Revisa estos puntos' })).toBeVisible();
+    expect(screen.getByText('ROM leve')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Guardar evolución' })).toBeDisabled();
+  });
+
   it('renders insufficient content without empty clinical fields', async () => {
     vi.spyOn(api, 'generateEvolution').mockRejectedValue(
       new api.ApiError(422, {

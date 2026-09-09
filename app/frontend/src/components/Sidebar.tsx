@@ -1,3 +1,4 @@
+import { Library } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
   type KeyboardEventHandler,
@@ -228,10 +229,6 @@ export function Sidebar({
             creatingNew={creatingNew}
             onClose={onClose}
             onNewChat={handleNewChat}
-            onOpenLibrary={() => {
-              setExplorerOpen(true);
-              onClose();
-            }}
           />
 
           {secondaryContent && <div className="sidebar-secondary-scroll">{secondaryContent}</div>}
@@ -285,6 +282,25 @@ export function Sidebar({
             remaining={user.messages_remaining_today}
             resetsAt={user.rate_window_resets_at}
           />
+        )}
+
+        {showConversations && (
+          <div className="sidebar-chat-utilities">
+            <button
+              type="button"
+              className="sidebar-nav-button sidebar-library-action"
+              onClick={() => {
+                setExplorerOpen(true);
+                onClose();
+              }}
+              aria-label={isCollapsed ? 'Biblioteca' : undefined}
+              title={isCollapsed ? 'Biblioteca' : undefined}
+              data-tooltip={isCollapsed ? 'Biblioteca' : undefined}
+            >
+              <Library aria-hidden="true" size={16} strokeWidth={1.7} />
+              <span className="sidebar-label">Biblioteca</span>
+            </button>
+          </div>
         )}
 
         <div className="sidebar-footer">

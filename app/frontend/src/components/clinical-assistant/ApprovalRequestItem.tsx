@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { ClinicalApprovalItem as ApprovalItemData } from '../../hooks/useClinicalAssistant';
 import { formatClinicalDateTime } from '../../lib/clinicalDate';
+import { Spinner } from '../Spinner';
 
 interface ApprovalRequestItemProps {
   item: ApprovalItemData;
@@ -38,7 +39,7 @@ export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProp
             : declined
               ? 'No se realizaron cambios.'
               : 'Esta confirmación expiró o ya no puede recuperarse.'
-          : 'Revisa exactamente lo que se incorporará a la ficha.'}
+          : 'Confirma el destino antes de guardar.'}
       </p>
       {resolved ? (
         <div className="clinical-receipt">
@@ -56,31 +57,14 @@ export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProp
         </div>
       ) : (
         <>
-          <dl className="clinical-approval-details">
-            <div>
-              <dt>Paciente</dt>
-              <dd>
-                {item.patient.first_name} {item.patient.last_name} · {item.patient.rut_masked}
-              </dd>
-            </div>
+          <div className="clinical-approval-summary">
+            <strong>
+              {item.patient.first_name} {item.patient.last_name}
+            </strong>
             {evolutionAt && (
-              <div>
-                <dt>Fecha</dt>
-                <dd>
-                  <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>
-                </dd>
-              </div>
+              <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>
             )}
-            <div>
-              <dt>Evolución</dt>
-              <dd>
-                <pre>
-                  {payload?.final_text ??
-                    'El contenido de esta confirmación ya no está disponible.'}
-                </pre>
-              </dd>
-            </div>
-          </dl>
+          </div>
           <p className="clinical-muted">Esto todavía no se ha guardado.</p>
         </>
       )}
@@ -100,7 +84,13 @@ export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProp
             disabled={committing}
             onClick={() => onResolve('approve')}
           >
-            {committing ? 'Guardando…' : 'Confirmar y guardar'}
+            {committing ? (
+              <>
+                <Spinner /> Guardando…
+              </>
+            ) : (
+              'Confirmar y guardar'
+            )}
           </button>
         </div>
       )}

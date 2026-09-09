@@ -67,6 +67,53 @@ function event(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('clinical runtime', () => {
+  it('morphs a running draft activity into the live artifact with the same item id', () => {
+    const started = decodeClinicalEvent(
+      'item.started',
+      event({
+        item_type: 'activity',
+        status: 'running',
+        data: { created_at: '2026-09-08T12:00:00Z', label: 'Preparando borrador' },
+      }),
+      { threadId: 'thread-1', turnId: 'turn-1' },
+    );
+    const completed = decodeClinicalEvent(
+      'item.completed',
+      event({
+        event_id: 'event-2',
+        sequence: 2,
+        item_type: 'clinical_draft',
+        status: 'completed',
+        data: {
+          created_at: '2026-09-08T12:00:01Z',
+          patient_id: 'patient-1',
+          evolution_at: '2026-09-08T12:00:00Z',
+          source_note: 'Control preventivo',
+          draft: {
+            context: 'Control',
+            findings: 'Sin hallazgos',
+            assessment: 'Estable',
+            treatment: 'Mantener higiene',
+            follow_up: 'Control en seis meses',
+            review_flags: [],
+          },
+        },
+      }),
+      { threadId: 'thread-1', turnId: 'turn-1' },
+    );
+    if (!started || !completed) throw new Error('expected valid clinical events');
+
+    let state = clinicalReducer(createClinicalReducerState(), { type: 'event', event: started });
+    state = clinicalReducer(state, { type: 'event', event: completed });
+
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toMatchObject({
+      id: 'item-1',
+      type: 'draft',
+      artifactStatus: 'draft',
+    });
+  });
+
   it('rejects malformed or foreign events before state changes', () => {
     expect(
       decodeClinicalEvent('item.completed', event({ thread_id: 'other-thread' }), {

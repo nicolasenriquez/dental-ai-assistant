@@ -45,6 +45,10 @@ EmptyClinicalDraftError = clinical_evolutions.EmptyClinicalDraftError
 ClinicalGenerationError = clinical_evolutions.ClinicalGenerationError
 
 
+class ArtifactNotDraftError(RuntimeError):
+    """Raised when save preparation targets a frozen artifact."""
+
+
 async def list_threads(owner: UUID) -> list[dict[str, Any]]:
     return cast(list[dict[str, Any]], await repository.list_threads(owner))
 
@@ -230,6 +234,17 @@ def _activity(
 
 
 async def stream_turn(
+    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, content: str
+) -> AsyncIterator[str]:
+    """Run one safe clinical turn and always release its thread lock."""
+    try:
+        async for chunk in _stream_turn(owner_user_id, thread_id, turn_id, content):
+            yield chunk
+    finally:
+        await repository.finish_turn(owner_user_id, thread_id, turn_id)
+
+
+async def _stream_turn(
     owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, content: str
 ) -> AsyncIterator[str]:
     """Run one safe clinical turn and emit typed lifecycle events."""
@@ -507,8 +522,6 @@ async def stream_turn(
                 "error_code": "TOOL_EXECUTION_FAILED",
             },
         )
-    finally:
-        await repository.finish_turn(owner, thread, turn)
 
 
 async def prepare_save(
@@ -522,8 +535,8 @@ async def prepare_save(
     artifact = await repository.get_artifact(owner, thread, request.artifact_id)
     if artifact is None or UUID(str(artifact["turn_id"])) != request.turn_id:
         raise LookupError("Turn not found")
-    if artifact["status"] == "stale":
-        raise ValueError("El artifact requiere regeneración")
+    if artifact["status"] != "draft":
+        raise ArtifactNotDraftError
     patient_id = UUID(str(artifact["patient_id"]))
     patient = await patients_repo.get_patient(owner, patient_id)
     if patient is None:

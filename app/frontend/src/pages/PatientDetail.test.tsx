@@ -167,18 +167,20 @@ describe('PatientDetail evolution workspace', () => {
 
   it('keeps RUT masked and confirms dirty-form close', async () => {
     mockPatientData();
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     renderPatient('/patients/patient-1', { preserveHistory: true });
     fireEvent.click(await screen.findByRole('button', { name: 'Editar paciente' }));
     fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: 'Lucia' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
 
-    expect(confirm).toHaveBeenCalledOnce();
+    expect(screen.getByRole('dialog', { name: '¿Salir sin guardar?' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar editando' }));
     expect(screen.getByRole('heading', { name: 'Editar paciente' })).toBeVisible();
+    expect(screen.getByLabelText('Nombres')).toHaveValue('Lucia');
+    expect(screen.queryByRole('dialog', { name: '¿Salir sin guardar?' })).not.toBeInTheDocument();
 
-    confirm.mockReturnValue(true);
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salir sin guardar' }));
     expect(screen.queryByRole('heading', { name: 'Editar paciente' })).not.toBeInTheDocument();
   });
 

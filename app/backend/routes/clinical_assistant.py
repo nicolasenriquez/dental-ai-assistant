@@ -147,6 +147,10 @@ async def prepare_save(
         return cast(dict[str, Any], await service.prepare_save(_user_id(user), thread_id, request))
     except LookupError:
         raise HTTPException(status_code=404, detail="Hilo o paciente no encontrado") from None
+    except service.ArtifactNotDraftError:
+        raise HTTPException(
+            status_code=409, detail={"code": "CLINICAL_ARTIFACT_NOT_DRAFT"}
+        ) from None
     except service.PendingActionExistsError:
         raise HTTPException(
             status_code=409, detail={"code": "CLINICAL_PENDING_ACTION_EXISTS"}

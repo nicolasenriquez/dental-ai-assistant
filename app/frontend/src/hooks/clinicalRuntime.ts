@@ -240,7 +240,14 @@ function upsertStreamItem(
   const index = items.findIndex((item) => item.id === incoming.id);
   if (index < 0) return [...items, incoming];
   const current = items[index];
-  if (current.type !== incoming.type) return items;
+  // The backend deliberately keeps the same item id while the draft activity
+  // becomes the reviewable artifact. That is the only valid type transition.
+  if (current.type !== incoming.type) {
+    if (current.type === 'activity' && incoming.type === 'draft') {
+      return items.map((item, itemIndex) => (itemIndex === index ? incoming : item));
+    }
+    return items;
+  }
   if (terminalStatuses.has(current.status)) return items;
   return items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...incoming } : item));
 }
@@ -296,6 +303,7 @@ function itemFromEvent(event: ClinicalEvent): ClinicalTranscriptItem | null {
       status: 'completed',
       createdAt,
       type: 'draft',
+      artifactStatus: 'draft',
       draft,
       baseline: draft,
       sourceNote,

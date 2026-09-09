@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { Check, CircleX } from 'lucide-react';
+import { useEffect, useLayoutEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useChatAutoFollow } from '../../hooks/useChatAutoFollow';
@@ -10,6 +11,7 @@ import type {
 import { useConversationViewportCache } from '../../hooks/useConversationViewportCache';
 import type { ClinicalDraft } from '../../lib/api';
 import { Message } from '../Message';
+import { Spinner } from '../Spinner';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 import { ClinicalDraftItem } from './ClinicalDraftItem';
 
@@ -24,6 +26,7 @@ interface ClinicalTranscriptProps {
   onPrepare: (item: DraftItemData) => void;
   onResolve: (item: ApprovalItemData, decision: 'approve' | 'decline') => void;
   onRetry: (turnId: string) => void;
+  busy?: boolean;
 }
 
 function groupByTurn(items: ClinicalTranscriptItem[]): ClinicalTranscriptItem[][] {
@@ -47,6 +50,7 @@ export function ClinicalTranscript({
   onPrepare,
   onResolve,
   onRetry,
+  busy = false,
 }: ClinicalTranscriptProps) {
   const follow = useChatAutoFollow();
   const viewport = useConversationViewportCache({
@@ -56,9 +60,29 @@ export function ClinicalTranscript({
   });
   const { restoreViewport } = viewport;
 
-  useEffect(() => {
+  const latestItem = items[items.length - 1];
+  const latestContentRevision =
+    latestItem?.type === 'assistant'
+      ? latestItem.content.length
+      : latestItem?.type === 'activity'
+        ? latestItem.label
+        : latestItem?.type === 'result' || latestItem?.type === 'error'
+          ? latestItem.message
+          : '';
+  const followRevision = [
+    items.length,
+    latestItem?.id ?? '',
+    latestItem?.status ?? '',
+    latestContentRevision,
+  ].join(':');
+
+  useLayoutEffect(() => {
+    if (latestItem?.type === 'user') {
+      follow.followLatest();
+      return;
+    }
     follow.onContentAppended();
-  }, [follow.onContentAppended, items.length]);
+  }, [follow.followLatest, follow.onContentAppended, followRevision, latestItem?.type]);
 
   useEffect(() => {
     const cached = restoreViewport(threadId);
@@ -72,7 +96,9 @@ export function ClinicalTranscript({
       ref={follow.scrollContainerRef}
       onScroll={follow.onScroll}
       className="chat-message-scroll clinical-transcript"
+      role="log"
       aria-label="Transcripción clínica"
+      aria-busy={busy}
     >
       {items.length === 0 && emptyState ? (
         emptyState
@@ -95,20 +121,14 @@ export function ClinicalTranscript({
                       role="status"
                       aria-live="polite"
                     >
-                      <span
-                        className={
-                          item.status === 'running'
-                            ? 'clinical-activity-icon clinical-activity-icon--running'
-                            : 'clinical-activity-icon'
-                        }
-                        aria-hidden="true"
-                      >
-                        {item.status === 'running' ? '○' : '✓'}
-                      </span>
-                      <span>
-                        {item.label}
-                        {item.status === 'running' ? '…' : ''}
-                      </span>
+                      {item.status === 'running' || item.status === 'pending' ? (
+                        <Spinner />
+                      ) : item.status === 'failed' || item.status === 'declined' ? (
+                        <CircleX aria-hidden="true" size={14} strokeWidth={1.8} />
+                      ) : (
+                        <Check aria-hidden="true" size={14} strokeWidth={1.8} />
+                      )}
+                      <span>{item.label}</span>
                     </div>
                   );
                 if (item.type === 'draft')

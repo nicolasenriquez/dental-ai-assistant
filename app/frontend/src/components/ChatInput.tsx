@@ -1,3 +1,4 @@
+import { ListPlus } from 'lucide-react';
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -9,6 +10,8 @@ import {
   useState,
 } from 'react';
 import type { ChatRunState } from '../hooks/useStreamingResponse';
+import { ComposerShell } from './ComposerShell';
+import { Spinner } from './Spinner';
 
 export interface ChatInputHandle {
   /** Restore text to the input (e.g. after a failed send) and focus */
@@ -115,9 +118,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     );
 
     return (
-      <div
-        className={`chat-composer${focused ? ' is-focused' : ''}${isDisabled ? ' is-disabled' : ''}`}
-      >
+      <ComposerShell focused={focused} disabled={isDisabled}>
         <textarea
           ref={textareaRef}
           aria-label="Pregunta sobre la biblioteca de videos"
@@ -141,12 +142,23 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             type="button"
             onClick={onStop}
             disabled={isStopping || isDisabled}
-            aria-label="Detener respuesta"
+            aria-label={isStopping ? 'Deteniendo respuesta' : 'Detener respuesta'}
+            title={isStopping ? 'Deteniendo…' : 'Detener'}
             className="chat-stop-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-              <rect x="1" y="1" width="10" height="10" rx="1" />
-            </svg>
+            {isStopping ? (
+              <Spinner size={13} />
+            ) : (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <rect x="1" y="1" width="10" height="10" rx="1" />
+              </svg>
+            )}
           </button>
         )}
 
@@ -155,24 +167,29 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           onClick={handleSend}
           disabled={isDisabled || !inputValue.trim()}
           aria-label={activeRun ? 'Poner mensaje en cola' : 'Enviar mensaje'}
+          title={activeRun ? 'Agregar a cola' : 'Enviar'}
           className={`chat-send-button${!inputValue.trim() || isDisabled ? ' is-disabled' : ''} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none`}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="8" y1="14" x2="8" y2="3" />
-            <polyline points="3,8 8,3 13,8" />
-          </svg>
+          {activeRun ? (
+            <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />
+          ) : (
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="8" y1="14" x2="8" y2="3" />
+              <polyline points="3,8 8,3 13,8" />
+            </svg>
+          )}
         </button>
-      </div>
+      </ComposerShell>
     );
   },
 );

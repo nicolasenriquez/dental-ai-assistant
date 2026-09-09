@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
 import { useClinicalVoiceInput } from '../../hooks/useClinicalVoiceInput';
 import { type ClinicalDraft, type Patient, getPatients } from '../../lib/api';
+import { WorkspaceHeader } from '../WorkspaceHeader';
 import { ClinicalComposer } from './ClinicalComposer';
 import { ClinicalTranscript } from './ClinicalTranscript';
 
@@ -116,9 +117,18 @@ export function ClinicalAssistantArea({
 
   return (
     <main className="chat-area clinical-assistant-area">
+      <WorkspaceHeader
+        title={assistant.thread?.title ?? 'Asistente'}
+        description={
+          assistant.thread?.active_patient
+            ? `${assistant.thread.active_patient.first_name} ${assistant.thread.active_patient.last_name}`
+            : 'Sin paciente activo'
+        }
+      />
       <ClinicalTranscript
         threadId={threadId}
         items={assistant.items}
+        busy={assistant.runtime === 'streaming' || assistant.runtime === 'saving'}
         emptyState={
           <section className="chat-empty-state clinical-empty-state">
             <Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />

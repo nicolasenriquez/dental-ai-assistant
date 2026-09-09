@@ -12,6 +12,7 @@ import {
   streamClinicalTurn,
   updateClinicalArtifact,
 } from '../lib/api';
+import { clinicalTrace } from '../lib/clinicalTelemetry';
 import { consumeSse } from '../lib/sse';
 import {
   type ClinicalApprovalItem,
@@ -131,11 +132,11 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const turnInputRef = useRef<Record<string, string>>({});
   const artifactTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  const load = useCallback(async () => {
-    if (!threadId) return;
+  const load = useCallback(async (): Promise<ClinicalThread | null> => {
+    if (!threadId) return null;
     const seq = ++loadSeqRef.current;
     const loaded = await getClinicalThread(threadId);
-    if (seq !== loadSeqRef.current) return;
+    if (seq !== loadSeqRef.current) return null;
     setThread(loaded);
     const actions = loaded.actions ?? [];
     const hydrated = hydrateItems({ ...loaded, actions });
@@ -143,6 +144,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     setRuntime(
       actions.some((action) => action.status === 'pending') ? 'awaiting_approval' : 'idle',
     );
+    return loaded;
   }, [threadId]);
 
   useEffect(() => {
@@ -215,9 +217,20 @@ export function useClinicalAssistant(threadId: string | undefined) {
           response,
           ({ event, data }) => {
             if (!event) return;
+            clinicalTrace('clinical.sse.received', {
+              event,
+              thread_id: currentThreadId,
+              turn_id: turnId,
+            });
             const decoded = decodeClinicalEvent(event, data, { threadId: currentThreadId, turnId });
             if (!decoded) {
               const failure = classifyClinicalDecodeFailure(event, data);
+              clinicalTrace('clinical.sse.rejected', {
+                event,
+                thread_id: currentThreadId,
+                turn_id: turnId,
+                reason: failure ?? 'unknown',
+              });
               if (failure === 'critical') {
                 turnFailedRef.current = true;
                 dispatch({
@@ -244,7 +257,23 @@ export function useClinicalAssistant(threadId: string | undefined) {
               return;
             }
             const payload = decoded.data;
+            clinicalTrace('clinical.sse.decoded', {
+              event,
+              thread_id: decoded.threadId,
+              turn_id: decoded.turnId,
+              item_id: decoded.itemId,
+              item_type: decoded.itemType,
+              sequence: decoded.sequence,
+              status: decoded.status,
+            });
             dispatch({ type: 'event', event: decoded });
+            clinicalTrace('clinical.reducer.applied', {
+              thread_id: decoded.threadId,
+              turn_id: decoded.turnId,
+              item_id: decoded.itemId,
+              item_type: decoded.itemType,
+              sequence: decoded.sequence,
+            });
             if (event === 'turn.started' && typeof payload.user_content === 'string') {
               dispatch({
                 type: 'append',
@@ -283,6 +312,33 @@ export function useClinicalAssistant(threadId: string | undefined) {
           },
           controller.signal,
         );
+        clinicalTrace('clinical.stream.closed', {
+          thread_id: currentThreadId,
+          turn_id: turnId,
+        });
+        // SSE is the fast path. The persisted thread is the final source of truth,
+        // so a dropped or malformed live event never requires a page refresh.
+        try {
+          clinicalTrace('clinical.reconciliation.started', {
+            thread_id: currentThreadId,
+            turn_id: turnId,
+          });
+          const reconciled = await load();
+          clinicalTrace('clinical.reconciliation.merged', {
+            thread_id: currentThreadId,
+            turn_id: turnId,
+            item_count:
+              (reconciled?.messages.length ?? 0) +
+              (reconciled?.artifacts?.length ?? 0) +
+              (reconciled?.actions?.length ?? 0),
+          });
+          if (reconciled?.artifacts?.some((artifact) => artifact.turn_id === turnId)) {
+            turnFailedRef.current = false;
+            setError(null);
+          }
+        } catch {
+          // The live result remains usable. A later load will retry reconciliation.
+        }
         return !turnFailedRef.current;
       } catch (caught) {
         if (!(caught instanceof DOMException && caught.name === 'AbortError')) {
@@ -294,7 +350,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         abortRef.current = null;
       }
     },
-    [threadId],
+    [load, threadId],
   );
 
   const scheduleArtifactSync = useCallback(

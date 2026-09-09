@@ -83,7 +83,7 @@ export function useChatAutoFollow(): ChatAutoFollowResult {
       return;
     }
 
-    if (frameRef.current !== null) return;
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
     frameRef.current = window.requestAnimationFrame(() => {
       frameRef.current = null;
       if (followingRef.current) {
@@ -113,8 +113,6 @@ export function useChatAutoFollow(): ChatAutoFollowResult {
         if (!entry) return;
         if (entry.isIntersecting && isAtLatest(container, sentinel)) {
           setFollowing(true);
-        } else if (!entry.isIntersecting) {
-          setFollowing(false);
         }
       },
       { root: container, threshold: 0.01 },

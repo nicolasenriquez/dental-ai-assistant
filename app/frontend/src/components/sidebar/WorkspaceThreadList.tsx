@@ -1,6 +1,7 @@
 import { History, MessageCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { type ReactNode, useMemo, useState } from 'react';
+import { Spinner } from '../Spinner';
 import { SIDEBAR_MOTION } from './sidebarMotion';
 
 export interface WorkspaceThreadItem {
@@ -112,8 +113,14 @@ export function WorkspaceThreadList({
         <div className="workspace-thread-list__heading">
           <span>{title}</span>
           {showHeaderCreate && (
-            <button type="button" onClick={onCreate} disabled={creating} aria-label={createLabel}>
-              ＋
+            <button
+              type="button"
+              onClick={onCreate}
+              disabled={creating}
+              aria-label={creating ? 'Creando hilo' : createLabel}
+              title={creating ? 'Creando…' : createLabel}
+            >
+              {creating ? <Spinner /> : '＋'}
             </button>
           )}
         </div>
@@ -124,10 +131,10 @@ export function WorkspaceThreadList({
           className="workspace-thread-list__compact-create"
           onClick={onCreate}
           disabled={creating}
-          aria-label={createLabel}
-          title={createLabel}
+          aria-label={creating ? 'Creando hilo' : createLabel}
+          title={creating ? 'Creando…' : createLabel}
         >
-          ＋
+          {creating ? <Spinner /> : '＋'}
         </button>
       )}
       {isCollapsed && onRequestExpand && (
@@ -152,7 +159,12 @@ export function WorkspaceThreadList({
           className="workspace-thread-list__search"
         />
       )}
-      {loading && <p className="workspace-thread-list__state">Cargando…</p>}
+      {loading && (
+        <div className="workspace-thread-list__state" role="status">
+          <Spinner />
+          <span>Cargando…</span>
+        </div>
+      )}
       {!loading && error && (
         <div className="workspace-thread-list__state" role="alert">
           <span>No pudimos cargar los hilos.</span>
@@ -168,7 +180,13 @@ export function WorkspaceThreadList({
           <span>{query.trim() ? 'Sin resultados' : emptyMessage}</span>
           {!query.trim() && (
             <button type="button" onClick={onCreate} disabled={creating}>
-              {emptyActionLabel}
+              {creating ? (
+                <>
+                  <Spinner /> Creando…
+                </>
+              ) : (
+                emptyActionLabel
+              )}
             </button>
           )}
         </div>

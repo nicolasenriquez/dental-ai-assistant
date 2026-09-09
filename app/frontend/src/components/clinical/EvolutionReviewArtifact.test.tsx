@@ -35,9 +35,9 @@ describe('EvolutionReviewArtifact', () => {
     renderArtifact();
 
     expect(screen.queryByRole('textbox', { name: 'Hallazgos' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Editar' })).toHaveLength(5);
+    expect(screen.getAllByRole('button', { name: /^Editar / })).toHaveLength(5);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Hallazgos' }));
     expect(screen.getByRole('textbox', { name: 'Hallazgos' })).toHaveValue('Sin hallazgos nuevos.');
     expect(screen.queryByRole('textbox', { name: 'Motivo / contexto' })).not.toBeInTheDocument();
   });
@@ -46,14 +46,14 @@ describe('EvolutionReviewArtifact', () => {
     const onChange = vi.fn();
     renderArtifact(onChange);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Hallazgos' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Hallazgos' }), {
       target: { value: 'Encías sin sangrado.' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect(onChange).toHaveBeenCalledWith({ ...draft, findings: 'Encías sin sangrado.' });
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Hallazgos' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Hallazgos' }), {
       target: { value: 'Cambio descartado.' },
     });
@@ -80,7 +80,7 @@ describe('EvolutionReviewArtifact', () => {
     const save = screen.getByRole('button', { name: 'Guardar evolución' });
     expect(save).toBeEnabled();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Hallazgos' }));
     expect(save).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
@@ -102,6 +102,6 @@ describe('EvolutionReviewArtifact', () => {
       />,
     );
 
-    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Editar / })).not.toBeInTheDocument();
   });
 });

@@ -1,7 +1,9 @@
-import { Mic } from 'lucide-react';
+import { ListPlus, Mic } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useState } from 'react';
 import type { VoiceState } from '../../hooks/useClinicalVoiceInput';
 import type { ClinicalPatient } from '../../lib/api';
+import { ComposerShell } from '../ComposerShell';
+import { Spinner } from '../Spinner';
 
 interface ClinicalComposerProps {
   patient: ClinicalPatient | null;
@@ -47,10 +49,7 @@ export function ClinicalComposer({
   };
 
   return (
-    <div
-      className={`chat-composer clinical-composer${focused ? ' is-focused' : ''}`}
-      data-testid="clinical-composer"
-    >
+    <ComposerShell className="clinical-composer" focused={focused} testId="clinical-composer">
       <div className="clinical-patient-context">
         <span className="clinical-patient-label">Paciente activo</span>
         <select
@@ -78,7 +77,17 @@ export function ClinicalComposer({
       </div>
       {(voiceState === 'recording' || voiceState === 'stopping') && (
         <div className="clinical-voice-state" role="status" aria-live="polite">
-          <strong>{voiceState === 'stopping' ? '○ Preparando audio…' : '● Grabando'}</strong>
+          <strong>
+            {voiceState === 'stopping' ? (
+              <>
+                <Spinner /> Preparando audio…
+              </>
+            ) : (
+              <>
+                <span className="clinical-recording-dot" aria-hidden="true" /> Grabando
+              </>
+            )}
+          </strong>
           <span>
             {Math.floor(voiceElapsed / 1000)
               .toString()
@@ -101,14 +110,21 @@ export function ClinicalComposer({
               onClick={onStopVoice}
               disabled={voiceState === 'stopping'}
             >
-              {voiceState === 'stopping' ? 'Terminando…' : 'Terminar'}
+              {voiceState === 'stopping' ? (
+                <>
+                  <Spinner /> Terminando…
+                </>
+              ) : (
+                'Terminar'
+              )}
             </button>
           </div>
         </div>
       )}
       {voiceState === 'transcribing' && (
         <p className="clinical-voice-status" role="status" aria-live="polite">
-          Transcribiendo… Puedes seguir editando la nota.
+          <Spinner />
+          <span>Transcribiendo… Puedes seguir editando la nota.</span>
         </p>
       )}
       {voiceState !== 'recording' && voiceState !== 'stopping' && (
@@ -166,23 +182,28 @@ export function ClinicalComposer({
           onClick={onSubmit}
           disabled={!value.trim()}
           aria-label={busy ? 'Poner mensaje en cola' : 'Enviar mensaje'}
+          title={busy ? 'Agregar a cola' : 'Enviar'}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="8" y1="14" x2="8" y2="3" />
-            <polyline points="3,8 8,3 13,8" />
-          </svg>
+          {busy ? (
+            <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />
+          ) : (
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="8" y1="14" x2="8" y2="3" />
+              <polyline points="3,8 8,3 13,8" />
+            </svg>
+          )}
         </button>
       </div>
-    </div>
+    </ComposerShell>
   );
 }

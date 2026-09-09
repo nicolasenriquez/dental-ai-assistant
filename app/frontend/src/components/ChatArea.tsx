@@ -18,6 +18,7 @@ import { exportConversationAsMarkdown } from '../lib/exportMarkdown';
 import { ChatInput, type ChatInputHandle } from './ChatInput';
 import { CitationModal } from './CitationModal';
 import { Message } from './Message';
+import { WorkspaceHeader } from './WorkspaceHeader';
 
 const NEW_CHAT_KEY = '__new_chat__';
 const pendingNewConversationMessages = new Map<string, string>();
@@ -562,33 +563,38 @@ export function ChatArea({
 
   return (
     <div ref={chatAreaRef} className="chat-area">
-      <div ref={scrollContainerRef} onScroll={onScroll} className="chat-message-scroll">
-        {conversation && conversation.id === conversationId && messages.length > 0 && !loading && (
-          <button
-            type="button"
-            onClick={handleExport}
-            title="Exportar conversación como Markdown"
-            className="chat-export-button min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 13 13"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+      <WorkspaceHeader
+        title={conversation?.title ?? 'Chat'}
+        description="Biblioteca de videos"
+        actions={
+          conversation && conversation.id === conversationId && messages.length > 0 && !loading ? (
+            <button
+              type="button"
+              onClick={handleExport}
+              title="Exportar conversación como Markdown"
+              className="chat-export-button min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
             >
-              <path d="M2,9 L2,11.5 A0.5,0.5 0 0,0 2.5,12 L10.5,12 A0.5,0.5 0 0,0 11,11.5 L11,9" />
-              <polyline points="6.5,1 6.5,8.5" />
-              <polyline points="3.5,5.5 6.5,8.5 9.5,5.5" />
-            </svg>
-            Exportar
-          </button>
-        )}
-
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 13 13"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M2,9 L2,11.5 A0.5,0.5 0 0,0 2.5,12 L10.5,12 A0.5,0.5 0 0,0 11,11.5 L11,9" />
+                <polyline points="6.5,1 6.5,8.5" />
+                <polyline points="3.5,5.5 6.5,8.5 9.5,5.5" />
+              </svg>
+              Exportar
+            </button>
+          ) : undefined
+        }
+      />
+      <div ref={scrollContainerRef} onScroll={onScroll} className="chat-message-scroll">
         {showEmpty && <EmptyState onStarterClick={handleStarterClick} />}
 
         {showMessages && (

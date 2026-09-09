@@ -6,7 +6,7 @@ const items = [
   {
     id: 'thread-1',
     title: 'Control de Ana',
-    updatedAt: '2026-01-15T12:00:00Z',
+    updatedAt: new Date().toISOString(),
     statusLabel: '!',
   },
 ];
@@ -33,7 +33,9 @@ describe('WorkspaceThreadList', () => {
     renderList();
 
     expect(screen.getByRole('region', { name: 'Hoy' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Control de Ana · Aprobación pendiente' })).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Control de Ana · Aprobación pendiente' }),
+    ).toBeVisible();
   });
 
   it('keeps the collapsed rail to one history control and exposes pending approval text', () => {

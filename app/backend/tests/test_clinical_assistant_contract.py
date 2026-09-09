@@ -123,6 +123,75 @@ async def test_stale_turn_lock_is_reclaimable() -> None:
     assert _turn_is_stale(datetime.now(UTC) - timedelta(minutes=20))
 
 
+async def test_clinical_turn_releases_lock_when_setup_fails(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    finished: list[tuple[UUID, UUID, UUID]] = []
+
+    async def sanitize(_owner, content):
+        return type(
+            "Sanitized",
+            (),
+            {
+                "display_text": content,
+                "model_text": content,
+                "invalid_candidates": 0,
+                "unresolved_candidates": 0,
+                "patient_ids": (),
+            },
+        )()
+
+    async def claim(*_args):
+        return {"replay": False, "active_patient_id": owner}
+
+    async def fail_title(*_args):
+        raise RuntimeError("database unavailable")
+
+    async def finish(owner_id, thread_id, turn_id):
+        finished.append((owner_id, thread_id, turn_id))
+
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.repository, "claim_turn", claim)
+    monkeypatch.setattr(service, "_set_contextual_title", fail_title)
+    monkeypatch.setattr(service.repository, "finish_turn", finish)
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        _ = [chunk async for chunk in service.stream_turn(owner, thread, turn, "Control")]
+
+    assert finished == [(owner, thread, turn)]
+
+
+@pytest.mark.parametrize("artifact_status", ["stale", "pending", "approved", "declined", "failed"])
+async def test_prepare_save_rejects_every_frozen_artifact(monkeypatch, artifact_status) -> None:
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.schemas import PrepareSaveRequest
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    artifact_id = UUID(int=4)
+
+    async def get_thread(*_args):
+        return {"id": thread}
+
+    async def get_artifact(*_args):
+        return {"turn_id": turn, "status": artifact_status}
+
+    async def unexpected_patient_lookup(*_args):
+        raise AssertionError("frozen artifact must fail before patient lookup")
+
+    monkeypatch.setattr(service.repository, "get_thread", get_thread)
+    monkeypatch.setattr(service.repository, "get_artifact", get_artifact)
+    monkeypatch.setattr(service.patients_repo, "get_patient", unexpected_patient_lookup)
+
+    request = PrepareSaveRequest(turn_id=turn, artifact_id=artifact_id)
+    with pytest.raises(service.ArtifactNotDraftError):
+        await service.prepare_save(owner, thread, request)
+
+
 def test_clinical_invariant_indexes_are_migrated() -> None:
     migration = (
         Path(__file__).parents[1]

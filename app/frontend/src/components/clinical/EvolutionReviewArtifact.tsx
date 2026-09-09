@@ -1,5 +1,8 @@
+import { AlertTriangle, ChevronDown, Pencil, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import type { ClinicalDraft } from '../../lib/api';
+import { formatClinicalDateTime } from '../../lib/clinicalDate';
+import { Spinner } from '../Spinner';
 import { clinicalFields, hasClinicalContent } from './evolutionFields';
 
 interface EvolutionReviewArtifactProps {
@@ -63,6 +66,8 @@ export function EvolutionReviewArtifact({
   const [editingValue, setEditingValue] = useState('');
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [dateControls, setDateControls] = useState(showDateTime);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [flagsOpen, setFlagsOpen] = useState(draft.review_flags.length === 1);
   const isAssistant = mode === 'assistant';
   const emptyDraft = !hasClinicalContent(draft);
   const parts = dateParts(evolutionAt);
@@ -94,10 +99,32 @@ export function EvolutionReviewArtifact({
         className={isAssistant ? 'clinical-artifact-heading' : 'evolution-review-artifact__heading'}
       >
         <div>
-          <h3>{isAssistant ? 'Evolución propuesta' : 'Borrador para revisar'}</h3>
-          <p>{stale ? 'Necesita regeneración' : edited ? 'Editada' : 'No guardada'}</p>
+          <h3>
+            {isAssistant && <Sparkles aria-hidden="true" size={15} />}{' '}
+            {isAssistant ? 'Evolución propuesta' : 'Borrador para revisar'}
+          </h3>
+          <div className="clinical-artifact-metadata">
+            <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>
+            {onEvolutionAtChange && (
+              <button
+                type="button"
+                aria-label="Cambiar fecha y hora"
+                title="Cambiar fecha y hora"
+                onClick={() => setDateControls((current) => !current)}
+              >
+                <Pencil aria-hidden="true" size={14} />
+              </button>
+            )}
+          </div>
         </div>
-        {isAssistant && <span className="clinical-artifact-status">Borrador asistido</span>}
+        {isAssistant && (
+          <div className="clinical-artifact-statuses">
+            <span className="clinical-artifact-status">
+              {stale ? 'Requiere regenerar' : edited ? 'Editada' : 'Borrador IA'}
+            </span>
+            {draft.review_flags.length > 0 && <span>{draft.review_flags.length} por revisar</span>}
+          </div>
+        )}
       </div>
 
       {stale && (
@@ -106,8 +133,25 @@ export function EvolutionReviewArtifact({
         </p>
       )}
 
-      {showSource && (
-        <div className={isAssistant ? 'clinical-source-note' : 'evolution-review-artifact__source'}>
+      {dateControls && onEvolutionAtChange && (
+        <div className="evolution-review-artifact__date-controls">
+          <input
+            aria-label="Fecha de evolución"
+            type="date"
+            value={parts.date}
+            onChange={(event) => updateDate(event.target.value, parts.time)}
+          />
+          <input
+            aria-label="Hora de evolución"
+            type="time"
+            value={parts.time}
+            onChange={(event) => updateDate(parts.date, event.target.value)}
+          />
+        </div>
+      )}
+
+      {showSource && !isAssistant && (
+        <div className="evolution-review-artifact__source">
           <span>Nota clínica original</span>
           {editingSource && sourceEditable ? (
             <textarea
@@ -153,12 +197,14 @@ export function EvolutionReviewArtifact({
                   type="button"
                   className={
                     isAssistant
-                      ? 'clinical-secondary-button'
+                      ? 'clinical-field-edit'
                       : 'text-sm text-[var(--accent)] hover:underline'
                   }
                   onClick={() => startFieldEdit(key)}
+                  aria-label={`Editar ${label}`}
+                  title={`Editar ${label}`}
                 >
-                  Editar
+                  {isAssistant ? <Pencil aria-hidden="true" size={15} /> : 'Editar'}
                 </button>
               )}
             </div>
@@ -205,47 +251,65 @@ export function EvolutionReviewArtifact({
           className={isAssistant ? 'clinical-review-flags' : 'evolution-review-artifact__flags'}
           aria-label="Información por revisar"
         >
-          <h4>{isAssistant ? 'Información por revisar' : 'Detalles de revisión'}</h4>
-          <ul>
-            {draft.review_flags.map((flag) => (
-              <li key={`${flag.source_text}-${flag.reason}`}>
-                ⚠ <q>{flag.source_text}</q> — {flag.reason}
-              </li>
-            ))}
-          </ul>
+          <button
+            type="button"
+            className="clinical-review-flags__toggle"
+            aria-expanded={flagsOpen}
+            onClick={() => setFlagsOpen((current) => !current)}
+          >
+            <AlertTriangle aria-hidden="true" size={16} />
+            <span>
+              {draft.review_flags.length}{' '}
+              {draft.review_flags.length === 1 ? 'elemento requiere' : 'elementos requieren'}{' '}
+              revisión
+            </span>
+            <ChevronDown aria-hidden="true" size={15} />
+          </button>
+          {flagsOpen && (
+            <ul>
+              {draft.review_flags.map((flag) => (
+                <li key={`${flag.source_text}-${flag.reason}`}>
+                  <q>{flag.source_text}</q> {flag.reason}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
-      <div className={isAssistant ? 'clinical-artifact-date' : 'evolution-review-artifact__date'}>
-        <time dateTime={evolutionAt}>{new Date(evolutionAt).toLocaleString('es-CL')}</time>
-        {onEvolutionAtChange && (
+      {showSource && isAssistant && (
+        <div className="clinical-source-note">
           <button
             type="button"
-            className={
-              isAssistant
-                ? 'clinical-secondary-button'
-                : 'text-sm text-[var(--accent)] hover:underline'
-            }
-            onClick={() => setDateControls((current) => !current)}
+            className="clinical-source-note__toggle"
+            aria-expanded={sourceOpen}
+            onClick={() => setSourceOpen((current) => !current)}
           >
-            {dateControls ? 'Cerrar fecha y hora' : 'Cambiar fecha y hora'}
+            <ChevronDown aria-hidden="true" size={15} />
+            {sourceOpen ? 'Ocultar nota clínica original' : 'Ver nota clínica original'}
           </button>
-        )}
-      </div>
-      {dateControls && onEvolutionAtChange && (
-        <div className="evolution-review-artifact__date-controls">
-          <input
-            aria-label="Fecha de evolución"
-            type="date"
-            value={parts.date}
-            onChange={(event) => updateDate(event.target.value, parts.time)}
-          />
-          <input
-            aria-label="Hora de evolución"
-            type="time"
-            value={parts.time}
-            onChange={(event) => updateDate(parts.date, event.target.value)}
-          />
+          {sourceOpen && (
+            <>
+              <blockquote>{sourceNote || 'Sin nota fuente disponible.'}</blockquote>
+              {sourceEditable && !readOnly && (
+                <button
+                  type="button"
+                  className="clinical-secondary-button"
+                  onClick={() => setEditingSource((current) => !current)}
+                >
+                  {editingSource ? 'Cerrar edición' : 'Editar nota original'}
+                </button>
+              )}
+              {editingSource && sourceEditable && (
+                <textarea
+                  rows={2}
+                  value={sourceNote}
+                  onChange={(event) => onSourceChange?.(event.target.value)}
+                  aria-label="Editar nota clínica original"
+                />
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -293,7 +357,13 @@ export function EvolutionReviewArtifact({
             aria-describedby={stale ? staleMessageId : undefined}
             className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-50"
           >
-            {saving ? 'Guardando...' : 'Guardar evolución'}
+            {saving ? (
+              <>
+                <Spinner /> Guardando…
+              </>
+            ) : (
+              'Guardar evolución'
+            )}
           </button>
         ) : !readOnly && onPrepare ? (
           <button

@@ -7,6 +7,7 @@ const secondActionId = '33333333-3333-4333-8333-333333333334';
 const evolutionId = '44444444-4444-4444-8444-444444444444';
 type MockAction = Record<string, unknown>;
 type MockArtifact = Record<string, unknown>;
+type MockMessage = Record<string, unknown>;
 
 const patient = {
   id: patientId,
@@ -35,7 +36,7 @@ function thread(actions: MockAction[] = []) {
     active_turn_id: null,
     created_at: '2026-01-15T12:00:00Z',
     updated_at: '2026-01-15T12:00:00Z',
-    messages: [],
+    messages: [] as MockMessage[],
     artifacts: [] as MockArtifact[],
     pending_action: null as MockAction | null,
     actions,
@@ -159,6 +160,23 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     };
     threadState = {
       ...threadState,
+      messages: [
+        ...threadState.messages,
+        {
+          id: `user-${turnCount}`,
+          turn_id: body.turn_id,
+          role: 'user',
+          content: body.content,
+          created_at: '2026-01-15T12:00:58Z',
+        },
+        {
+          id: assistantId,
+          turn_id: body.turn_id,
+          role: 'assistant',
+          content: 'Preparé un borrador para tu revisión.',
+          created_at: '2026-01-15T12:01:01Z',
+        },
+      ],
       artifacts: [...threadState.artifacts, artifact],
     };
     const payload = [
@@ -172,8 +190,17 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
         'running',
       ),
       sseEvent(
-        'item.completed',
+        'item.started',
         2,
+        body.turn_id,
+        draftId,
+        'activity',
+        { label: 'Preparando borrador', created_at: '2026-01-15T12:00:59Z' },
+        'running',
+      ),
+      sseEvent(
+        'item.completed',
+        3,
         body.turn_id,
         draftId,
         'clinical_draft',
@@ -188,14 +215,14 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       ),
       sseEvent(
         'item.completed',
-        3,
+        4,
         body.turn_id,
         assistantId,
         'assistant_message',
         { content: 'Preparé un borrador para tu revisión.', created_at: '2026-01-15T12:01:01Z' },
         'completed',
       ),
-      sseEvent('turn.completed', 4, body.turn_id, `complete-${turnCount}`, 'turn', {}, 'completed'),
+      sseEvent('turn.completed', 5, body.turn_id, `complete-${turnCount}`, 'turn', {}, 'completed'),
     ].join('');
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
   });
@@ -256,9 +283,12 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       result_resource_id: null,
       patient,
     };
-    threadState = thread([...threadState.actions, action]);
-    threadState.pending_action = action;
-    threadState.pending_action_patient = patient;
+    threadState = {
+      ...threadState,
+      actions: [...threadState.actions, action],
+      pending_action: action,
+      pending_action_patient: patient,
+    };
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -277,9 +307,14 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       result_resource_id: evolutionId,
       resolved_at: '2026-01-15T12:03:00Z',
     };
-    threadState = thread(
-      threadState.actions.map((candidate) => (candidate.id === resolvedId ? resolved : candidate)),
-    );
+    threadState = {
+      ...threadState,
+      actions: threadState.actions.map((candidate) =>
+        candidate.id === resolvedId ? resolved : candidate,
+      ),
+      pending_action: null,
+      pending_action_patient: null,
+    };
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -367,16 +402,17 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     maxDiffPixels: 300,
   });
 
-  await page.getByRole('button', { name: 'Editar nota fuente' }).click();
+  await page.getByRole('button', { name: 'Ver nota clínica original' }).click();
+  await page.getByRole('button', { name: 'Editar nota original' }).click();
   await page.getByLabel('Editar nota clínica original').fill('Nota fuente corregida.');
-  await expect(page.getByText('Necesita regeneración')).toBeVisible();
+  await expect(page.getByText('Requiere regenerar')).toBeVisible();
   await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución propuesta' }));
   await expect(page).toHaveScreenshot('clinical-editing.png', {
     animations: 'disabled',
     maxDiffPixels: 300,
   });
   await page.getByRole('button', { name: 'Regenerar', exact: true }).click();
-  await expect(page.getByText('Borrador asistido')).toBeVisible();
+  await expect(page.getByText('Borrador IA')).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
 
   await page.getByRole('button', { name: 'Preparar para guardar' }).click();
@@ -411,7 +447,20 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     maxDiffPixels: 300,
   });
 
+  await page.goto('/chat');
+  await expect(page.getByLabel('Pregunta sobre la biblioteca de videos')).toBeVisible();
+  await page.goto(`/a/${threadId}`);
+  await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: 'Evolución guardada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: 'Evolución guardada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toBeVisible();
+
   await page.setViewportSize({ width: 390, height: 844 });
+  await settleClinicalItem(page, page.getByRole('article', { name: 'Antes de guardar' }));
   await expect(page).toHaveScreenshot('clinical-mobile.png', {
     fullPage: true,
     animations: 'disabled',

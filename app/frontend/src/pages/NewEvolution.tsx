@@ -217,14 +217,6 @@ export function NewEvolution() {
     setWorkspace('generating');
     try {
       const result = await generateEvolution(patientId, rawNote);
-      if (!fields.some(({ key }) => result[key].trim())) {
-        setGeneratedDraft(null);
-        setGeneratedRawNote(null);
-        setDraft(EMPTY_DRAFT);
-        setGenerationOutcome('insufficient');
-        setWorkspace('editing_raw');
-        return;
-      }
       setDraft(result);
       setGeneratedDraft(result);
       setGeneratedRawNote(rawNote);

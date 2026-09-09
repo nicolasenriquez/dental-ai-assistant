@@ -363,6 +363,46 @@ body,
   scrollbar-gutter: stable;
 }
 
+.workspace-header {
+  display: flex;
+  min-height: 50px;
+  flex: 0 0 50px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+}
+
+.workspace-header__copy {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.workspace-header__copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-header__copy span {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.workspace-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .chat-message-stack {
   display: flex;
   width: min(100%, var(--conversation-content-width));
@@ -379,10 +419,6 @@ body,
 }
 
 .chat-export-button {
-  position: absolute;
-  top: 12px;
-  right: 20px;
-  z-index: 1;
   display: inline-flex;
   min-height: 36px;
   align-items: center;
@@ -1520,10 +1556,11 @@ body,
 
 .clinical-artifact {
   width: 100%;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-1);
-  padding: 18px;
+  padding: 0;
   scroll-margin-bottom: var(--composer-clearance);
   animation: clinical-item-enter 180ms ease-out both;
 }
@@ -1540,7 +1577,56 @@ body,
   gap: 12px;
 }
 
+.clinical-artifact-heading {
+  padding: 14px 16px;
+}
+.clinical-artifact-metadata,
+.clinical-artifact-statuses,
+.clinical-field-edit,
+.clinical-review-flags__toggle,
+.clinical-source-note__toggle,
+.clinical-primary-button,
+.clinical-voice-state strong,
+.clinical-approval-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.clinical-artifact-metadata {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.clinical-artifact-metadata button,
+.clinical-field-edit,
+.clinical-review-flags__toggle,
+.clinical-source-note__toggle {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.clinical-artifact-statuses {
+  display: grid;
+  justify-items: end;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.clinical-field-edit {
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+  opacity: 0.55;
+}
+.clinical-field-edit:hover,
+.clinical-field-edit:focus-visible {
+  opacity: 1;
+}
+
 .clinical-artifact-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   font-size: 15px;
   font-weight: 600;
@@ -1562,14 +1648,13 @@ body,
 
 .clinical-draft-fields {
   display: grid;
-  gap: 12px;
-  margin-top: 16px;
+  padding: 4px 16px;
 }
 
 .clinical-source-note {
   display: grid;
   gap: 5px;
-  margin-top: 14px;
+  margin: 0 16px 14px;
 }
 
 .clinical-source-note > span {
@@ -1607,6 +1692,11 @@ body,
 .clinical-draft-fields > div {
   display: grid;
   gap: 5px;
+  padding: 12px 0;
+}
+
+.clinical-draft-fields > div + div {
+  border-top: 1px solid var(--border);
 }
 
 .clinical-draft-fields > div > .evolution-review-artifact__field-heading > span,
@@ -1632,8 +1722,24 @@ body,
   resize: vertical;
 }
 
+.clinical-details-toggle {
+  margin-top: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 4px 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.clinical-details-toggle:hover,
+.clinical-details-toggle:focus-visible {
+  color: var(--text-primary);
+}
+
 .clinical-review-flags {
-  margin-top: 16px;
+  margin: 12px 16px 0;
   border: 1px solid var(--warning-border);
   border-radius: 8px;
   background: var(--warning-bg);
@@ -1655,8 +1761,27 @@ body,
   font-size: 12px;
 }
 
+.clinical-review-flags__toggle {
+  width: 100%;
+  justify-content: space-between;
+  padding: 0;
+  color: var(--warning);
+  text-align: left;
+}
+.clinical-review-flags__toggle span {
+  flex: 1;
+}
+.clinical-source-note__toggle {
+  padding: 4px 0;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+}
+
 .clinical-artifact-actions {
-  margin-top: 18px;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
 }
 
 .clinical-artifact-date {
@@ -1840,6 +1965,7 @@ body,
 
 .clinical-approval {
   border-color: var(--warning-border);
+  padding: 16px;
 }
 
 .clinical-approval h3 {
@@ -1849,6 +1975,13 @@ body,
 
 .clinical-approval p {
   margin: 6px 0 14px;
+  font-size: 13px;
+}
+
+.clinical-approval-summary {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -2068,6 +2201,12 @@ body,
 .clinical-voice-state strong {
   color: var(--text-primary);
 }
+.clinical-recording-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ef4444;
+}
 .clinical-voice-state small {
   grid-column: 1 / -1;
   color: var(--text-secondary);
@@ -2082,6 +2221,9 @@ body,
   grid-column: 1 / -1;
 }
 .clinical-voice-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   padding: 4px 14px;
   color: var(--text-secondary);
@@ -3056,6 +3198,11 @@ body,
   gap: 5px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   padding: 8px;
+}
+
+.sidebar-chat-utilities {
+  flex: 0 0 auto;
+  padding: 4px 8px 8px;
 }
 
 .sidebar-user {
