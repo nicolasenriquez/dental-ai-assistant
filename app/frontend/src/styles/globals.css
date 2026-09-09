@@ -1210,9 +1210,68 @@ body,
   display: none;
 }
 
+@media (min-width: 1024px) {
+  .patient-workspace {
+    height: min(720px, calc(100dvh - 220px));
+    min-height: 420px;
+  }
+
+  .patient-workspace__columns {
+    height: 100%;
+  }
+
+  .patient-workspace__history {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .patient-history-list {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .patient-workspace__detail {
+    height: 100%;
+    overflow-y: auto;
+  }
+}
+
 .patient-detail-header {
   border-bottom: 1px solid var(--border);
   padding-bottom: 18px;
+}
+
+@media (min-width: 1024px) {
+  .new-evolution-workspace.is-reviewing {
+    display: grid;
+    grid-template-columns: minmax(0, 0.38fr) minmax(0, 0.62fr);
+    align-items: start;
+    gap: 32px;
+  }
+
+  .new-evolution-workspace.is-reviewing .new-evolution-source {
+    grid-column: 1;
+  }
+
+  .new-evolution-workspace.is-reviewing .new-evolution-review {
+    grid-column: 2;
+    margin-top: 32px;
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .new-evolution-workspace.is-reviewing .evolution-review-artifact__actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: 16px -18px -18px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-1);
+    padding: 12px 18px 18px;
+  }
 }
 
 .patient-detail-header h2 {
@@ -1545,12 +1604,12 @@ body,
   justify-self: start;
 }
 
-.clinical-draft-fields label {
+.clinical-draft-fields > div {
   display: grid;
   gap: 5px;
 }
 
-.clinical-draft-fields label > span,
+.clinical-draft-fields > div > .evolution-review-artifact__field-heading > span,
 .clinical-approval > strong {
   color: var(--text-secondary);
   font-size: 12px;
@@ -1659,12 +1718,12 @@ body,
   }
 }
 
-.evolution-review-artifact__fields label {
+.evolution-review-artifact__fields > div {
   display: grid;
   gap: 5px;
 }
 
-.evolution-review-artifact__fields label > span,
+.evolution-review-artifact__fields > div > .evolution-review-artifact__field-heading > span,
 .evolution-review-artifact__source > span {
   color: var(--text-secondary);
   font-size: 12px;
@@ -1682,6 +1741,28 @@ body,
   font: inherit;
   line-height: 1.5;
   resize: vertical;
+}
+
+.evolution-review-artifact__field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.evolution-review-artifact__field-value {
+  min-height: 1.5rem;
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.evolution-review-artifact__field-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 2px;
 }
 
 .evolution-review-artifact__flags {
@@ -2138,6 +2219,37 @@ body,
 
 .workspace-thread-list__compact-create {
   display: none;
+}
+
+.workspace-thread-list__history {
+  position: relative;
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.workspace-thread-list__history:hover,
+.workspace-thread-list__history:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.workspace-thread-list__pending-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--warning);
 }
 
 .workspace-thread-list__custom-item {
@@ -3055,6 +3167,12 @@ body,
 }
 
 .sidebar-dialog-confirm {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.sidebar-dialog-confirm--danger {
   border: 1px solid var(--danger);
   background: var(--danger);
   color: white;
@@ -3147,6 +3265,10 @@ body,
   color: var(--text-primary);
 }
 
+.sidebar-container.collapsed .workspace-thread-list__history {
+  display: inline-flex;
+}
+
 .sidebar-container.collapsed .workspace-thread-list__group-heading,
 .sidebar-container.collapsed .workspace-thread-list__search,
 .sidebar-container.collapsed .workspace-thread-list__state {
@@ -3160,7 +3282,7 @@ body,
 }
 
 .sidebar-container.collapsed .workspace-thread-list__item-icon {
-  display: inline-flex;
+  display: none;
 }
 
 .sidebar-container.collapsed .workspace-thread-list__copy {

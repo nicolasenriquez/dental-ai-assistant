@@ -615,7 +615,10 @@ describe('Sidebar navigation and conversations', () => {
     expect(
       container.querySelector('.workspace-thread-list__group-heading'),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Compact chat' })).toBeInTheDocument();
-    expect(container.querySelector('.conversation-title-icon')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Compact chat' })).not.toBeInTheDocument();
+    expect(container.querySelector('.conversation-title-icon')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Abrir historial de conversaciones' }),
+    ).toBeInTheDocument();
   });
 });

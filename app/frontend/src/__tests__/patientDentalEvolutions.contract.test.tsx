@@ -54,7 +54,9 @@ describe('patient pages and evolution workspace contracts', () => {
     for (const text of [
       'Nota clínica',
       'Borrador asistido',
-      'Revisar y guardar',
+      'Capturar',
+      'Revisar',
+      'Confirmar',
       'Generar borrador con IA',
       'Generando borrador...',
       'Revisa estos puntos',

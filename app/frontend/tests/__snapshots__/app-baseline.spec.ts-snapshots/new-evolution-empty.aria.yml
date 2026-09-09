@@ -18,9 +18,9 @@
   - text: /\d+ años Nacimiento \d+\/\d+\/\d+ RUT ••\.•••\.\d+-8 \d+ ene \d+ · \d+:\d+/
   - button "Cambiar fecha y hora"
   - list "Progreso de la evolución":
-    - listitem: 1. Nota clínica
-    - listitem: 2. Borrador asistido
-    - listitem: 3. Revisar y guardar
+    - listitem: 1. Capturar
+    - listitem: 2. Revisar
+    - listitem: 3. Confirmar
   - complementary "Referencia de la última evolución":
     - heading "Última atención" [level=2]
     - time: /\d+ sep \d+ · \d+:\d+/

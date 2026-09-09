@@ -4,6 +4,7 @@
 
 set shell := ["sh", "-cu"]
 set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command"]
+set dotenv-load := true
 
 compose := "docker compose --project-directory deploy --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml"
 local_services := "postgres app-blue"
@@ -39,10 +40,10 @@ dev-up-voice:
 
 # Stop local services and preserve named volumes.
 dev-down:
-    {{compose}} down
+    {{compose}} --profile voice down --remove-orphans
 
 # Run the authenticated UI baseline against local app-blue only.
-# E2E_USER and E2E_PASSWORD must be supplied by the caller.
+# E2E_USER and E2E_PASSWORD are loaded from the local, gitignored .env file.
 e2e-baseline:
     docker run --rm --network host --mount "type=bind,source={{repo_dir}},target=/workspace" --workdir /workspace/app/frontend --env E2E_USER --env E2E_PASSWORD {{e2e_image}} npx playwright test --config playwright.config.ts --project=baseline
 

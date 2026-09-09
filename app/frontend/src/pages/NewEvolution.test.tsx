@@ -127,6 +127,8 @@ describe('NewEvolution generation states', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generar borrador con IA' }));
     await screen.findByRole('heading', { name: 'Borrador generado' });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar evolución' }));
+    expect(screen.getByRole('dialog', { name: 'Confirmar evolución' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar y guardar' }));
 
     expect(
       await screen.findByText('No pudimos guardar la evolución. Puedes reintentar.'),

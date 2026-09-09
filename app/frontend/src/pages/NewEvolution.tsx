@@ -1,5 +1,6 @@
 import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Link, useBeforeUnload, useBlocker, useNavigate, useParams } from 'react-router-dom';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PatientIdentity } from '../components/PatientIdentity';
 import { EvolutionReviewArtifact } from '../components/clinical/EvolutionReviewArtifact';
 import {
@@ -36,7 +37,7 @@ type GenerationOutcome = 'success' | 'partial' | 'insufficient' | 'technical' | 
 
 const fields = clinicalFields;
 
-const workflowSteps = ['Nota clínica', 'Borrador asistido', 'Revisar y guardar'] as const;
+const workflowSteps = ['Capturar', 'Revisar', 'Confirmar'] as const;
 
 function localInputParts(value: Date) {
   const local = new Date(value.getTime() - value.getTimezoneOffset() * 60000)
@@ -75,6 +76,7 @@ export function NewEvolution() {
   const [patientLoading, setPatientLoading] = useState(true);
   const [patientError, setPatientError] = useState(false);
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
   const [navigationAllowed, setNavigationAllowed] = useState(false);
   const patientRequestId = useRef(0);
   const historyRequestId = useRef(0);
@@ -105,7 +107,7 @@ export function NewEvolution() {
     !saving &&
     workspace === 'reviewing';
   const dateTime = localInputParts(evolutionAt);
-  const activeWorkflowStep = { editing_raw: 0, generating: 1, reviewing: 2 }[workspace];
+  const activeWorkflowStep = confirmSaveOpen ? 2 : workspace === 'reviewing' ? 1 : 0;
   const isDirty =
     rawNote.trim().length > 0 ||
     generatedDraft !== null ||
@@ -332,6 +334,10 @@ export function NewEvolution() {
     }
   };
 
+  const requestSave = () => {
+    if (canSave) setConfirmSaveOpen(true);
+  };
+
   const continueEditing = () => {
     setGenerationOutcome(null);
     setWorkspace('editing_raw');
@@ -340,7 +346,9 @@ export function NewEvolution() {
 
   return (
     <main className="min-h-full bg-[var(--bg)] p-6 text-[var(--text-primary)] md:p-8">
-      <div className="mx-auto max-w-7xl">
+      <div
+        className={`mx-auto max-w-7xl new-evolution-page${workspace === 'reviewing' ? ' is-reviewing' : ''}`}
+      >
         <Link
           to={`/patients/${patientId}`}
           className="text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
@@ -458,170 +466,175 @@ export function NewEvolution() {
           </aside>
         )}
 
-        <section className="mt-8">
-          <h2 className="text-xs font-semibold tracking-wider text-[var(--text-secondary)]">
-            {generatedDraft ? 'NOTA CLÍNICA ORIGINAL' : 'REGISTRO CLÍNICO INICIAL'}
-          </h2>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Escribe la nota. La IA crea un borrador para revisar.
-          </p>
-          <textarea
-            ref={rawNoteRef}
-            autoFocus
-            aria-label="Nota clínica"
-            value={rawNote}
-            onChange={changeRawNote}
-            onKeyDown={handleShortcut}
-            readOnly={workspace === 'generating' || workspace === 'reviewing'}
-            rows={10}
-            className="mt-3 w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-4 outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-60"
-          />
-          {sourceLength >= SHOW_COUNT_AT && !overLimit && (
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              {sourceLength.toLocaleString('es-CL')} / 40.000 caracteres
-            </p>
-          )}
-          {overLimit && (
-            <p role="alert" className="mt-1 text-sm text-[var(--danger)]">
-              La nota supera el límite de 40.000 caracteres. Reduce el contenido antes de continuar.
-            </p>
-          )}
-          {workspace === 'reviewing' ? (
-            <button
-              type="button"
-              onClick={() => setWorkspace('editing_raw')}
-              className="mt-3 text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            >
-              Corregir nota y regenerar
-            </button>
-          ) : (
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                disabled={!canGenerate}
-                onClick={requestGeneration}
-                className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
-              >
-                {workspace === 'generating'
-                  ? 'Generando borrador...'
-                  : generatedDraft
-                    ? 'Regenerar borrador'
-                    : 'Generar borrador con IA'}
-              </button>
-            </div>
-          )}
-        </section>
-
-        {workspace === 'generating' && !generatedDraft && (
-          <section
-            role="status"
-            aria-label="Redactando borrador"
-            className="mt-8 border-t border-[var(--border)] pt-8"
-          >
-            <div className="skeleton h-4 w-44" />
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              {[0, 1, 2, 3, 4].map((item) => (
-                <div key={item} className={item < 3 ? 'lg:col-span-2' : ''}>
-                  <div className="skeleton h-4 w-32" />
-                  <div className="skeleton mt-2 h-24 w-full" />
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {generationOutcome === 'insufficient' && (
-          <section
-            role="alert"
-            className="mt-8 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] p-4"
-          >
-            <h2 className="text-sm font-semibold">
-              No encontramos información clínica suficiente para generar un borrador.
+        <div
+          className={`new-evolution-workspace${workspace === 'reviewing' ? ' is-reviewing' : ''}`}
+        >
+          <section className="new-evolution-source mt-8">
+            <h2 className="text-xs font-semibold tracking-wider text-[var(--text-secondary)]">
+              {generatedDraft ? 'NOTA CLÍNICA ORIGINAL' : 'REGISTRO CLÍNICO INICIAL'}
             </h2>
-            <button
-              type="button"
-              onClick={continueEditing}
-              className="mt-3 text-sm text-[var(--accent)] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            >
-              Editar nota
-            </button>
-          </section>
-        )}
-
-        {generationOutcome === 'technical' && (
-          <section
-            role="alert"
-            className="mt-8 rounded-lg border border-[var(--danger)] bg-[var(--surface-1)] p-4"
-          >
-            <h2 className="text-sm font-semibold">No pudimos generar el borrador.</h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">Tu nota no se perdió.</p>
-            <div className="mt-3 flex flex-wrap gap-3">
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              Escribe la nota. La IA crea un borrador para revisar.
+            </p>
+            <textarea
+              ref={rawNoteRef}
+              autoFocus
+              aria-label="Nota clínica"
+              value={rawNote}
+              onChange={changeRawNote}
+              onKeyDown={handleShortcut}
+              readOnly={workspace === 'generating' || workspace === 'reviewing'}
+              rows={10}
+              className="mt-3 w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-4 outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-60"
+            />
+            {sourceLength >= SHOW_COUNT_AT && !overLimit && (
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {sourceLength.toLocaleString('es-CL')} / 40.000 caracteres
+              </p>
+            )}
+            {overLimit && (
+              <p role="alert" className="mt-1 text-sm text-[var(--danger)]">
+                La nota supera el límite de 40.000 caracteres. Reduce el contenido antes de
+                continuar.
+              </p>
+            )}
+            {workspace === 'reviewing' ? (
               <button
                 type="button"
-                onClick={requestGeneration}
-                disabled={!canGenerate}
-                className="rounded border border-[var(--accent)] px-3 py-2 text-sm text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+                onClick={() => setWorkspace('editing_raw')}
+                className="mt-3 text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
-                Reintentar
+                Corregir nota y regenerar
               </button>
+            ) : (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  disabled={!canGenerate}
+                  onClick={requestGeneration}
+                  className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+                >
+                  {workspace === 'generating'
+                    ? 'Generando borrador...'
+                    : generatedDraft
+                      ? 'Regenerar borrador'
+                      : 'Generar borrador con IA'}
+                </button>
+              </div>
+            )}
+          </section>
+
+          {workspace === 'generating' && !generatedDraft && (
+            <section
+              role="status"
+              aria-label="Redactando borrador"
+              className="mt-8 border-t border-[var(--border)] pt-8"
+            >
+              <div className="skeleton h-4 w-44" />
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {[0, 1, 2, 3, 4].map((item) => (
+                  <div key={item} className={item < 3 ? 'lg:col-span-2' : ''}>
+                    <div className="skeleton h-4 w-32" />
+                    <div className="skeleton mt-2 h-24 w-full" />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {generationOutcome === 'insufficient' && (
+            <section
+              role="alert"
+              className="mt-8 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-bg)] p-4"
+            >
+              <h2 className="text-sm font-semibold">
+                No encontramos información clínica suficiente para generar un borrador.
+              </h2>
               <button
                 type="button"
                 onClick={continueEditing}
-                className="rounded border border-[var(--border)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                className="mt-3 text-sm text-[var(--accent)] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
-                Seguir editando
+                Editar nota
               </button>
-            </div>
-          </section>
-        )}
+            </section>
+          )}
 
-        {generatedDraft && (
-          <section className="mt-8 border-t border-[var(--border)] pt-8">
-            {generationOutcome === 'success' ? (
-              <div role="status">
-                <h2 className="text-base font-semibold">Borrador generado</h2>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  Revisa el contenido antes de guardar la evolución.
-                </p>
+          {generationOutcome === 'technical' && (
+            <section
+              role="alert"
+              className="mt-8 rounded-lg border border-[var(--danger)] bg-[var(--surface-1)] p-4"
+            >
+              <h2 className="text-sm font-semibold">No pudimos generar el borrador.</h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">Tu nota no se perdió.</p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={requestGeneration}
+                  disabled={!canGenerate}
+                  className="rounded border border-[var(--accent)] px-3 py-2 text-sm text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+                >
+                  Reintentar
+                </button>
+                <button
+                  type="button"
+                  onClick={continueEditing}
+                  className="rounded border border-[var(--border)] px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                >
+                  Seguir editando
+                </button>
               </div>
-            ) : generationOutcome === 'partial' ? (
-              <h2 className="text-base font-semibold">Revisa estos puntos</h2>
-            ) : (
-              <h2 className="text-base font-semibold">Borrador para revisar</h2>
-            )}
-            <EvolutionReviewArtifact
-              mode="manual"
-              sourceNote={rawNote}
-              draft={draft}
-              generatedDraft={generatedDraft}
-              evolutionAt={toOffsetISOString(evolutionAt)}
-              stale={isDraftStale}
-              edited={hasHumanEdits}
-              showSource={false}
-              onChange={setDraft}
-              onSave={() => void save()}
-              staleMessageId="stale-draft-message"
-              canSave={canSave}
-              saving={saving}
-            />
-            {!hasClinicalContent && (
-              <p className="mt-5 text-sm text-[var(--warning)]">
-                No hay contenido clínico para guardar. Corrige la nota y vuelve a redactar, o
-                completa manualmente al menos un campo.
-              </p>
-            )}
-            {isDraftStale && (
-              <p
-                id="stale-draft-message"
-                role="status"
-                className="mt-5 text-sm text-[var(--warning)]"
-              >
-                El borrador quedó desactualizado porque cambiaste la nota original. Regenera antes
-                de guardar.
-              </p>
-            )}
-          </section>
-        )}
+            </section>
+          )}
+
+          {generatedDraft && (
+            <section className="new-evolution-review mt-8 border-t border-[var(--border)] pt-8">
+              {generationOutcome === 'success' ? (
+                <div role="status">
+                  <h2 className="text-base font-semibold">Borrador generado</h2>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                    Revisa el contenido antes de guardar la evolución.
+                  </p>
+                </div>
+              ) : generationOutcome === 'partial' ? (
+                <h2 className="text-base font-semibold">Revisa estos puntos</h2>
+              ) : (
+                <h2 className="text-base font-semibold">Borrador para revisar</h2>
+              )}
+              <EvolutionReviewArtifact
+                mode="manual"
+                sourceNote={rawNote}
+                draft={draft}
+                generatedDraft={generatedDraft}
+                evolutionAt={toOffsetISOString(evolutionAt)}
+                stale={isDraftStale}
+                edited={hasHumanEdits}
+                showSource={false}
+                onChange={setDraft}
+                onSave={requestSave}
+                staleMessageId="stale-draft-message"
+                canSave={canSave}
+                saving={saving}
+              />
+              {!hasClinicalContent && (
+                <p className="mt-5 text-sm text-[var(--warning)]">
+                  No hay contenido clínico para guardar. Corrige la nota y vuelve a redactar, o
+                  completa manualmente al menos un campo.
+                </p>
+              )}
+              {isDraftStale && (
+                <p
+                  id="stale-draft-message"
+                  role="status"
+                  className="mt-5 text-sm text-[var(--warning)]"
+                >
+                  El borrador quedó desactualizado porque cambiaste la nota original. Regenera antes
+                  de guardar.
+                </p>
+              )}
+            </section>
+          )}
+        </div>
 
         <div aria-live="polite" className="mt-4 text-sm text-[var(--text-secondary)]">
           {workspace === 'generating' ? 'Generando borrador...' : saving ? 'Guardando...' : error}
@@ -730,6 +743,20 @@ export function NewEvolution() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmSaveOpen && patient && (
+        <ConfirmDialog
+          title="Confirmar evolución"
+          description={`${patient.first_name} ${patient.last_name} · ${formatClinicalDateTime(evolutionAt)}. Se guardará el contenido revisado en la ficha del paciente.`}
+          confirmLabel="Confirmar y guardar"
+          cancelLabel="Volver a revisar"
+          onConfirm={() => {
+            setConfirmSaveOpen(false);
+            void save();
+          }}
+          onCancel={() => setConfirmSaveOpen(false)}
+        />
       )}
     </main>
   );

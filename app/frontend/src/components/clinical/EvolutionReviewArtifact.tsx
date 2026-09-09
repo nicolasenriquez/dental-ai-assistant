@@ -25,6 +25,8 @@ interface EvolutionReviewArtifactProps {
   staleMessageId?: string;
 }
 
+type ClinicalFieldKey = (typeof clinicalFields)[number]['key'];
+
 function dateParts(value: string): { date: string; time: string } {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return { date: '', time: '' };
@@ -57,6 +59,8 @@ export function EvolutionReviewArtifact({
   staleMessageId,
 }: EvolutionReviewArtifactProps) {
   const [editingSource, setEditingSource] = useState(false);
+  const [editingField, setEditingField] = useState<ClinicalFieldKey | null>(null);
+  const [editingValue, setEditingValue] = useState('');
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [dateControls, setDateControls] = useState(showDateTime);
   const isAssistant = mode === 'assistant';
@@ -66,6 +70,19 @@ export function EvolutionReviewArtifact({
     if (!date || !time || !onEvolutionAtChange) return;
     const next = new Date(`${date}T${time}`);
     if (!Number.isNaN(next.getTime())) onEvolutionAtChange(next.toISOString());
+  };
+  const startFieldEdit = (key: ClinicalFieldKey) => {
+    setEditingField(key);
+    setEditingValue(draft[key]);
+  };
+  const cancelFieldEdit = () => {
+    setEditingField(null);
+    setEditingValue('');
+  };
+  const applyFieldEdit = () => {
+    if (!editingField) return;
+    onChange({ ...draft, [editingField]: editingValue });
+    cancelFieldEdit();
   };
 
   return (
@@ -121,7 +138,7 @@ export function EvolutionReviewArtifact({
 
       <div className={isAssistant ? 'clinical-draft-fields' : 'evolution-review-artifact__fields'}>
         {clinicalFields.map(({ key, label }) => (
-          <label
+          <div
             key={key}
             className={
               key === 'context' || key === 'findings' || key === 'assessment'
@@ -129,14 +146,57 @@ export function EvolutionReviewArtifact({
                 : undefined
             }
           >
-            <span>{label}</span>
-            <textarea
-              rows={isAssistant ? 2 : 3}
-              value={draft[key]}
-              onChange={(event) => onChange({ ...draft, [key]: event.target.value })}
-              disabled={readOnly}
-            />
-          </label>
+            <div className="evolution-review-artifact__field-heading">
+              <span>{label}</span>
+              {!readOnly && editingField !== key && (
+                <button
+                  type="button"
+                  className={
+                    isAssistant
+                      ? 'clinical-secondary-button'
+                      : 'text-sm text-[var(--accent)] hover:underline'
+                  }
+                  onClick={() => startFieldEdit(key)}
+                >
+                  Editar
+                </button>
+              )}
+            </div>
+            {editingField === key ? (
+              <>
+                <textarea
+                  rows={isAssistant ? 2 : 3}
+                  value={editingValue}
+                  onChange={(event) => setEditingValue(event.target.value)}
+                  aria-label={label}
+                />
+                <div className="evolution-review-artifact__field-actions">
+                  <button
+                    type="button"
+                    className="text-sm text-[var(--text-secondary)] hover:underline"
+                    onClick={cancelFieldEdit}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      isAssistant
+                        ? 'clinical-primary-button'
+                        : 'text-sm text-[var(--accent)] hover:underline'
+                    }
+                    onClick={applyFieldEdit}
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="evolution-review-artifact__field-value">
+                {draft[key] || 'Sin información registrada.'}
+              </p>
+            )}
+          </div>
         ))}
       </div>
 
@@ -206,6 +266,7 @@ export function EvolutionReviewArtifact({
               <button
                 type="button"
                 className="clinical-primary-button"
+                disabled={editingField !== null}
                 onClick={() => {
                   setConfirmReplace(false);
                   onRegenerate();
@@ -218,6 +279,7 @@ export function EvolutionReviewArtifact({
             <button
               type="button"
               className="clinical-primary-button"
+              disabled={editingField !== null}
               onClick={() => (edited ? setConfirmReplace(true) : onRegenerate())}
             >
               Regenerar
@@ -226,7 +288,7 @@ export function EvolutionReviewArtifact({
         ) : !readOnly && onSave ? (
           <button
             type="button"
-            disabled={!canSave || saving}
+            disabled={!canSave || saving || editingField !== null}
             onClick={onSave}
             aria-describedby={stale ? staleMessageId : undefined}
             className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-50"
@@ -237,7 +299,7 @@ export function EvolutionReviewArtifact({
           <button
             type="button"
             className="clinical-primary-button"
-            disabled={emptyDraft}
+            disabled={emptyDraft || editingField !== null}
             onClick={onPrepare}
           >
             Preparar para guardar

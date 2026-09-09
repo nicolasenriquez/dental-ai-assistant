@@ -13,9 +13,9 @@ import { useConversations } from '../hooks/useConversations';
 import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { useToast } from '../hooks/useToast';
 import { createConversation, deleteConversation } from '../lib/api';
+import { ConfirmDialog } from './ConfirmDialog';
 import { VideoExplorer } from './VideoExplorer';
 import { ChatThreadList } from './sidebar/ChatThreadList';
-import { ConfirmDialog } from './sidebar/ConversationList';
 import { SidebarHeader } from './sidebar/SidebarHeader';
 import { SidebarNavigation } from './sidebar/SidebarNavigation';
 import { SidebarSearch } from './sidebar/SidebarSearch';
@@ -271,6 +271,7 @@ export function Sidebar({
                   error={Boolean(error)}
                   onRetry={() => void refetch()}
                   creating={creatingNew}
+                  onRequestExpand={() => onToggleCollapse()}
                 />
               </div>
             </>
@@ -303,13 +304,18 @@ export function Sidebar({
 
       {confirmId && (
         <ConfirmDialog
-          onConfirm={handleDeleteConfirm}
+          title="¿Eliminar conversación?"
+          description="Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
+          cancelLabel="Cancelar"
+          tone="danger"
+          busy={deleting}
+          error={deleteError ? 'No pudimos eliminarla. Intenta nuevamente.' : null}
+          onConfirm={() => void handleDeleteConfirm()}
           onCancel={() => {
             setConfirmId(null);
             setDeleteError(false);
           }}
-          deleting={deleting}
-          error={deleteError}
         />
       )}
 

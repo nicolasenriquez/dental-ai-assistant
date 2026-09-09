@@ -34,11 +34,12 @@ export function ClinicalAssistant() {
     <AppShell
       showConversations={false}
       workspaceMode
-      secondarySidebarContent={(isCollapsed) => (
+      secondarySidebarContent={(isCollapsed, onRequestExpand) => (
         <ClinicalThreadList
           activeThreadId={activeId ?? undefined}
           isCollapsed={isCollapsed}
           refreshKey={threadListVersion}
+          onRequestExpand={onRequestExpand}
         />
       )}
     >

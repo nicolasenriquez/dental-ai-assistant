@@ -14,6 +14,7 @@ import {
   isCompleteRutInput,
   validateRut,
 } from '../lib/rut';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface PatientFormValues {
   first_name: string;
@@ -33,6 +34,15 @@ interface PatientFormModalProps {
 
 type PatientField = 'first_name' | 'last_name' | 'rut' | 'birth_date';
 type PatientFieldErrors = Partial<Record<PatientField, string>>;
+
+function rutError(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return 'Ingresa el RUT.';
+  if (!isCompleteRutInput(trimmed)) {
+    return 'Ingresa el RUT completo, incluido el dígito verificador.';
+  }
+  return validateRut(trimmed) ? '' : 'El dígito verificador no coincide. Revisa el RUT.';
+}
 
 function duplicatePatient(error: unknown): Patient | null {
   if (
@@ -81,6 +91,7 @@ export function PatientFormModal({
   const [fieldErrors, setFieldErrors] = useState<PatientFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<Patient | null>(null);
+  const [closePromptOpen, setClosePromptOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -94,6 +105,7 @@ export function PatientFormModal({
       setFieldErrors({});
       setFormError(null);
       setDuplicate(null);
+      setClosePromptOpen(false);
       firstInput.current?.focus();
     } else if (restoreFocus.current?.isConnected) {
       restoreFocus.current.focus();
@@ -118,7 +130,8 @@ export function PatientFormModal({
 
   const requestClose = () => {
     if (submitting) return;
-    if (dirty && !window.confirm('Tienes cambios sin guardar. ¿Quieres cerrar el formulario?')) {
+    if (dirty) {
+      setClosePromptOpen(true);
       return;
     }
     onClose();
@@ -158,8 +171,8 @@ export function PatientFormModal({
     if (!firstName) errors.first_name = 'Ingresa los nombres.';
     if (!lastName) errors.last_name = 'Ingresa los apellidos.';
     if (mode === 'create' || rutChangeOpen) {
-      if (!rut) errors.rut = 'Ingresa el RUT.';
-      else if (!validateRut(rut)) errors.rut = 'Ingresa un RUT válido.';
+      const error = rutError(rut);
+      if (error) errors.rut = error;
     }
     if (birthDate && !parsedBirthDate) {
       errors.birth_date = 'Ingresa una fecha válida, no futura, como dd/mm/aaaa.';
@@ -397,7 +410,12 @@ export function PatientFormModal({
                         if (isCompleteRutInput(formatted) && !validateRut(formatted)) {
                           setFieldErrors((current) => ({
                             ...current,
-                            rut: 'Ingresa un RUT válido.',
+                            rut: rutError(formatted),
+                          }));
+                        } else if (formatted && !isCompleteRutInput(formatted)) {
+                          setFieldErrors((current) => ({
+                            ...current,
+                            rut: rutError(formatted),
                           }));
                         } else {
                           clearFieldError('rut');
@@ -505,6 +523,20 @@ export function PatientFormModal({
           </>
         )}
       </form>
+      {closePromptOpen && (
+        <ConfirmDialog
+          title="¿Salir sin guardar?"
+          description="Tienes cambios sin guardar. Si sales ahora, se perderán."
+          confirmLabel="Salir sin guardar"
+          cancelLabel="Continuar editando"
+          tone="danger"
+          onConfirm={() => {
+            setClosePromptOpen(false);
+            onClose();
+          }}
+          onCancel={() => setClosePromptOpen(false)}
+        />
+      )}
     </div>
   );
 }

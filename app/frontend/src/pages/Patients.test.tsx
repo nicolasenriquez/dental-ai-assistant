@@ -241,7 +241,9 @@ describe('Patients birth-date dialog', () => {
     fireEvent.change(screen.getByLabelText('RUT'), { target: { value: '12.345.678-9' } });
     fireEvent.click(screen.getByRole('button', { name: 'Crear paciente' }));
 
-    expect(await screen.findByText('Ingresa un RUT válido.')).toBeVisible();
+    expect(
+      await screen.findByText('El dígito verificador no coincide. Revisa el RUT.'),
+    ).toBeVisible();
     expect(screen.getByLabelText('RUT')).toHaveAttribute('aria-invalid', 'true');
     expect(createPatient).not.toHaveBeenCalled();
   });

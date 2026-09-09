@@ -21,6 +21,7 @@ interface ChatThreadListProps {
   error?: boolean;
   onRetry?: () => void;
   creating?: boolean;
+  onRequestExpand?: () => void;
 }
 
 export function ChatThreadList({
@@ -37,6 +38,7 @@ export function ChatThreadList({
   error = false,
   onRetry,
   creating = false,
+  onRequestExpand,
 }: ChatThreadListProps) {
   return (
     <WorkspaceThreadList
@@ -56,6 +58,7 @@ export function ChatThreadList({
       onSelect={onSelect}
       creating={creating}
       onRetry={onRetry}
+      onRequestExpand={onRequestExpand}
       emptyMessage="Aún no hay conversaciones"
       emptyActionLabel="Inicia tu primer chat"
       createLabel="Nuevo chat"

@@ -117,8 +117,12 @@ test('captures public views and patients workflow', async ({ page }) => {
     'true',
   );
   await expect(patientDialog.getByText('Ingresa una fecha válida')).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
   await patientDialog.getByRole('button', { name: 'Cancelar' }).click();
+  const leavePatientDialog = page.getByRole('dialog', { name: '¿Salir sin guardar?' });
+  await expect(leavePatientDialog).toBeVisible();
+  await leavePatientDialog.getByRole('button', { name: 'Continuar editando' }).click();
+  await patientDialog.getByRole('button', { name: 'Cancelar' }).click();
+  await leavePatientDialog.getByRole('button', { name: 'Salir sin guardar' }).click();
   await expect(patientDialog).toBeHidden();
 
   const patientLink = page.locator('main a[href^="/patients/"]').first();
@@ -155,6 +159,8 @@ test('captures public views and patients workflow', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Guardar evolución' })).toBeEnabled();
   await captureView(page, 'new-evolution-review');
 
+  const reviewArtifact = page.locator('.evolution-review-artifact');
+  await reviewArtifact.locator('button', { hasText: 'Editar' }).nth(1).click();
   await page.getByLabel('Hallazgos').fill('Cambio local para validar regeneración.');
   await page.getByRole('button', { name: 'Corregir nota y regenerar', exact: true }).click();
   await page.getByRole('button', { name: 'Regenerar borrador', exact: true }).click();
@@ -254,8 +260,11 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   await expect(sidebar.locator('.workspace-thread-list__heading')).toHaveCount(0);
   await expect(sidebar.locator('.workspace-thread-list__group-heading')).toHaveCount(0);
   await expect(sidebar.locator('.workspace-thread-list')).toHaveCSS('overflow-y', 'visible');
-  await expect(sidebar.locator('.conversation-title-icon').first()).toBeVisible();
-  await sidebar.getByRole('button', { name: 'Expandir navegación' }).click();
+  await expect(sidebar.locator('.conversation-title-icon')).toHaveCount(0);
+  const historyButton = sidebar.getByRole('button', { name: 'Abrir historial de conversaciones' });
+  await expect(historyButton).toBeVisible();
+  await historyButton.click();
+  await expect(sidebar.getByRole('button', { name: 'Baseline conversation', exact: true })).toBeVisible();
 
   await conversationItem.hover();
   await conversationItem

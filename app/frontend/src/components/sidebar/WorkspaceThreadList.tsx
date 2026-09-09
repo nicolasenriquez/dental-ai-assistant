@@ -1,4 +1,4 @@
-import { MessageCircle } from 'lucide-react';
+import { History, MessageCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { SIDEBAR_MOTION } from './sidebarMotion';
@@ -24,6 +24,7 @@ interface WorkspaceThreadListProps {
   onSelect: (id: string) => void;
   creating?: boolean;
   onRetry?: () => void;
+  onRequestExpand?: () => void;
   emptyMessage?: string;
   emptyActionLabel?: string;
   createLabel?: string;
@@ -73,6 +74,7 @@ export function WorkspaceThreadList({
   createLabel = 'Nuevo hilo',
   showHeaderCreate = true,
   showCompactCreate = true,
+  onRequestExpand,
   renderItem,
 }: WorkspaceThreadListProps) {
   const [expanded, setExpanded] = useState<Record<ThreadGroup, boolean>>({
@@ -96,6 +98,10 @@ export function WorkspaceThreadList({
       items: groups.get(group) ?? [],
     }));
   }, [filteredItems]);
+  const hasPending = items.some((item) => item.statusLabel);
+  const historyLabel = hasPending
+    ? `Abrir historial de ${title.toLocaleLowerCase()}; hay una aprobación pendiente`
+    : `Abrir historial de ${title.toLocaleLowerCase()}`;
 
   return (
     <section
@@ -122,6 +128,18 @@ export function WorkspaceThreadList({
           title={createLabel}
         >
           ＋
+        </button>
+      )}
+      {isCollapsed && onRequestExpand && (
+        <button
+          type="button"
+          className="workspace-thread-list__history"
+          onClick={onRequestExpand}
+          aria-label={historyLabel}
+          title={historyLabel}
+        >
+          <History aria-hidden="true" size={17} strokeWidth={1.7} />
+          {hasPending && <span className="workspace-thread-list__pending-dot" aria-hidden="true" />}
         </button>
       )}
       {onQueryChange && !isCollapsed && (
@@ -155,7 +173,8 @@ export function WorkspaceThreadList({
           )}
         </div>
       )}
-      {!loading &&
+      {!isCollapsed &&
+        !loading &&
         !error &&
         grouped.map(({ group, items: groupItems }) => (
           <section key={group} className="workspace-thread-list__group" aria-label={group}>
@@ -192,7 +211,9 @@ export function WorkspaceThreadList({
                         onClick={() => onSelect(item.id)}
                         aria-current={item.active ? 'page' : undefined}
                         aria-label={
-                          item.statusLabel ? `${item.title} · ${item.statusLabel}` : item.title
+                          item.statusLabel
+                            ? `${item.title} · ${item.statusLabel === '!' ? 'Aprobación pendiente' : item.statusLabel}`
+                            : item.title
                         }
                         title={item.title}
                       >

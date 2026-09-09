@@ -11,12 +11,14 @@ interface ClinicalThreadListProps {
   activeThreadId?: string;
   isCollapsed?: boolean;
   refreshKey?: number;
+  onRequestExpand?: () => void;
 }
 
 export function ClinicalThreadList({
   activeThreadId,
   isCollapsed = false,
   refreshKey = 0,
+  onRequestExpand,
 }: ClinicalThreadListProps) {
   const navigate = useNavigate();
   const [threads, setThreads] = useState<ClinicalThreadSummary[]>([]);
@@ -72,6 +74,7 @@ export function ClinicalThreadList({
       onSelect={(id) => navigate(`/a/${id}`)}
       creating={creating}
       onRetry={() => void refresh()}
+      onRequestExpand={onRequestExpand}
       createLabel="Nuevo hilo"
     />
   );

@@ -316,7 +316,11 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(sidebar.locator('.sidebar-secondary-scroll')).toHaveCSS('overflow-y', 'auto');
   await expect(sidebar.locator('.workspace-thread-list__heading')).toHaveCount(0);
   await expect(sidebar.locator('.workspace-thread-list__group-heading')).toHaveCount(0);
-  await expect(sidebar.getByRole('button', { name: 'Ana Pérez · Control' })).toBeVisible();
+  await expect(sidebar.locator('.workspace-thread-list__item')).toHaveCount(0);
+  const historyButton = sidebar.getByRole('button', {
+    name: 'Abrir historial de asistente',
+  });
+  await expect(historyButton).toBeVisible();
   await expect(sidebar.getByRole('button', { name: 'Nuevo hilo' })).toHaveAttribute(
     'title',
     'Nuevo hilo',
@@ -325,7 +329,8 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     animations: 'disabled',
     maxDiffPixels: 100,
   });
-  await sidebar.getByRole('button', { name: 'Expandir navegación' }).click();
+  await historyButton.click();
+  await expect(sidebar.getByRole('button', { name: 'Ana Pérez · Control' })).toBeVisible();
 
   await expect(page).toHaveScreenshot('clinical-empty.png', {
     fullPage: true,
