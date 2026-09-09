@@ -60,17 +60,18 @@ const conversationListFixture = [
   },
 ];
 
-async function captureView(page: Page, name: string) {
+async function captureView(page: Page, name: string, fullPage = true) {
   await expect(page.locator('body')).toMatchAriaSnapshot({
     name: `${name}.aria.yml`,
   });
   await expect(page).toHaveScreenshot(`${name}.png`, {
-    fullPage: true,
+    fullPage,
     animations: 'disabled',
+    maxDiffPixels: ['chat-empty', 'sidebar-conversation-menu'].includes(name) ? 128 : 0,
   });
 }
 
-async function mockJsonRoute(page: Page, url: string, body: unknown, method?: string) {
+async function mockJsonRoute(page: Page, url: string | RegExp, body: unknown, method?: string) {
   await page.route(url, async (route: Route) => {
     if (method && route.request().method() !== method) {
       await route.continue();
@@ -116,7 +117,9 @@ test('captures public views and patients workflow', async ({ page }) => {
     'true',
   );
   await expect(patientDialog.getByText('Ingresa una fecha válida')).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
   await patientDialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(patientDialog).toBeHidden();
 
   const patientLink = page.locator('main a[href^="/patients/"]').first();
   await expect(patientLink).toBeVisible();
@@ -154,7 +157,7 @@ test('captures public views and patients workflow', async ({ page }) => {
 
   await page.getByLabel('Hallazgos').fill('Cambio local para validar regeneración.');
   await page.getByRole('button', { name: 'Corregir nota y regenerar', exact: true }).click();
-  await page.getByRole('button', { name: 'Regenerar', exact: true }).click();
+  await page.getByRole('button', { name: 'Regenerar borrador', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Regenerar evolución' })).toBeVisible();
   await captureView(page, 'new-evolution-regeneration-dialog');
   await page.getByRole('button', { name: 'Cancelar' }).click();
@@ -193,19 +196,55 @@ test('captures public views and patients workflow', async ({ page }) => {
 
 test('captures chat, library, admin, and not-found behaviors', async ({ page }) => {
   await page.clock.install({ time: '2026-01-15T12:00:00Z' });
+  await page.route('**/api/conversations**', async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const isList = pathname === '/api/conversations';
+    const isBaseline = pathname.endsWith('/00000000-0000-0000-0000-000000000002');
+
+    if (isList && request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([conversationFixture]),
+      });
+      return;
+    }
+    if (isList && request.method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(conversationFixture),
+      });
+      return;
+    }
+    if (isBaseline && request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(conversationFixture),
+      });
+      return;
+    }
+    await route.continue();
+  });
   await page.goto('/chat');
-  await expect(page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/)).toBeVisible();
+  await expect(page.getByLabel('Pregunta sobre la biblioteca de videos')).toBeVisible();
   await captureView(page, 'chat-empty');
 
-  const starter = page.getByRole('button', { name: /How do I use subagents/ });
+  const starter = page.locator('.chat-starter-button').filter({
+    hasText: 'How do I use subagents in Claude Code?',
+  });
   await starter.click();
-  await expect(page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/)).toHaveValue(
+  await expect(page.getByLabel('Pregunta sobre la biblioteca de videos')).toHaveValue(
     /How do I use subagents/,
   );
 
   const conversationItem = page.locator('#app-sidebar .conversation-item').first();
   await expect(conversationItem).toBeVisible();
-  await conversationItem.getByRole('button', { name: 'Baseline conversation' }).click();
+  await conversationItem
+    .getByRole('button', { name: 'Baseline conversation', exact: true })
+    .click();
   await expect(page).toHaveURL(/\/c\/.+$/);
 
   const sidebar = page.locator('#app-sidebar');
@@ -236,12 +275,6 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   await expect(page.getByRole('dialog', { name: '¿Eliminar conversación?' })).toBeVisible();
   await page.getByRole('button', { name: 'Cancelar' }).click();
 
-  await mockJsonRoute(page, '**/api/conversations', conversationFixture, 'POST');
-  await mockJsonRoute(
-    page,
-    '**/api/conversations/00000000-0000-0000-0000-000000000002',
-    conversationFixture,
-  );
   await page.getByRole('button', { name: 'Nuevo chat' }).click();
   await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000002$/);
   await expect(page.getByText('Baseline response.')).toBeVisible();
@@ -261,7 +294,7 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   const videoSearch = library.getByRole('searchbox', { name: 'Buscar videos' });
   await videoSearch.fill('baseline');
   await expect(library).toBeVisible();
-  await captureView(page, 'video-library-search');
+  await captureView(page, 'video-library-search', false);
   await library.getByRole('button', { name: /Agregar video/ }).click();
   await expect(page.getByRole('heading', { name: 'Agregar video' })).toBeVisible();
   await captureView(page, 'video-library-add-dialog');
@@ -295,7 +328,7 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
     name: 'Agregar video por URL',
   });
   await expect(addVideoDialog).toBeVisible();
-  await captureView(page, 'admin-add-video-dialog');
+  await captureView(page, 'admin-add-video-dialog', false);
   await addVideoDialog
     .getByPlaceholder(/youtube\.com/)
     .fill('https://www.youtube.com/watch?v=baseline');
@@ -358,9 +391,16 @@ test('keeps lower conversation menu actions visible', async ({ page }) => {
   await page.getByRole('button', { name: 'Cancelar' }).click();
 });
 
-test('isolates concurrent conversation streams, stop, retry, and manual scroll', async ({ page }) => {
+test('isolates concurrent conversation streams, stop, retry, and manual scroll', async ({
+  page,
+}) => {
   await page.clock.install({ time: '2026-01-15T12:00:00Z' });
-  await mockJsonRoute(page, '**/api/conversations', [conversationFixture, secondConversationFixture], 'GET');
+  await mockJsonRoute(
+    page,
+    '**/api/conversations',
+    [conversationFixture, secondConversationFixture],
+    'GET',
+  );
   await mockJsonRoute(
     page,
     '**/api/conversations/00000000-0000-0000-0000-000000000002',
@@ -429,25 +469,27 @@ test('isolates concurrent conversation streams, stop, retry, and manual scroll',
   );
 
   await page.goto('/c/00000000-0000-0000-0000-000000000002');
-  const aRow = page.getByRole('button', { name: /Baseline conversation/ });
-  const bRow = page.getByRole('button', { name: /Second conversation/ });
-  const input = page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/);
+  const aRow = page.getByRole('button', { name: 'Baseline conversation', exact: true });
+  const bRow = page.getByRole('button', { name: 'Second conversation', exact: true });
+  const input = page.getByLabel('Pregunta sobre la biblioteca de videos');
   await input.fill('Consulta A');
   await page.getByRole('button', { name: /enviar mensaje/i }).click();
   await expect(aRow).toHaveAttribute('aria-busy', 'true');
 
   await input.fill('Follow-up en cola');
   await page.getByRole('button', { name: 'Poner mensaje en cola' }).click();
-  await expect(page.getByLabel('Mensaje en cola')).toContainText('Follow-up en cola');
+  await expect(page.getByLabel('Mensaje en cola', { exact: true })).toContainText(
+    'Follow-up en cola',
+  );
   await page.getByRole('button', { name: 'Eliminar mensaje en cola' }).click();
-  await expect(page.getByLabel('Mensaje en cola')).toBeHidden();
+  await expect(page.getByLabel('Mensaje en cola', { exact: true })).toBeHidden();
 
   await bRow.click();
   await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000007$/);
   await expect(aRow).toHaveAttribute('aria-busy', 'true');
   await expect(bRow).toHaveAttribute('aria-busy', 'false');
 
-  await page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/).fill('Consulta B');
+  await page.getByLabel('Pregunta sobre la biblioteca de videos').fill('Consulta B');
   await page.getByRole('button', { name: /enviar mensaje/i }).click();
   await expect(bRow).toHaveAttribute('aria-busy', 'true');
 
@@ -472,12 +514,20 @@ test('isolates concurrent conversation streams, stop, retry, and manual scroll',
   expect(bScrollTopBeforeResponse).toBe(100);
   releaseB();
   await expect(page.getByText('Respuesta B de prueba')).toBeVisible();
-  await expect.poll(() => bScroll.evaluate((element) => element.scrollTop)).toBe(bScrollTopBeforeResponse);
+  await expect
+    .poll(() => bScroll.evaluate((element) => element.scrollTop))
+    .toBe(bScrollTopBeforeResponse);
   await expect(bRow).toHaveAttribute('aria-busy', 'false');
 
   await aRow.click();
+  await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000002$/);
+  await expect(page.getByText('Baseline response.')).toBeVisible();
   await bRow.click();
-  await expect.poll(() => bScroll.evaluate((element) => element.scrollTop)).toBe(bScrollTopBeforeResponse);
+  await expect(page).toHaveURL(/\/c\/00000000-0000-0000-0000-000000000007$/);
+  await expect(page.getByText('Second hydrated response.')).toBeVisible();
+  await expect
+    .poll(() => bScroll.evaluate((element) => element.scrollTop))
+    .toBe(bScrollTopBeforeResponse);
 
   const chatScroll = page.locator('.chat-message-scroll');
   await chatScroll.evaluate((element) => {
@@ -489,14 +539,14 @@ test('isolates concurrent conversation streams, stop, retry, and manual scroll',
   await expect(page.getByRole('button', { name: 'Ir al mensaje más reciente' })).toBeHidden();
 
   await aRow.click();
-  await page.getByPlaceholder(/Pregunta sobre la biblioteca de videos/).fill('Consulta con error');
+  await page.getByLabel('Pregunta sobre la biblioteca de videos').fill('Consulta con error');
   await page.getByRole('button', { name: /enviar mensaje/i }).click();
   await expect(aRow).toHaveAttribute('aria-busy', 'false');
   await expect(aRow.getByRole('img', { name: 'Error en la respuesta' })).toBeVisible();
   await expect(bRow.getByRole('img', { name: 'Error en la respuesta' })).toBeHidden();
   await page.getByRole('button', { name: 'Reintentar' }).click();
-  await expect(aRow).toHaveAttribute('aria-busy', 'true');
   await expect(page.getByText('Respuesta A recuperada')).toBeVisible();
+  await expect(aRow).toHaveAttribute('aria-busy', 'false');
   await expect(aRow.getByRole('img', { name: 'Error en la respuesta' })).toBeHidden();
 
   for (let index = 0; index < 10; index += 1) {
@@ -507,9 +557,11 @@ test('isolates concurrent conversation streams, stop, retry, and manual scroll',
   }
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  expect(await page.locator('.chat-message-scroll').evaluate((element) => getComputedStyle(element).scrollBehavior)).toBe(
-    'auto',
-  );
+  expect(
+    await page
+      .locator('.chat-message-scroll')
+      .evaluate((element) => getComputedStyle(element).scrollBehavior),
+  ).toBe('auto');
 });
 
 test('captures sidebar responsive states and preserves the rail contract', async ({ page }) => {

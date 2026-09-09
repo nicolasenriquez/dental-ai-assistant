@@ -115,7 +115,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     );
 
     return (
-      <div className={`chat-composer${focused ? ' is-focused' : ''}${isDisabled ? ' is-disabled' : ''}`}>
+      <div
+        className={`chat-composer${focused ? ' is-focused' : ''}${isDisabled ? ' is-disabled' : ''}`}
+      >
         <textarea
           ref={textareaRef}
           aria-label="Pregunta sobre la biblioteca de videos"

@@ -17,12 +17,14 @@ const MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
 function voiceErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const body = error.body;
-    const detail = body && typeof body === 'object' && 'detail' in body
-      ? (body as { detail?: unknown }).detail
-      : body;
-    const code = detail && typeof detail === 'object' && 'code' in detail
-      ? (detail as { code?: unknown }).code
-      : undefined;
+    const detail =
+      body && typeof body === 'object' && 'detail' in body
+        ? (body as { detail?: unknown }).detail
+        : body;
+    const code =
+      detail && typeof detail === 'object' && 'code' in detail
+        ? (detail as { code?: unknown }).code
+        : undefined;
     const messages: Record<string, string> = {
       AUDIO_TOO_LARGE: 'La grabación es demasiado larga. Prueba con una nota más breve.',
       INVALID_AUDIO: 'No encontramos audio válido en la grabación. Intenta nuevamente.',
@@ -64,32 +66,35 @@ export function useClinicalVoiceInput(scopeId: string, onText: (text: string) =>
 
   const cleanup = useCallback(() => {
     clearTimers();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+    for (const track of streamRef.current?.getTracks() ?? []) track.stop();
     streamRef.current = null;
     recorderRef.current = null;
   }, [clearTimers]);
 
-  const transcribe = useCallback(async (blob: Blob, operation = operationRef.current) => {
-    const sourceScope = scopeId;
-    const controller = new AbortController();
-    transcriptionAbortRef.current = controller;
-    setState('transcribing');
-    setError(null);
-    try {
-      const result = await transcribeAudio(blob, controller.signal);
-      if (operation !== operationRef.current || sourceScope !== scopeId) return;
-      if (!result.text.trim()) throw new Error('empty transcription');
-      onTextRef.current(result.text.trim());
-      setState('success');
-    } catch (caught) {
-      if (caught instanceof DOMException && caught.name === 'AbortError') return;
-      if (operation !== operationRef.current || sourceScope !== scopeId) return;
-      setState('error');
-      setError(voiceErrorMessage(caught));
-    } finally {
-      if (transcriptionAbortRef.current === controller) transcriptionAbortRef.current = null;
-    }
-  }, [scopeId]);
+  const transcribe = useCallback(
+    async (blob: Blob, operation = operationRef.current) => {
+      const sourceScope = scopeId;
+      const controller = new AbortController();
+      transcriptionAbortRef.current = controller;
+      setState('transcribing');
+      setError(null);
+      try {
+        const result = await transcribeAudio(blob, controller.signal);
+        if (operation !== operationRef.current || sourceScope !== scopeId) return;
+        if (!result.text.trim()) throw new Error('empty transcription');
+        onTextRef.current(result.text.trim());
+        setState('success');
+      } catch (caught) {
+        if (caught instanceof DOMException && caught.name === 'AbortError') return;
+        if (operation !== operationRef.current || sourceScope !== scopeId) return;
+        setState('error');
+        setError(voiceErrorMessage(caught));
+      } finally {
+        if (transcriptionAbortRef.current === controller) transcriptionAbortRef.current = null;
+      }
+    },
+    [scopeId],
+  );
 
   const stop = useCallback(() => {
     if (recorderRef.current?.state === 'recording') {
@@ -116,7 +121,13 @@ export function useClinicalVoiceInput(scopeId: string, onText: (text: string) =>
   }, [transcribe]);
 
   const start = useCallback(async () => {
-    if (state === 'requesting_permission' || state === 'recording' || state === 'stopping' || state === 'transcribing') return;
+    if (
+      state === 'requesting_permission' ||
+      state === 'recording' ||
+      state === 'stopping' ||
+      state === 'transcribing'
+    )
+      return;
     setError(null);
     cancelledRef.current = false;
     blobRef.current = null;
@@ -131,17 +142,23 @@ export function useClinicalVoiceInput(scopeId: string, onText: (text: string) =>
       const sourceScope = scopeId;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (sourceScope !== scopeId || operation !== operationRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
+        for (const track of stream.getTracks()) track.stop();
         return;
       }
       streamRef.current = stream;
       const mimeType = MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       chunksRef.current = [];
       recorderRef.current = recorder;
-      recorder.ondataavailable = (event) => { if (event.data.size > 0) chunksRef.current.push(event.data); };
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || 'audio/webm' });
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || mimeType || 'audio/webm',
+        });
         cleanup();
         if (cancelledRef.current) {
           setState('cancelled');
@@ -153,15 +170,20 @@ export function useClinicalVoiceInput(scopeId: string, onText: (text: string) =>
       startedAtRef.current = Date.now();
       setElapsed(0);
       setState('recording');
-      timerRef.current = window.setInterval(() => setElapsed(Date.now() - startedAtRef.current), 250);
+      timerRef.current = window.setInterval(
+        () => setElapsed(Date.now() - startedAtRef.current),
+        250,
+      );
       stopTimerRef.current = window.setTimeout(stop, MAX_DURATION_MS);
       recorder.start();
     } catch (caught) {
       cleanup();
       setState('error');
-      setError(caught instanceof DOMException && caught.name === 'NotAllowedError'
-        ? 'El navegador no permitió usar el micrófono.'
-        : 'No pude iniciar la grabación.');
+      setError(
+        caught instanceof DOMException && caught.name === 'NotAllowedError'
+          ? 'El navegador no permitió usar el micrófono.'
+          : 'No pude iniciar la grabación.',
+      );
     }
   }, [cleanup, scopeId, state, stop, transcribe]);
 

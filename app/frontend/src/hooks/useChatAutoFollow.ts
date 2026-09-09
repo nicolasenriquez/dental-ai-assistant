@@ -27,6 +27,14 @@ function isAtLatest(container: HTMLDivElement, sentinel: HTMLDivElement | null):
   return container.scrollHeight - container.scrollTop - container.clientHeight <= FOLLOW_EPSILON_PX;
 }
 
+function scrollToLatest(container: HTMLDivElement, behavior: ScrollBehavior): void {
+  if (typeof container.scrollTo === 'function') {
+    container.scrollTo({ top: container.scrollHeight, behavior });
+    return;
+  }
+  container.scrollTop = container.scrollHeight;
+}
+
 export function useChatAutoFollow(): ChatAutoFollowResult {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
@@ -52,7 +60,7 @@ export function useChatAutoFollow(): ChatAutoFollowResult {
       setFollowing(true);
 
       if (container) {
-        container.scrollTo({ top: container.scrollHeight, behavior });
+        scrollToLatest(container, behavior);
       }
     },
     [setFollowing],
@@ -81,7 +89,7 @@ export function useChatAutoFollow(): ChatAutoFollowResult {
       if (followingRef.current) {
         const container = scrollContainerRef.current;
         if (container) {
-          container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+          scrollToLatest(container, 'auto');
         }
         setHasNewContentBelow(false);
       }

@@ -92,7 +92,7 @@ describe('useChatAutoFollow', () => {
       result.current.onContentAppended();
     });
     expect(result.current.followMode).toBe('following');
-    expect(sentinel.scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'end' });
+    expect(container.scrollTop).toBe(container.scrollHeight);
 
     act(() => {
       container.scrollTop = 20;
@@ -101,6 +101,6 @@ describe('useChatAutoFollow', () => {
     });
     expect(result.current.followMode).toBe('following');
     expect(result.current.hasNewContentBelow).toBe(false);
-    expect(sentinel.scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'end' });
+    expect(container.scrollTop).toBe(container.scrollHeight);
   });
 });

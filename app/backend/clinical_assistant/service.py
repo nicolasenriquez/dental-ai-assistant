@@ -7,7 +7,7 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from backend.db import clinical_assistant_repo as repository
@@ -46,7 +46,7 @@ ClinicalGenerationError = clinical_evolutions.ClinicalGenerationError
 
 
 async def list_threads(owner: UUID) -> list[dict[str, Any]]:
-    return await repository.list_threads(owner)
+    return cast(list[dict[str, Any]], await repository.list_threads(owner))
 
 
 async def create_thread(owner: UUID, title: str) -> ClinicalThreadResponse:
@@ -93,7 +93,9 @@ async def set_active_patient(
 async def resolve_action(
     owner: UUID, action_id: UUID, decision: str, proposal_hash: str
 ) -> dict[str, Any]:
-    return await repository.resolve_action(owner, action_id, decision, proposal_hash)
+    return cast(
+        dict[str, Any], await repository.resolve_action(owner, action_id, decision, proposal_hash)
+    )
 
 
 async def _get_recent_evolutions(context: ClinicalTurnContext) -> dict[str, Any]:
@@ -553,16 +555,20 @@ async def prepare_save(
             "final_text": final,
         }
     )
-    return await repository.create_pending_action(
-        owner,
-        thread,
-        request.turn_id,
-        request.artifact_id,
-        patient_id,
-        "save_evolution",
-        payload,
-        proposal_hash,
-    ) | {"patient": safe_patient(patient), "proposal_hash": proposal_hash}
+    pending_action = cast(
+        dict[str, Any],
+        await repository.create_pending_action(
+            owner,
+            thread,
+            request.turn_id,
+            request.artifact_id,
+            patient_id,
+            "save_evolution",
+            payload,
+            proposal_hash,
+        ),
+    )
+    return pending_action | {"patient": safe_patient(patient), "proposal_hash": proposal_hash}
 
 
 async def regenerate_draft(
@@ -637,4 +643,4 @@ async def update_artifact(
     )
     if updated is None:
         raise LookupError("Artifact not found")
-    return updated
+    return cast(dict[str, Any], updated)

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useChatAutoFollow } from '../../hooks/useChatAutoFollow';
 import type {
@@ -8,12 +9,14 @@ import type {
 } from '../../hooks/useClinicalAssistant';
 import { useConversationViewportCache } from '../../hooks/useConversationViewportCache';
 import type { ClinicalDraft } from '../../lib/api';
+import { Message } from '../Message';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 import { ClinicalDraftItem } from './ClinicalDraftItem';
 
 interface ClinicalTranscriptProps {
   threadId: string;
   items: ClinicalTranscriptItem[];
+  emptyState?: ReactNode;
   onDraftChange: (id: string, draft: ClinicalDraft) => void;
   onDraftSourceChange: (id: string, sourceNote: string) => void;
   onDraftDateChange: (id: string, evolutionAt: string) => void;
@@ -36,6 +39,7 @@ function groupByTurn(items: ClinicalTranscriptItem[]): ClinicalTranscriptItem[][
 export function ClinicalTranscript({
   threadId,
   items,
+  emptyState,
   onDraftChange,
   onDraftSourceChange,
   onDraftDateChange,
@@ -67,99 +71,102 @@ export function ClinicalTranscript({
     <div
       ref={follow.scrollContainerRef}
       onScroll={follow.onScroll}
-      className="clinical-transcript"
+      className="chat-message-scroll clinical-transcript"
       aria-label="Transcripción clínica"
     >
-      <div className="clinical-transcript-stack">
-        {groupByTurn(items).map((group) => (
-          <section
-            key={group[0]?.turnId}
-            className="clinical-turn-group"
-            data-turn-id={group[0]?.turnId}
-          >
-            {group.map((item) => {
-              if (item.type === 'user')
-                return (
-                  <div key={item.id} className="clinical-user-message">
-                    {item.content}
-                  </div>
-                );
-              if (item.type === 'assistant')
-                return (
-                  <p key={item.id} className="clinical-assistant-message">
-                    {item.content}
-                  </p>
-                );
-              if (item.type === 'activity')
-                return (
-                  <div key={item.id} className="clinical-activity" role="status" aria-live="polite">
-                    <span
-                      className={
-                        item.status === 'running'
-                          ? 'clinical-activity-icon clinical-activity-icon--running'
-                          : 'clinical-activity-icon'
-                      }
-                      aria-hidden="true"
+      {items.length === 0 && emptyState ? (
+        emptyState
+      ) : (
+        <div className="chat-message-stack clinical-transcript-stack">
+          {groupByTurn(items).map((group) => (
+            <section
+              key={group[0]?.turnId}
+              className="clinical-turn-group"
+              data-turn-id={group[0]?.turnId}
+            >
+              {group.map((item) => {
+                if (item.type === 'user' || item.type === 'assistant')
+                  return <Message key={item.id} role={item.type} content={item.content} />;
+                if (item.type === 'activity')
+                  return (
+                    <div
+                      key={item.id}
+                      className="clinical-activity"
+                      role="status"
+                      aria-live="polite"
                     >
-                      {item.status === 'running' ? '○' : '✓'}
-                    </span>
-                    <span>
-                      {item.label}
-                      {item.status === 'running' ? '…' : ''}
-                    </span>
+                      <span
+                        className={
+                          item.status === 'running'
+                            ? 'clinical-activity-icon clinical-activity-icon--running'
+                            : 'clinical-activity-icon'
+                        }
+                        aria-hidden="true"
+                      >
+                        {item.status === 'running' ? '○' : '✓'}
+                      </span>
+                      <span>
+                        {item.label}
+                        {item.status === 'running' ? '…' : ''}
+                      </span>
+                    </div>
+                  );
+                if (item.type === 'draft')
+                  return (
+                    <ClinicalDraftItem
+                      key={item.id}
+                      item={item}
+                      onChange={(draft) => onDraftChange(item.id, draft)}
+                      onSourceChange={(sourceNote) => onDraftSourceChange(item.id, sourceNote)}
+                      onEvolutionAtChange={(evolutionAt) => onDraftDateChange(item.id, evolutionAt)}
+                      onRegenerate={() => onDraftRegenerate(item)}
+                      onPrepare={() => onPrepare(item)}
+                    />
+                  );
+                if (item.type === 'approval')
+                  return (
+                    <ApprovalRequestItem
+                      key={item.id}
+                      item={item}
+                      onResolve={(decision) => onResolve(item, decision)}
+                    />
+                  );
+                if (item.type === 'result')
+                  return (
+                    <output key={item.id} className="clinical-result">
+                      <strong>{item.message}</strong>
+                      {item.evolutionId && item.patientId && (
+                        <Link to={`/patients/${item.patientId}/evolutions/${item.evolutionId}`}>
+                          Ver en ficha
+                        </Link>
+                      )}
+                    </output>
+                  );
+                return (
+                  <div key={item.id} className="clinical-error" role="alert">
+                    <span>{item.message}</span>
+                    <button
+                      type="button"
+                      className="clinical-secondary-button"
+                      onClick={() => onRetry(item.turnId)}
+                    >
+                      Reintentar
+                    </button>
                   </div>
                 );
-              if (item.type === 'draft')
-                return (
-                  <ClinicalDraftItem
-                    key={item.id}
-                    item={item}
-                    onChange={(draft) => onDraftChange(item.id, draft)}
-                    onSourceChange={(sourceNote) => onDraftSourceChange(item.id, sourceNote)}
-                    onEvolutionAtChange={(evolutionAt) => onDraftDateChange(item.id, evolutionAt)}
-                    onRegenerate={() => onDraftRegenerate(item)}
-                    onPrepare={() => onPrepare(item)}
-                  />
-                );
-              if (item.type === 'approval')
-                return (
-                  <ApprovalRequestItem
-                    key={item.id}
-                    item={item}
-                    onResolve={(decision) => onResolve(item, decision)}
-                  />
-                );
-              if (item.type === 'result')
-                return (
-                  <output key={item.id} className="clinical-result">
-                    <strong>{item.message}</strong>
-                    {item.evolutionId && item.patientId && (
-                      <Link to={`/patients/${item.patientId}/evolutions/${item.evolutionId}`}>
-                        Ver en ficha
-                      </Link>
-                    )}
-                  </output>
-                );
-              return (
-                <div key={item.id} className="clinical-error" role="alert">
-                  <span>{item.message}</span>
-                  <button
-                    type="button"
-                    className="clinical-secondary-button"
-                    onClick={() => onRetry(item.turnId)}
-                  >
-                    Reintentar
-                  </button>
-                </div>
-              );
-            })}
-          </section>
-        ))}
-        <div ref={follow.bottomSentinelRef} className="clinical-bottom-sentinel" />
-      </div>
+              })}
+            </section>
+          ))}
+        </div>
+      )}
+      <div ref={follow.bottomSentinelRef} className="clinical-bottom-sentinel" />
       {follow.hasNewContentBelow && (
-        <button type="button" className="clinical-jump" onClick={follow.jumpToLatest}>
-          ↓ Nuevo contenido
+        <button
+          type="button"
+          className="chat-jump-to-bottom clinical-jump"
+          onClick={follow.jumpToLatest}
+        >
+          ↓ Ir al mensaje más reciente
         </button>
       )}
     </div>

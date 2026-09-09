@@ -9,15 +9,24 @@ vi.mock('../lib/api', async () => {
 });
 
 class FakeRecorder {
-  static isTypeSupported() { return true; }
+  static isTypeSupported() {
+    return true;
+  }
   static last: FakeRecorder | null = null;
   state: RecordingState = 'inactive';
   mimeType = 'audio/webm';
   ondataavailable: ((event: BlobEvent) => void) | null = null;
   onstop: (() => void) | null = null;
-  constructor() { FakeRecorder.last = this; }
-  start() { this.state = 'recording'; }
-  stop() { this.state = 'inactive'; this.onstop?.(); }
+  constructor() {
+    FakeRecorder.last = this;
+  }
+  start() {
+    this.state = 'recording';
+  }
+  stop() {
+    this.state = 'inactive';
+    this.onstop?.();
+  }
 }
 
 function installRecorder() {
@@ -37,14 +46,20 @@ describe('useClinicalVoiceInput', () => {
 
   it('drops a late transcription after the recording scope changes', async () => {
     let resolveTranscription!: (value: { text: string }) => void;
-    vi.mocked(transcribeAudio).mockReturnValueOnce(new Promise((resolve) => { resolveTranscription = resolve; }));
+    vi.mocked(transcribeAudio).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTranscription = resolve;
+      }),
+    );
     const onText = vi.fn();
     const { result, rerender } = renderHook(
       ({ scopeId }) => useClinicalVoiceInput(scopeId, onText),
       { initialProps: { scopeId: 'thread-a' } },
     );
 
-    await act(async () => { await result.current.start(); });
+    await act(async () => {
+      await result.current.start();
+    });
     const recorder = FakeRecorder.last;
     expect(recorder).not.toBeNull();
     recorder?.ondataavailable?.({ data: new Blob(['audio'], { type: 'audio/webm' }) } as BlobEvent);
@@ -53,7 +68,9 @@ describe('useClinicalVoiceInput', () => {
 
     rerender({ scopeId: 'thread-b' });
     resolveTranscription({ text: 'resultado tardío' });
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(onText).not.toHaveBeenCalled();
   });
 
@@ -64,7 +81,9 @@ describe('useClinicalVoiceInput', () => {
     const onText = vi.fn();
     const { result } = renderHook(() => useClinicalVoiceInput('thread-a', onText));
 
-    await act(async () => { await result.current.start(); });
+    await act(async () => {
+      await result.current.start();
+    });
     expect(result.current.state).toBe('recording');
     const recorder = FakeRecorder.last;
     recorder?.ondataavailable?.({ data: new Blob(['audio'], { type: 'audio/webm' }) } as BlobEvent);

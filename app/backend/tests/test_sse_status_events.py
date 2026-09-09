@@ -210,7 +210,7 @@ def test_extract_tool_subject_type_error() -> None:
     """TypeError branch: json.loads raises when passed None."""
     from backend.llm.openrouter import _extract_tool_subject
 
-    result = _extract_tool_subject("search_videos", None)  # type: ignore[arg-type]
+    result = _extract_tool_subject("search_videos", None)
     assert result == ""
 
 

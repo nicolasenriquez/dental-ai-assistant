@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Cookie, HTTPException, status
@@ -87,7 +87,7 @@ async def generate_evolution(
         ) from None
     except clinical_evolutions.EmptyClinicalDraftError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail={
                 "code": "clinical_content_insufficient",
                 "message": (
@@ -117,14 +117,17 @@ async def save_evolution(
 ) -> dict[str, Any]:
     user: dict[str, Any] = await get_current_user(session)
     try:
-        return await evolutions_repo.create_evolution(
-            user["id"],
-            patient_id,
-            evolution_id=request.id,
-            evolution_at=request.evolution_at,
-            raw_note=request.raw_note,
-            generated_text=request.generated_text,
-            final_text=request.final_text,
+        return cast(
+            dict[str, Any],
+            await evolutions_repo.create_evolution(
+                user["id"],
+                patient_id,
+                evolution_id=request.id,
+                evolution_at=request.evolution_at,
+                raw_note=request.raw_note,
+                generated_text=request.generated_text,
+                final_text=request.final_text,
+            ),
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Paciente no encontrado") from None
@@ -140,7 +143,10 @@ async def list_evolutions(
     session: str | None = Cookie(default=None),
 ) -> list[dict[str, Any]]:
     user: dict[str, Any] = await get_current_user(session)
-    records = await evolutions_repo.list_evolutions(user["id"], patient_id)
+    records = cast(
+        list[dict[str, Any]] | None,
+        await evolutions_repo.list_evolutions(user["id"], patient_id),
+    )
     if records is None:
         raise HTTPException(status_code=404, detail="Paciente no encontrado")
     return records
@@ -155,4 +161,4 @@ async def get_evolution(
     record = await evolutions_repo.get_evolution(user["id"], evolution_id)
     if not record:
         raise HTTPException(status_code=404, detail="Evolucion no encontrada")
-    return record
+    return cast(dict[str, Any], record)

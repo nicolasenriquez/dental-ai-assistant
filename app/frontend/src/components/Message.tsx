@@ -154,7 +154,11 @@ export function Message({
           <>
             <MarkdownRenderer content={content} />
             {hasSources && <SourceCitations sources={sources} onCitationClick={onCitationClick} />}
-            {statusText && <p className="message-status" role="status">{statusText}</p>}
+            {statusText && (
+              <p className="message-status" role="status">
+                {statusText}
+              </p>
+            )}
           </>
         )}
       </div>

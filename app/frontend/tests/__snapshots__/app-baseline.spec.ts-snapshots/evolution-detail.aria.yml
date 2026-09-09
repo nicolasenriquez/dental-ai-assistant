@@ -1,51 +1,77 @@
 - complementary:
-  - navigation "Navegacion principal":
+  - text: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]
+  - navigation "Navegación principal":
     - link "Pacientes":
       - /url: /patients
+    - link "Asistente":
+      - /url: /assistant
     - link "Chat":
       - /url: /chat
-  - text: admin@email.com
-  - button "Cerrar sesión"
-  - text: DynaChat
-  - link "Administración":
-    - /url: /admin
+  - button "Abrir menú de usuario para admin@email.com"
+  - text: Dental AI Assistant
 - main:
   - link "‹ Pacientes":
     - /url: /patients
   - heading "Juan Perez" [level=1]
-  - paragraph: /RUT \d+\.\*\*\*\.\*\*\*-\*/
+  - text: /\d+ años Nacimiento \d+\/\d+\/\d+ RUT ••\.•••\.\d+-8/
+  - button "Editar paciente"
   - link "+ Nueva evolución":
     - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/new
   - region "Historial de evoluciones":
     - heading "Historial de evoluciones" [level=2]
     - paragraph: Registro cronológico de las atenciones clínicas.
-    - text: "2"
+    - text: "7"
     - list:
       - listitem:
-        - 'link /\d+ sept \d+ \d+:\d+ p\. m\. Evolución dental Motivo \/ contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección\. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3\.6 caries lisa compuesta, radio opaca, cerc/':
+        - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
+          - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/be3e2c0e-3158-48e9-b91f-7801e7d7b1e4
+          - time: /\d+ sep \d+/
+          - time: /\d+:\d+/
+          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve. Caries lisa compuesta en pieza 3.6."
+      - listitem:
+        - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
+          - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/97649064-ae21-4f4f-86ea-2ab4ab3dde7b
+          - time: /\d+ sep \d+/
+          - time: /\d+:\d+/
+          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta"
+      - listitem:
+        - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
+          - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/63e77461-8715-435f-8b7a-ebd0cbc3ab59
+          - time: /\d+ sep \d+/
+          - time: /\d+:\d+/
+          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta"
+      - listitem:
+        - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
+          - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/67c2e508-81a6-46e9-b14c-d26ef7b012a5
+          - time: /\d+ sep \d+/
+          - time: /\d+:\d+/
+          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
+      - listitem:
+        - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
+          - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/53ef7ac0-5338-4783-93d0-83053dc47e14
+          - time: /\d+ sep \d+/
+          - time: /\d+:\d+/
+          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
+      - listitem:
+        - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
           - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/763f7d2b-a81a-4520-9b7d-2b3826623eac
-          - time: /\d+ sept \d+/
-          - time: /\d+:\d+ p\. m\./
-          - strong: Evolución dental
+          - time: /\d+ sep \d+/
+          - time: /\d+:\d+/
           - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
       - listitem:
-        - 'link /\d+ sept \d+ \d+:\d+ p\. m\. Evolución dental Motivo \/ contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección\. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3\.6 caries lisa compuesta, radio opaca, cerc/':
+        - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
           - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/aebc821b-f1d1-498e-87f9-fef82da2deeb
-          - time: /\d+ sept \d+/
-          - time: /\d+:\d+ p\. m\./
-          - strong: Evolución dental
+          - time: /\d+ sep \d+/
+          - time: /\d+:\d+/
           - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
   - complementary "Detalle de la evolución":
     - article:
       - heading "Evolución dental" [level=2]
       - paragraph:
         - text: "Fecha de atención:"
-        - time: /\d+ de septiembre de \d+ · \d+:\d+ p\. m\./
+        - time: /8 de septiembre de \d+ · \d+:\d+/
       - heading "Motivo / contexto" [level=3]
       - paragraph: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección.
       - heading "Hallazgos" [level=3]
-      - paragraph: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cercana a cámara pulpar
-      - heading "Diagnóstico / impresión clínica" [level=3]
-      - paragraph: sospecha de quistes subcondrales, amelofisis imperfecta
-      - heading "Seguimiento" [level=3]
-      - paragraph: sujeta a control cada seis meses
+      - paragraph: Ruidos articulares lado izquierdo, artralgia, ROM leve. Caries lisa compuesta en pieza 3.6.

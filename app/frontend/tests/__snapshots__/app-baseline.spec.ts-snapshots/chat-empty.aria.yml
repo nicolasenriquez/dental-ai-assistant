@@ -1,32 +1,34 @@
 - complementary:
-  - navigation "Navegacion principal":
+  - text: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]
+  - navigation "Navegación principal":
     - link "Pacientes":
       - /url: /patients
+    - link "Asistente":
+      - /url: /assistant
     - link "Chat":
       - /url: /chat
-  - button "Nuevo chat":
-    - img
+    - button "Biblioteca"
+    - button "Nuevo chat"
+  - button "Buscar conversaciones": Buscar Ctrl K
+  - region "Conversaciones":
     - text: ""
-  - textbox "Buscar conversaciones..."
-  - button "New Conversation ahora hi"
-  - status:
-    - strong: /2\/\d+/
-    - text: mensajes hoy
-  - text: admin@email.com
-  - button "Cerrar sesión"
-  - text: DynaChat
-  - link "Administración":
-    - /url: /admin
-  - button "Explorar biblioteca de videos":
-    - img
-    - text: ""
-- img
-- heading "Ask anything about the video library" [level=1]
-- paragraph: This AI has access to transcripts from a curated collection of YouTube videos.
+    - region "Hoy":
+      - button "Hoy 1" [expanded]
+      - button "Baseline conversation"
+      - button "Acciones para Baseline conversation"
+  - status /1 de \d+ mensajes usados hoy/:
+    - strong: "1"
+    - text: /\/ \d+ mensajes hoy/
+    - progressbar "Cuota de mensajes diaria"
+  - button "Abrir menú de usuario para admin@email.com"
+  - text: Dental AI Assistant
+- heading "Pregunta sobre la biblioteca de videos" [level=1]
+- paragraph: Esta IA tiene acceso a las transcripciones de una colección seleccionada de videos de YouTube.
 - button "How do I use subagents in Claude Code?"
 - button "How should I structure an agent team?"
 - button "How does Cole's complete agentic coding workflow look end-to-end?"
 - button "How do I turn Claude Code into an engineering team?"
-- textbox "Ask anything about the video library…"
-- button "Send message":
-  - img
+- textbox "Pregunta sobre la biblioteca de videos":
+  - /placeholder: Pregunta sobre la biblioteca de videos…
+- button "Enviar mensaje" [disabled]

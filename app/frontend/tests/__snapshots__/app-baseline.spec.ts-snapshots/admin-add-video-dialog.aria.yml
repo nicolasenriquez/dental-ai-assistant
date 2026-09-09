@@ -2,12 +2,15 @@
   - heading "Administración de biblioteca" [level=1]
   - paragraph: Agrega, resincroniza o elimina videos del corpus RAG.
   - link "← Volver al chat":
-    - /url: /
+    - /url: /chat
 - button "+ Agregar video por URL"
 - button "Sincronizar canal"
 - button "Actualizar"
-- textbox "Buscar videos..."
-- table:
+- text: Buscar videos
+- textbox "Buscar videos":
+  - /placeholder: Buscar videos...
+- table "Videos disponibles en la biblioteca":
+  - caption: Videos disponibles en la biblioteca
   - rowgroup:
     - row "Título Fragmentos Agregado Acciones":
       - columnheader "Título"

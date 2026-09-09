@@ -1,47 +1,55 @@
 - complementary:
-  - navigation "Navegacion principal":
+  - text: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]
+  - navigation "Navegación principal":
     - link "Pacientes":
       - /url: /patients
+    - link "Asistente":
+      - /url: /assistant
     - link "Chat":
       - /url: /chat
-  - text: admin@email.com
-  - button "Cerrar sesión"
-  - text: DynaChat
-  - link "Administración":
-    - /url: /admin
+  - button "Abrir menú de usuario para admin@email.com"
+  - text: Dental AI Assistant
 - main:
   - link "‹ Volver a Juan Perez":
     - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
   - heading "Nueva evolución dental" [level=1]
-  - paragraph: "/Paciente: Juan Perez · RUT \\d+\\.\\*\\*\\*\\.\\*\\*\\*-\\*/"
-  - text: /\d+-\d+-\d+, \d+:\d+/
+  - strong: Juan Perez
+  - text: /\d+ años Nacimiento \d+\/\d+\/\d+ RUT ••\.•••\.\d+-8 \d+ ene \d+ · \d+:\d+/
   - button "Cambiar fecha y hora"
   - list "Progreso de la evolución":
     - listitem: 1. Nota clínica
-    - listitem: 2. Redacción asistida
-    - listitem: 3. Revisión y guardado
+    - listitem: 2. Borrador asistido
+    - listitem: 3. Revisar y guardar
   - status: Borrador local · cambios sin guardar
   - complementary "Referencia de la última evolución":
-    - heading "REFERENCIA DE LA ÚLTIMA EVOLUCIÓN" [level=2]
-    - time: /\d+-\d+-\d+, \d+:\d+/
-    - paragraph: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
+    - heading "Última atención" [level=2]
+    - time: /\d+ sep \d+ · \d+:\d+/
+    - paragraph: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve. Caries lisa compuesta en pieza 3.6."
+    - link "Ver evolución completa":
+      - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/be3e2c0e-3158-48e9-b91f-7801e7d7b1e4
   - heading "NOTA CLÍNICA ORIGINAL" [level=2]
-  - paragraph: Pega o escribe tus notas clínicas. La IA las ordenará para que las revises antes de guardar.
-  - textbox "Nota rápida": Paciente de baseline para validar el flujo de redacción.
-  - button "Regenerar"
-  - heading "BORRADOR CLÍNICO PARA REVISIÓN" [level=2]
-  - text: Motivo / contexto
-  - textbox "Motivo / contexto": Consulta de control.
-  - text: Hallazgos
-  - textbox "Hallazgos": Cambio local para validar regeneración.
-  - text: Diagnóstico / impresión clínica
-  - textbox "Diagnóstico / impresión clínica": Impresión clínica de baseline.
-  - text: Tratamiento / conducta
-  - textbox "Tratamiento / conducta": Conducta de baseline.
-  - text: Seguimiento
-  - textbox "Seguimiento": Control posterior.
-  - paragraph: /Guardar para Juan Perez · RUT \d+\.\*\*\*\.\*\*\*-\*/
-  - button "Guardar evolución" [disabled]
+  - paragraph: Escribe la nota. La IA crea un borrador para revisar.
+  - textbox "Nota clínica": Paciente de baseline para validar el flujo de redacción.
+  - button "Regenerar borrador"
+  - status:
+    - heading "Borrador generado" [level=2]
+    - paragraph: Revisa el contenido antes de guardar la evolución.
+  - article "Evolución propuesta":
+    - heading "Borrador para revisar" [level=3]
+    - paragraph: Editada
+    - text: Motivo / contexto
+    - textbox "Motivo / contexto": Consulta de control.
+    - text: Hallazgos
+    - textbox "Hallazgos": Cambio local para validar regeneración.
+    - text: Diagnóstico / impresión clínica
+    - textbox "Diagnóstico / impresión clínica": Impresión clínica de baseline.
+    - text: Tratamiento / conducta
+    - textbox "Tratamiento / conducta": Conducta de baseline.
+    - text: Seguimiento
+    - textbox "Seguimiento": Control posterior.
+    - time: /\d+-\d+-\d+, 9:\d+:\d+ a\. m\./
+    - button "Guardar evolución" [disabled]
   - dialog "¿Salir sin guardar?":
     - heading "¿Salir sin guardar?" [level=2]
     - paragraph: La nota y los cambios de esta evolución se perderán.

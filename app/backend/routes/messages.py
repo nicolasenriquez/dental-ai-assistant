@@ -20,7 +20,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -158,7 +158,7 @@ async def create_message(
             )
             if result.get("ok") and result.get("chunks"):
                 tool_chunks_acc.extend(result["chunks"])
-            return serialize_tool_result(result)
+            return cast(str, serialize_tool_result(result))
 
         tools_param = TOOL_SCHEMAS
         executor = _executor

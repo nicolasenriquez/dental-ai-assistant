@@ -16,7 +16,7 @@ def test_turn_context_is_immutable() -> None:
 
     context = ClinicalTurnContext(UUID(int=1), UUID(int=2), UUID(int=3), UUID(int=4))
     with pytest.raises(AttributeError):
-        context.patient_id = UUID(int=5)  # type: ignore[misc]
+        context.patient_id = UUID(int=5)
 
 
 async def test_rut_sanitizer_never_returns_raw_identifier(monkeypatch) -> None:

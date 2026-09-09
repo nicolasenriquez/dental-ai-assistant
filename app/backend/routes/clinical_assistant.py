@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -45,7 +45,7 @@ async def create_thread(
 
 @router.get("/clinical-threads")
 async def list_threads(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
-    return await service.list_threads(_user_id(user))
+    return cast(list[dict[str, Any]], await service.list_threads(_user_id(user)))
 
 
 @router.get("/clinical-threads/{thread_id}", response_model=ClinicalThreadResponse)
@@ -144,7 +144,7 @@ async def prepare_save(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
-        return await service.prepare_save(_user_id(user), thread_id, request)
+        return cast(dict[str, Any], await service.prepare_save(_user_id(user), thread_id, request))
     except LookupError:
         raise HTTPException(status_code=404, detail="Hilo o paciente no encontrado") from None
     except service.PendingActionExistsError:
@@ -191,8 +191,11 @@ async def resolve_action(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
-        result = await service.resolve_action(
-            _user_id(user), action_id, request.decision, request.proposal_hash
+        result = cast(
+            dict[str, Any],
+            await service.resolve_action(
+                _user_id(user), action_id, request.decision, request.proposal_hash
+            ),
         )
         if result.get("status") == "expired":
             raise HTTPException(status_code=410, detail={"code": "ACTION_EXPIRED"})

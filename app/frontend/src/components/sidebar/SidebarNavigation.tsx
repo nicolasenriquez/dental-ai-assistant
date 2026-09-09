@@ -43,7 +43,8 @@ export function SidebarNavigation({
 }: SidebarNavigationProps) {
   const location = useLocation();
   const patientsActive = location.pathname.startsWith('/patients');
-  const assistantActive = location.pathname.startsWith('/assistant') || location.pathname.startsWith('/a/');
+  const assistantActive =
+    location.pathname.startsWith('/assistant') || location.pathname.startsWith('/a/');
   const chatActive = location.pathname === '/chat' || location.pathname.startsWith('/c/');
 
   return (

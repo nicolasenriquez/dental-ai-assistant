@@ -22,7 +22,9 @@ def upgrade() -> None:
     op.create_table(
         "voice_transcription_requests",
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("requested_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "requested_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
     )
     op.create_index(

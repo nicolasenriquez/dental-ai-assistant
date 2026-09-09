@@ -1,4 +1,4 @@
-- heading "Page not found" [level=1]
-- paragraph: The page you're looking for doesn't exist.
-- link "Back to home":
+- heading "Página no encontrada" [level=1]
+- paragraph: La página que buscas no existe.
+- link "Volver al inicio":
   - /url: /

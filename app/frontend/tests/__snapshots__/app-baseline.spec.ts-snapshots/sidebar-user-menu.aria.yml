@@ -21,16 +21,12 @@
     - strong: "1"
     - text: /\/ \d+ mensajes hoy/
     - progressbar "Cuota de mensajes diaria"
-  - button "Abrir menú de usuario para admin@email.com"
+  - button "Abrir menú de usuario para admin@email.com" [expanded]
+  - menu:
+    - text: admin@email.com
+    - menuitem "Administración"
+    - menuitem "Cerrar sesión"
   - text: Dental AI Assistant
-- dialog "Biblioteca de videos":
-  - heading "Biblioteca de videos" [level=2]
-  - paragraph: /0 de \d+ videos/
-  - button "Cerrar biblioteca de videos":
-    - img
-  - button "+ Agregar video"
-  - searchbox "Buscar videos": baseline
-  - text: No hay videos que coincidan con “baseline”
 - button "Exportar"
 - article "Asistente":
   - paragraph: Baseline response.

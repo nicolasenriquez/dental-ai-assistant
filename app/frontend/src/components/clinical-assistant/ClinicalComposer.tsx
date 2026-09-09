@@ -1,4 +1,5 @@
-import type { KeyboardEvent, RefObject } from 'react';
+import { Mic } from 'lucide-react';
+import { type KeyboardEvent, type RefObject, useState } from 'react';
 import type { VoiceState } from '../../hooks/useClinicalVoiceInput';
 import type { ClinicalPatient } from '../../lib/api';
 
@@ -37,6 +38,7 @@ export function ClinicalComposer({
   voiceElapsed,
   voiceError,
 }: ClinicalComposerProps) {
+  const [focused, setFocused] = useState(false);
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -45,7 +47,10 @@ export function ClinicalComposer({
   };
 
   return (
-    <div className="clinical-composer" data-testid="clinical-composer">
+    <div
+      className={`chat-composer clinical-composer${focused ? ' is-focused' : ''}`}
+      data-testid="clinical-composer"
+    >
       <div className="clinical-patient-context">
         <span className="clinical-patient-label">Paciente activo</span>
         <select
@@ -63,7 +68,7 @@ export function ClinicalComposer({
         {patient && (
           <button
             type="button"
-            className="clinical-patient-clear"
+            className="clinical-patient-clear focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
             onClick={() => onPatientChange(null)}
             aria-label="Quitar paciente activo"
           >
@@ -112,6 +117,8 @@ export function ClinicalComposer({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           rows={2}
           aria-label="Nota clínica"
           placeholder={
@@ -119,7 +126,7 @@ export function ClinicalComposer({
               ? 'Escribe o dicta la nota clínica…'
               : 'Selecciona un paciente y escribe una nota…'
           }
-          className="clinical-composer-input"
+          className="chat-composer-input clinical-composer-input"
           aria-busy={voiceState === 'transcribing'}
         />
       )}
@@ -149,16 +156,31 @@ export function ClinicalComposer({
             onClick={onVoice}
             aria-label="Dictar nota"
           >
-            🎙 Dictar
+            <Mic size={15} strokeWidth={1.8} aria-hidden="true" />
+            Dictar
           </button>
         )}
         <button
           type="button"
-          className="clinical-primary-button"
+          className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}
           onClick={onSubmit}
           disabled={!value.trim()}
+          aria-label={busy ? 'Poner mensaje en cola' : 'Enviar mensaje'}
         >
-          {busy ? 'Agregar a cola' : 'Enviar'}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="8" y1="14" x2="8" y2="3" />
+            <polyline points="3,8 8,3 13,8" />
+          </svg>
         </button>
       </div>
     </div>

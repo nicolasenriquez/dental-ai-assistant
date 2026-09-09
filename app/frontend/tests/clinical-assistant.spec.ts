@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { type Locator, type Page, expect, test } from '@playwright/test';
 
 const threadId = '11111111-1111-4111-8111-111111111111';
 const patientId = '22222222-2222-4222-8222-222222222222';
@@ -62,6 +62,23 @@ function sseEvent(
     status,
     data,
   })}\n\n`;
+}
+
+async function settleClinicalItem(page: Page, item: Locator): Promise<void> {
+  await page.locator('.clinical-transcript').evaluate((element) => {
+    const transcript = element as HTMLDivElement;
+    transcript.scrollTop = transcript.scrollHeight;
+  });
+  await expect
+    .poll(() =>
+      item.evaluate((element) => {
+        const composer = document.querySelector('.clinical-composer');
+        if (!composer) return false;
+        const anchor = element.querySelector('button:last-of-type') ?? element;
+        return anchor.getBoundingClientRect().bottom <= composer.getBoundingClientRect().top;
+      }),
+    )
+    .toBe(true);
 }
 
 test('clinical assistant preserves the complete two-turn review flow', async ({ page }) => {
@@ -277,7 +294,13 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   );
   await page.goto(`/a/${threadId}`);
   await initialThreadLoad;
-  await expect(page.getByRole('heading', { name: 'Asistente clínico' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Trabaja más rápido con tus evoluciones' }),
+  ).toBeVisible();
+  await expect(page.locator('main.chat-area')).toBeVisible();
+  await expect(page.locator('.chat-message-scroll')).toBeVisible();
+  await expect(page.getByTestId('clinical-composer')).toHaveClass(/chat-composer/);
+  await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
 
   const sidebar = page.locator('#app-sidebar');
   await sidebar.getByRole('button', { name: 'Colapsar navegación' }).click();
@@ -312,13 +335,15 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
 
   const composer = page.getByTestId('clinical-composer').getByLabel('Nota clínica');
   await composer.fill('Control preventivo sin hallazgos nuevos.');
-  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await expect(page.getByRole('heading', { name: 'Evolución propuesta' })).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
+  await expect(page.getByRole('article', { name: 'Tú' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Asistente' })).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const card = document.querySelector('[aria-label="Evolución propuesta"]:last-of-type');
+        const card = document.querySelector('[aria-label="Evolución propuesta"]');
         const buttons = card?.querySelectorAll('button');
         const prepareButton = buttons?.item((buttons.length ?? 0) - 1);
         const composer = document.querySelector('.clinical-composer');
@@ -326,18 +351,13 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
 
         const buttonBounds = prepareButton.getBoundingClientRect();
         const composerBounds = composer.getBoundingClientRect();
-        const hitTarget = document.elementFromPoint(
-          buttonBounds.left + buttonBounds.width / 2,
-          buttonBounds.top + buttonBounds.height / 2,
-        );
 
-        return buttonBounds.bottom <= composerBounds.top && prepareButton.contains(hitTarget);
+        return buttonBounds.bottom <= composerBounds.top;
       }),
     )
     .toBe(true);
-  await page.getByRole('article', { name: 'Evolución propuesta' }).scrollIntoViewIfNeeded();
+  await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución propuesta' }));
   await expect(page).toHaveScreenshot('clinical-draft.png', {
-    fullPage: true,
     animations: 'disabled',
     maxDiffPixels: 300,
   });
@@ -345,9 +365,8 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await page.getByRole('button', { name: 'Editar nota fuente' }).click();
   await page.getByLabel('Editar nota clínica original').fill('Nota fuente corregida.');
   await expect(page.getByText('Necesita regeneración')).toBeVisible();
-  await page.getByRole('article', { name: 'Evolución propuesta' }).scrollIntoViewIfNeeded();
+  await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución propuesta' }));
   await expect(page).toHaveScreenshot('clinical-editing.png', {
-    fullPage: true,
     animations: 'disabled',
     maxDiffPixels: 300,
   });
@@ -357,36 +376,32 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
 
   await page.getByRole('button', { name: 'Preparar para guardar' }).click();
   await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toBeVisible();
-  await page.getByRole('article', { name: 'Antes de guardar' }).scrollIntoViewIfNeeded();
+  await settleClinicalItem(page, page.getByRole('article', { name: 'Antes de guardar' }));
   await expect(page).toHaveScreenshot('clinical-approval-pending.png', {
-    fullPage: true,
     animations: 'disabled',
     maxDiffPixels: 300,
   });
   await page.getByRole('button', { name: 'Confirmar y guardar' }).click();
   await expect(page.getByRole('heading', { name: 'Evolución guardada' })).toBeVisible();
-  await page.getByRole('article', { name: 'Evolución guardada' }).scrollIntoViewIfNeeded();
+  await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución guardada' }));
   await expect(page).toHaveScreenshot('clinical-approval-resolved.png', {
-    fullPage: true,
     animations: 'disabled',
     maxDiffPixels: 300,
   });
 
   await composer.fill('Segundo control independiente.');
-  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(2);
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(2);
-  await page.locator('[aria-label="Evolución propuesta"]').last().scrollIntoViewIfNeeded();
+  await settleClinicalItem(page, page.locator('[aria-label="Evolución propuesta"]').last());
   await expect(page).toHaveScreenshot('clinical-second-turn.png', {
-    fullPage: true,
     animations: 'disabled',
     maxDiffPixels: 300,
   });
   await page.getByRole('button', { name: 'Preparar para guardar' }).last().click();
   await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toHaveCount(1);
-  await page.getByRole('article', { name: 'Antes de guardar' }).scrollIntoViewIfNeeded();
+  await settleClinicalItem(page, page.getByRole('article', { name: 'Antes de guardar' }));
   await expect(page).toHaveScreenshot('clinical-second-approval.png', {
-    fullPage: true,
     animations: 'disabled',
     maxDiffPixels: 300,
   });

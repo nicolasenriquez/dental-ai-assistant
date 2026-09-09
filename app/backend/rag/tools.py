@@ -21,7 +21,7 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
-from typing import Any
+from typing import Any, cast
 
 from backend.db import repository
 
@@ -300,7 +300,7 @@ async def _expand_with_neighbors(chunks: list[dict]) -> list[dict]:
     if RETRIEVAL_EXPANSION_WINDOW <= 0 or not chunks:
         return chunks
     try:
-        return await expand_and_merge(chunks, window=RETRIEVAL_EXPANSION_WINDOW)
+        return cast(list[dict], await expand_and_merge(chunks, window=RETRIEVAL_EXPANSION_WINDOW))
     except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
         raise
     except Exception as exc:
@@ -400,7 +400,7 @@ async def _embed_query(query: str, cache: dict[str, list[float]] | None) -> list
 
     if cache is not None and query in cache:
         return cache[query]
-    embedding = await asyncio.to_thread(embed_text, query)
+    embedding = cast(list[float], await asyncio.to_thread(embed_text, query))
     if cache is not None:
         cache[query] = embedding
     return embedding

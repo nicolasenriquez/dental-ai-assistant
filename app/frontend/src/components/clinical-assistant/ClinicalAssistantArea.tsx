@@ -1,3 +1,4 @@
+import { Stethoscope } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
 import { useClinicalVoiceInput } from '../../hooks/useClinicalVoiceInput';
@@ -53,7 +54,7 @@ export function ClinicalAssistantArea({
     const root = composer?.parentElement;
     if (!composer || !root || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(([entry]) =>
-      root.style.setProperty('--composer-clearance', `${entry.contentRect.height + 48}px`),
+      root.style.setProperty('--composer-clearance', `${entry.contentRect.height + 16}px`),
     );
     observer.observe(composer);
     return () => observer.disconnect();
@@ -114,20 +115,17 @@ export function ClinicalAssistantArea({
   );
 
   return (
-    <main className="clinical-assistant-area">
-      <header className="clinical-header">
-        <h1>Asistente clínico</h1>
-        <p>Prepara evoluciones para tu revisión. La decisión de guardar siempre es tuya.</p>
-      </header>
-      {!assistant.items.length && (
-        <section className="clinical-empty-state">
-          <h2>Trabaja más rápido con tus evoluciones</h2>
-          <p>Selecciona un paciente y escribe o dicta una nota clínica.</p>
-        </section>
-      )}
+    <main className="chat-area clinical-assistant-area">
       <ClinicalTranscript
         threadId={threadId}
         items={assistant.items}
+        emptyState={
+          <section className="chat-empty-state clinical-empty-state">
+            <Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />
+            <h1>Trabaja más rápido con tus evoluciones</h1>
+            <p>Selecciona un paciente y escribe o dicta una nota clínica.</p>
+          </section>
+        }
         onDraftChange={onDraftChange}
         onDraftSourceChange={assistant.updateDraftSource}
         onDraftDateChange={assistant.updateDraftDate}
@@ -188,72 +186,75 @@ export function ClinicalAssistantArea({
           </div>
         </section>
       )}
-      <div ref={composerRef} className="clinical-composer-dock">
-        {queued.length > 0 && (
-          <div className="clinical-queue" aria-label="Mensajes en cola">
-            <strong>
-              {queued.length} {queued.length === 1 ? 'mensaje' : 'mensajes'} en cola
-            </strong>
-            {queued.map((entry) => (
-              <div key={entry.id} className="clinical-queue-item">
-                <span>{entry.content}</span>
-                <small>{entry.patientName}</small>
-                <div className="clinical-queue-actions">
-                  <button type="button" onClick={() => editQueued(entry.id, entry.content)}>
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateQueue((current) => current.filter((item) => item.id !== entry.id))
-                    }
-                    aria-label="Quitar mensaje de la cola"
-                  >
-                    ×
-                  </button>
+      <div aria-hidden="true" className="chat-input-fade" />
+      <div ref={composerRef} className="chat-input-dock clinical-composer-dock">
+        <div className="chat-input-dock-inner">
+          {queued.length > 0 && (
+            <div className="clinical-queue" aria-label="Mensajes en cola">
+              <strong>
+                {queued.length} {queued.length === 1 ? 'mensaje' : 'mensajes'} en cola
+              </strong>
+              {queued.map((entry) => (
+                <div key={entry.id} className="clinical-queue-item">
+                  <span>{entry.content}</span>
+                  <small>{entry.patientName}</small>
+                  <div className="clinical-queue-actions">
+                    <button type="button" onClick={() => editQueued(entry.id, entry.content)}>
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateQueue((current) => current.filter((item) => item.id !== entry.id))
+                      }
+                      aria-label="Quitar mensaje de la cola"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-            {queued[0]?.patientId !== (assistant.thread?.active_patient?.id ?? null) && (
-              <div className="clinical-queue-conflict">
-                <p className="clinical-warning">
-                  Este mensaje fue escrito para {queued[0]?.patientName}. El paciente activo cambió;
-                  vuelve a seleccionarlo para continuar.
-                </p>
-                {queued[0]?.patientId && (
-                  <button
-                    type="button"
-                    className="clinical-secondary-button"
-                    onClick={() => void assistant.setActivePatient(queued[0].patientId)}
-                  >
-                    Volver a {queued[0].patientName}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        <ClinicalComposer
-          patient={assistant.thread?.active_patient ?? null}
-          patients={patients}
-          value={value}
-          busy={
-            assistant.runtime === 'streaming' ||
-            assistant.runtime === 'awaiting_approval' ||
-            assistant.runtime === 'saving'
-          }
-          textareaRef={textareaRef}
-          onChange={setValue}
-          onPatientChange={(patientId) => void assistant.setActivePatient(patientId)}
-          onSubmit={send}
-          onVoice={() => void voice.start()}
-          onStopVoice={voice.stop}
-          onCancelVoice={voice.cancel}
-          onRetryVoice={voice.retry}
-          voiceState={voice.state}
-          voiceElapsed={voice.elapsed}
-          voiceError={voice.error}
-        />
+              ))}
+              {queued[0]?.patientId !== (assistant.thread?.active_patient?.id ?? null) && (
+                <div className="clinical-queue-conflict">
+                  <p className="clinical-warning">
+                    Este mensaje fue escrito para {queued[0]?.patientName}. El paciente activo
+                    cambió; vuelve a seleccionarlo para continuar.
+                  </p>
+                  {queued[0]?.patientId && (
+                    <button
+                      type="button"
+                      className="clinical-secondary-button"
+                      onClick={() => void assistant.setActivePatient(queued[0].patientId)}
+                    >
+                      Volver a {queued[0].patientName}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <ClinicalComposer
+            patient={assistant.thread?.active_patient ?? null}
+            patients={patients}
+            value={value}
+            busy={
+              assistant.runtime === 'streaming' ||
+              assistant.runtime === 'awaiting_approval' ||
+              assistant.runtime === 'saving'
+            }
+            textareaRef={textareaRef}
+            onChange={setValue}
+            onPatientChange={(patientId) => void assistant.setActivePatient(patientId)}
+            onSubmit={send}
+            onVoice={() => void voice.start()}
+            onStopVoice={voice.stop}
+            onCancelVoice={voice.cancel}
+            onRetryVoice={voice.retry}
+            voiceState={voice.state}
+            voiceElapsed={voice.elapsed}
+            voiceError={voice.error}
+          />
+        </div>
       </div>
     </main>
   );

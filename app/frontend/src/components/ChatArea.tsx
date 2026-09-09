@@ -1,4 +1,11 @@
-import { type MutableRefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type MutableRefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChatAutoFollow } from '../hooks/useChatAutoFollow';
 import { useConversationViewportCache } from '../hooks/useConversationViewportCache';
@@ -244,7 +251,11 @@ export function ChatArea({
     const area = chatAreaRef.current;
     const dock = chatInputDockRef.current;
     if (!area || !dock || typeof ResizeObserver === 'undefined') return;
-    const updateClearance = () => area.style.setProperty('--composer-clearance', `${dock.getBoundingClientRect().height + 16}px`);
+    const updateClearance = () =>
+      area.style.setProperty(
+        '--composer-clearance',
+        `${dock.getBoundingClientRect().height + 16}px`,
+      );
     const observer = new ResizeObserver(updateClearance);
     observer.observe(dock);
     updateClearance();
@@ -376,7 +387,11 @@ export function ChatArea({
         const result = await startStream(id, content);
         pendingUserMsgIdsRef.current.delete(id);
 
-        if (result && currentConversationIdRef.current === id && (result.fullText || !result.stopped)) {
+        if (
+          result &&
+          currentConversationIdRef.current === id &&
+          (result.fullText || !result.stopped)
+        ) {
           const assistantMessage: MessageType = {
             id: `assistant-stream-${id}-${turnId}`,
             conversation_id: id,
@@ -386,7 +401,8 @@ export function ChatArea({
             sources: result.sources.length > 0 ? result.sources : undefined,
           };
           setMessages((previous) => [...previous, assistantMessage]);
-          if (result.stopped) setStoppedMessageIds((current) => new Set(current).add(assistantMessage.id));
+          if (result.stopped)
+            setStoppedMessageIds((current) => new Set(current).add(assistantMessage.id));
           onContentAppended();
         }
 
@@ -593,7 +609,9 @@ export function ChatArea({
                   role={message.role}
                   content={message.content}
                   sources={message.sources}
-                  statusText={stoppedMessageIds.has(message.id) ? 'Generación detenida.' : undefined}
+                  statusText={
+                    stoppedMessageIds.has(message.id) ? 'Generación detenida.' : undefined
+                  }
                   onCitationClick={handleCitationClick}
                 />
               ))
