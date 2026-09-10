@@ -46,13 +46,13 @@
           - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/67c2e508-81a6-46e9-b14c-d26ef7b012a5
           - time: /\d+ sep \d+/
           - time: /\d+:\d+/
-          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
+          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cercana"
       - listitem:
         - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
           - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/53ef7ac0-5338-4783-93d0-83053dc47e14
           - time: /\d+ sep \d+/
           - time: /\d+:\d+/
-          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc"
+          - text: "Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cercana"
       - listitem:
         - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
           - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/763f7d2b-a81a-4520-9b7d-2b3826623eac

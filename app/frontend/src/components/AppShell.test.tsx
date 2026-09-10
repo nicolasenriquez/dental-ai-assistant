@@ -67,6 +67,12 @@ describe('AppShell mobile sidebar', () => {
       </AppShell>,
     );
 
+    expect(screen.getByRole('link', { name: 'Saltar al contenido principal' })).toHaveAttribute(
+      'href',
+      '#main-content',
+    );
+    expect(container.querySelector('#main-content')).toHaveAttribute('tabindex', '-1');
+
     const sidebar = container.querySelector('#app-sidebar');
     expect(sidebar).toHaveAttribute('aria-hidden', 'true');
     expect(sidebar).toHaveAttribute('inert');

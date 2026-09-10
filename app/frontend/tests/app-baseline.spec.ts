@@ -60,8 +60,69 @@ const conversationListFixture = [
   },
 ];
 
+const patientIdFixture = 'fc583c6a-8f9e-4579-9169-cc9335644c12';
+const evolutionIdsFixture = [
+  'be3e2c0e-3158-48e9-b91f-7801e7d7b1e4',
+  '97649064-ae21-4f4f-86ea-2ab4ab3dde7b',
+  '63e77461-8715-435f-8b7a-ebd0cbc3ab59',
+  '67c2e508-81a6-46e9-b14c-d26ef7b012a5',
+  '53ef7ac0-5338-4783-93d0-83053dc47e14',
+  '763f7d2b-a81a-4520-9b7d-2b3826623eac',
+  'aebc821b-f1d1-498e-87f9-fef82da2deeb',
+];
+
+const patientFixture = {
+  id: patientIdFixture,
+  first_name: 'Juan',
+  last_name: 'Perez',
+  rut_masked: '••.•••.358-8',
+  birth_date: '1989-04-12',
+  last_evolution_at: '2026-09-08T17:22:00Z',
+};
+
+const evolutionPreviewsFixture = [
+  'Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve. Caries lisa compuesta en pieza 3.6.',
+  'Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta',
+  'Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta',
+  'Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cercana',
+  'Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cercana',
+  'Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc',
+  'Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección. Hallazgos: ruidos articulares lado izquierdo, artralgia, ROM leve, 3.6 caries lisa compuesta, radio opaca, cerc',
+];
+
+const evolutionSummariesFixture = evolutionIdsFixture.map((id, index) => ({
+  id,
+  patient_id: patientIdFixture,
+  evolution_at: `2026-09-08T${String(12 - index).padStart(2, '0')}:00:00Z`,
+  preview: evolutionPreviewsFixture[index],
+  created_at: `2026-09-08T${String(12 - index).padStart(2, '0')}:00:00Z`,
+}));
+
+const evolutionDetailFixture = {
+  id: evolutionIdsFixture[0],
+  patient_id: patientIdFixture,
+  evolution_at: '2026-09-08T12:00:00Z',
+  final_text:
+    'Motivo / contexto: Señala haber asistido al otorrino por molestia en oído, donde se descarta cualquier inflamación e infección.\n\nHallazgos: Ruidos articulares lado izquierdo, artralgia, ROM leve. Caries lisa compuesta en pieza 3.6.',
+  created_at: '2026-09-08T12:00:00Z',
+};
+
+async function mockPatientWorkspace(page: Page) {
+  await mockJsonRoute(page, '**/api/patients', [patientFixture]);
+  await mockJsonRoute(page, `**/api/patients/${patientIdFixture}`, patientFixture);
+  await mockJsonRoute(
+    page,
+    `**/api/patients/${patientIdFixture}/evolutions`,
+    evolutionSummariesFixture,
+  );
+  await mockJsonRoute(page, `**/api/evolutions/${evolutionIdsFixture[0]}`, evolutionDetailFixture);
+}
+
 async function captureView(page: Page, name: string, fullPage = true) {
-  await expect(page.locator('body')).toMatchAriaSnapshot({
+  const appShell = page.locator('.app-layout');
+  const snapshotTarget = (await appShell.count()) > 0 ? appShell : page.locator('body');
+
+  await expect(snapshotTarget).toMatchAriaSnapshot({
     name: `${name}.aria.yml`,
   });
   await expect(page).toHaveScreenshot(`${name}.png`, {
@@ -94,6 +155,7 @@ test('captures public views and patients workflow', async ({ page }) => {
   await captureView(page, 'signup');
   await page.getByRole('link', { name: 'Iniciar sesión' }).click();
 
+  await mockPatientWorkspace(page);
   await page.goto('/patients');
   await expect(page.getByRole('heading', { name: 'Pacientes', exact: true })).toBeVisible();
   await captureView(page, 'patients');
@@ -162,6 +224,7 @@ test('captures public views and patients workflow', async ({ page }) => {
   const reviewArtifact = page.locator('.evolution-review-artifact');
   await reviewArtifact.locator('button', { hasText: 'Editar' }).nth(1).click();
   await page.getByLabel('Hallazgos').fill('Cambio local para validar regeneración.');
+  await reviewArtifact.getByRole('button', { name: 'Aplicar', exact: true }).click();
   await page.getByRole('button', { name: 'Corregir nota y regenerar', exact: true }).click();
   await page.getByRole('button', { name: 'Regenerar borrador', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Regenerar evolución' })).toBeVisible();
@@ -202,6 +265,14 @@ test('captures public views and patients workflow', async ({ page }) => {
 
 test('captures chat, library, admin, and not-found behaviors', async ({ page }) => {
   await page.clock.install({ time: '2026-01-15T12:00:00Z' });
+  await mockJsonRoute(page, '**/api/auth/me', {
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'admin@email.com',
+    is_admin: true,
+    messages_used_today: 1,
+    messages_remaining_today: 24,
+    rate_window_resets_at: null,
+  });
   await page.route('**/api/conversations**', async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
@@ -679,5 +750,42 @@ test('captures sidebar responsive states and preserves the rail contract', async
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     );
     expect(hasHorizontalOverflow).toBe(false);
+  }
+});
+
+test('keeps mobile workspace headers aligned across Chat and Asistente', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  for (const route of ['/chat', '/assistant']) {
+    await page.goto(route);
+    await expect(page.locator('.workspace-header')).toBeVisible();
+
+    const metrics = await page.evaluate(() => {
+      const header = document.querySelector<HTMLElement>('.workspace-header');
+      const title = document.querySelector<HTMLElement>('.workspace-header strong');
+      const menuButton = document.querySelector<HTMLElement>('.hamburger-btn');
+
+      if (!header || !title || !menuButton) {
+        throw new Error('Workspace mobile header contract is incomplete');
+      }
+
+      const headerBox = header.getBoundingClientRect();
+      const titleBox = title.getBoundingClientRect();
+      const menuButtonBox = menuButton.getBoundingClientRect();
+
+      return {
+        headerTop: headerBox.top,
+        headerHeight: headerBox.height,
+        titleLeft: titleBox.left,
+        menuButtonRight: menuButtonBox.right,
+        hasHorizontalOverflow:
+          document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+
+    expect(metrics.headerTop).toBe(0);
+    expect(metrics.headerHeight).toBe(50);
+    expect(metrics.titleLeft).toBeGreaterThanOrEqual(metrics.menuButtonRight);
+    expect(metrics.hasHorizontalOverflow).toBe(false);
   }
 });

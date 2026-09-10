@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef } from 'react';
 
 interface SidebarSearchProps {
@@ -6,6 +6,8 @@ interface SidebarSearchProps {
   shortcutEnabled: boolean;
   isOpen: boolean;
   query: string;
+  label?: string;
+  placeholder?: string;
   onChange: (query: string) => void;
   onOpenChange: (open: boolean) => void;
 }
@@ -15,6 +17,8 @@ export function SidebarSearch({
   shortcutEnabled,
   isOpen,
   query,
+  label = 'Buscar conversaciones',
+  placeholder = label,
   onChange,
   onOpenChange,
 }: SidebarSearchProps) {
@@ -29,6 +33,7 @@ export function SidebarSearch({
 
     const handleShortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        if (document.querySelector('#app-sidebar[aria-hidden="true"]')) return;
         event.preventDefault();
         onOpenChange(true);
         window.requestAnimationFrame(() => inputRef.current?.focus());
@@ -57,9 +62,9 @@ export function SidebarSearch({
           onOpenChange(true);
           window.requestAnimationFrame(() => inputRef.current?.focus());
         }}
-        aria-label="Buscar conversaciones"
-        title={`Buscar conversaciones (${shortcutLabel})`}
-        data-tooltip={isCollapsed ? 'Buscar conversaciones' : undefined}
+        aria-label={label}
+        title={`${label} (${shortcutLabel})`}
+        data-tooltip={isCollapsed ? label : undefined}
       >
         <Search aria-hidden="true" size={16} strokeWidth={1.7} />
         <span className="sidebar-label">Buscar</span>
@@ -77,10 +82,23 @@ export function SidebarSearch({
         value={query}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        aria-label="Buscar conversaciones"
-        placeholder="Buscar conversaciones"
+        name="workspace-search"
+        autoComplete="off"
+        aria-label={label}
+        placeholder={placeholder}
         aria-keyshortcuts="Control+K Meta+K"
       />
+      {query && (
+        <button
+          type="button"
+          className="sidebar-search-clear"
+          onClick={() => onChange('')}
+          aria-label="Limpiar búsqueda"
+          title="Limpiar búsqueda"
+        >
+          <X aria-hidden="true" size={14} strokeWidth={1.8} />
+        </button>
+      )}
     </div>
   );
 }

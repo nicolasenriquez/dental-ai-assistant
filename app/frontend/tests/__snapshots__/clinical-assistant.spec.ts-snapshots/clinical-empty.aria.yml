@@ -1,0 +1,33 @@
+- complementary:
+  - text: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]
+  - navigation "Navegación principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Asistente":
+      - /url: /assistant
+    - link "Chat":
+      - /url: /chat
+  - region "Hilos del asistente clínico":
+    - text: Asistente
+    - button "Nueva evolución": ＋
+    - button "Buscar en asistente": Buscar Ctrl K
+    - region "Anteriores":
+      - button "Anteriores 1" [expanded]
+      - button "Ana Pérez · Control"
+      - button "Acciones para Ana Pérez · Control"
+  - button "Abrir menú de usuario para demo@example.com"
+  - text: Dental AI Assistant
+- main:
+  - strong: Ana Pérez · Control
+  - text: /Paciente · \d+\.\d+\.•••-6/
+  - log "Transcripción clínica":
+    - heading "Trabaja más rápido con tus evoluciones" [level=1]
+    - paragraph: Selecciona un paciente y escribe o dicta una nota clínica.
+  - text: Paciente activo
+  - button "Seleccionar paciente activo": /Ana Pérez · \d+\.\d+\.•••-6/
+  - button "Quitar paciente activo"
+  - textbox "Nota clínica":
+    - /placeholder: Escribe o dicta la nota clínica…
+  - button "Iniciar dictado": Dictar
+  - button "Enviar mensaje" [disabled]

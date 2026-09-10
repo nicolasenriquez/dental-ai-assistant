@@ -50,4 +50,25 @@ describe('WorkspaceThreadList', () => {
     fireEvent.click(history);
     expect(onRequestExpand).toHaveBeenCalledOnce();
   });
+
+  it('uses the shared search affordance and clears its query', () => {
+    const onQueryChange = vi.fn();
+    render(
+      <WorkspaceThreadList
+        ariaLabel="Hilos del asistente clínico"
+        title="Asistente"
+        items={items}
+        query="ana"
+        onQueryChange={onQueryChange}
+        onCreate={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar en asistente' }));
+    expect(screen.getByRole('searchbox', { name: 'Buscar en asistente' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar búsqueda' }));
+
+    expect(onQueryChange).toHaveBeenCalledWith('');
+  });
 });

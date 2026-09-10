@@ -103,6 +103,25 @@ body,
   overflow-y: auto;
 }
 
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 60;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  padding: 8px 12px;
+  transform: translateY(-150%);
+  transition: transform 150ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
 .patient-identity {
   margin-top: 8px;
 }
@@ -2532,15 +2551,8 @@ body,
   color: var(--text-primary);
 }
 
-.workspace-thread-list__search {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface-2);
-  color: var(--text-primary);
-  padding: 7px 9px;
-  font: inherit;
-  font-size: 12px;
+.workspace-thread-list__search-region {
+  position: relative;
 }
 
 .workspace-thread-list__group {
@@ -3082,6 +3094,7 @@ body,
 }
 
 .sidebar-search {
+  position: relative;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(15, 23, 42, 0.55);
 }
@@ -3098,12 +3111,38 @@ body,
   outline: 0;
   background: transparent;
   color: var(--text-primary);
+  padding-right: 24px;
   font: inherit;
   font-size: 13px;
 }
 
 .sidebar-search input::placeholder {
   color: var(--text-tertiary);
+}
+
+.sidebar-search-clear {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.sidebar-search-clear:hover,
+.sidebar-search-clear:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.sidebar-search-clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .sidebar-search--rail {
@@ -3638,7 +3677,7 @@ body,
 }
 
 .sidebar-container.collapsed .workspace-thread-list__group-heading,
-.sidebar-container.collapsed .workspace-thread-list__search,
+.sidebar-container.collapsed .workspace-thread-list__search-region,
 .sidebar-container.collapsed .workspace-thread-list__state {
   display: none;
 }
@@ -3798,5 +3837,14 @@ body,
 
   .patient-shell > main {
     padding-top: 4.5rem;
+  }
+
+  .workspace-mode > main {
+    padding-top: 0;
+  }
+
+  .main-area > main > .workspace-header,
+  .main-area > .chat-area > .workspace-header {
+    padding-left: 72px;
   }
 }

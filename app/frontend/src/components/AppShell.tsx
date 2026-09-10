@@ -110,45 +110,56 @@ export function AppShell({
   };
 
   return (
-    <div className="app-layout">
-      {isMobileSidebar && sidebarOpen && (
-        <div aria-hidden="true" className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
-      )}
-      <Sidebar
-        activeConversationId={activeConversationId}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        conversationsRef={conversationsRef}
-        showConversations={showConversations}
-        isMobile={isMobileSidebar}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
-        runtimeByConversationId={runtimeByConversationId}
-        secondaryContent={secondarySidebarContent?.(sidebarCollapsed, () =>
-          setSidebarCollapsed(false),
+    <>
+      <a className="skip-link" href="#main-content">
+        Saltar al contenido principal
+      </a>
+      <div className="app-layout">
+        {isMobileSidebar && sidebarOpen && (
+          <div
+            aria-hidden="true"
+            className="sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+          />
         )}
-        sidebarRef={sidebarRef}
-        onKeyDown={handleSidebarKeyDown}
-      />
-      <div
-        className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}`}
-      >
-        {isMobileSidebar && !sidebarOpen && (
-          <button
-            ref={menuButtonRef}
-            type="button"
-            className="hamburger-btn"
-            onClick={() => setSidebarOpen(true)}
-            aria-expanded={false}
-            aria-controls="app-sidebar"
-            aria-label="Abrir navegación"
-            title="Abrir navegación"
-          >
-            <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
-          </button>
-        )}
-        {children}
+        <Sidebar
+          activeConversationId={activeConversationId}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          conversationsRef={conversationsRef}
+          showConversations={showConversations}
+          isMobile={isMobileSidebar}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          runtimeByConversationId={runtimeByConversationId}
+          secondaryContent={secondarySidebarContent?.(sidebarCollapsed, () =>
+            setSidebarCollapsed(false),
+          )}
+          sidebarRef={sidebarRef}
+          onKeyDown={handleSidebarKeyDown}
+        />
+        <div
+          id="main-content"
+          tabIndex={-1}
+          className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}`}
+        >
+          {isMobileSidebar && !sidebarOpen && (
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className="hamburger-btn"
+              onClick={() => setSidebarOpen(true)}
+              aria-expanded={false}
+              aria-controls="app-sidebar"
+              aria-label="Abrir navegación"
+              title="Abrir navegación"
+            >
+              <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
+            </button>
+          )}
+          {children}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

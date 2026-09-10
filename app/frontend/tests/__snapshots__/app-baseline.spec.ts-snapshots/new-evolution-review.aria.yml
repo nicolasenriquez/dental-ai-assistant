@@ -37,16 +37,20 @@
     - paragraph: Revisa el contenido antes de guardar la evolución.
   - article "Evolución propuesta":
     - heading "Borrador para revisar" [level=3]
-    - paragraph: No guardada
+    - time: /\d+ ene \d+ · \d+:\d+/
     - text: Motivo / contexto
-    - textbox "Motivo / contexto": Consulta de control.
+    - button "Editar Motivo / contexto"
+    - paragraph: Consulta de control.
     - text: Hallazgos
-    - textbox "Hallazgos": Hallazgo de baseline.
+    - button "Editar Hallazgos"
+    - paragraph: Hallazgo de baseline.
     - text: Diagnóstico / impresión clínica
-    - textbox "Diagnóstico / impresión clínica": Impresión clínica de baseline.
+    - button "Editar Diagnóstico / impresión clínica"
+    - paragraph: Impresión clínica de baseline.
     - text: Tratamiento / conducta
-    - textbox "Tratamiento / conducta": Conducta de baseline.
+    - button "Editar Tratamiento / conducta"
+    - paragraph: Conducta de baseline.
     - text: Seguimiento
-    - textbox "Seguimiento": Control posterior.
-    - time: /\d+-\d+-\d+, 9:\d+:\d+ a\. m\./
+    - button "Editar Seguimiento"
+    - paragraph: Control posterior.
     - button "Guardar evolución"

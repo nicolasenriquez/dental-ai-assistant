@@ -2,6 +2,7 @@ import { History, MessageCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { Spinner } from '../Spinner';
+import { SidebarSearch } from './SidebarSearch';
 import { SIDEBAR_MOTION } from './sidebarMotion';
 
 export interface WorkspaceThreadItem {
@@ -83,6 +84,7 @@ export function WorkspaceThreadList({
     Ayer: true,
     Anteriores: true,
   });
+  const [searchOpen, setSearchOpen] = useState(false);
   const filteredItems = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return items;
@@ -150,14 +152,18 @@ export function WorkspaceThreadList({
         </button>
       )}
       {onQueryChange && !isCollapsed && (
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Buscar hilos"
-          aria-label={`Buscar en ${title.toLocaleLowerCase()}`}
-          className="workspace-thread-list__search"
-        />
+        <div className="workspace-thread-list__search-region">
+          <SidebarSearch
+            isCollapsed={false}
+            shortcutEnabled
+            isOpen={searchOpen}
+            query={query}
+            label={`Buscar en ${title.toLocaleLowerCase()}`}
+            placeholder={`Buscar en ${title.toLocaleLowerCase()}`}
+            onChange={onQueryChange}
+            onOpenChange={setSearchOpen}
+          />
+        </div>
       )}
       {loading && (
         <div

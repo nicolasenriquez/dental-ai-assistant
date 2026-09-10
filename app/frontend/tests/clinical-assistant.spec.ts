@@ -336,8 +336,15 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(page.locator('.chat-message-scroll')).toBeVisible();
   await expect(page.getByTestId('clinical-composer')).toHaveClass(/chat-composer/);
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+  await expect(page.locator('.app-layout')).toMatchAriaSnapshot({
+    name: 'clinical-empty.aria.yml',
+  });
 
   const sidebar = page.locator('#app-sidebar');
+  await page.keyboard.press('Control+k');
+  await expect(sidebar.getByRole('searchbox', { name: 'Buscar en asistente' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(sidebar.getByRole('button', { name: 'Buscar en asistente' })).toBeVisible();
   await sidebar.getByRole('button', { name: 'Colapsar navegación' }).click();
   await expect(sidebar).toHaveClass(/collapsed/);
   await expect
@@ -430,7 +437,10 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
 
   await page.goto('/chat');
   await expect(page.getByLabel('Pregunta sobre la biblioteca de videos')).toBeVisible();
-  await page.goto(`/a/${threadId}`);
+  await page.evaluate((path) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/a/${threadId}`);
   await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(2);
   await expect(page.getByText('Evolución guardada', { exact: true })).toBeVisible();
   await expect(page.getByText('Guardado pendiente')).toBeVisible();

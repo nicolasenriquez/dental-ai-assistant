@@ -52,7 +52,9 @@ export default defineConfig({
     },
     {
       name: 'clinical',
+      dependencies: ['setup'],
       testMatch: /clinical-assistant\.spec\.ts/,
+      use: { storageState: authStatePath },
     },
   ],
 });

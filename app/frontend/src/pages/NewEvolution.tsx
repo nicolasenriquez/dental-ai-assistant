@@ -343,6 +343,7 @@ export function NewEvolution() {
       >
         <Link
           to={`/patients/${patientId}`}
+          state={{ preserveHistory: true }}
           className="text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
           ‹ Volver a {patient ? `${patient.first_name} ${patient.last_name}` : 'paciente'}

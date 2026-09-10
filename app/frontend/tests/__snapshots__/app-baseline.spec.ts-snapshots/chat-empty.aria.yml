@@ -8,7 +8,6 @@
       - /url: /assistant
     - link "Chat":
       - /url: /chat
-    - button "Biblioteca"
     - button "Nuevo chat"
   - button "Buscar conversaciones": Buscar Ctrl K
   - region "Conversaciones":
@@ -21,8 +20,12 @@
     - strong: "1"
     - text: /\/ \d+ mensajes hoy/
     - progressbar "Cuota de mensajes diaria"
+  - button "Biblioteca"
   - button "Abrir menú de usuario para admin@email.com"
   - text: Dental AI Assistant
+- banner:
+  - strong: Chat
+  - text: Biblioteca de videos
 - heading "Pregunta sobre la biblioteca de videos" [level=1]
 - paragraph: Esta IA tiene acceso a las transcripciones de una colección seleccionada de videos de YouTube.
 - button "How do I use subagents in Claude Code?"
