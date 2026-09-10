@@ -24,6 +24,8 @@ export function ClinicalAssistantArea({
   const [patientsError, setPatientsError] = useState(false);
   const [draftByThread, setDraftByThread] = useState<Record<string, string>>({});
   const [queueByThread, setQueueByThread] = useState<Record<string, QueuedEntry[]>>({});
+  const [preparingDraftId, setPreparingDraftId] = useState<string | null>(null);
+  const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
   const value = draftByThread[threadId] ?? '';
   const queued = queueByThread[threadId] ?? [];
   const setValue = useCallback(
@@ -48,7 +50,6 @@ export function ClinicalAssistantArea({
   );
   const voice = useVoiceDictation(voiceScope, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
-  const composerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadPatients = useCallback(async () => {
@@ -65,17 +66,6 @@ export function ClinicalAssistantArea({
   useEffect(() => {
     void loadPatients();
   }, [loadPatients]);
-  useEffect(() => {
-    const composer = composerRef.current;
-    const root = composer?.parentElement;
-    if (!composer || !root || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(([entry]) =>
-      root.style.setProperty('--composer-clearance', `${entry.contentRect.height + 16}px`),
-    );
-    observer.observe(composer);
-    return () => observer.disconnect();
-  }, []);
-
   useEffect(() => {
     const patientId = assistant.thread?.active_patient?.id ?? null;
     const next = queued[0];
@@ -157,10 +147,19 @@ export function ClinicalAssistantArea({
         onDraftSourceChange={assistant.updateDraftSource}
         onDraftDateChange={assistant.updateDraftDate}
         onDraftRegenerate={(item) => void assistant.regenerateDraft(item)}
-        onPrepare={(item) => void assistant.prepareDraft(item)}
+        onPrepare={(item) => {
+          setPreparingDraftId(item.id);
+          void assistant.prepareDraft(item).then((approval) => {
+            setPreparingDraftId(null);
+            if (approval) setAutoOpenApprovalId(approval.id);
+          });
+        }}
+        preparingDraftId={preparingDraftId}
+        autoOpenApprovalId={autoOpenApprovalId}
         onRetry={assistant.retryTurn}
         onResolve={async (item, decision) => {
           await assistant.resolve(item, decision);
+          setAutoOpenApprovalId(null);
           onThreadStateChanged?.();
         }}
       />
@@ -215,8 +214,7 @@ export function ClinicalAssistantArea({
           </div>
         </section>
       )}
-      <div aria-hidden="true" className="chat-input-fade" />
-      <div ref={composerRef} className="chat-input-dock clinical-composer-dock">
+      <div className="chat-input-dock clinical-composer-dock">
         <div className="chat-input-dock-inner">
           {queued.length > 0 && (
             <div className="clinical-queue" aria-label="Mensajes en cola">
@@ -284,6 +282,7 @@ export function ClinicalAssistantArea({
               elapsed: voice.elapsed,
               error: voice.error,
               canRetry: voice.canRetry,
+              stream: voice.stream,
               onStart: () => void voice.start(),
               onStop: voice.stop,
               onCancel: voice.cancel,

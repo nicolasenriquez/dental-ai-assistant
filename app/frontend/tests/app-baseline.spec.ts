@@ -264,7 +264,9 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   const historyButton = sidebar.getByRole('button', { name: 'Abrir historial de conversaciones' });
   await expect(historyButton).toBeVisible();
   await historyButton.click();
-  await expect(sidebar.getByRole('button', { name: 'Baseline conversation', exact: true })).toBeVisible();
+  await expect(
+    sidebar.getByRole('button', { name: 'Baseline conversation', exact: true }),
+  ).toBeVisible();
 
   await conversationItem.hover();
   await conversationItem
@@ -455,12 +457,12 @@ test('hands off chat dictation without losing edits during transcription', async
   await page.getByRole('button', { name: 'Detener grabación' }).click();
 
   await expect(input).toBeEditable();
-  await expect(page.getByText('Transcribiendo… Puedes seguir editando.')).toBeVisible();
+  await expect(page.getByText('Transcribiendo dictado… Puedes seguir editando.')).toBeVisible();
   await input.fill('Edición manual');
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
   releaseTranscription();
   await expect(input).toHaveValue('Edición manual\nTexto dictado.');
-  await expect(page.getByText('Dictado añadido.')).toBeVisible();
+  await expect(page.getByText('Dictado añadido')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeEnabled();
 });
 

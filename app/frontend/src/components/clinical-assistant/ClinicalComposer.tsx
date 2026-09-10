@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, ListPlus, Mic, Search, X } from 'lucide-react';
+import { Check, ChevronsUpDown, ListPlus, Search, Square, X } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
 import type { ClinicalPatient } from '../../lib/api';
@@ -10,6 +10,7 @@ export interface ClinicalVoiceControls {
   elapsed: number;
   error: string | null;
   canRetry: boolean;
+  stream?: MediaStream | null;
   onStart: () => void;
   onStop: () => void;
   onCancel: () => void;
@@ -89,6 +90,11 @@ export function ClinicalComposer({
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
   }, [patientPickerOpen]);
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Escape' && voice.state === 'recording') {
+      event.preventDefault();
+      voice.onCancel();
+      return;
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       if (submitDisabled || voiceInFlight) return;
@@ -210,57 +216,59 @@ export function ClinicalComposer({
           </button>
         )}
       </div>
-      <VoiceDictationStatus
-        voiceState={voice.state}
-        voiceElapsed={voice.elapsed}
-        voiceError={voice.error}
-        canRetry={voice.canRetry}
-        onStopVoice={voice.onStop}
-        onCancelVoice={voice.onCancel}
-        onRetryVoice={voice.onRetry}
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={onKeyDown}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        rows={1}
+        aria-label="Nota clínica"
+        placeholder={
+          patient
+            ? 'Escribe o dicta la nota clínica…'
+            : 'Selecciona un paciente y escribe una nota…'
+        }
+        className="chat-composer-input clinical-composer-input"
+        aria-busy={voice.state === 'transcribing'}
+        readOnly={voice.state === 'recording' || voice.state === 'stopping'}
       />
-      {voice.state !== 'recording' && voice.state !== 'stopping' && (
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={onKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          rows={1}
-          aria-label="Nota clínica"
-          placeholder={
-            patient
-              ? 'Escribe o dicta la nota clínica…'
-              : 'Selecciona un paciente y escribe una nota…'
-          }
-          className="chat-composer-input clinical-composer-input"
-          aria-busy={voice.state === 'transcribing'}
-        />
-      )}
       <div className="clinical-composer-actions">
-        {voice.state !== 'recording' && voice.state !== 'stopping' && (
-          <button
-            type="button"
-            className="clinical-secondary-button"
-            onClick={voice.onStart}
-            disabled={voiceInFlight}
-            aria-label="Iniciar dictado"
-            aria-pressed={voiceInFlight}
-          >
-            <Mic size={15} strokeWidth={1.8} aria-hidden="true" />
-            Dictar
-          </button>
-        )}
+        <VoiceDictationStatus
+          voiceState={voice.state}
+          voiceElapsed={voice.elapsed}
+          voiceError={voice.error}
+          canRetry={voice.canRetry}
+          stream={voice.stream ?? null}
+          onStartVoice={voice.onStart}
+          onStopVoice={voice.onStop}
+          onCancelVoice={voice.onCancel}
+          onRetryVoice={voice.onRetry}
+        />
         <button
           type="button"
           className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}
-          onClick={onSubmit}
-          disabled={!value.trim() || submitDisabled || voiceInFlight}
-          aria-label={busy ? 'Poner mensaje en cola' : 'Enviar mensaje'}
-          title={busy ? 'Agregar a cola' : 'Enviar'}
+          onClick={voice.state === 'recording' ? voice.onStop : onSubmit}
+          disabled={
+            voice.state !== 'recording' && (!value.trim() || submitDisabled || voiceInFlight)
+          }
+          aria-label={
+            voice.state === 'recording'
+              ? 'Terminar dictado'
+              : busy
+                ? 'Poner mensaje en cola'
+                : 'Enviar mensaje'
+          }
+          title={
+            voice.state === 'recording' ? 'Terminar dictado' : busy ? 'Agregar a cola' : 'Enviar'
+          }
         >
-          {busy ? (
+          {voice.state === 'recording' ? (
+            <Square aria-hidden="true" size={13} fill="currentColor" />
+          ) : voice.state === 'stopping' || voice.state === 'transcribing' ? (
+            <span aria-hidden="true" className="spinner" />
+          ) : busy ? (
             <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />
           ) : (
             <svg

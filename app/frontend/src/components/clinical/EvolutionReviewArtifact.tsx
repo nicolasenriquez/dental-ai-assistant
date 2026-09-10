@@ -19,6 +19,7 @@ interface EvolutionReviewArtifactProps {
   showDateTime?: boolean;
   canSave?: boolean;
   saving?: boolean;
+  preparing?: boolean;
   onChange: (draft: ClinicalDraft) => void;
   onSourceChange?: (sourceNote: string) => void;
   onEvolutionAtChange?: (evolutionAt: string) => void;
@@ -53,6 +54,7 @@ export function EvolutionReviewArtifact({
   showDateTime = false,
   canSave = false,
   saving = false,
+  preparing = false,
   onChange,
   onSourceChange,
   onEvolutionAtChange,
@@ -369,10 +371,16 @@ export function EvolutionReviewArtifact({
           <button
             type="button"
             className="clinical-primary-button"
-            disabled={emptyDraft || editingField !== null}
+            disabled={emptyDraft || editingField !== null || preparing}
             onClick={onPrepare}
           >
-            Revisar y guardar
+            {preparing ? (
+              <>
+                <Spinner /> Preparando…
+              </>
+            ) : (
+              'Guardar evolución'
+            )}
           </button>
         ) : null}
       </div>

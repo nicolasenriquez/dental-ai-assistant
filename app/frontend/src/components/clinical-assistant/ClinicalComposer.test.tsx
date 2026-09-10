@@ -156,7 +156,7 @@ describe('ClinicalComposer', () => {
     expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Quitar paciente activo' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
-    expect(screen.getByText('Transcribiendo… Puedes seguir editando.')).toBeVisible();
+    expect(screen.getByText('Transcribiendo dictado… Puedes seguir editando.')).toBeVisible();
     fireEvent.change(screen.getByRole('textbox', { name: 'Nota clínica' }), {
       target: { value: 'Nota editada' },
     });
@@ -165,5 +165,38 @@ describe('ClinicalComposer', () => {
       key: 'Enter',
     });
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('keeps existing text visible and read-only while recording', () => {
+    const onStop = vi.fn();
+    render(
+      <ClinicalComposer
+        patient={patient}
+        patients={patients}
+        value="Nota existente"
+        busy={false}
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onPatientChange={vi.fn()}
+        onSubmit={vi.fn()}
+        voice={{
+          state: 'recording',
+          elapsed: 14_000,
+          error: null,
+          canRetry: false,
+          stream: null,
+          onStart: vi.fn(),
+          onStop,
+          onCancel: vi.fn(),
+          onRetry: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue('Nota existente');
+    expect(screen.getByRole('textbox', { name: 'Nota clínica' })).toHaveAttribute('readonly');
+    expect(screen.getByText('00:14')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar dictado' }));
+    expect(onStop).toHaveBeenCalledTimes(1);
   });
 });

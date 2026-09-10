@@ -41,7 +41,7 @@ it('does not allow editing while its save approval is pending', () => {
 
   expect(screen.queryByRole('button', { name: /^Editar / })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Editar nota original' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Preparar para guardar' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Guardar evolución' })).not.toBeInTheDocument();
 });
 
 it('shows all clinical fields and keeps the source note collapsed', () => {

@@ -85,6 +85,7 @@ export function useVoiceDictation(scopeId: string, onText: (text: string) => voi
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [retryable, setRetryable] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const mountedRef = useRef(false);
   const stateRef = useRef<VoiceState>('idle');
   const scopeRef = useRef(scopeId);
@@ -118,6 +119,7 @@ export function useVoiceDictation(scopeId: string, onText: (text: string) => voi
     clearTimers();
     for (const track of streamRef.current?.getTracks() ?? []) track.stop();
     streamRef.current = null;
+    if (mountedRef.current) setStream(null);
     recorderRef.current = null;
   }, [clearTimers]);
 
@@ -222,6 +224,7 @@ export function useVoiceDictation(scopeId: string, onText: (text: string) => voi
       }
 
       streamRef.current = stream;
+      setStream(stream);
       const mimeType = MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = mimeType
         ? new MediaRecorder(stream, { mimeType })
@@ -289,5 +292,11 @@ export function useVoiceDictation(scopeId: string, onText: (text: string) => voi
     updateState('idle');
   }, [invalidate, scopeId, updateState]);
 
-  return { state, elapsed, error, canRetry, start, stop, cancel, retry };
+  useEffect(() => {
+    if (state !== 'success') return;
+    const timeout = window.setTimeout(() => updateState('idle'), 900);
+    return () => window.clearTimeout(timeout);
+  }, [state, updateState]);
+
+  return { state, elapsed, error, canRetry, stream, start, stop, cancel, retry };
 }

@@ -118,7 +118,7 @@ describe('ChatInput', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
       expect(onValueChange).toHaveBeenCalledWith('Edited draft');
       expect(onSend).not.toHaveBeenCalled();
-      expect(screen.getByText('Transcribiendo… Puedes seguir editando.')).toBeVisible();
+      expect(screen.getByText('Transcribiendo dictado… Puedes seguir editando.')).toBeVisible();
     });
 
     it('exposes voice controls while recording', () => {

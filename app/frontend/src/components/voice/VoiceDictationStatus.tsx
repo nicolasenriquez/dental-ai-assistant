@@ -1,11 +1,15 @@
+import { Check, Mic, Square, TriangleAlert } from 'lucide-react';
 import type { VoiceState } from '../../hooks/useVoiceDictation';
 import { Spinner } from '../Spinner';
+import { VoiceWaveform } from './VoiceWaveform';
 
 export interface VoiceDictationStatusProps {
   voiceState: VoiceState;
   voiceElapsed: number;
   voiceError: string | null;
   canRetry: boolean;
+  stream?: MediaStream | null;
+  onStartVoice?: () => void;
   onStopVoice: () => void;
   onCancelVoice: () => void;
   onRetryVoice: () => void;
@@ -16,117 +20,93 @@ export function VoiceDictationStatus({
   voiceElapsed,
   voiceError,
   canRetry,
+  stream,
+  onStartVoice,
   onStopVoice,
   onCancelVoice,
   onRetryVoice,
 }: VoiceDictationStatusProps) {
+  const seconds = Math.floor(voiceElapsed / 1000);
+  const timer = `${Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+
   return (
-    <>
-      {voiceState === 'requesting_permission' && (
-        <div
-          className="clinical-voice-status voice-dictation-status"
-          role="status"
-          aria-live="polite"
-        >
-          <Spinner />
-          <span>Solicitando acceso al micrófono…</span>
-          <button
-            type="button"
-            className="clinical-secondary-button"
-            onClick={onCancelVoice}
-            aria-label="Cancelar dictado"
-          >
-            Cancelar
-          </button>
-        </div>
-      )}
-      {(voiceState === 'recording' || voiceState === 'stopping') && (
-        <div
-          className="clinical-voice-state voice-dictation-state"
-          role="status"
-          aria-live="polite"
-        >
-          <strong>
-            {voiceState === 'stopping' ? (
-              <>
-                <Spinner /> Preparando audio…
-              </>
-            ) : (
-              <>
-                <span className="clinical-recording-dot" aria-hidden="true" /> Grabando
-              </>
-            )}
-          </strong>
-          <span>
-            {Math.floor(voiceElapsed / 1000)
-              .toString()
-              .padStart(2, '0')}
-            s
-          </span>
-          <small>Habla con naturalidad.</small>
-          <div className="clinical-voice-actions">
+    <div className={`voice-composer-status is-${voiceState}`}>
+      <div className="voice-composer-status__content">
+        {voiceState === 'recording' ? (
+          <>
+            <span className="clinical-recording-dot" aria-hidden="true" />
+            <strong>Grabando</strong>
+            <VoiceWaveform stream={stream ?? null} />
+            <time aria-hidden="true">{timer}</time>
             <button
               type="button"
-              className="clinical-secondary-button"
               onClick={onCancelVoice}
-              disabled={voiceState === 'stopping'}
+              title="Cancelar dictado · Esc"
               aria-label="Cancelar dictado"
             >
               Cancelar
             </button>
-            <button
-              type="button"
-              className="clinical-primary-button"
-              onClick={onStopVoice}
-              disabled={voiceState === 'stopping'}
-              aria-label="Detener grabación"
-            >
-              {voiceState === 'stopping' ? (
-                <>
-                  <Spinner /> Terminando…
-                </>
-              ) : (
-                'Terminar'
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-      {voiceState === 'transcribing' && (
-        <p
-          className="clinical-voice-status voice-dictation-status"
-          role="status"
-          aria-live="polite"
-        >
-          <Spinner />
-          <span>Transcribiendo… Puedes seguir editando.</span>
-        </p>
-      )}
-      {voiceError && (
-        <div className="clinical-voice-recovery voice-dictation-recovery" role="alert">
-          <p className="clinical-voice-error">{voiceError}</p>
-          <div className="clinical-voice-actions">
-            <button
-              type="button"
-              className="clinical-secondary-button"
-              onClick={onCancelVoice}
-              aria-label="Cancelar dictado"
-            >
+          </>
+        ) : voiceState === 'stopping' ? (
+          <>
+            <Spinner />
+            <span>Preparando audio…</span>
+            <time aria-hidden="true">{timer}</time>
+          </>
+        ) : voiceState === 'transcribing' ? (
+          <>
+            <Spinner />
+            <span>Transcribiendo dictado… Puedes seguir editando.</span>
+          </>
+        ) : voiceState === 'success' ? (
+          <>
+            <Check aria-hidden="true" size={16} />
+            <span>Dictado añadido</span>
+          </>
+        ) : voiceError ? (
+          <>
+            <TriangleAlert aria-hidden="true" size={16} />
+            <span>{voiceError}</span>
+            <button type="button" onClick={onCancelVoice}>
               Descartar
             </button>
             {canRetry && (
-              <button type="button" className="clinical-primary-button" onClick={onRetryVoice}>
-                Reintentar transcripción
+              <button type="button" onClick={onRetryVoice}>
+                Reintentar
               </button>
             )}
-          </div>
-        </div>
+          </>
+        ) : voiceState === 'requesting_permission' ? (
+          <>
+            <Spinner />
+            <span>Solicitando acceso al micrófono…</span>
+            <button type="button" onClick={onCancelVoice}>
+              Cancelar
+            </button>
+          </>
+        ) : onStartVoice ? (
+          <button
+            type="button"
+            className="clinical-dictation-button"
+            onClick={onStartVoice}
+            aria-label="Iniciar dictado"
+          >
+            <Mic size={15} aria-hidden="true" /> Dictar
+          </button>
+        ) : null}
+      </div>
+      {!onStartVoice && voiceState === 'recording' && (
+        <button
+          type="button"
+          className="voice-composer-status__action"
+          onClick={onStopVoice}
+          aria-label="Detener grabación"
+        >
+          <Square aria-hidden="true" size={14} fill="currentColor" />
+        </button>
       )}
-      {voiceState === 'success' && (
-        <p className="clinical-voice-status voice-dictation-status" role="status">
-          Dictado añadido.
-        </p>
-      )}
-    </>
+    </div>
   );
 }

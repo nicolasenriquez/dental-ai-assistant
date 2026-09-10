@@ -27,6 +27,8 @@ interface ClinicalTranscriptProps {
   onResolve: (item: ApprovalItemData, decision: 'approve' | 'decline') => void;
   onRetry: (turnId: string) => void;
   busy?: boolean;
+  preparingDraftId?: string | null;
+  autoOpenApprovalId?: string | null;
 }
 
 function groupByTurn(items: ClinicalTranscriptItem[]): ClinicalTranscriptItem[][] {
@@ -51,6 +53,8 @@ export function ClinicalTranscript({
   onResolve,
   onRetry,
   busy = false,
+  preparingDraftId = null,
+  autoOpenApprovalId = null,
 }: ClinicalTranscriptProps) {
   const follow = useChatAutoFollow();
   const viewport = useConversationViewportCache({
@@ -145,6 +149,7 @@ export function ClinicalTranscript({
                       onEvolutionAtChange={(evolutionAt) => onDraftDateChange(item.id, evolutionAt)}
                       onRegenerate={() => onDraftRegenerate(item)}
                       onPrepare={() => onPrepare(item)}
+                      preparing={preparingDraftId === item.id}
                     />
                   );
                 if (item.type === 'approval')
@@ -153,6 +158,7 @@ export function ClinicalTranscript({
                       key={item.id}
                       item={item}
                       onResolve={(decision) => onResolve(item, decision)}
+                      autoOpen={autoOpenApprovalId === item.id}
                     />
                   );
                 if (item.type === 'result')

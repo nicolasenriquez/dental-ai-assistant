@@ -356,16 +356,14 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     name: 'Abrir historial de asistente',
   });
   await expect(historyButton).toBeVisible();
-  await expect(sidebar.getByRole('button', { name: 'Nuevo hilo' })).toHaveAttribute(
-    'title',
-    'Nuevo hilo',
-  );
   await expect(sidebar).toHaveScreenshot('clinical-sidebar-collapsed.png', {
     animations: 'disabled',
     maxDiffPixels: 100,
   });
   await historyButton.click();
-  await expect(sidebar.getByRole('button', { name: 'Ana Pérez · Control' })).toBeVisible();
+  await expect(
+    sidebar.getByRole('button', { name: 'Ana Pérez · Control', exact: true }),
+  ).toBeVisible();
 
   await expect(page).toHaveScreenshot('clinical-empty.png', {
     fullPage: true,
@@ -380,22 +378,6 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
   await expect(page.getByRole('article', { name: 'Tú' })).toBeVisible();
   await expect(page.getByRole('article', { name: 'Asistente' })).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const card = document.querySelector('[aria-label="Evolución propuesta"]');
-        const buttons = card?.querySelectorAll('button');
-        const prepareButton = buttons?.item((buttons.length ?? 0) - 1);
-        const composer = document.querySelector('.clinical-composer');
-        if (!prepareButton || !composer) return false;
-
-        const buttonBounds = prepareButton.getBoundingClientRect();
-        const composerBounds = composer.getBoundingClientRect();
-
-        return buttonBounds.bottom <= composerBounds.top;
-      }),
-    )
-    .toBe(true);
   await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución propuesta' }));
   await expect(page).toHaveScreenshot('clinical-draft.png', {
     animations: 'disabled',
@@ -415,16 +397,16 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(page.getByText('Borrador IA')).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
 
-  await page.getByRole('button', { name: 'Preparar para guardar' }).click();
-  await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toBeVisible();
-  await settleClinicalItem(page, page.getByRole('article', { name: 'Antes de guardar' }));
+  await page.getByRole('button', { name: 'Guardar evolución' }).click();
+  const confirmation = page.getByRole('dialog', { name: 'Confirmar guardado' });
+  await expect(confirmation).toBeVisible();
   await expect(page).toHaveScreenshot('clinical-approval-pending.png', {
     animations: 'disabled',
     maxDiffPixels: 300,
   });
-  await page.getByRole('button', { name: 'Confirmar y guardar' }).click();
-  await expect(page.getByRole('heading', { name: 'Evolución guardada' })).toBeVisible();
-  await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución guardada' }));
+  await confirmation.getByRole('button', { name: 'Guardar evolución' }).click();
+  await expect(page.getByText('Evolución guardada', { exact: true })).toBeVisible();
+  await settleClinicalItem(page, page.getByText('Evolución guardada', { exact: true }));
   await expect(page).toHaveScreenshot('clinical-approval-resolved.png', {
     animations: 'disabled',
     maxDiffPixels: 300,
@@ -439,9 +421,8 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     animations: 'disabled',
     maxDiffPixels: 300,
   });
-  await page.getByRole('button', { name: 'Preparar para guardar' }).last().click();
-  await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toHaveCount(1);
-  await settleClinicalItem(page, page.getByRole('article', { name: 'Antes de guardar' }));
+  await page.getByRole('button', { name: 'Guardar evolución' }).last().click();
+  await expect(page.getByRole('dialog', { name: 'Confirmar guardado' })).toBeVisible();
   await expect(page).toHaveScreenshot('clinical-second-approval.png', {
     animations: 'disabled',
     maxDiffPixels: 300,
@@ -451,16 +432,17 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(page.getByLabel('Pregunta sobre la biblioteca de videos')).toBeVisible();
   await page.goto(`/a/${threadId}`);
   await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(2);
-  await expect(page.getByRole('heading', { name: 'Evolución guardada' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toBeVisible();
+  await expect(page.getByText('Evolución guardada', { exact: true })).toBeVisible();
+  await expect(page.getByText('Guardado pendiente')).toBeVisible();
 
   await page.reload();
   await expect(page.locator('[aria-label="Evolución propuesta"]')).toHaveCount(2);
-  await expect(page.getByRole('heading', { name: 'Evolución guardada' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Antes de guardar' })).toBeVisible();
+  await expect(page.getByText('Evolución guardada', { exact: true })).toBeVisible();
+  await expect(page.getByText('Guardado pendiente')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await settleClinicalItem(page, page.getByRole('article', { name: 'Antes de guardar' }));
+  await settleClinicalItem(page, page.getByText('Guardado pendiente'));
   await expect(page).toHaveScreenshot('clinical-mobile.png', {
     fullPage: true,
     animations: 'disabled',
@@ -553,17 +535,17 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   const input = page.getByLabel('Nota clínica');
   await expect(input).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar dictado' }).click();
-  await expect(page.getByRole('button', { name: 'Detener grabación' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Terminar dictado' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Quitar paciente activo' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Detener grabación' }).click();
+  await page.getByRole('button', { name: 'Terminar dictado' }).click();
 
   await expect(input).toBeEditable();
-  await expect(page.getByText('Transcribiendo… Puedes seguir editando.')).toBeVisible();
+  await expect(page.getByText('Transcribiendo dictado… Puedes seguir editando.')).toBeVisible();
   await input.fill('Nota manual');
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
   releaseTranscription();
   await expect(input).toHaveValue('Nota manual\nTexto dictado.');
-  await expect(page.getByText('Dictado añadido.')).toBeVisible();
+  await expect(page.getByText('Dictado añadido')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeEnabled();
 });

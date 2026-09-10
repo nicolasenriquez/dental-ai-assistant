@@ -419,8 +419,8 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
 
   const prepareDraft = useCallback(
-    async (item: ClinicalDraftItem) => {
-      if (!threadId || item.stale) return;
+    async (item: ClinicalDraftItem): Promise<ClinicalApprovalItem | null> => {
+      if (!threadId || item.stale) return null;
       try {
         const syncTimer = artifactTimersRef.current[item.id];
         if (syncTimer) clearTimeout(syncTimer);
@@ -444,10 +444,12 @@ export function useClinicalAssistant(threadId: string | undefined) {
         };
         dispatch({ type: 'upsertApproval', item: approval });
         setRuntime('awaiting_approval');
+        return approval;
       } catch (caught) {
         const code = apiErrorCode(caught) ?? 'CLINICAL_PREPARE_FAILED';
         setError(safeError(code));
         setRuntime(code === 'CLINICAL_PENDING_ACTION_EXISTS' ? 'awaiting_approval' : 'failed');
+        return null;
       }
     },
     [threadId],

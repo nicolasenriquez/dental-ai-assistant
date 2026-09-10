@@ -11,6 +11,7 @@ interface ClinicalDraftItemProps {
   onEvolutionAtChange: (evolutionAt: string) => void;
   onRegenerate: () => void;
   onPrepare: () => void;
+  preparing?: boolean;
 }
 
 export function ClinicalDraftItem({
@@ -20,6 +21,7 @@ export function ClinicalDraftItem({
   onEvolutionAtChange,
   onRegenerate,
   onPrepare,
+  preparing = false,
 }: ClinicalDraftItemProps) {
   useEffect(() => {
     clinicalTrace('clinical.artifact.rendered', {
@@ -51,6 +53,7 @@ export function ClinicalDraftItem({
       onEvolutionAtChange={onEvolutionAtChange}
       onRegenerate={onRegenerate}
       onPrepare={onPrepare}
+      preparing={preparing}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { Check, X } from 'lucide-react';
+import { Check, ChevronRight, Clock, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalApprovalItem as ApprovalItemData } from '../../hooks/useClinicalAssistant';
@@ -8,9 +8,14 @@ import { Spinner } from '../Spinner';
 interface ApprovalRequestItemProps {
   item: ApprovalItemData;
   onResolve: (decision: 'approve' | 'decline') => void;
+  autoOpen?: boolean;
 }
 
-export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProps) {
+export function ApprovalRequestItem({
+  item,
+  onResolve,
+  autoOpen = false,
+}: ApprovalRequestItemProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const payload = item.action.proposal_payload;
   const evolutionAt = typeof payload?.evolution_at === 'string' ? payload.evolution_at : null;
@@ -21,21 +26,31 @@ export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProp
   useEffect(() => {
     if (!pending && dialogRef.current?.open) dialogRef.current.close();
   }, [pending]);
+  useEffect(() => {
+    if (autoOpen && item.status === 'pending' && !dialogRef.current?.open)
+      dialogRef.current?.showModal();
+  }, [autoOpen, item.status]);
 
   if (saved) {
     return (
-      <output className="clinical-receipt" tabIndex={-1}>
+      <Link
+        className="clinical-receipt"
+        to={`/patients/${item.action.patient_id}/evolutions/${item.action.result_resource_id}`}
+      >
         <Check aria-hidden="true" size={15} />
-        <strong>Evolución guardada</strong>
-        {evolutionAt && <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>}
-        {item.action.result_resource_id && (
-          <Link
-            to={`/patients/${item.action.patient_id}/evolutions/${item.action.result_resource_id}`}
-          >
-            Ver en ficha →
-          </Link>
-        )}
-      </output>
+        <span>
+          <strong>Evolución guardada</strong>
+          {evolutionAt && (
+            <time dateTime={evolutionAt}>
+              {item.patient.first_name} {item.patient.last_name} ·{' '}
+              {formatClinicalDateTime(evolutionAt)}
+            </time>
+          )}
+        </span>
+        <span>
+          Ver en ficha <ChevronRight aria-hidden="true" size={15} />
+        </span>
+      </Link>
     );
   }
 
@@ -50,16 +65,20 @@ export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProp
 
   return (
     <>
-      <div className="clinical-approval-prompt">
-        <span>La evolución está lista para confirmar.</span>
-        <button
-          type="button"
-          className="clinical-primary-button"
-          onClick={() => dialogRef.current?.showModal()}
-        >
-          Revisar y guardar
-        </button>
-      </div>
+      {!autoOpen && (
+        <div className="clinical-approval-prompt">
+          <span>
+            <Clock aria-hidden="true" size={15} /> Guardado pendiente
+          </span>
+          <button
+            type="button"
+            className="clinical-primary-button"
+            onClick={() => dialogRef.current?.showModal()}
+          >
+            Continuar
+          </button>
+        </div>
+      )}
       <dialog
         ref={dialogRef}
         className="clinical-approval-dialog"
@@ -67,7 +86,7 @@ export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProp
         onCancel={(event) => committing && event.preventDefault()}
       >
         <div className="clinical-approval-dialog__body">
-          <h2 id={`approval-${item.id}`}>Confirmar guardado de evolución</h2>
+          <h2 id={`approval-${item.id}`}>Confirmar guardado</h2>
           <p>
             <strong>
               {item.patient.first_name} {item.patient.last_name}
@@ -84,7 +103,7 @@ export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProp
             className="clinical-secondary-button"
             disabled={committing}
             autoFocus
-            onClick={() => dialogRef.current?.close()}
+            onClick={() => onResolve('decline')}
           >
             Volver a editar
           </button>
@@ -99,7 +118,7 @@ export function ApprovalRequestItem({ item, onResolve }: ApprovalRequestItemProp
                 <Spinner /> Guardando…
               </>
             ) : (
-              'Guardar'
+              'Guardar evolución'
             )}
           </button>
         </div>
