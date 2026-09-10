@@ -29,5 +29,6 @@
   - button "Quitar paciente activo"
   - textbox "Nota clínica":
     - /placeholder: Escribe o dicta la nota clínica…
-  - button "Iniciar dictado": Dictar
+  - status:
+    - button "Iniciar dictado": Dictar
   - button "Enviar mensaje" [disabled]

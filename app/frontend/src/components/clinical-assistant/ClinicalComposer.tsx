@@ -1,5 +1,6 @@
-import { Check, ChevronsUpDown, ListPlus, Search, Square, X } from 'lucide-react';
+import { Check, ChevronsUpDown, ListPlus, Search, X } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
 import type { ClinicalPatient } from '../../lib/api';
 import { ComposerShell } from '../ComposerShell';
@@ -58,6 +59,7 @@ export function ClinicalComposer({
   const patientTriggerRef = useRef<HTMLButtonElement>(null);
   const voiceInFlight = isVoiceInFlight(voice.state);
   const patientControlsLocked = patientControlsDisabled || voiceInFlight;
+  useAutosizeTextarea({ ref: textareaRef, value });
   const filteredPatients = useMemo(() => {
     const query = patientQuery.trim().toLocaleLowerCase();
     if (!query) return patients;
@@ -232,7 +234,6 @@ export function ClinicalComposer({
         }
         className="chat-composer-input clinical-composer-input"
         aria-busy={voice.state === 'transcribing'}
-        readOnly={voice.state === 'recording' || voice.state === 'stopping'}
       />
       <div className="clinical-composer-actions">
         <VoiceDictationStatus
@@ -249,24 +250,12 @@ export function ClinicalComposer({
         <button
           type="button"
           className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}
-          onClick={voice.state === 'recording' ? voice.onStop : onSubmit}
-          disabled={
-            voice.state !== 'recording' && (!value.trim() || submitDisabled || voiceInFlight)
-          }
-          aria-label={
-            voice.state === 'recording'
-              ? 'Terminar dictado'
-              : busy
-                ? 'Poner mensaje en cola'
-                : 'Enviar mensaje'
-          }
-          title={
-            voice.state === 'recording' ? 'Terminar dictado' : busy ? 'Agregar a cola' : 'Enviar'
-          }
+          onClick={onSubmit}
+          disabled={!value.trim() || submitDisabled || voiceInFlight}
+          aria-label={busy ? 'Poner mensaje en cola' : 'Enviar mensaje'}
+          title={busy ? 'Agregar a cola' : 'Enviar'}
         >
-          {voice.state === 'recording' ? (
-            <Square aria-hidden="true" size={13} fill="currentColor" />
-          ) : voice.state === 'stopping' || voice.state === 'transcribing' ? (
+          {voice.state === 'stopping' || voice.state === 'transcribing' ? (
             <span aria-hidden="true" className="spinner" />
           ) : busy ? (
             <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />

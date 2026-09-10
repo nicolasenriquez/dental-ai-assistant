@@ -35,5 +35,6 @@
   - paragraph: Baseline response.
 - textbox "Pregunta sobre la biblioteca de videos":
   - /placeholder: Pregunta sobre la biblioteca de videos…
-- button "Iniciar dictado": Dictar
+- status:
+  - button "Iniciar dictado": Dictar
 - button "Enviar mensaje" [disabled]

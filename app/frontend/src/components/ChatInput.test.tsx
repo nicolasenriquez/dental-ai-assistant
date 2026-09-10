@@ -118,7 +118,7 @@ describe('ChatInput', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
       expect(onValueChange).toHaveBeenCalledWith('Edited draft');
       expect(onSend).not.toHaveBeenCalled();
-      expect(screen.getByText('Transcribiendo dictado… Puedes seguir editando.')).toBeVisible();
+      expect(screen.getByText('Transcribiendo dictado…')).toBeVisible();
     });
 
     it('exposes voice controls while recording', () => {
@@ -138,6 +138,8 @@ describe('ChatInput', () => {
         />,
       );
 
+      expect(screen.getByRole('textbox')).toBeEnabled();
+      expect(screen.getByRole('textbox')).not.toHaveAttribute('readonly');
       expect(screen.getByRole('button', { name: 'Detener grabación' })).toBeEnabled();
       expect(screen.getByRole('button', { name: 'Cancelar dictado' })).toBeEnabled();
       fireEvent.click(screen.getByRole('button', { name: 'Detener grabación' }));

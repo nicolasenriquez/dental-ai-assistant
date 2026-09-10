@@ -524,11 +524,12 @@ test('hands off chat dictation without losing edits during transcription', async
   const input = page.getByLabel('Pregunta sobre la biblioteca de videos');
   await page.getByRole('button', { name: 'Iniciar dictado' }).click();
   await expect(page.getByRole('button', { name: 'Detener grabación' })).toBeVisible();
-  await expect(input).toBeHidden();
+  await expect(input).toBeVisible();
+  await expect(input).toBeEditable();
   await page.getByRole('button', { name: 'Detener grabación' }).click();
 
   await expect(input).toBeEditable();
-  await expect(page.getByText('Transcribiendo dictado… Puedes seguir editando.')).toBeVisible();
+  await expect(page.getByText('Transcribiendo dictado…')).toBeVisible();
   await input.fill('Edición manual');
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
   releaseTranscription();

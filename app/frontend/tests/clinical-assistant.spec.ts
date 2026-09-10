@@ -80,6 +80,7 @@ async function settleClinicalItem(page: Page, item: Locator): Promise<void> {
       }),
     )
     .toBe(true);
+  await page.waitForTimeout(220);
 }
 
 test('clinical assistant preserves the complete two-turn review flow', async ({ page }) => {
@@ -545,13 +546,14 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   const input = page.getByLabel('Nota clínica');
   await expect(input).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar dictado' }).click();
-  await expect(page.getByRole('button', { name: 'Terminar dictado' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Detener grabación' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Quitar paciente activo' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Terminar dictado' }).click();
+  await expect(input).toBeEditable();
+  await page.getByRole('button', { name: 'Detener grabación' }).click();
 
   await expect(input).toBeEditable();
-  await expect(page.getByText('Transcribiendo dictado… Puedes seguir editando.')).toBeVisible();
+  await expect(page.getByText('Transcribiendo dictado…')).toBeVisible();
   await input.fill('Nota manual');
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
   releaseTranscription();

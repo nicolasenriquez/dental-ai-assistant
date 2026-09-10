@@ -1,4 +1,5 @@
 import { Check, Mic, Square, TriangleAlert } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { VoiceState } from '../../hooks/useVoiceDictation';
 import { Spinner } from '../Spinner';
 import { VoiceWaveform } from './VoiceWaveform';
@@ -30,9 +31,34 @@ export function VoiceDictationStatus({
   const timer = `${Math.floor(seconds / 60)
     .toString()
     .padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+  const [transcriptionElapsed, setTranscriptionElapsed] = useState(0);
+
+  useEffect(() => {
+    if (voiceState !== 'transcribing') {
+      setTranscriptionElapsed(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const updateElapsed = () => setTranscriptionElapsed(Date.now() - startedAt);
+    updateElapsed();
+    const interval = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(interval);
+  }, [voiceState]);
+
+  const transcriptionSeconds = Math.floor(transcriptionElapsed / 1000);
+  const transcriptionTimer = `${Math.floor(transcriptionSeconds / 60)
+    .toString()
+    .padStart(2, '0')}:${(transcriptionSeconds % 60).toString().padStart(2, '0')}`;
+  const isError = voiceState === 'error';
 
   return (
-    <div className={`voice-composer-status is-${voiceState}`}>
+    <div
+      className={`voice-composer-status is-${voiceState}`}
+      role={isError ? 'alert' : 'status'}
+      aria-live={isError ? 'assertive' : 'polite'}
+      aria-atomic="true"
+    >
       <div className="voice-composer-status__content">
         {voiceState === 'recording' ? (
           <>
@@ -58,7 +84,25 @@ export function VoiceDictationStatus({
         ) : voiceState === 'transcribing' ? (
           <>
             <Spinner />
-            <span>Transcribiendo dictado… Puedes seguir editando.</span>
+            {transcriptionElapsed < 4_000 ? (
+              <span>Transcribiendo dictado…</span>
+            ) : transcriptionElapsed < 10_000 ? (
+              <span>Transcribiendo audio… Puedes seguir editando.</span>
+            ) : (
+              <>
+                <span>Sigue transcribiendo…</span>
+                <time>{transcriptionTimer}</time>
+                <span>Puedes seguir editando.</span>
+              </>
+            )}
+            <button
+              type="button"
+              className="voice-composer-status__cancel"
+              onClick={onCancelVoice}
+              aria-label="Cancelar dictado"
+            >
+              Cancelar
+            </button>
           </>
         ) : voiceState === 'success' ? (
           <>
@@ -97,14 +141,16 @@ export function VoiceDictationStatus({
           </button>
         ) : null}
       </div>
-      {!onStartVoice && voiceState === 'recording' && (
+      {voiceState === 'recording' && (
         <button
           type="button"
           className="voice-composer-status__action"
           onClick={onStopVoice}
           aria-label="Detener grabación"
+          title="Detener dictado"
         >
           <Square aria-hidden="true" size={14} fill="currentColor" />
+          <span>Detener</span>
         </button>
       )}
     </div>

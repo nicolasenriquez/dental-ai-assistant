@@ -738,6 +738,7 @@ export function ChatArea({
             voiceElapsed={voice.elapsed}
             voiceError={voice.error}
             voiceCanRetry={voice.canRetry}
+            voiceStream={voice.stream}
             onVoice={() => void voice.start()}
             onStopVoice={voice.stop}
             onCancelVoice={voice.cancel}

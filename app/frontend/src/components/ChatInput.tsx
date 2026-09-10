@@ -1,14 +1,14 @@
-import { ListPlus, Mic } from 'lucide-react';
+import { ListPlus } from 'lucide-react';
 import {
   type ChangeEvent,
   type KeyboardEvent,
   forwardRef,
   useCallback,
   useImperativeHandle,
-  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
+import { useAutosizeTextarea } from '../hooks/useAutosizeTextarea';
 import type { ChatRunState } from '../hooks/useStreamingResponse';
 import { type VoiceState, isVoiceInFlight } from '../hooks/useVoiceDictation';
 import { ComposerShell } from './ComposerShell';
@@ -33,6 +33,7 @@ interface ChatInputProps {
   voiceElapsed?: number;
   voiceError?: string | null;
   voiceCanRetry?: boolean;
+  voiceStream?: MediaStream | null;
   onVoice?: () => void;
   onStopVoice?: () => void;
   onCancelVoice?: () => void;
@@ -61,6 +62,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       voiceElapsed = 0,
       voiceError = null,
       voiceCanRetry = false,
+      voiceStream = null,
       onVoice,
       onStopVoice,
       onCancelVoice,
@@ -79,8 +81,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const isStopping = runState === 'stopping';
     const isDisabled = disabled;
     const voiceInFlight = voiceState ? isVoiceInFlight(voiceState) : false;
-    const voiceRecording = voiceState === 'recording' || voiceState === 'stopping';
     const isSubmitDisabled = isDisabled || submitDisabled || voiceInFlight;
+
+    useAutosizeTextarea({ ref: textareaRef, value: inputValue });
 
     const setValue = useCallback(
       (nextValue: string) => {
@@ -90,30 +93,16 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       [isControlled, onValueChange],
     );
 
-    const adjustHeight = useCallback(() => {
-      const el = textareaRef.current;
-      if (!el) return;
-      el.style.height = 'auto';
-      const maxHeight = 144;
-      el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-      el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
-    }, []);
-
-    useLayoutEffect(() => {
-      adjustHeight();
-    }, [adjustHeight, inputValue]);
-
     useImperativeHandle(
       ref,
       () => ({
         setInputText: (text: string) => {
           setValue(text);
-          setTimeout(adjustHeight, 0);
           textareaRef.current?.focus();
         },
         focus: () => textareaRef.current?.focus(),
       }),
-      [adjustHeight, setValue],
+      [setValue],
     );
 
     const handleSend = useCallback(() => {
@@ -123,11 +112,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       const accepted = onSend(content);
       if (accepted !== false) {
         setValue('');
-        const el = textareaRef.current;
-        if (el) {
-          el.style.height = 'auto';
-          el.style.overflowY = 'hidden';
-        }
       }
     }, [inputValue, isSubmitDisabled, onSend, setValue]);
 
@@ -150,27 +134,29 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     );
 
     return (
-      <ComposerShell focused={focused} disabled={isDisabled}>
-        {!voiceRecording && (
-          <textarea
-            ref={textareaRef}
-            aria-label="Pregunta sobre la biblioteca de videos"
-            placeholder={
-              activeRun
-                ? 'Escribe un mensaje para enviarlo después…'
-                : 'Pregunta sobre la biblioteca de videos…'
-            }
-            value={inputValue}
-            disabled={isDisabled}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            rows={1}
-            className="chat-composer-input"
-            aria-busy={voiceState === 'transcribing'}
-          />
-        )}
+      <ComposerShell
+        className={voiceInFlight ? 'chat-composer--voice-active' : ''}
+        focused={focused}
+        disabled={isDisabled}
+      >
+        <textarea
+          ref={textareaRef}
+          aria-label="Pregunta sobre la biblioteca de videos"
+          placeholder={
+            activeRun
+              ? 'Escribe un mensaje para enviarlo después…'
+              : 'Pregunta sobre la biblioteca de videos…'
+          }
+          value={inputValue}
+          disabled={isDisabled}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          rows={1}
+          className="chat-composer-input"
+          aria-busy={voiceState === 'transcribing'}
+        />
 
         {voiceState && (
           <VoiceDictationStatus
@@ -178,25 +164,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             voiceElapsed={voiceElapsed}
             voiceError={voiceError}
             canRetry={voiceCanRetry}
+            stream={voiceStream}
+            onStartVoice={onVoice}
             onStopVoice={onStopVoice ?? (() => {})}
             onCancelVoice={onCancelVoice ?? (() => {})}
             onRetryVoice={onRetryVoice ?? (() => {})}
           />
-        )}
-
-        {onVoice && !voiceRecording && (
-          <button
-            type="button"
-            className="clinical-secondary-button chat-voice-button"
-            onClick={onVoice}
-            disabled={isDisabled || voiceInFlight}
-            aria-label="Iniciar dictado"
-            aria-pressed={voiceInFlight}
-            title="Iniciar dictado"
-          >
-            <Mic size={15} strokeWidth={1.8} aria-hidden="true" />
-            Dictar
-          </button>
         )}
 
         {activeRun && (
