@@ -323,11 +323,58 @@ The system SHALL present Drive as non-modal resizable sidecar beside `/assistant
 
 #### Scenario: Workspace states
 - **WHEN** connection, list, editor, conflict, missing workspace, revoked grant, or error changes
-- **THEN** one discriminated workspace state including `workspace_recovery_pending` renders valid Spanish loading, empty, error, warning, and recovery behavior without impossible boolean combinations
+- **THEN** one discriminated workspace state including `viewing` and `workspace_recovery_pending` renders valid Spanish loading, empty, error, warning, and recovery behavior without impossible boolean combinations
 
 #### Scenario: Persisted active status is presented
 - **WHEN** status endpoint reads persisted active connection
 - **THEN** public status is `connected`, `workspace_missing`, or `workspace_recovery_pending` according to authoritative-folder verification; persisted terminal statuses map directly
+
+### Requirement: Application-native document preview
+The system SHALL open existing managed files in a read-only application-native Preview before editing, SHALL render only the validated local document buffer, and SHALL NOT use a Google-hosted or other external rendering surface.
+
+#### Scenario: Existing managed file opens in Preview
+- **WHEN** user opens a validated managed file from active patient's list or search results
+- **THEN** workspace transitions `ready -> opening -> viewing`, shows Preview rather than an editable textarea, and performs only the existing managed-file read request
+
+#### Scenario: Assistant-created draft opens in Edit
+- **WHEN** eligible Assistant content seeds a new local Drive draft
+- **THEN** workspace begins in `editing` because no persisted Drive file exists
+
+#### Scenario: Markdown preview is local and does not render raw HTML
+- **WHEN** opened file has normalized Markdown type
+- **THEN** frontend renders current local buffer with installed `react-markdown` and `remark-gfm` without `rehype-raw`, `dangerouslySetInnerHTML`, executable raw HTML, iframe, Google viewer, or additional renderer dependency
+
+#### Scenario: Plain-text preview remains literal
+- **WHEN** opened file has normalized plain-text type
+- **THEN** frontend interprets no markup and preserves whitespace while wrapping long content without horizontal page overflow
+
+#### Scenario: Preview and Edit share one buffer
+- **WHEN** user edits content and activates Preview before saving
+- **THEN** Preview displays unsaved local content from same buffer without refetching, saving, inserting into composer, submitting, starting SSE, or invoking LLM
+
+#### Scenario: User returns to Edit
+- **WHEN** user activates Edit from Preview
+- **THEN** editor shows unchanged local buffer and persisted version baseline without a Google request
+
+#### Scenario: Successful save resets baseline
+- **WHEN** explicit save succeeds from Edit
+- **THEN** state briefly announces `saved`, updates persisted content/version metadata to returned result, and returns to clean `editing`; Preview remains an explicit user choice
+
+#### Scenario: Dirty state is derived
+- **WHEN** workspace evaluates whether document can be discarded safely
+- **THEN** document is dirty exactly when it has no persisted file yet or current buffer differs from persisted content baseline, without an independent dirty boolean
+
+#### Scenario: Preview exposes safe document context
+- **WHEN** Preview or Edit is visible
+- **THEN** header exposes Back, filename, normalized type, and available size/modified metadata; existing filename is read-only, new-draft name is editable only in Edit, and file ID, patient ID, folder ID, Google account ID, and technical version remain hidden
+
+#### Scenario: Mobile document layout keeps one scroll owner
+- **WHEN** document is open below 768 px
+- **THEN** Sheet occupies available viewport height, keeps document header and actions visible, and makes only document body scroll
+
+#### Scenario: Mode control remains minimal and accessible
+- **WHEN** Preview/Edit control renders
+- **THEN** two keyboard-operable native buttons expose accessible names, visible focus, and `aria-pressed` selected state without adding Tabs, ToggleGroup, or another component dependency
 
 ### Requirement: Patient-safe workspace transitions
 The system MUST require active patient for every file interaction and MUST resolve dirty editor state before any supported transition that would discard editor state.
@@ -376,12 +423,16 @@ The system MUST require active patient for every file interaction and MUST resol
 The system SHALL insert full document or current selection into active patient's composer draft without submitting or invoking clinical runtime.
 
 #### Scenario: Insert complete document
-- **WHEN** user activates `Insertar en el chat` with no selection and file patient matches active patient
-- **THEN** current editor content appends to composer draft with newline separation and composer receives focus
+- **WHEN** user activates `Insertar en el chat` from Preview or Edit and file patient matches active patient
+- **THEN** complete current local buffer appends to composer draft with newline separation and composer receives focus
 
 #### Scenario: Insert selection
 - **WHEN** user selects non-empty editor text and activates keyboard-accessible `Insertar selección en el chat`
 - **THEN** only selected text appends to composer draft
+
+#### Scenario: Full insertion remains available while editing
+- **WHEN** editor has a non-empty selection
+- **THEN** selection insertion is available without replacing full-document insertion
 
 #### Scenario: Insertion never submits
 - **WHEN** either insertion succeeds
@@ -414,8 +465,8 @@ The system SHALL let completed assistant messages and structured clinical drafts
 The system SHALL use manual save with visible local state and SHALL not autosave remote content.
 
 #### Scenario: Edit existing document
-- **WHEN** user changes existing document content
-- **THEN** editor displays dirty state and no remote request occurs
+- **WHEN** user explicitly enters Edit from an existing document Preview and changes content
+- **THEN** editor displays dirty state derived from local buffer and persisted baseline and no remote request occurs
 
 #### Scenario: Existing file name is immutable
 - **WHEN** user edits existing managed file

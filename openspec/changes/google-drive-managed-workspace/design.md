@@ -14,6 +14,7 @@ Feature handles clinical text, OAuth secrets, external writes, responsive intera
 - Use only `drive.file` and work persistently only with files created by this application.
 - Keep one authoritative managed visible folder per current Google connection and validate every file operation server-side.
 - Support `.md` and `.txt` list, search, read, create, explicit update, and safe imported copies.
+- Preview existing managed documents locally before editing them.
 - Prevent silent data transfer, cross-patient carryover, token exposure, overwrite conflicts, and sensitive logging.
 - Use accessible, incremental shadcn/Radix primitives without redesigning existing application UI.
 
@@ -206,27 +207,39 @@ Existing `httpx` handles OAuth token, refresh, revoke, account, and Drive HTTP c
 
    Add `components.json` and only dependencies generated for `Resizable`, `Sheet`, `ScrollArea`, and `AlertDialog`. Reuse existing or native input, textarea, button, badge, tooltip, loading, and empty-state patterns with Tailwind rather than importing equivalent primitives. Use current Tailwind 3, Lucide, CSS variables, radius, and typography. Review CLI `--dry-run`/`--diff` before adding. Existing components are not migrated. Generated source lives under `src/components/ui/`; repository import conventions remain relative after generation normalization.
 
+   Preview/Edit mode uses two native buttons with selected-state semantics; it does not add Tabs, ToggleGroup, or another primitive. `ScrollArea` owns document scrolling. This follows the shadcn composition guidance while keeping the approved dependency set unchanged.
+
 19. Use one deterministic workspace state union.
 
-   State covers `unconfigured`, `disconnected`, `connecting`, `loading_list`, `ready`, `opening`, `editing`, `saving`, `saved`, `conflict`, `workspace_missing`, `workspace_recovery_pending`, `revoked`, and `error`. Each variant carries only valid data. Local new draft and opened-document edit both carry bound patient ID. Independent loading/saving/editing booleans are not combined.
+   State covers `unconfigured`, `disconnected`, `connecting`, `loading_list`, `ready`, `opening`, `viewing`, `editing`, `saving`, `saved`, `conflict`, `workspace_missing`, `workspace_recovery_pending`, `revoked`, and `error`. Each variant carries only valid data. Local new draft and opened document both carry bound patient ID, one local content buffer, and nullable persisted baseline. Existing files transition `ready -> opening -> viewing`; Assistant-created drafts begin in `editing`. `viewing <-> editing` changes only presentation and retains the same buffer. Save can begin only from `editing`; success updates content/version metadata and persisted baseline, enters transient `saved`, then returns to clean `editing`. Dirty is derived as no persisted file yet or buffer content differing from persisted baseline. Independent loading/viewing/editing/saving/dirty booleans are not combined.
 
-20. Keep Drive-to-composer transfer explicit.
+20. Preview managed documents before editing.
 
-   Full-document action inserts current editor content. When textarea selection is non-empty, accessible `Insertar selección en el chat` inserts only selected text; selection action remains keyboard reachable and does not depend only on a floating pointer control. Insertion appends to current composer draft with a newline separator, focuses composer, and never calls submit/SSE/LLM. Action is disabled if bound patient differs from active patient or no active patient exists.
+   Existing managed files open in a read-only application-native preview. The frontend renders only content returned by the patient-bound Dental Drive read endpoint and never embeds `drive.google.com`, Google Docs Viewer, or another external iframe/rendering surface.
 
-21. Keep Assistant-to-Drive transfer local until save.
+   Markdown uses the already-installed `react-markdown` and `remark-gfm` stack without `rehype-raw`, `dangerouslySetInnerHTML`, or another raw-HTML path. Plain text renders literally with preserved whitespace and wrapping. Preview and editor consume the same local buffer, so unsaved edits appear immediately when returning to Preview. Switching modes performs no Google request, write, composer submission, SSE request, or LLM call.
+
+   Document view contains one header, one mode control, one scrolling body, and one action area rather than nested cards. Header exposes Back, filename, normalized type, and available safe size/modified metadata; existing filename is read-only while new-draft name remains editable. Header never exposes file ID, patient ID, folder ID, Google account ID, or technical version. Existing files expose Preview first, Edit, and Insert full document. Editing additionally exposes explicit Save and keyboard-reachable selection insertion when selection exists. New drafts may preview the unsaved buffer but begin in Edit.
+
+   Desktop keeps document and Assistant independently operable. Mobile Sheet occupies available viewport height with sticky document header and actions; only document body scrolls. Actions and mode controls retain visible focus, accessible names, `aria-pressed` selected state, disabled state, and save-status announcements.
+
+21. Keep Drive-to-composer transfer explicit.
+
+   Full-document action inserts current local buffer from Preview or Edit. When textarea selection is non-empty in Edit, accessible `Insertar selección en el chat` inserts only selected text without replacing full-document action; selection action remains keyboard reachable and does not depend only on a floating pointer control. Insertion appends to current composer draft with a newline separator, focuses composer, and never calls submit/SSE/LLM. Action is disabled if bound patient differs from active patient or no active patient exists.
+
+22. Keep Assistant-to-Drive transfer local until save.
 
    Completed assistant messages expose `Guardar en Drive`; structured clinical draft artifacts expose same action and serialize fixed visible labels while omitting empty sections and all review flags. Action requires matching active patient, opens sidecar/Sheet in `editing` with default Markdown name and editable content, and performs no API write. User may edit name/content, then explicitly save. Approval status is not required because Drive copy is a user-controlled document, not the authoritative PostgreSQL evolution.
 
-22. Resolve dirty state before every context-losing transition.
+23. Resolve dirty state before every context-losing transition.
 
    One guard owned by `ClinicalAssistant` covers active-patient change, thread change, in-app route/sidebar navigation, logout, and Sheet/sidecar close. Dirty internal transitions are suspended while AlertDialog offers `Guardar cambios`, `Descartar cambios`, and `Cancelar`. Save performs normal idempotency/conflict validation; transition continues only after successful save. Discard clears local draft then continues. Cancel preserves current context/editor. A `beforeunload` handler requests browser-native confirmation for reload/tab close while dirty; no custom save is attempted during unload. Clean transitions proceed immediately.
 
-23. Enforce restrictive browser policy before production.
+24. Enforce restrictive browser policy before production.
 
    Application responses use CSP with `default-src 'self'`, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`, exact Google script/frame/connect origins proven necessary by raw PickerBuilder, and existing `fonts.googleapis.com` style plus `fonts.gstatic.com` font origins. Backend-issued token means Google Identity Services token-client script is not loaded. No wildcard source, `unsafe-eval`, or unrelated third-party script is allowed. Implementation verifies actual Picker network dependencies before finalizing allowlist and tests security headers.
 
-24. Log metadata, never clinical material or credentials.
+25. Log metadata, never clinical material or credentials.
 
    Allowed structured fields: event, internal user ID, patient ID, hashed folder/file ID, byte count, version before/after, duration, status, sanitized error code. Forbidden at every level: document content, document name, search term, Picker source ID, raw Google body, Authorization header, access token, refresh token, client secret, encryption key, nonce/ciphertext, patient name, and RUT.
 
@@ -339,8 +352,8 @@ Foreign Dental owner or foreign patient returns `404`. Google permission/foreign
 
 - Fail-first authenticated route tests prove user/session-bound one-shot state, same-origin mutations, encrypted persistence, folder/file validation, patient-scoped Drive queries, operation reconciliation, copy-import rejection, safe retries, disconnect, and conflicts.
 - Cipher unit tests prove random nonce, associated-data binding, keyring rotation/lazy re-encryption, wrong-key/version failure, and absence of plaintext.
-- Vitest proves state union transitions, responsive primitive behavior, explicit no-submit/no-write transfers, selection insertion, source serialization, stable operation IDs, Picker patient request, and shared dirty-navigation guard.
-- Playwright mocks all Google/application endpoints and captures desktop sidecar, mobile Sheet, list/editor/save/conflict/unknown-write/missing/revoked states, keyboard resizing, focus movement/return, and patient transition.
+- Vitest proves state union transitions, existing-file Preview entry, shared-buffer Preview/Edit switching, safe Markdown/plain-text rendering, responsive primitive behavior, explicit no-submit/no-write transfers, selection insertion, source serialization, stable operation IDs, Picker patient request, and shared dirty-navigation guard.
+- Playwright mocks all Google/application endpoints and captures desktop sidecar, mobile Sheet, list/preview/editor/unsaved-preview/save/conflict/unknown-write/missing/revoked states, sticky mobile layout, keyboard resizing, focus movement/return, and patient transition.
 - Manual smoke validates real test-user OAuth and Picker only after automated checks; no real clinical data is used.
 
 ## Execution Dependencies
@@ -361,3 +374,5 @@ Foreign Dental owner or foreign patient returns `404`. Google permission/foreign
 - Operational Drive/provider prior art: https://github.com/rclone/rclone/blob/master/docs/content/drive.md
 - Official Python request examples: https://github.com/googleworkspace/python-samples/tree/main/drive
 - Raw PickerBuilder-over-wrapper evidence: https://github.com/googleworkspace/drive-picker-element/issues/118
+- shadcn component catalog and incremental composition guidance: https://ui.shadcn.com/docs/components
+- shadcn AI skill/project-context guidance: https://ui.shadcn.com/docs/skills

@@ -3,8 +3,8 @@
 - [ ] 0.1 Confirm current migration head, authenticated route registration, Dental cookie/session behavior, owner-scoped patient lookup, external HTTP mocking, security-header ownership, deployment origin, and environment forwarding; inspect only Filestash list/read/create/update separation, rclone `drive.file`/provider behavior, and official Python Drive request examples without importing their wider storage surfaces.
   Traceability: proposal `Investigation / Current State` and design `Boundary and Ownership`; locks backend Module, Interface, Seam, Adapter, and security-sensitive files for Slice 1.
 
-- [ ] 0.2 Inspect `ClinicalAssistant`, `ClinicalAssistantArea`, `ClinicalTranscript`, `ClinicalComposer`, `AppShell`, `Sidebar`, `VideoExplorer`, Tailwind tokens, responsive tests, and clinical Playwright prior art; verify generic utility/accessory seam is highest viable UI seam, record exact primitive CLI diff, and confirm raw official `PickerBuilder` path against current docs/open wrapper issue before adding dependencies.
-  Traceability: proposal `Ownership and Test Seam` and design decisions 17-24; locks UI ownership and avoids copying modal Biblioteca behavior for Slices 3 and 4.
+- [ ] 0.2 Inspect `ClinicalAssistant`, `ClinicalAssistantArea`, `ClinicalTranscript`, `ClinicalComposer`, `MarkdownRenderer`, `AppShell`, `Sidebar`, `VideoExplorer`, Tailwind tokens, responsive tests, and clinical Playwright prior art; verify generic utility/accessory seam is highest viable UI seam, record exact primitive CLI diff, confirm installed Markdown rendering has no raw-HTML path, and confirm raw official `PickerBuilder` path against current docs/open wrapper issue before adding dependencies.
+  Traceability: proposal `Ownership and Test Seam` and design decisions 17-25; locks UI ownership, local Preview rendering, and avoidance of copied modal Biblioteca behavior or extra mode-control dependency for Slices 3 and 4.
 
 ## 1. Contract Coverage (Failing First)
 
@@ -16,8 +16,8 @@
   Traceability: requirements `Managed folder lifecycle`, `Patient-bound managed files`, `Scoped cursor listing and search`, `Safe read and optimistic update`, `Duplicate-resistant Drive writes`, `Imported files become managed copies`, and `Bounded and sanitized Google integration`; first contract proof for Slice 2.
   Blocked by: 1.1.
 
-- [ ] 1.3 Add failing AppShell, Sidebar, Drive hook/component, ClinicalComposer, ClinicalTranscript, and API tests proving generic utility rendering, unchanged Biblioteca behavior, desktop resizable sidecar, mobile accessible Sheet, incremental primitive scope, onboarding/recovery states, patient-scoped pages, stable operation IDs, manual editor lifecycle, selection/full insertion without submit, both Assistant source types without write, and one AppShell transition guard for same-origin links plus patient/thread/navigation/logout/close programmatic actions, modified/external/download/targeted-link bypass, single queued continuation, and browser unload.
-  Traceability: requirements `Responsive Drive workspace accessory`, `Patient-safe workspace transitions`, `Explicit Drive-to-composer insertion`, `Explicit Assistant-to-Drive draft preparation`, and `Manual visible save state`; first visible behavior proof for Slices 3 and 4.
+- [ ] 1.3 Add failing AppShell, Sidebar, Drive hook/component, ClinicalComposer, ClinicalTranscript, and API tests proving generic utility rendering, unchanged Biblioteca behavior, desktop resizable sidecar, mobile accessible Sheet with sticky chrome and one body scroll region, incremental primitive scope, onboarding/recovery states, patient-scoped pages, stable operation IDs, existing-file `opening -> viewing`, draft-first editing, shared-buffer Preview/Edit switching without network effects, safe Markdown/no-raw-HTML and literal plain-text rendering, manual editor lifecycle, full-document insertion from Preview or Edit, selection insertion from Edit without submit, both Assistant source types without write, and one AppShell transition guard for same-origin links plus patient/thread/navigation/logout/close programmatic actions, modified/external/download/targeted-link bypass, single queued continuation, and browser unload.
+  Traceability: requirements `Responsive Drive workspace accessory`, `Application-native document preview`, `Patient-safe workspace transitions`, `Explicit Drive-to-composer insertion`, `Explicit Assistant-to-Drive draft preparation`, and `Manual visible save state`; first visible behavior proof for Slices 3 and 4.
   Blocked by: 0.2 and 1.2.
 
 ## 2. Implementation
@@ -34,15 +34,15 @@
   Traceability: requirements `Managed folder lifecycle`, `Patient-bound managed files`, `Scoped cursor listing and search`, `Safe read and optimistic update`, `Duplicate-resistant Drive writes`, `Imported files become managed copies`, and `Bounded and sanitized Google integration`; completes backend-controlled Drive workspace without file catalog or autonomous access.
   Blocked by: 2.1 and 1.2.
 
-### Slice 3 - Workspace shell and editor
+### Slice 3 - Workspace shell, preview, and editor
 
-- [ ] 2.3 Add reviewed Radix/shadcn configuration and only listed primitives using existing tokens; extract generic Sidebar utility and AppShell accessory APIs; adapt Biblioteca through utility seam unchanged; implement patient-aware Drive state hook, connection onboarding, file list/search pagination, empty/loading/error/revoked/missing/recovery-pending states with possible-orphan acknowledgement, desktop keyboard-resizable sidecar, mobile accessible Sheet, document editor, manual save status, conflict dialog, and explicit workspace recreation.
-  Traceability: requirements `Responsive Drive workspace accessory`, `Patient-safe workspace transitions`, and `Manual visible save state`; creates verifiable Drive workspace while preserving current Sidebar/Chat design.
+- [ ] 2.3 Add reviewed Radix/shadcn configuration and only `Resizable`, `Sheet`, `ScrollArea`, and `AlertDialog` using existing tokens; extract generic Sidebar utility and AppShell accessory APIs; adapt Biblioteca through utility seam unchanged; implement patient-aware Drive state union, connection onboarding, file list/search pagination, empty/loading/error/revoked/missing/recovery-pending states with possible-orphan acknowledgement, desktop keyboard-resizable sidecar, mobile accessible Sheet, application-native existing-file Preview, native Preview/Edit controls, one shared local buffer, Markdown rendering through installed `react-markdown`/`remark-gfm` without raw HTML, literal wrapped plain-text rendering, document editor, manual save status, conflict dialog, and explicit workspace recreation. Existing files enter Preview; Assistant drafts enter Edit; mode switches perform no network action; successful save refreshes baseline/version and returns to clean Edit.
+  Traceability: requirements `Responsive Drive workspace accessory`, `Application-native document preview`, `Patient-safe workspace transitions`, and `Manual visible save state`; creates verifiable Drive workspace while preserving current Sidebar/Chat design and adding no mode-control or renderer dependency.
   Blocked by: 2.2 and 1.3.
 
 ### Slice 4 - Clinical transfer and Picker
 
-- [ ] 2.4 Implement AppShell transition-guard context within existing router for captured unmodified same-origin links and guarded patient/thread/navigation/logout/workspace-close continuations, bypass modified/external/download/targeted links, allow one pending transition, and add browser-native unload warning; connect full/selected editor insertion to thread composer draft without submit; add local Drive-draft actions to completed assistant messages and matching structured clinical drafts with fixed serialization and no flags; integrate official Picker JS API through raw `google.picker.PickerBuilder` as `Importar una copia` without React wrapper package; keep existing-file name read-only; render `DRIVE_WRITE_UNKNOWN` recovery; finalize minimal verified Picker CSP allowlist while preserving exact Google Fonts origins; require matching active patient for file, editor, Picker-token, import, and transfer actions while status/connect/disconnect/recreate remain connection-scoped; perform no autonomous LLM or Drive operation.
+- [ ] 2.4 Implement AppShell transition-guard context within existing router for captured unmodified same-origin links and guarded patient/thread/navigation/logout/workspace-close continuations, bypass modified/external/download/targeted links, allow one pending transition, and add browser-native unload warning; connect full-buffer insertion from Preview/Edit and selected-editor-text insertion to thread composer draft without submit; add local Drive-draft actions to completed assistant messages and matching structured clinical drafts with fixed serialization and no flags; integrate official Picker JS API through raw `google.picker.PickerBuilder` as `Importar una copia` without React wrapper package; keep existing-file name read-only; render `DRIVE_WRITE_UNKNOWN` recovery; finalize minimal verified Picker CSP allowlist while preserving exact Google Fonts origins; require matching active patient for file, editor, Picker-token, import, and transfer actions while status/connect/disconnect/recreate remain connection-scoped; perform no autonomous LLM or Drive operation.
   Traceability: requirements `Imported files become managed copies`, `Patient-safe workspace transitions`, `Explicit Drive-to-composer insertion`, `Explicit Assistant-to-Drive draft preparation`, and `Restrictive Picker browser policy`; completes human-controlled patient-bound workflow.
   Blocked by: 2.3.
 
@@ -56,11 +56,11 @@
   Traceability: Slice 2 checkpoint; directly proves backend authorization rather than trusting browser file IDs.
   Blocked by: 2.2.
 
-- [ ] 3.3 Run focused frontend tests for utility/accessory compatibility, desktop/mobile accessibility, deterministic state transitions, patient-filtered list/search/editor, operation context without automatic unknown-write retry, save/conflict/unknown/missing/recovery-pending/revoked states, Drive revocation without Dental login redirect, immutable existing-file name, keyboard selection insertion, no composer submit, both Assistant source serializers, raw PickerBuilder patient/token memory handling, and AppShell-guarded patient/thread/navigation/logout/close plus modified/external/download/targeted bypass and unload transitions.
-  Traceability: Slice 3 and Slice 4 component checkpoint; proves visible human-control and patient-context behavior.
+- [ ] 3.3 Run focused frontend tests for utility/accessory compatibility, desktop/mobile accessibility, deterministic `opening/viewing/editing/saving/saved` transitions, existing-file Preview entry, draft Edit entry, same-buffer unsaved Preview, zero-network mode switches, safe Markdown/no-raw-HTML and literal plain-text rendering, non-sensitive header metadata, patient-filtered list/search/editor, operation context without automatic unknown-write retry, save/conflict/unknown/missing/recovery-pending/revoked states, Drive revocation without Dental login redirect, immutable existing-file name, full insertion from either mode, keyboard selection insertion from Edit, no composer submit, both Assistant source serializers, raw PickerBuilder patient/token memory handling, and AppShell-guarded patient/thread/navigation/logout/close plus modified/external/download/targeted bypass and unload transitions.
+  Traceability: Slice 3 and Slice 4 component checkpoint; proves read-before-edit, visible human control, safe local rendering, and patient-context behavior.
   Blocked by: 2.4.
 
-- [ ] 3.4 Extend mocked clinical Playwright coverage for collapsed/open desktop Drive, keyboard resize, list/search/open/edit/dirty/saving/saved/conflict/unknown-write, missing/recovery-pending workspace with acknowledged recreation warning, durable revoked grant without login redirect, raw PickerBuilder import copy, Assistant-to-Drive draft, Drive-to-composer no-submit, dirty context navigation, mobile Sheet focus/close, CSP header including exact Google Fonts origins, and synthetic-only screenshots; document separate real OAuth/Picker smoke.
+- [ ] 3.4 Extend mocked clinical Playwright coverage for collapsed/open desktop Drive, keyboard resize, `list -> open -> preview -> edit -> local change -> preview unsaved change -> edit -> save -> saved`, Preview whole-document insertion without submit, Edit selection insertion without submit, conflict/current-version recovery, unknown-write, missing/recovery-pending workspace with acknowledged recreation warning, durable revoked grant without login redirect, raw PickerBuilder import copy, Assistant-to-Drive draft entering Edit, dirty context navigation, viewport-height mobile Sheet with sticky header/actions and body-only scroll, focus/close, CSP header including exact Google Fonts origins, and synthetic-only screenshots; document separate real OAuth/Picker smoke.
   Traceability: requirements `Restrictive Picker browser policy` and `Deterministic automated and manual verification`; browser proof uses existing `/assistant` seam without real Google dependency.
   Blocked by: 3.3.
 
@@ -89,10 +89,10 @@
 - Blocked by: Slice 1.
 - Blocks: Slice 3.
 
-### Slice 3 - Workspace shell and editor
+### Slice 3 - Workspace shell, preview, and editor
 
 - Tasks: `0.2 -> 1.3 -> 2.3`
-- Checkpoint: generic utility/accessory seam preserves Biblioteca and renders accessible desktop sidecar/mobile Sheet with deterministic patient-bound file/editor states.
+- Checkpoint: generic utility/accessory seam preserves Biblioteca and renders accessible desktop sidecar/mobile Sheet where existing managed files open in local Preview, drafts open in Edit, both modes share one patient-bound buffer, and mode switches have no network side effect.
 - Blocked by: Slice 2.
 - Blocks: Slice 4.
 
