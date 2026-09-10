@@ -1,5 +1,220 @@
 ## ADDED Requirements
 
+### Requirement: Backend-owned authentication mode
+The system MUST accept exactly `AUTH_MODE=local` or `AUTH_MODE=google`, MUST default to `local`, and MUST expose safe frontend authentication configuration from the backend without exposing secrets.
+
+#### Scenario: Local mode preserves current authentication
+- **WHEN** `AUTH_MODE=local`
+- **THEN** current `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/logout`, and `GET /api/auth/me` behavior remains operational, local login UI remains available, and ordinary development or tests require no Google credentials
+
+#### Scenario: Local mode disables Google authentication
+- **WHEN** `AUTH_MODE=local` and a client calls `POST /api/auth/google`
+- **THEN** backend returns `404 AUTH_PROVIDER_DISABLED`, creates no Dental session or identity, and exposes no alternate Google authentication behavior
+
+#### Scenario: Google mode selects Google login
+- **WHEN** `AUTH_MODE=google`
+- **THEN** login page displays official Google-rendered `Continuar con Google` as its only dominant authentication action and does not display local email/password controls
+
+#### Scenario: Google mode disables local authentication
+- **WHEN** `AUTH_MODE=google` and a client calls `POST /api/auth/signup` or `POST /api/auth/login`
+- **THEN** backend returns `404 AUTH_PROVIDER_DISABLED`, creates no Dental session, and does not rely on frontend control visibility for enforcement
+
+#### Scenario: Session inspection and logout remain available in both modes
+- **WHEN** an authenticated client calls `GET /api/auth/me` or `POST /api/auth/logout` under either supported mode
+- **THEN** existing Dental session inspection and logout behavior remains enabled and unchanged
+
+#### Scenario: Authentication mode is invalid
+- **WHEN** `AUTH_MODE` contains any other value
+- **THEN** application startup fails configuration validation
+
+#### Scenario: Backend exposes safe auth configuration
+- **WHEN** frontend requests `GET /api/auth/config`
+- **THEN** response contains only `mode`, public `google_client_id`, `drive_enabled`, and `drive_auto_onboard` needed for runtime behavior
+
+#### Scenario: Auth configuration keeps secrets private
+- **WHEN** auth configuration response or logs are inspected
+- **THEN** Google client secret, Google credentials, Dental JWT secret, encryption keys, OAuth transaction state, access tokens, and refresh tokens are absent
+
+### Requirement: Google authentication request boundary
+The system MUST use an official GIS JavaScript popup callback that submits same-origin JSON and MUST reject invalid request context before Google credential verification.
+
+#### Scenario: GIS uses popup callback
+- **WHEN** Google mode renders authentication
+- **THEN** frontend uses official GIS-rendered button with `ux_mode=popup` and JavaScript `callback`, does not configure `login_uri` or redirect UX, and GIS owns the provider popup
+
+#### Scenario: One Tap and automatic selection are disabled
+- **WHEN** Google mode initializes GIS
+- **THEN** One Tap `prompt()` is never called, `auto_select=false`, `use_fedcm_for_button=false`, and `button_auto_select=false` where supported
+
+#### Scenario: GIS callback posts same-origin JSON
+- **WHEN** GIS callback receives a credential
+- **THEN** frontend sends only `{"credential":"..."}` to `POST /api/auth/google` with `credentials: include` and `Content-Type: application/json`, without `g_csrf_token`, form encoding, provider URL, or popup chaining
+
+#### Scenario: Google auth request context is valid
+- **WHEN** `POST /api/auth/google` has exact configured application `Origin`, `Sec-Fetch-Site: same-origin` when present, and JSON content type
+- **THEN** backend proceeds to Google credential verification
+
+#### Scenario: Google auth request context is invalid
+- **WHEN** `POST /api/auth/google` has missing/mismatched Origin, present Fetch Metadata other than `same-origin`, or non-JSON content type
+- **THEN** backend returns sanitized `403 GOOGLE_AUTH_REQUEST_INVALID` before provider verification, identity lookup, Circle, or session issuance
+
+#### Scenario: GIS popup browser behavior is verified
+- **WHEN** browser release verification runs with FedCM-capable and non-FedCM browsers
+- **THEN** official popup callback returns one credential, no blank/lost popup occurs, One Tap and automatic selection remain disabled, and the response serves `Cross-Origin-Opener-Policy: same-origin-allow-popups` for the V1 non-FedCM path
+
+### Requirement: Google identity creates existing Dental session
+The system MUST verify Google ID tokens through Google's maintained verification implementation, MUST accept only authoritative Google email identities in V1, MUST map Google `sub` to a Dental user, and MUST issue the same Dental JWT/session cookie used by local authentication.
+
+#### Scenario: Valid Google identity signs in
+- **WHEN** client posts a valid Google ID token to `POST /api/auth/google`
+- **THEN** backend verifies exact accepted identity claims, resolves identity by Google `sub`, issues existing Dental session cookie, and subsequent `GET /api/auth/me` and `get_current_user()` resolve that Dental `user_id`
+
+#### Scenario: Google token is invalid
+- **WHEN** ID token has `aud` other than configured `GOOGLE_CLIENT_ID`, `iss` outside `accounts.google.com` and `https://accounts.google.com`, invalid or expired `exp`, missing or empty `sub`, missing or empty `email`, `email_verified` other than boolean `true`, or provider verification failure
+- **THEN** backend creates no identity or session and returns `401 GOOGLE_IDENTITY_INVALID` without exposing provider payload
+
+#### Scenario: Gmail identity is authoritative
+- **WHEN** verified Google ID token has boolean `email_verified=true` and normalized email ends in `@gmail.com` case-insensitively
+- **THEN** identity may proceed to provider-subject lookup or federated provisioning
+
+#### Scenario: Workspace identity is authoritative
+- **WHEN** verified Google ID token has boolean `email_verified=true` and a non-empty `hd` claim
+- **THEN** identity may proceed to provider-subject lookup or federated provisioning
+
+#### Scenario: External email is not authoritative
+- **WHEN** verified Google ID token has `email_verified=true`, normalized email does not end in `@gmail.com`, and `hd` is absent, empty, or not a valid non-empty string
+- **THEN** backend creates no identity or session, skips Circle and session finalization, and returns `403 GOOGLE_EMAIL_NOT_AUTHORITATIVE`
+
+#### Scenario: Google credential remains secret
+- **WHEN** Google authentication succeeds or fails at any log level
+- **THEN** credential and raw verified provider payload are absent from logs, telemetry, analytics, and public errors
+
+#### Scenario: Local and Google sessions converge
+- **WHEN** either local login or Google login succeeds
+- **THEN** downstream authorization uses only `session` cookie, `get_current_user()`, and Dental `user_id`; patient, Chat, Clinical Assistant, SSE, evolution, RAG, and quota code cannot distinguish login provider
+
+#### Scenario: Logout remains converged
+- **WHEN** locally or Google-authenticated user calls existing logout endpoint
+- **THEN** existing Dental session ends through same logout contract without using Google Drive credentials as application session state
+
+### Requirement: Stable provider identity mapping
+The system MUST persist provider identity by unique `(provider, provider_subject)`, MUST enforce at most one `(user_id, provider)` identity in V1, MUST use Google `sub` as stable subject, and MUST treat provider email as metadata only.
+
+#### Scenario: Existing Google identity returns
+- **WHEN** verified Google `sub` already maps to Dental user
+- **THEN** system reuses mapped Dental user regardless of provider email snapshot changes
+
+#### Scenario: New Google identity has unused email
+- **WHEN** verified Google `sub` has no mapping and normalized provider email is not owned by existing Dental user
+- **THEN** system creates Dental user and Google identity mapping atomically, stores email only as provider snapshot, and issues Dental session
+
+#### Scenario: Existing email collides
+- **WHEN** unknown Google `sub` presents email already owned by existing Dental user
+- **THEN** system returns `409 GOOGLE_ACCOUNT_LINK_REQUIRED`, creates no mapping, and does not silently link accounts by matching email
+
+#### Scenario: Concurrent identity creation races
+- **WHEN** concurrent requests present same new provider and subject
+- **THEN** unique provider-subject constraint permits one mapping and both successful resolutions converge on same Dental user without duplicate identity
+
+### Requirement: Explicit federated-user persistence
+The system MUST represent users without local credentials explicitly, MUST preserve local password semantics, and MUST create federated user and provider identity rows atomically.
+
+#### Scenario: Federated user has no local credential
+- **WHEN** new authoritative Google `sub` has no identity mapping and its email is not owned by an existing Dental user
+- **THEN** `create_federated_user` creates Dental user with `users.password_hash=NULL`, creates `auth_identities` mapping in the same transaction, and never stores a random or sentinel password hash
+
+#### Scenario: Local user retains real password credential
+- **WHEN** local signup creates a Dental user
+- **THEN** `create_local_user` requires and stores a non-null password hash, while existing local hashes remain unchanged by federated migration
+
+#### Scenario: Federated user cannot use local password login
+- **WHEN** local login looks up a user whose `password_hash` is null
+- **THEN** backend returns the same generic invalid-credentials `401` as unknown email and does not invoke password verification with null
+
+#### Scenario: Provider email snapshot changes
+- **WHEN** returning Google `sub` presents a newly verified authoritative email
+- **THEN** system may refresh `provider_email_snapshot`, but never uses email for identity association or silently reassigns Dental `users.email`
+
+### Requirement: Shared Dental login finalization
+The system MUST preserve current login side-effects for both local password login and Google login through one provider-neutral finalization path.
+
+#### Scenario: Local login finalization
+- **WHEN** local password credentials are valid
+- **THEN** system updates `last_login_at`, calls `circle.verify_paid_member` with Dental user's canonical email, persists `is_member`, and issues the existing Dental session cookie
+
+#### Scenario: Google login finalization
+- **WHEN** authoritative Google identity resolves to a Dental user
+- **THEN** system performs the same `last_login_at`, Circle membership, `is_member`, and Dental session-cookie operations as local password login
+
+#### Scenario: Circle failure remains fail-closed
+- **WHEN** Circle membership verification is unavailable during successful local or Google login
+- **THEN** login follows existing fail-closed membership behavior, still preserves provider-neutral session semantics, and does not create provider-specific authorization state
+
+#### Scenario: Invalid provider request skips finalization
+- **WHEN** Google request context, token claims, email authority, or account association is invalid
+- **THEN** system creates no identity/session and does not update login timestamp or membership state
+
+### Requirement: Seamless but separate Drive onboarding
+The system SHALL make Google login and first-time Drive connection one product journey while preserving explicit provider consent and separate credential domains.
+
+#### Scenario: Returning user has healthy Drive
+- **WHEN** Google authentication and `/api/auth/me` hydration succeed and Drive status is connected
+- **THEN** Assistant becomes ready without consent prompt, account chooser, or intermediate Connect page
+
+#### Scenario: First Google login needs Drive
+- **WHEN** Google authentication succeeds, `/api/auth/me` is authoritative, Drive status is disconnected, and `drive_auto_onboard` is true
+- **THEN** frontend calls authenticated `POST /api/google-drive/oauth/start`, receives the backend-built authorization URL, follows it with `window.location.assign(authorization_url)`, provider requests explicit exact `drive.file` consent, callback uses fixed configured return target, and managed workspace is prepared before ready state
+
+#### Scenario: Auto onboarding is not silent authorization
+- **WHEN** first-time Drive onboarding begins automatically
+- **THEN** application starts provider consent flow but never claims Google Sign-In granted Drive permission or skips user consent
+
+#### Scenario: Drive consent is denied
+- **WHEN** Google identity succeeds but user denies Drive consent
+- **THEN** valid OAuth callback transaction returns `303 See Other` to the fixed configured Assistant return URL with sanitized `result=consent_denied`; Dental session remains active, bootstrap enters `ready-without-drive`, and UI shows `Google Drive no está conectado`, `Puedes continuar utilizando Dental AI Assistant. Conecta Drive cuando quieras trabajar con documentos.`, and `Conectar Drive`
+
+#### Scenario: Reconnect fails
+- **WHEN** authenticated user explicitly reconnects Drive and provider flow fails
+- **THEN** Dental session remains active and local document authoring content is preserved
+
+#### Scenario: Return target is fixed
+- **WHEN** Drive OAuth starts or finishes during onboarding or reconnect
+- **THEN** browser may use only configured callback and return targets; a handled callback result uses `303 See Other` to the fixed configured Assistant URL with only an allowlisted `result` value, and never accepts arbitrary request-supplied return URL
+
+### Requirement: Google-mode Drive account continuity
+The system MUST bind Google-mode Drive OAuth to the Google identity that established the Dental session, while preserving explicit manual account choice in local mode.
+
+#### Scenario: Google mode derives server-side Drive account hint
+- **WHEN** authenticated `AUTH_MODE=google` user starts Drive OAuth
+- **THEN** backend reads the user's single non-empty verified Google `provider_email_snapshot` server-side, stores expected normalized email in the short-lived OAuth transaction, and includes it as backend-generated `login_hint`; absent or ambiguous identity fails closed with same-origin JSON `409 GOOGLE_DRIVE_ACCOUNT_MISMATCH` and creates no OAuth transaction; request cannot supply or override it
+
+#### Scenario: Google mode confirms Drive account after code exchange
+- **WHEN** Google-mode callback exchanges an authorization code successfully
+- **THEN** backend calls Drive `about.get` with exactly `fields=user(permissionId,emailAddress)` using request-local access, requires non-empty normalized `user.emailAddress` to equal expected Google email, and only then persists connection credentials or prepares workspace
+
+#### Scenario: Google mode rejects different Drive account
+- **WHEN** Google-mode Drive `about.user.emailAddress` is absent, empty, or differs from expected Google identity email
+- **THEN** backend best-effort revokes returned credentials, creates or updates no connection, creates no workspace, preserves any prior connection, keeps Dental session active, maps domain code `GOOGLE_DRIVE_ACCOUNT_MISMATCH` to `result=account_mismatch`, and returns `303 See Other` through the fixed sanitized callback target; browser callback never emits HTTP `409`
+
+#### Scenario: Local mode permits explicit Drive account choice
+- **WHEN** authenticated `AUTH_MODE=local` user connects or reconnects Drive
+- **THEN** backend sends no Google identity `login_hint`, does not apply same-account email comparison, and preserves existing explicit account-change binding behavior
+
+### Requirement: Discriminated authentication bootstrap
+The frontend MUST represent authentication and Drive bootstrap with one discriminated state and MUST NOT model the workflow as independent booleans that permit impossible combinations.
+
+#### Scenario: Bootstrap states remain valid
+- **WHEN** application moves through configuration, authentication, session hydration, Drive check, Drive authorization, workspace preparation, ready, ready-without-Drive, or error
+- **THEN** state is exactly one of `loading-config`, `unauthenticated-local`, `unauthenticated-google`, `authenticating-google`, `establishing-session`, `checking-drive`, `authorizing-drive`, `preparing-workspace`, `ready`, `ready-without-drive`, or `error`
+
+#### Scenario: Authentication responds immediately
+- **WHEN** user activates `Continuar con Google`
+- **THEN** UI immediately shows Spinner with `Iniciando sesión…`, then `Cuenta verificada` and `Preparando tu espacio…` after Dental session establishment, without fabricated percentage
+
+#### Scenario: Drive onboarding progress is honest
+- **WHEN** verified user continues into Drive onboarding
+- **THEN** UI distinguishes completed account verification, active Drive connection, and pending workspace preparation without claiming Drive permission before provider consent
+
 ### Requirement: Separate least-privilege Google authorization
 The system MUST keep Dental JWT authentication independent from Google authorization and MUST request only `https://www.googleapis.com/auth/drive.file` through an OAuth 2.0 Web Server flow.
 
@@ -7,37 +222,80 @@ The system MUST keep Dental JWT authentication independent from Google authoriza
 - **WHEN** a request without a valid Dental session calls `POST /api/google-drive/oauth/start`
 - **THEN** the system returns `401` and creates no OAuth state or Google request
 
+#### Scenario: OAuth start is a backend-built URL handoff
+- **WHEN** authenticated frontend calls `POST /api/google-drive/oauth/start` with Dental session credentials included
+- **THEN** backend validates the current Dental user, persists the one-shot user/session-bound transaction, sets its HttpOnly state cookie, constructs the provider authorization URL, and returns only `{"authorization_url":"https://accounts.google.com/..."}` without accepting `return_to` or another browser-supplied provider URL
+
+#### Scenario: Frontend follows OAuth start with browser assignment
+- **WHEN** authentication bootstrap or explicit reconnect needs Drive authorization
+- **THEN** frontend awaits the POST response and executes `window.location.assign(authorization_url)`
+
+#### Scenario: OAuth start has no GET or browser-built fallback
+- **WHEN** frontend initiates Drive authorization
+- **THEN** it does not navigate directly to `/api/google-drive/oauth/start` with GET, submit a form as a POST substitute, construct the Google authorization URL, open a chained popup from the Google Sign-In callback, or send an arbitrary return target
+
 #### Scenario: OAuth state protects callback
 - **WHEN** an authenticated user starts connection
 - **THEN** the system creates a cryptographically random ten-minute state, stores only its hash with initiating Dental user and session fingerprint, and sets raw state in an HttpOnly, Secure, SameSite=Lax cookie scoped to callback
 
 #### Scenario: Dental identity changes during consent
 - **WHEN** callback Dental user or session fingerprint differs from OAuth transaction initiator
-- **THEN** system clears state cookie, rejects callback before code exchange, and stores no Google credential
+- **THEN** system clears state cookie, returns sanitized HTTP `400` with code `GOOGLE_DRIVE_OAUTH_STATE_INVALID` directly, rejects callback before code exchange, and stores no Google credential
 
 #### Scenario: OAuth transaction is consumed once
 - **WHEN** valid callback claims an unused OAuth transaction
-- **THEN** system atomically marks transaction used before code exchange and every concurrent or replayed callback fails closed
+- **THEN** system atomically marks transaction used before code exchange; every concurrent or replayed callback fails closed with sanitized HTTP `400` and code `GOOGLE_DRIVE_OAUTH_STATE_INVALID`, with no redirect
 
 #### Scenario: State mismatch fails closed
 - **WHEN** callback query state is absent, expired, or does not constant-time match the state cookie
-- **THEN** the system clears the state cookie, rejects connection, stores no token, and performs no folder operation
+- **THEN** the system clears the state cookie, returns sanitized HTTP `400` with code `GOOGLE_DRIVE_OAUTH_STATE_INVALID` directly, rejects connection before code exchange, stores no token, performs no folder operation, and does not redirect
 
 #### Scenario: Required grant is missing
 - **WHEN** token response explicitly reports scope set without `drive.file` or omits refresh token
-- **THEN** connection fails atomically with a sanitized result and no usable connection row
+- **THEN** valid callback transaction cleans any returned credential as required, creates no usable connection row, and returns `303 See Other` to the fixed configured Assistant URL with sanitized `result=provider_error`
 
 #### Scenario: Unexpected scope is granted
 - **WHEN** callback granted scope set contains anything besides exact `drive.file`
-- **THEN** connection fails atomically, returned credential is revoked best-effort, and no token is persisted or exposed to Picker
+- **THEN** connection fails atomically, returned credential is revoked best-effort, no token is persisted or exposed to Picker, and valid callback transaction returns `303 See Other` to the fixed configured Assistant URL with sanitized `result=provider_error`
 
 #### Scenario: Token response omits scope
 - **WHEN** authorization requested only `drive.file` with incremental grants disabled and token response omits optional `scope`
 - **THEN** system treats grant as unchanged exact requested scope; explicit scope value must equal exact `drive.file`
 
 #### Scenario: Google identity does not replace Dental identity
-- **WHEN** authorized Google account email differs from Dental account email
-- **THEN** connection remains owned by Dental `user_id` and no Google token or identity becomes a Dental session credential
+- **WHEN** an accepted Drive authorization is owned by a Google account whose email differs from the Dental user's canonical email
+- **THEN** connection remains owned by Dental `user_id`; Drive account continuity is checked only against the expected Google identity in `AUTH_MODE=google`, and no Google token or identity becomes a Dental session credential
+
+#### Scenario: Google Sign-In does not authorize Drive
+- **WHEN** Google identity endpoint establishes Dental session
+- **THEN** no Drive refresh token, access token, scope, or managed workspace exists unless separate Drive OAuth consent succeeds
+
+### Requirement: Browser OAuth callback transport
+The system MUST separate browser-navigation callback transport from same-origin JSON application errors. After a valid one-shot OAuth transaction is established, every handled success or provider/domain failure MUST redirect with `303 See Other`; an invalid security transaction MUST return sanitized HTTP `400` with code `GOOGLE_DRIVE_OAUTH_STATE_INVALID` directly before provider token exchange.
+
+#### Scenario: OAuth callback succeeds
+- **WHEN** callback state is valid for the initiating Dental user/session, provider authorization succeeds, exact `drive.file` is granted, Drive account confirmation succeeds, and connection/workspace preparation succeeds
+- **THEN** `GET /api/google-drive/oauth/callback` returns `303 See Other` to the fixed configured Assistant return URL with only `result=connected`, and no token or provider payload appears in the redirect
+
+#### Scenario: OAuth callback receives expected provider or domain failure
+- **WHEN** a valid one-shot callback transaction receives consent denial, account mismatch, or provider authorization failure
+- **THEN** backend cleans or revokes returned credentials as required, preserves the Dental session and any prior connection when applicable, and returns `303 See Other` to the fixed configured Assistant return URL with only one allowlisted sanitized result: `result=consent_denied`, `result=account_mismatch`, or `result=provider_error`
+
+#### Scenario: Account mismatch remains a domain code
+- **WHEN** Google-mode Drive `about.get` confirms a different or unusable Google account after valid callback state
+- **THEN** domain handling uses `GOOGLE_DRIVE_ACCOUNT_MISMATCH`, browser transport uses `303 See Other` with `result=account_mismatch`, and callback never emits HTTP `409`
+
+#### Scenario: OAuth security transaction is invalid
+- **WHEN** callback state is missing, mismatched, expired, replayed, or bound to another Dental user/session
+- **THEN** backend clears the state cookie, returns sanitized HTTP `400` with code `GOOGLE_DRIVE_OAUTH_STATE_INVALID` directly, performs no provider code/token exchange, persists no credential or connection state, performs no folder operation, and does not redirect
+
+#### Scenario: JSON conflicts remain JSON-only
+- **WHEN** same-origin JSON application endpoint rejects a request-level conflict, such as OAuth start finding no single expected Google identity in Google mode
+- **THEN** endpoint may return HTTP `409 GOOGLE_DRIVE_ACCOUNT_MISMATCH`; this status does not apply to browser OAuth callback navigation
+
+#### Scenario: OAuth callback result is fixed and sanitized
+- **WHEN** callback builds a success or handled failure redirect
+- **THEN** backend appends only the allowlisted `result` parameter to the configured fixed Assistant URL and excludes arbitrary return targets, provider error descriptions, tokens, state, document data, and extra query parameters
 
 ### Requirement: Encrypted refresh-token persistence
 The system MUST persist Google refresh tokens and per-connection file-binding secrets only as purpose-separated AES-256-GCM ciphertext under a versioned keyring independent from Dental JWT and MUST NOT persist access tokens.
@@ -111,7 +369,7 @@ The system SHALL designate at most one authoritative visible Drive folder per cu
 
 #### Scenario: Google account changes
 - **WHEN** reconnect resolves a different opaque Google account ID
-- **THEN** old folder identity is not reused and one folder is created for new connection
+- **THEN** in `AUTH_MODE=local` old folder identity is not reused and one folder is created for the explicitly selected new connection, while in `AUTH_MODE=google` the prior account-continuity check rejects the connection before replacing any identity or workspace state
 
 ### Requirement: Patient-bound managed TXT files
 The system MUST manage only app-created UTF-8 `.txt` files in the managed folder, each bound to one owned patient by opaque HMAC patient reference and file-ID-bound HMAC verified server-side. Backend owns `text/plain` MIME and destination normalization.
@@ -348,7 +606,7 @@ The system MUST apply explicit timeouts, operation-aware retries, streaming read
 
 #### Scenario: Authorization-code exchange or revoke fails transiently
 - **WHEN** authorization-code exchange or revoke receives timeout, network error, 429, or 5xx
-- **THEN** integration does not retry that request; callback fails safely or disconnect continues local clearing respectively
+- **THEN** integration does not retry that request; a valid callback transaction returns `303 See Other` with sanitized `result=provider_error`, while disconnect continues local clearing respectively
 
 #### Scenario: Expired access token
 - **WHEN** Google returns first 401
@@ -675,11 +933,19 @@ The system SHALL attempt Google revocation, always clear local credentials and r
 - **THEN** no delete, move, share, permission, or arbitrary/global upload endpoint exists; controlled patient-bound TXT creation remains available
 
 ### Requirement: Restrictive Picker browser policy
-The system MUST deploy Picker with restrictive Content Security Policy and MUST complete Google OAuth production-readiness prerequisites before public exposure.
+The system MUST deploy GIS and Picker with restrictive Content Security Policy, MUST preserve the V1 non-FedCM GIS popup COOP contract, and MUST complete Google OAuth production-readiness prerequisites before public exposure.
 
 #### Scenario: Picker CSP is served
 - **WHEN** production application response loads Drive workspace
-- **THEN** CSP defaults to self, blocks objects/base injection/framing, excludes unsafe eval/wildcards, allows only exact raw PickerBuilder script/frame/connect origins, preserves existing fonts through exact `fonts.googleapis.com` style and `fonts.gstatic.com` font origins, and does not load Google Identity Services token client
+- **THEN** CSP defaults to self, blocks objects/base injection/framing, excludes unsafe eval/wildcards, allows only exact implementation-verified Google Identity Services and raw PickerBuilder script/frame/connect origins, and preserves existing fonts through exact `fonts.googleapis.com` style and `fonts.gstatic.com` font origins
+
+#### Scenario: CSP evidence is collected
+- **WHEN** GIS and Picker integration is ready for release
+- **THEN** automated security-header tests assert reviewed allowlist and one browser smoke records required provider origins without broad Google wildcard or unrelated third-party origin
+
+#### Scenario: Non-FedCM GIS popup policy is served
+- **WHEN** V1 Google Sign-In page serves the official popup callback flow with FedCM button mode disabled
+- **THEN** response includes `Cross-Origin-Opener-Policy: same-origin-allow-popups`, and browser verification confirms popup communication without blank/lost callback behavior
 
 #### Scenario: OAuth production release gate
 - **WHEN** Drive feature is prepared for public production use
@@ -699,3 +965,7 @@ The system SHALL verify Google integration through mocked automated boundaries a
 #### Scenario: Existing runtime regresses
 - **WHEN** full validation runs
 - **THEN** Dental auth, clinical SSE/approval, Chat, RAG, citations, quota, and VideoExplorer tests remain passing without protocol changes
+
+#### Scenario: Authentication and Drive acceptance matrix runs
+- **WHEN** release verification executes
+- **THEN** mocked browser coverage proves local login, Google first login with authoritative email and explicit Drive consent, federated null-password behavior, shared login side-effects, GIS popup/CSRF/COOP/FedCM behavior, same-account Drive confirmation, account-mismatch cleanup without workspace creation, returning Google login without Drive prompt, Google login with Drive denial and retained Dental session, later Drive revocation with reconnect UX, and local/Google convergence through `get_current_user()`
