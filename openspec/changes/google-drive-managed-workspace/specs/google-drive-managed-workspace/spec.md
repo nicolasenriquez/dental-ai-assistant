@@ -113,16 +113,28 @@ The system SHALL designate at most one authoritative visible Drive folder per cu
 - **WHEN** reconnect resolves a different opaque Google account ID
 - **THEN** old folder identity is not reused and one folder is created for new connection
 
-### Requirement: Patient-bound managed files
-The system MUST manage only app-created UTF-8 `.md` and `.txt` files in managed folder, each bound to one owned patient by opaque HMAC patient reference and file-ID-bound HMAC verified server-side.
+### Requirement: Patient-bound managed TXT files
+The system MUST manage only app-created UTF-8 `.txt` files in the managed folder, each bound to one owned patient by opaque HMAC patient reference and file-ID-bound HMAC verified server-side. Backend owns `text/plain` MIME and destination normalization.
 
-#### Scenario: Create managed Markdown file
-- **WHEN** authenticated user submits owned patient, stable operation UUID, valid `.md` name, Markdown MIME, and non-empty content at most 1 MiB
-- **THEN** backend creates file under exact managed folder with application markers, opaque patient reference, `creationOperationId` equal to request operation UUID, and valid file-ID-bound MAC before returning it as managed
+#### Scenario: Create managed TXT file
+- **WHEN** authenticated user submits owned patient, stable operation UUID, valid name, and non-empty exported plain-text content at most 1 MiB
+- **THEN** backend normalizes destination to lowercase `.txt`, creates `text/plain` content under exact managed folder with application markers, opaque patient reference, `creationOperationId` equal to request operation UUID, and valid file-ID-bound MAC before returning it as managed
 
-#### Scenario: Create managed text file
-- **WHEN** authenticated user submits owned patient, stable operation UUID, valid `.txt` name, plain-text MIME, and valid content
-- **THEN** backend creates equivalent patient-bound managed file
+#### Scenario: Create request has no frontend MIME selector
+- **WHEN** frontend creates a managed document
+- **THEN** request conceptually contains `patient_id`, `operation_id`, `name`, and exported `content`, while backend supplies `text/plain` and frontend sends no MIME selector
+
+#### Scenario: Update request preserves TXT contract
+- **WHEN** frontend explicitly updates an existing managed document
+- **THEN** update body contains `patient_id`, caller-stable `operation_id`, exported content, and expected version, but contains no name or MIME and cannot rename the managed file
+
+#### Scenario: New name gets TXT extension
+- **WHEN** a new draft name has no extension
+- **THEN** UI visibly normalizes it to `.txt` before save and backend creates only `text/plain` `.txt`
+
+#### Scenario: Markdown destination is normalized
+- **WHEN** a new draft name ends in `.md`
+- **THEN** UI visibly normalizes it to `.txt`, no Markdown destination is created, and backend still owns `text/plain`
 
 #### Scenario: Invalid patient is hidden
 - **WHEN** user supplies missing or foreign patient UUID
@@ -144,12 +156,63 @@ The system MUST manage only app-created UTF-8 `.md` and `.txt` files in managed 
 - **WHEN** declared or streamed content exceeds 1,048,576 bytes or cannot decode as UTF-8
 - **THEN** backend aborts and returns stable validation error without persisting content
 
+#### Scenario: Exported bytes define size boundary
+- **WHEN** local Markdown serializes to exactly 1 MiB of valid UTF-8 bytes
+- **THEN** create or update remains eligible
+
+#### Scenario: Exported bytes exceed size boundary
+- **WHEN** local Markdown serializes above 1 MiB after export
+- **THEN** save is rejected before Drive mutation, even if source authoring text was smaller
+
 #### Scenario: Duplicate name is allowed
 - **WHEN** valid managed folder already has file with same name
 - **THEN** create may produce another file because Drive `file_id`, not name, is identity
 
+#### Scenario: Existing managed name is read-only
+- **WHEN** an existing managed TXT file is opened for editing
+- **THEN** filename cannot be changed and update sends content/version only
+
+#### Scenario: Managed file list excludes invalid content
+- **WHEN** list or search encounters a file with wrong parent, marker, patient binding, extension, MIME, or declared size
+- **THEN** backend excludes it and returns only metadata-valid patient-bound managed `.txt` files without downloading every body; bounded read later rejects invalid UTF-8 before content is exposed
+
+### Requirement: Deterministic Markdown-to-plain-text export
+The system MUST serialize local Markdown authoring to clean deterministic plain text before managed persistence or external Markdown import. The serializer MUST preserve clinically relevant text, avoid executable HTML, produce meaningful newlines, and never be an ad-hoc regex-only parser.
+
+#### Scenario: Markdown presentation delimiters are removed
+- **WHEN** local authoring contains headings, emphasis, inline backticks, fenced code delimiters, or block-quote markers
+- **THEN** exported plain text preserves readable content while removing those presentation delimiters
+
+#### Scenario: Lists remain readable
+- **WHEN** local authoring contains unordered or numbered lists
+- **THEN** export uses readable `•` bullets for unordered items and human-readable numbering for numbered items
+
+#### Scenario: Informative links retain destination
+- **WHEN** local authoring contains a link with an informative label and URL
+- **THEN** `[label](URL)` exports as `label (URL)` and an autolink exports as its URL
+
+#### Scenario: HTML is never executable
+- **WHEN** local authoring or imported source contains HTML-looking content
+- **THEN** export removes HTML tags without creating an executable path, preserves clinically relevant text, and exposes no raw-HTML rendering behavior
+
+#### Scenario: Whitespace is meaningful and bounded
+- **WHEN** local authoring contains meaningful paragraph or list breaks and excessive blank space
+- **THEN** export normalizes CRLF to LF, preserves paragraph/list/code line breaks, collapses three or more consecutive newlines to two, trims trailing horizontal whitespace, and ends with exactly one LF
+
+#### Scenario: Serializer is deterministic
+- **WHEN** the same local Markdown input is serialized repeatedly
+- **THEN** output bytes are identical, and one shared expected-output fixture corpus covers headings, emphasis, inline/fenced code, quotes, unordered/nested and numbered lists, links/autolinks, HTML-looking text, CRLF, blank lines, Unicode, trailing whitespace, and final-newline behavior for frontend local export and backend Picker conversion
+
+#### Scenario: Canonical fixture defines combined behavior
+- **WHEN** local authoring is `# Evolución\r\n\r\n**Dolor** con [referencia](https://example.test).\r\n\r\n- Leve\r\n- Control\r\n`
+- **THEN** exact UTF-8 export is `Evolución\n\nDolor con referencia (https://example.test).\n\n• Leve\n• Control\n`
+
+#### Scenario: Persisted plain text uses identity export
+- **WHEN** remote TXT is opened with any valid UTF-8 plain text, including Markdown-like characters or no final newline
+- **THEN** `authoringRepresentation` is `persisted_plain_text`, `localAuthoringContent` and `persistedPlainTextBaseline` equal exact remote content, `plainTextExport` is byte-faithful identity, and document is immediately clean
+
 ### Requirement: Scoped cursor listing and search
-The system SHALL list and search only active patient's managed files with opaque cursor pagination, bounded fields, and no document names or search terms in URLs or logs.
+The system SHALL list and search only active patient's metadata-valid managed `.txt`/`text/plain` files with opaque cursor pagination, bounded fields, and no document names or search terms in URLs or logs. Content encoding is validated by bounded read before exposure, not by downloading every body during list/search.
 
 #### Scenario: List first page
 - **WHEN** authenticated user requests files for owned active patient
@@ -183,7 +246,7 @@ The system SHALL read validated managed text and SHALL detect Drive version chan
 - **THEN** backend streams at most 1 MiB, decodes UTF-8, and returns content with current version and modified time
 
 #### Scenario: Explicit update succeeds
-- **WHEN** user submits stable operation UUID, non-empty valid content, and `expected_version` matching immediately fetched metadata version
+- **WHEN** user submits update content and `expected_version` matching immediately fetched metadata version while write context carries one stable operation UUID for reconciliation
 - **THEN** backend atomically updates media plus `appProperties.lastOperationId` equal to request operation UUID, preserves managed binding properties, and returns fresh version and modified time
 
 #### Scenario: Version changed
@@ -217,8 +280,8 @@ The system MUST mark workspace recreation, create, import-copy, and update with 
 - **WHEN** API returns `DRIVE_WRITE_UNKNOWN`
 - **THEN** frontend keeps operation context and local text for reconciliation display but sends no automatic or hidden repeat write
 
-### Requirement: Imported files become managed copies
-The system SHALL offer Google Picker as UI for choosing external `.md` or `.txt` source, treat returned source ID as untrusted, and create new patient-bound copy only after independent backend validation without retaining or mutating original.
+### Requirement: Imported files become managed TXT copies
+The system SHALL offer Google Picker as UI for choosing external `.md` or `.txt` source, treat returned source ID as untrusted, and create a new patient-bound `.txt`/`text/plain` copy only after independent backend validation without retaining or mutating original.
 
 #### Scenario: Picker token is issued
 - **WHEN** connected authenticated user posts owned active patient to Picker-token endpoint
@@ -234,7 +297,27 @@ The system SHALL offer Google Picker as UI for choosing external `.md` or `.txt`
 
 #### Scenario: Import valid source
 - **WHEN** Picker selects one permitted source and user confirms import with stable operation UUID for active owned patient
-- **THEN** backend validates metadata/size/encoding, downloads source, creates newly marked managed copy, and returns copy metadata
+- **THEN** backend validates metadata/size/encoding, downloads source, serializes external Markdown to clean plain text when needed, normalizes destination to `.txt`, creates newly marked `text/plain` managed copy, and returns copy metadata
+
+#### Scenario: Picker source type is validated independently
+- **WHEN** backend validates a Picker-selected external source
+- **THEN** it accepts only case-insensitive `text/markdown` + `.md` or `text/plain` + `.txt` source pairs before download; these source pairs never authorize a managed Markdown destination
+
+#### Scenario: Picker TXT source becomes TXT copy
+- **WHEN** Picker selects valid external `.txt` source
+- **THEN** backend validates and normalizes it into a patient-bound managed `.txt` copy with `text/plain`
+
+#### Scenario: Picker Markdown source becomes TXT copy
+- **WHEN** Picker selects valid external `.md` source
+- **THEN** backend validates, serializes it to clean plain text, normalizes its source filename or valid user destination to `.txt`, and creates a patient-bound managed TXT copy
+
+#### Scenario: Picker export exceeds persisted limit
+- **WHEN** external Markdown source is within download limit but its deterministic plain-text export exceeds 1,048,576 UTF-8 bytes
+- **THEN** backend rejects import before Drive creation and leaves original source untouched
+
+#### Scenario: Explicit Markdown destination is normalized
+- **WHEN** import supplies a destination ending in `.md`
+- **THEN** destination visibly and server-side normalizes to `.txt`; no Markdown destination is created
 
 #### Scenario: Original remains untouched
 - **WHEN** import-copy succeeds or fails
@@ -303,7 +386,7 @@ The system MUST reject cross-origin Drive mutations before database or Google si
 - **THEN** callback is exempt from mutation-origin check and is protected by user/session-bound one-shot OAuth state
 
 ### Requirement: Responsive Drive workspace accessory
-The system SHALL present Drive as non-modal resizable sidecar beside `/assistant` on desktop and as accessible modal Sheet below 768 px, using incremental Radix/shadcn primitives and existing visual tokens.
+The system SHALL present Drive as non-modal resizable sidecar beside `/assistant` on desktop and as accessible modal Sheet below 768 px, using incremental Radix/shadcn primitives and existing visual tokens. The allowlist is `Resizable`, `Sheet`, `ScrollArea`, `AlertDialog`, and `Alert`; repository Spinner and compatible existing/native Button, Input, Textarea, Badge, Tooltip, loading, and empty patterns are reused. Tabs, ToggleGroup, Progress, Dialog, Drawer, Command, Combobox, Card-per-file, DataTable, and another Markdown renderer are not added.
 
 #### Scenario: Desktop opens sidecar
 - **WHEN** user activates Google Drive utility at desktop width
@@ -315,42 +398,122 @@ The system SHALL present Drive as non-modal resizable sidecar beside `/assistant
 
 #### Scenario: Incremental primitive adoption
 - **WHEN** Drive UI is added
-- **THEN** only required primitives and dependencies are introduced; existing Sidebar, Composer, Chat, messages, cards, Motion, tokens, and unrelated components are not migrated
+- **THEN** only approved primitives and dependencies are introduced after official project/config inspection, docs review, dry-run, and diff review; existing Sidebar, Composer, Chat, messages, cards, Motion, tokens, and unrelated components are not migrated
 
 #### Scenario: Connection onboarding
 - **WHEN** Drive is disconnected
-- **THEN** workspace explains created folder, allowed operations, patient binding, and no global Drive traversal before explicit Connect action
+- **THEN** centered onboarding shows `Conecta Google Drive`, `Trabaja con documentos asociados al paciente sin salir del Asistente Clínico.`, one primary `Conectar Google Drive`, and secondary `Dental AI Assistant sólo administrará los archivos que cree o importes explícitamente.`, without OAuth/security internals or a second primary
+
+#### Scenario: Drive is unconfigured
+- **WHEN** required Drive configuration is absent
+- **THEN** workspace passively shows `Google Drive no está disponible` and `La integración no está configurada en este entorno.`, with no fake connection CTA
+
+#### Scenario: Connection starts
+- **WHEN** user activates `Conectar Google Drive`
+- **THEN** the same primary immediately becomes disabled repository Spinner plus `Conectando…`, with no percentage
+
+#### Scenario: Connected workspace header
+- **WHEN** Drive status is connected and workspace is available
+- **THEN** compact header shows `Google Drive`, `Conectado`, workspace `Dental AI Assistant`, search, compact semantic rows, and secondary `Importar una copia`, without Google account identity
+
+#### Scenario: Revoked connection preserves Dental login
+- **WHEN** public status is revoked
+- **THEN** Alert title is `Vuelve a conectar Google Drive`, description is `El acceso al workspace dejó de estar disponible. Tu sesión de Dental AI Assistant continúa activa.`, action is `Reconectar`, and Dental authentication remains active
+
+#### Scenario: Missing workspace has no implicit recreation
+- **WHEN** authoritative folder cannot be verified during ordinary operation
+- **THEN** Alert title is `Workspace no disponible`, description is `La carpeta administrada anteriormente no se puede verificar.`, action is `Ver opciones`, and no implicit recreation occurs; that explicit action opens AlertDialog `Recrear workspace` with `Se creará una nueva carpeta Dental AI Assistant. Los archivos de la carpeta anterior no se eliminarán.` and actions `Cancelar` / `Recrear workspace`
+
+#### Scenario: Recovery pending requires explicit acknowledgement
+- **WHEN** folder creation remains unresolved and may have created an orphan
+- **THEN** Alert shows `Revisión del workspace pendiente`, `Google Drive podría haber creado una carpeta que Dental AI Assistant todavía no puede verificar. Revisa las opciones antes de crear otra.`, and `Ver opciones`; only that explicit action opens AlertDialog `Recrear workspace` with `Podría existir una carpeta anterior no administrada. Si aparece después, deberás eliminarla manualmente desde Google Drive.` and actions `Cancelar` / `Recrear workspace`, while no ordinary write proceeds
+
+#### Scenario: General error is recoverable and sanitized
+- **WHEN** a Drive error has a valid concrete recovery action
+- **THEN** Alert title is `No se pudo completar la acción`, description starts `Tu trabajo local se conserva.` with sanitized context, and a concrete action appears only when a stable error maps to valid recovery, without IDs or provider response bodies
+
+#### Scenario: Loading, empty, and operation feedback is explicit
+- **WHEN** workspace loads a list, finds no patient documents, opens, saves, imports, or checks recovery
+- **THEN** visible status is respectively `Cargando documentos…`, `No hay documentos para este paciente.`, `Abriendo…`, `Guardando…`, `Importando…`, or `Revisando workspace…`, without fabricated percentage
+
+#### Scenario: Successful operations end clearly
+- **WHEN** save, import, or workspace recovery succeeds
+- **THEN** visible completion is respectively `Guardado`, `Copia importada`, or `Workspace disponible`
+
+#### Scenario: Alert and AlertDialog have different jobs
+- **WHEN** workspace communicates status or recovery versus asks for an irreversible or data-loss-sensitive choice
+- **THEN** `Alert` informs inline for revoked, missing, recovery-pending, or recoverable errors, while `AlertDialog` confirms only explicit consequences such as dirty-content discard or possible-orphan recreation
+
+#### Scenario: Hick and Von Restorff keep one dominant action
+- **WHEN** any connection, document, import, save, or recovery state renders
+- **THEN** one valid primary action is visually dominant and secondary actions remain available without competing emphasis
+
+#### Scenario: Fitts and Proximity keep controls near their work
+- **WHEN** frequent search, open, Preview/Edit, Save, import, or recovery actions render
+- **THEN** each has a comfortable pointer/keyboard target beside the content it affects, while related metadata is grouped through spacing instead of repeated borders or per-file cards
+
+#### Scenario: Jakob and Tesler keep interaction familiar
+- **WHEN** user connects, searches, opens, edits, saves, imports, or recovers
+- **THEN** UI uses familiar labels and patterns without exposing OAuth scopes, operation IDs, Drive version IDs, HMACs, cryptographic binding, provider account identity, or implementation details
+
+#### Scenario: Doherty and Peak-End make progress and success clear
+- **WHEN** Connect, Open, Save, Import, or Recover begins or completes
+- **THEN** UI acknowledges the action immediately without fabricated percentage and ends successful work with one unequivocal visible success state
+
+#### Scenario: Error recovery preserves work
+- **WHEN** any remote operation fails, conflicts, is revoked, or remains ambiguous
+- **THEN** local authoring/editor content remains available while UI offers only a concrete valid recovery action
+
+#### Scenario: UX priorities resolve tension
+- **WHEN** interaction principles conflict
+- **THEN** implementation prioritizes clarity, accessibility, user control, data safety, then task completion
 
 #### Scenario: Workspace states
 - **WHEN** connection, list, editor, conflict, missing workspace, revoked grant, or error changes
 - **THEN** one discriminated workspace state including `viewing` and `workspace_recovery_pending` renders valid Spanish loading, empty, error, warning, and recovery behavior without impossible boolean combinations
 
+#### Scenario: Authoring and persisted baseline are distinct
+- **WHEN** document state is represented
+- **THEN** discriminated state conceptually carries `localAuthoringContent`, `authoringRepresentation: local_markdown | persisted_plain_text`, and `persistedPlainTextBaseline`, derives representation-aware `plainTextExport`, and never uses independent loading/viewing/editing/saving/dirty booleans as a substitute or exposes a format selector
+
+#### Scenario: Recovery status is derived
+- **WHEN** persisted connection is `active` with a completed or pending folder operation
+- **THEN** public status derives `connected`, `workspace_missing`, or `workspace_recovery_pending` from folder verification and pending-operation evidence, while database checked states remain only `active`, `disconnected`, or `revoked`
+
 #### Scenario: Persisted active status is presented
 - **WHEN** status endpoint reads persisted active connection
 - **THEN** public status is `connected`, `workspace_missing`, or `workspace_recovery_pending` according to authoritative-folder verification; persisted terminal statuses map directly
 
-### Requirement: Application-native document preview
-The system SHALL open existing managed files in a read-only application-native Preview before editing, SHALL render only the validated local document buffer, and SHALL NOT use a Google-hosted or other external rendering surface.
+### Requirement: Application-native TXT preview
+The system SHALL open existing managed TXT files in a read-only application-native Preview before editing, SHALL render only the validated local document buffer, and SHALL NOT use a Google-hosted or other external rendering surface. Local authoring may use Markdown presentation before save; persisted remote content is plain TXT and is never reconstructed as Markdown.
 
 #### Scenario: Existing managed file opens in Preview
 - **WHEN** user opens a validated managed file from active patient's list or search results
-- **THEN** workspace transitions `ready -> opening -> viewing`, shows Preview rather than an editable textarea, and performs only the existing managed-file read request
+- **THEN** workspace transitions `ready -> opening -> viewing`, shows faithful plain-text Preview rather than an editable textarea, and performs only the existing managed-TXT read request
 
 #### Scenario: Assistant-created draft opens in Edit
 - **WHEN** eligible Assistant content seeds a new local Drive draft
 - **THEN** workspace begins in `editing` because no persisted Drive file exists
 
-#### Scenario: Markdown preview is local and does not render raw HTML
-- **WHEN** opened file has normalized Markdown type
-- **THEN** frontend renders current local buffer with installed `react-markdown` and `remark-gfm` without `rehype-raw`, `dangerouslySetInnerHTML`, executable raw HTML, iframe, Google viewer, or additional renderer dependency
+#### Scenario: Local Markdown preview is safe
+- **WHEN** an unsaved local authoring buffer contains Markdown
+- **THEN** frontend renders it with installed `react-markdown` and `remark-gfm` without `rehype-raw`, `dangerouslySetInnerHTML`, executable raw HTML, iframe, Google viewer, or additional renderer dependency
 
-#### Scenario: Plain-text preview remains literal
-- **WHEN** opened file has normalized plain-text type
+#### Scenario: Remote TXT preview remains literal
+- **WHEN** opened file is a managed `text/plain` `.txt`
 - **THEN** frontend interprets no markup and preserves whitespace while wrapping long content without horizontal page overflow
+
+#### Scenario: Reopen does not reconstruct Markdown
+- **WHEN** a local Markdown draft is saved and later closed and reopened from Drive
+- **THEN** reopened content is faithful remote TXT with no Markdown reconstruction claim or invented semantics
 
 #### Scenario: Preview and Edit share one buffer
 - **WHEN** user edits content and activates Preview before saving
 - **THEN** Preview displays unsaved local content from same buffer without refetching, saving, inserting into composer, submitting, starting SSE, or invoking LLM
+
+#### Scenario: Manual edit has no request before save
+- **WHEN** user manually changes the local authoring buffer in Edit and has not activated Save
+- **THEN** no Google, network, save, composer, SSE, or LLM request occurs
 
 #### Scenario: User returns to Edit
 - **WHEN** user activates Edit from Preview
@@ -358,15 +521,15 @@ The system SHALL open existing managed files in a read-only application-native P
 
 #### Scenario: Successful save resets baseline
 - **WHEN** explicit save succeeds from Edit
-- **THEN** state briefly announces `saved`, updates persisted content/version metadata to returned result, and returns to clean `editing`; Preview remains an explicit user choice
+- **THEN** state briefly announces `Guardado`, updates returned version/modified metadata, sets `persistedPlainTextBaseline = plainTextExport`, derives clean state, and returns to clean `editing`; Preview remains an explicit user choice
 
 #### Scenario: Dirty state is derived
 - **WHEN** workspace evaluates whether document can be discarded safely
-- **THEN** document is dirty exactly when it has no persisted file yet or current buffer differs from persisted content baseline, without an independent dirty boolean
+- **THEN** document is dirty exactly when it has no persisted file or `plainTextExport != persistedPlainTextBaseline`, where `plainTextExport = serializeToPlainText(localAuthoringContent, authoringRepresentation)` and `persisted_plain_text` uses byte-faithful identity, without an independent dirty boolean
 
 #### Scenario: Preview exposes safe document context
 - **WHEN** Preview or Edit is visible
-- **THEN** header exposes Back, filename, normalized type, and available size/modified metadata; existing filename is read-only, new-draft name is editable only in Edit, and file ID, patient ID, folder ID, Google account ID, and technical version remain hidden
+- **THEN** header exposes Back, normalized `.txt` filename/type, and available size/modified metadata; existing filename is read-only, new-draft name is editable only in Edit and visibly normalizes to `.txt`, and file ID, patient ID, folder ID, Google account ID, and technical version remain hidden
 
 #### Scenario: Mobile document layout keeps one scroll owner
 - **WHEN** document is open below 768 px
@@ -455,7 +618,15 @@ The system SHALL let completed assistant messages and structured clinical drafts
 
 #### Scenario: Explicit save required
 - **WHEN** local Drive draft is opened or edited
-- **THEN** no remote write occurs until user activates Save with valid name and non-empty content
+- **THEN** no remote write occurs until user activates Save with valid name and non-empty exported plain-text content; create sends patient, operation, normalized name, and export, with backend-owned `text/plain`
+
+#### Scenario: Assistant Markdown transfers through serializer
+- **WHEN** a structured Assistant draft or message contains Markdown delimiters and user saves it
+- **THEN** persisted content is deterministic clean plain text without Markdown delimiters, while local authoring may remain Markdown until close or reopen
+
+#### Scenario: Save errors preserve authoring
+- **WHEN** save returns validation, conflict, unknown-write, or general error
+- **THEN** local authoring content remains available, no hidden retry occurs, and user can recover explicitly
 
 #### Scenario: Approval remains separate
 - **WHEN** unapproved clinical draft is prepared for Drive
@@ -474,7 +645,7 @@ The system SHALL use manual save with visible local state and SHALL not autosave
 
 #### Scenario: Save lifecycle
 - **WHEN** user explicitly saves
-- **THEN** UI announces Saving, disables duplicate save, then displays Saved with returned version or preserves dirty content with recoverable error
+- **THEN** UI immediately announces `Guardando…`, disables duplicate save, then displays `Guardado` or preserves dirty content with recoverable error; technical Drive version remains hidden
 
 #### Scenario: Empty remote save
 - **WHEN** content is empty/whitespace or name/type/byte limit is invalid
@@ -501,7 +672,7 @@ The system SHALL attempt Google revocation, always clear local credentials and r
 
 #### Scenario: No Drive deletion API
 - **WHEN** client inspects Drive API surface
-- **THEN** no delete, move, share, permission, or arbitrary upload endpoint exists
+- **THEN** no delete, move, share, permission, or arbitrary/global upload endpoint exists; controlled patient-bound TXT creation remains available
 
 ### Requirement: Restrictive Picker browser policy
 The system MUST deploy Picker with restrictive Content Security Policy and MUST complete Google OAuth production-readiness prerequisites before public exposure.

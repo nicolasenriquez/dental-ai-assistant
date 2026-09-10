@@ -13,10 +13,11 @@ Feature handles clinical text, OAuth secrets, external writes, responsive intera
 - Give `/assistant` a patient-bound Drive sidecar that stays usable beside conversation on desktop.
 - Use only `drive.file` and work persistently only with files created by this application.
 - Keep one authoritative managed visible folder per current Google connection and validate every file operation server-side.
-- Support `.md` and `.txt` list, search, read, create, explicit update, and safe imported copies.
+- Support only managed UTF-8 `.txt` list, search, read, create, explicit update, and safe imported copies. Picker may select external `.md` or `.txt` sources; both become managed `.txt` copies.
+- Keep Markdown as local authoring/presentation only and export it deterministically to plain text before persistence.
 - Preview existing managed documents locally before editing them.
 - Prevent silent data transfer, cross-patient carryover, token exposure, overwrite conflicts, and sensitive logging.
-- Use accessible, incremental shadcn/Radix primitives without redesigning existing application UI.
+- Use accessible, incremental shadcn/Radix primitives without redesigning existing application UI. Approved shadcn primitives are `Resizable`, `Sheet`, `ScrollArea`, `AlertDialog`, and `Alert`.
 
 **Non-Goals**
 
@@ -57,6 +58,10 @@ Existing `httpx` handles OAuth token, refresh, revoke, account, and Drive HTTP c
 - Browser: mocked `/api/google-drive/*` plus existing clinical endpoints in `tests/clinical-assistant.spec.ts` or a focused sibling spec.
 - Manual: one documented test-user OAuth smoke against configured Google project; never CI.
 
+### Preserved security invariants
+
+The TXT-only content contract does not relax existing security boundaries: Dental auth remains independent from Google OAuth; scope remains exact `drive.file`; refresh tokens remain encrypted and access tokens request-local except the no-store Picker response; one authoritative folder remains ID/app-property bound; patient/file HMAC binding, stable operation IDs, one reconciliation with no blind retry, optimistic version checks, no force overwrite, no remote autosave, and no autonomous LLM/Drive/RAG/indexing/content-to-LLM path remain required. The AppShell seam, desktop `Resizable`, mobile `Sheet`, dirty guards, official Picker untrusted source ID, same-origin mutation checks, restrictive CSP, and no iframe/viewer remain unchanged.
+
 ## Decisions
 
 1. Keep Dental JWT and Google OAuth separate.
@@ -95,11 +100,11 @@ Existing `httpx` handles OAuth token, refresh, revoke, account, and Drive HTTP c
    }
    ```
 
-   Create first writes content with application markers, patient reference, and `creationOperationId` exactly equal to request `operation_id`, then adds file-ID-bound MAC through metadata update before returning. If second step is ambiguous, reconciliation queries exact operation marker and completes/verifies binding; incomplete files never pass managed-file validation. Valid managed file requires exact managed parent, not trashed, allowed MIME/extension, size at most 1 MiB, expected patient reference, and constant-time-valid file binding. Dental session ownership of connection and requested patient remains authoritative. Connected-account owner may alter content or metadata, but cannot rebind file to another patient without server secret; altered binding fails closed.
+    Create first writes content with application markers, patient reference, and `creationOperationId` exactly equal to request `operation_id`, then adds file-ID-bound MAC through metadata update before returning. If second step is ambiguous, reconciliation queries exact operation marker and completes/verifies binding; incomplete files never pass managed-file validation. Metadata-valid managed files require exact managed parent, not trashed, `text/plain` MIME, `.txt` extension, declared size at most 1 MiB, expected patient reference, and constant-time-valid file binding. List/search return only that metadata-valid set; they do not download every body. Read additionally enforces the streaming 1 MiB hard stop and valid UTF-8 before exposing content, while update validates new exported content before replacement. Dental session ownership of connection and requested patient remains authoritative. Connected-account owner may alter content or metadata, but cannot rebind file to another patient without server secret; altered binding fails closed.
 
 5. Store one encrypted connection row and no file catalog.
 
-   Migration `0011_google_drive_workspace` adds the connection row plus a short-lived OAuth transaction table:
+   Migration `0012_google_drive_workspace` adds the connection row plus a short-lived OAuth transaction table:
 
    ```text
    google_drive_connections
@@ -158,7 +163,7 @@ Existing `httpx` handles OAuth token, refresh, revoke, account, and Drive HTTP c
 
 11. Import only a copy.
 
-   Picker is intended UI for choosing one `.md`/`.txt` source but does not produce server-verifiable selection proof. `POST /import-copy` therefore treats source ID as untrusted opaque input, takes active `patient_id`, caller-stable `operation_id`, source ID, and optional destination name, and independently validates everything. Backend verifies owned patient, fetches source metadata, rejects every source already carrying this application's `managedBy` marker, validates not trashed, allowed MIME/extension, declared size at most 1 MiB, downloads with streaming 1 MiB hard stop, UTF-8 decodes, then creates new marked patient-bound file in managed folder. Source ID is discarded after request and never persisted. Original is never moved, changed, deleted, or managed.
+    Picker is intended UI for choosing one external `.md`/`.txt` source but does not produce server-verifiable selection proof. `POST /import-copy` therefore treats source ID as untrusted opaque input, takes active `patient_id`, caller-stable `operation_id`, source ID, and optional destination name, and independently validates everything. Backend verifies owned patient, fetches source metadata, rejects every source already carrying this application's `managedBy` marker, validates not trashed and exact external-source pair (`text/markdown` + `.md` or `text/plain` + `.txt`, case-insensitive), checks declared size at most 1 MiB, downloads with streaming 1 MiB hard stop, UTF-8 decodes, serializes Markdown sources to deterministic plain text, then creates a new marked patient-bound `text/plain` `.txt` file in the managed folder. Source ID is discarded after request and never persisted. Original is never moved, changed, deleted, or managed.
 
 12. Define exact file and search contracts.
 
@@ -176,20 +181,24 @@ Existing `httpx` handles OAuth token, refresh, revoke, account, and Drive HTTP c
    POST /api/google-drive/files
    PUT  /api/google-drive/files/{file_id}
    POST /api/google-drive/picker-token
-   POST /api/google-drive/import-copy
-   ```
+    POST /api/google-drive/import-copy
+    ```
 
-   List page size is 100, sorted `modifiedTime desc,name`. Search body is `{patient_id, query, page_token?}` with stripped query length 1..200. `file_id`, `source_file_id`, and `page_token` are opaque strings of 1..2048 characters with no control characters; invalid values fail before Google access. Backend computes patient reference and escapes Drive query literals. List/search Drive `q` includes exact parent, not-trashed state, `managedBy`, `workspaceSchema`, and `patientRef`; search additionally includes name term. Backend requests only allowed fields and constant-time verifies each returned file MAC. Cursor is therefore patient-scoped before pagination and returned as opaque `next_page_token`. Query/name never enters browser-visible or application endpoint URLs, access/application logs, analytics, or telemetry; escaped query necessarily appears in outbound TLS-protected Google `q`. Invalid Google page tokens map to `422 DRIVE_PAGE_TOKEN_INVALID`.
+    “No upload endpoint” means no arbitrary or global upload surface. Controlled patient-bound TXT creation remains the create endpoint above, and import-copy remains the only external-source conversion path.
 
-13. Define text-file naming and content rules.
+   List page size is 100, sorted `modifiedTime desc,name`. Search body is `{patient_id, query, page_token?}` with stripped query length 1..200. `file_id`, `source_file_id`, and `page_token` are opaque strings of 1..2048 characters with no control characters; invalid values fail before Google access. Backend computes patient reference and escapes Drive query literals. List/search Drive `q` includes exact parent, not-trashed state, `managedBy`, `workspaceSchema`, and `patientRef`; search additionally includes name term. Backend requests only allowed metadata fields and constant-time verifies each returned file MAC, TXT MIME/extension, parent, markers, patient reference, declared size, and not-trashed state without downloading bodies. Full encoding validity is established only by bounded read, so a remotely corrupted body fails closed when opened. Cursor is patient-scoped before pagination and returned as opaque `next_page_token`. Query/name never enters browser-visible or application endpoint URLs, access/application logs, analytics, or telemetry; escaped query necessarily appears in outbound TLS-protected Google `q`. Invalid Google page tokens map to `422 DRIVE_PAGE_TOKEN_INVALID`.
 
-   Allowed MIME/extension pairs are `text/markdown` + `.md` and `text/plain` + `.txt`; comparison is case-insensitive, output normalizes extension lowercase. New-draft names are editable and default to `.md`; existing-file name is read-only because rename is out of scope. New names are stripped, must be 1..120 characters including extension, contain no control characters, `/` or `\\`, and end in allowed extension. Duplicate names are allowed; identity is Drive `file_id`. Content must UTF-8 encode to at most 1,048,576 bytes. Empty content is allowed only in local new draft, not create/update requests. ASGI request-body limiter rejects `/api/google-drive/*` bodies above 8 MiB with `413` before JSON parsing; larger transport cap permits valid JSON escaping while decoded content cap remains 1 MiB.
+13. Define TXT-only managed naming and content rules.
+
+    Managed destinations always use `text/plain` and lowercase `.txt`. Backend owns MIME and extension normalization. A new name without an extension visibly becomes `.txt`; a new destination ending in `.md` visibly becomes `.txt`; Markdown is never a valid managed destination. Existing managed names are read-only and cannot be renamed. New names are stripped, must be 1..120 characters including normalized extension, contain no control characters, `/` or `\\`, and end in `.txt`. Duplicate names are allowed; identity is Drive `file_id`. Persisted content is deterministic plain text, valid UTF-8, and must encode to at most 1,048,576 bytes after export. Empty content is allowed only in local new draft, not create/update requests. ASGI request-body limiter rejects `/api/google-drive/*` bodies above 8 MiB with `413` before JSON parsing; larger transport cap permits valid JSON escaping while decoded persisted content cap remains 1 MiB.
+
+    Local authoring uses `localAuthoringContent` plus discriminated `authoringRepresentation: local_markdown | persisted_plain_text`; this is not a user-visible format selector. `plainTextExport = serializeToPlainText(localAuthoringContent, authoringRepresentation)` is the only content sent to create, import, or update. For `persisted_plain_text`, serialization is byte-faithful identity so opening a remote TXT is immediately clean even when externally edited text contains Markdown-like characters or lacks a final newline. For `local_markdown`, the serializer is deterministic and not an ad-hoc regex-only parser: it strips heading/emphasis/backtick/block-quote/fence delimiters while preserving content, emits readable `•` unordered bullets and preserves ordered-list numbers, renders `[label](URL)` as `label (URL)` and autolinks as their URL, removes HTML tags without creating an executable path while preserving text, normalizes CRLF to LF, preserves paragraph/list/code line breaks, collapses three or more consecutive newlines to two, trims trailing horizontal whitespace, and ends with exactly one LF. The same fixture corpus defines frontend local export and backend Picker Markdown conversion. The byte limit is checked against exported UTF-8 bytes. Because create/update receive this already-exported plain text without server transformation, a successful save sets `persistedPlainTextBaseline = plainTextExport` and derives clean state; failed, conflict, and unknown writes preserve local Markdown authoring content.
 
 14. Make Drive writes duplicate-resistant without claiming exactly-once semantics.
 
    Workspace recreation, create, import-copy, and update accept caller-generated UUID `operation_id`; frontend generates it once per user action. Initial folder creation uses operation ID stored in OAuth transaction. Folder operation persists to connection row before Google access. Created folders/files set `appProperties.creationOperationId` exactly to operation ID. Updates preserve all managed binding properties and atomically send content plus `appProperties.lastOperationId` exactly equal to operation ID. After timeout/connection loss/429/5xx, backend reconciles once: create/import/recreate query exact `creationOperationId`, while update fetches exact file and checks `lastOperationId`. Found matching result returns success. No match returns `503 DRIVE_WRITE_UNKNOWN`, preserves local content, and performs no automatic write retry; user refreshes patient list/current file before explicitly trying again. Reused marker on another target/patient returns `409 DRIVE_OPERATION_REUSED`. Pending folder operation lets later request recover Google-success/DB-failure folder result. Google Drive has no exactly-once/CAS primitive, so operation markers reduce duplicates but do not promise impossibility under provider indexing lag or malicious concurrent calls.
 
-   Read returns Drive monotonic `version` as string. Update body also contains `patient_id`, non-empty content, and `expected_version`. Backend fetches and validates metadata immediately before media update. Mismatch returns `409 DRIVE_FILE_CHANGED` and does not update. Ambiguous update without matching operation marker returns conflict or unknown, never blind retry. Successful update returns fresh metadata/version. This remains optimistic best-effort conflict protection, not atomic compare-and-swap. V1 never offers force overwrite; conflict dialog offers Cancel and View current version, preserving local text in memory.
+    Read returns Drive monotonic `version` as string. Update body contains `patient_id`, caller-stable `operation_id`, non-empty exported `content`, and `expected_version`; it never contains name or MIME. Backend fetches and validates metadata immediately before media update. Mismatch returns `409 DRIVE_FILE_CHANGED` and does not update. Ambiguous update without matching operation marker returns conflict or unknown, never blind retry. Successful update returns fresh metadata/version. This remains optimistic best-effort conflict protection, not atomic compare-and-swap. V1 never offers force overwrite; conflict dialog offers Cancel and View current version, preserving local authoring text in memory.
 
 15. Bound Google networking and sanitize errors.
 
@@ -205,21 +214,37 @@ Existing `httpx` handles OAuth token, refresh, revoke, account, and Drive HTTP c
 
 18. Adopt shadcn incrementally with Radix.
 
-   Add `components.json` and only dependencies generated for `Resizable`, `Sheet`, `ScrollArea`, and `AlertDialog`. Reuse existing or native input, textarea, button, badge, tooltip, loading, and empty-state patterns with Tailwind rather than importing equivalent primitives. Use current Tailwind 3, Lucide, CSS variables, radius, and typography. Review CLI `--dry-run`/`--diff` before adding. Existing components are not migrated. Generated source lives under `src/components/ui/`; repository import conventions remain relative after generation normalization.
+    This is a blocking pre-install workflow, not an authorization to install immediately: inspect project context with the official shadcn skill/CLI, including `shadcn info --json`, `components.json` if present, framework, Tailwind 3 setup, aliases, icon library, base component library, tokens, radius, and typography. Read official docs for each proposed primitive, run a dry run, inspect generated diff and dependency changes, and accept only approved files/dependencies. The review must preserve Tailwind 3, existing tokens, Lucide, radius, type, and unrelated migrations.
 
-   Preview/Edit mode uses two native buttons with selected-state semantics; it does not add Tabs, ToggleGroup, or another primitive. `ScrollArea` owns document scrolling. This follows the shadcn composition guidance while keeping the approved dependency set unchanged.
+    The approved primitive allowlist is `Resizable`, `Sheet`, `ScrollArea`, `AlertDialog`, and `Alert`. Reuse existing or native Button, Input, Textarea, Badge, Tooltip, Spinner, loading, and empty-state patterns with Tailwind rather than importing equivalent primitives. Do not add Tabs, ToggleGroup, Progress, Dialog, Drawer, Command, Combobox, Card-per-file, DataTable, or another Markdown renderer. Existing components are not migrated. Generated source lives under `src/components/ui/`; repository import conventions remain relative after generation normalization.
+
+    Preview/Edit mode uses two native buttons with selected-state semantics; it does not add Tabs or ToggleGroup. `ScrollArea` owns document scrolling. `Alert` informs inline status and recovery; `AlertDialog` confirms consequences such as discard or possible-orphan recreation. `Card` and `Item` are conceptual layout references only, not dependencies.
 
 19. Use one deterministic workspace state union.
 
-   State covers `unconfigured`, `disconnected`, `connecting`, `loading_list`, `ready`, `opening`, `viewing`, `editing`, `saving`, `saved`, `conflict`, `workspace_missing`, `workspace_recovery_pending`, `revoked`, and `error`. Each variant carries only valid data. Local new draft and opened document both carry bound patient ID, one local content buffer, and nullable persisted baseline. Existing files transition `ready -> opening -> viewing`; Assistant-created drafts begin in `editing`. `viewing <-> editing` changes only presentation and retains the same buffer. Save can begin only from `editing`; success updates content/version metadata and persisted baseline, enters transient `saved`, then returns to clean `editing`. Dirty is derived as no persisted file yet or buffer content differing from persisted baseline. Independent loading/viewing/editing/saving/dirty booleans are not combined.
+    State covers `unconfigured`, `disconnected`, `connecting`, `loading_list`, `ready`, `opening`, `viewing`, `editing`, `saving`, `saved`, `conflict`, `workspace_missing`, `workspace_recovery_pending`, `revoked`, and `error`. Each discriminated variant carries only valid data; boolean soup is prohibited. Document state conceptually separates `localAuthoringContent`, `authoringRepresentation`, and `persistedPlainTextBaseline`. `plainTextExport` is derived by the representation-aware serializer above. Dirty is exactly `no persisted file OR plainTextExport != persistedPlainTextBaseline`. Existing files transition `ready -> opening -> viewing` with `persisted_plain_text`, exact remote content copied into both local authoring and baseline, and identity export; they are clean immediately. Assistant-created drafts begin in `editing` with `local_markdown`. `viewing <-> editing` changes only presentation and retains the same local buffer. Save can begin only from `editing`; success sends only the export, updates returned metadata/version and baseline to exact returned persisted text, announces `saved`, then returns to clean `editing`. Save, conflict, and unknown-write errors preserve authoring content. Persisted active plus pending operation derive public recovery status; database checked states remain only `active`, `disconnected`, and `revoked`. Ordinary writes are blocked in missing/recovery-pending state, and only an explicit acknowledged recreation may proceed.
 
-20. Preview managed documents before editing.
+    Connection presentation is exact and deliberately compact:
 
-   Existing managed files open in a read-only application-native preview. The frontend renders only content returned by the patient-bound Dental Drive read endpoint and never embeds `drive.google.com`, Google Docs Viewer, or another external iframe/rendering surface.
+    - `unconfigured`: passive `Google Drive no está disponible` and `La integración no está configurada en este entorno.`; no fake CTA.
+    - `disconnected`: centered icon, `Conecta Google Drive`, `Trabaja con documentos asociados al paciente sin salir del Asistente Clínico.`, one primary `Conectar Google Drive`, and secondary `Dental AI Assistant sólo administrará los archivos que cree o importes explícitamente.`; no OAuth/security internals.
+    - `connecting`: the same primary immediately becomes repository Spinner plus `Conectando…`, disabled, with no percentage.
+    - `connected`: compact `Google Drive` header, `Conectado`, workspace `Dental AI Assistant`, search, compact semantic file rows, and secondary `Importar una copia`; no Google account identity.
+    - `revoked`: Alert title `Vuelve a conectar Google Drive`, description `El acceso al workspace dejó de estar disponible. Tu sesión de Dental AI Assistant continúa activa.`, action `Reconectar`.
+    - `workspace_missing`: Alert title `Workspace no disponible`, description `La carpeta administrada anteriormente no se puede verificar.`, and action `Ver opciones`; it never implicitly recreates. That action opens AlertDialog title `Recrear workspace`, description `Se creará una nueva carpeta Dental AI Assistant. Los archivos de la carpeta anterior no se eliminarán.`, and actions `Cancelar` / `Recrear workspace`.
+    - `workspace_recovery_pending`: Alert title `Revisión del workspace pendiente`, description `Google Drive podría haber creado una carpeta que Dental AI Assistant todavía no puede verificar. Revisa las opciones antes de crear otra.`, and action `Ver opciones`. Only that explicit action can open AlertDialog title `Recrear workspace`, description `Podría existir una carpeta anterior no administrada. Si aparece después, deberás eliminarla manualmente desde Google Drive.`, and actions `Cancelar` / `Recrear workspace`.
+    - general error: Alert title `No se pudo completar la acción` and description `Tu trabajo local se conserva.` plus sanitized context; it exposes a concrete action only when a stable error maps to valid recovery, never IDs/provider body.
+    - list/operation feedback: list loading shows `Cargando documentos…`, empty list shows `No hay documentos para este paciente.`, opening shows `Abriendo…`, saving shows `Guardando…`, importing shows `Importando…`, and recovery shows `Revisando workspace…`; success ends as `Guardado`, `Copia importada`, or `Workspace disponible` as applicable.
 
-   Markdown uses the already-installed `react-markdown` and `remark-gfm` stack without `rehype-raw`, `dangerouslySetInnerHTML`, or another raw-HTML path. Plain text renders literally with preserved whitespace and wrapping. Preview and editor consume the same local buffer, so unsaved edits appear immediately when returning to Preview. Switching modes performs no Google request, write, composer submission, SSE request, or LLM call.
+    UX priority is clarity, accessibility, user control, data safety, then task completion. Hick gives each state one dominant primary; Fitts keeps frequent actions near affected content with comfortable targets; Jakob uses familiar connect/search/open/edit/save/import/recover actions; Proximity groups metadata by spacing rather than card borders; Doherty gives immediate visible feedback; Von Restorff reserves dominance for the primary; Peak-End makes success unequivocal; Tesler hides OAuth scopes, operation/version IDs, HMACs, and provider internals.
 
-   Document view contains one header, one mode control, one scrolling body, and one action area rather than nested cards. Header exposes Back, filename, normalized type, and available safe size/modified metadata; existing filename is read-only while new-draft name remains editable. Header never exposes file ID, patient ID, folder ID, Google account ID, or technical version. Existing files expose Preview first, Edit, and Insert full document. Editing additionally exposes explicit Save and keyboard-reachable selection insertion when selection exists. New drafts may preview the unsaved buffer but begin in Edit.
+20. Preview managed TXT documents before editing.
+
+    Existing managed TXT files open in a read-only application-native preview. The frontend renders only plain text returned by the patient-bound Dental Drive read endpoint and never embeds `drive.google.com`, Google Docs Viewer, or another external iframe/rendering surface. Remote TXT preview is faithful typography and spacing, without invented Markdown semantics.
+
+    Local Markdown authoring and presentation uses the already-installed `react-markdown` and `remark-gfm` stack without `rehype-raw`, `dangerouslySetInnerHTML`, or another raw-HTML path. Managed TXT renders literally with preserved whitespace and wrapping. Preview and editor consume the same local authoring buffer, so unsaved edits appear immediately when returning to local Preview. Switching modes performs no Google request, write, composer submission, SSE request, or LLM call. Reopen reads remote TXT and does not reconstruct or claim Markdown.
+
+    Document view contains one header, one mode control, one scrolling body, and one action area rather than nested cards. Header exposes Back, filename, normalized TXT type, and available safe size/modified metadata; existing filename is read-only while new-draft name remains editable and visibly normalizes to `.txt`. Header never exposes file ID, patient ID, folder ID, Google account ID, or technical version. Existing files expose Preview first, Edit, and Insert full document. Editing additionally exposes explicit Save and keyboard-reachable selection insertion when selection exists. New drafts may locally preview unsaved Markdown but begin in Edit; persistence always exports plain text.
 
    Desktop keeps document and Assistant independently operable. Mobile Sheet occupies available viewport height with sticky document header and actions; only document body scrolls. Actions and mode controls retain visible focus, accessible names, `aria-pressed` selected state, disabled state, and save-status announcements.
 
@@ -229,7 +254,7 @@ Existing `httpx` handles OAuth token, refresh, revoke, account, and Drive HTTP c
 
 22. Keep Assistant-to-Drive transfer local until save.
 
-   Completed assistant messages expose `Guardar en Drive`; structured clinical draft artifacts expose same action and serialize fixed visible labels while omitting empty sections and all review flags. Action requires matching active patient, opens sidecar/Sheet in `editing` with default Markdown name and editable content, and performs no API write. User may edit name/content, then explicitly save. Approval status is not required because Drive copy is a user-controlled document, not the authoritative PostgreSQL evolution.
+    Completed assistant messages expose `Guardar en Drive`; structured clinical draft artifacts expose same action and serialize fixed visible labels while omitting empty sections and all review flags. Action requires matching active patient, opens sidecar/Sheet in `editing` with local Markdown authoring and a name that visibly normalizes to `.txt`, and performs no API write. User may edit name/content, then explicitly save. The create request contains `patient_id`, `operation_id`, normalized `name`, and exported `content`; it contains no frontend MIME selector. Approval status is not required because Drive copy is a user-controlled document, not the authoritative PostgreSQL evolution. There is no Markdown round trip: local Markdown is exported once to plain text, and reopen reads the remote TXT baseline.
 
 23. Resolve dirty state before every context-losing transition.
 
@@ -255,7 +280,7 @@ Existing `httpx` handles OAuth token, refresh, revoke, account, and Drive HTTP c
 }
 ```
 
-Status values: `unconfigured`, `disconnected`, `connected`, `workspace_missing`, `workspace_recovery_pending`, `revoked`. Persisted `active` maps to public `connected` when authoritative folder verifies, `workspace_missing` when completed folder fails verification, or `workspace_recovery_pending` when pending creation cannot reconcile. Persisted terminal statuses map directly. Folder ID, Google account ID, scopes, token data, and pending operation ID are never public.
+Status values: `unconfigured`, `disconnected`, `connected`, `workspace_missing`, `workspace_recovery_pending`, `revoked`. Persisted `active` maps to public `connected` when authoritative folder verifies, `workspace_missing` when completed folder fails verification, or `workspace_recovery_pending` when pending creation cannot reconcile. This is public derived state over persisted active plus pending operation; database checked states remain only `active`, `disconnected`, and `revoked`. Persisted terminal statuses map directly. Folder ID, Google account ID, scopes, token data, and pending operation ID are never public. Ordinary file writes are blocked for `workspace_missing` and `workspace_recovery_pending`; only explicitly acknowledged recreation can write a replacement folder.
 
 ### List/search page
 
@@ -264,8 +289,8 @@ Status values: `unconfigured`, `disconnected`, `connected`, `workspace_missing`,
   "files": [
     {
       "id": "opaque",
-      "name": "evolucion-2026-09-09.md",
-      "mime_type": "text/markdown",
+      "name": "evolucion-2026-09-09.txt",
+      "mime_type": "text/plain",
       "modified_time": "2026-09-09T21:38:00Z",
       "version": "27",
       "size": 2314,
@@ -288,8 +313,7 @@ Search request:
 {
   "patient_id": "uuid",
   "operation_id": "uuid",
-  "name": "evolucion-2026-09-09.md",
-  "mime_type": "text/markdown",
+  "name": "evolucion-2026-09-09.txt",
   "content": "..."
 }
 ```
@@ -298,13 +322,15 @@ Search request:
 {"patient_id":"uuid","operation_id":"uuid","content":"...","expected_version":"27"}
 ```
 
+Create has no frontend MIME selector; backend always sends `text/plain`. Update retains patient ownership, stable operation identity, content, and expected version, but never accepts name or MIME and never renames an existing file. Both receive plain-text export, not local Markdown delimiters.
+
 ### Import copy
 
 ```json
-{"patient_id":"uuid","operation_id":"uuid","source_file_id":"picker-opaque-id","name":"importado.md"}
+{"patient_id":"uuid","operation_id":"uuid","source_file_id":"picker-opaque-id","name":"importado.txt"}
 ```
 
-`name` may be omitted to retain a validated/normalized source name. Response is the new managed document only; source identity is absent.
+`name` may be omitted to derive a validated source name. An external `.txt` source filename is validated and normalized to managed `.txt`; an external `.md` source filename is normalized to a `.txt` destination, then its content is serialized to plain text. An explicitly supplied `.md` destination is visibly normalized to `.txt`. Response is the new managed document only; source identity is absent.
 
 ### Workspace recreation and Picker token
 

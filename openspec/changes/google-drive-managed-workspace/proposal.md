@@ -2,7 +2,7 @@
 
 The clinical assistant cannot currently work beside user-owned Google Drive documents. Professionals must manually alternate between Drive and `/assistant`, which adds friction and creates opportunities to paste content into the wrong patient context or persist an unreviewed AI response.
 
-This change adds a least-privilege, patient-bound Drive workspace where every transfer remains explicit: opening a Drive file never sends it to the LLM, inserting text never submits the composer, and preparing Assistant output never writes to Drive.
+This change adds a least-privilege, patient-bound Drive workspace where every transfer remains explicit: opening a Drive file never sends it to the LLM, inserting text never submits the composer, and preparing Assistant output never writes to Drive. Managed Drive destinations are UTF-8 `.txt` files with backend-owned `text/plain` MIME; Markdown remains local authoring and presentation only.
 
 ## Investigation / Current State
 
@@ -12,7 +12,7 @@ This change adds a least-privilege, patient-bound Drive workspace where every tr
 - `Sidebar` hardcodes the Biblioteca utility and `VideoExplorer` behind `showConversations`; `VideoExplorer` is a modal panel and is not suitable for simultaneous document and chat work.
 - All frontend HTTP calls live in `app/frontend/src/lib/api.ts`; SSE framing remains in `lib/sse.ts` and is unrelated to Drive.
 - Dental authentication uses the `session` JWT cookie and `get_current_user`. No Google OAuth connection exists.
-- PostgreSQL access is owned by `app/backend/db/`; migration `0010_add_clinical_turn_artifacts` is current head.
+- PostgreSQL access is owned by `app/backend/db/`; migration `0011_add_clinical_turn_outcomes` is current head.
 - Production serves API and built frontend from `https://chat.dynamous.ai`; local frontend and backend run on ports 5173 and 8000.
 - Frontend uses React 18, Tailwind 3, Lucide, Motion, and repository-native components. It has no `components.json`, Radix dependency, or shadcn primitive layer.
 - Existing backend tests use pytest and `respx`; existing frontend tests use Vitest and mocked API boundaries; `tests/clinical-assistant.spec.ts` is the deterministic Playwright seam for `/assistant`.
@@ -23,20 +23,23 @@ This change adds a least-privilege, patient-bound Drive workspace where every tr
 - Request only `https://www.googleapis.com/auth/drive.file`; do not use service accounts, domain-wide delegation, or broader Drive scopes.
 - Store long-lived Google application state as AES-256-GCM-encrypted refresh token and per-connection binding secret plus managed-folder identity/status. Persist only short-lived OAuth transaction metadata beyond that boundary. Mint access tokens per HTTP request, retain them only for that request, and expose one only through a short-lived no-store Picker response.
 - Keep one authoritative visible `Dental AI Assistant` folder for current Google connection, identified by persisted `folder_id` plus private `appProperties`, never by name lookup. Ambiguous creation may leave a non-authoritative orphan and requires explicit recovery.
-- Manage only UTF-8 `.md` and `.txt` blob files no larger than 1 MiB. Every managed file belongs to managed folder and carries a server-verifiable HMAC binding over file ID, Dental user, opaque patient reference, and schema.
+- Manage only UTF-8 `.txt` blob files no larger than 1 MiB. Every managed file belongs to the managed folder, has backend-owned `text/plain` MIME, and carries a server-verifiable HMAC binding over file ID, Dental user, opaque patient reference, and schema.
+- Serialize local Markdown to deterministic plain text before every persisted create/import/update. Strip presentation delimiters while preserving clinically relevant text, use readable list markers, retain informative link labels and URLs, reject executable HTML, normalize meaningful whitespace and final newline, and enforce the 1 MiB limit against exported UTF-8 bytes.
 - Add cursor-paginated managed-file listing and body-based server search whose Drive query includes exact managed-folder, application-marker, and patient binding. Document names never enter URL queries or logs.
-- Offer Google Picker as source-selection UI for external `.md` or `.txt` files, then treat selected source ID as untrusted and create a patient-bound copy only after backend validation. Never retain, move, update, or delete source file.
+- Offer Google Picker as source-selection UI for external `.md` or `.txt` sources, then treat selected source ID as untrusted and create a patient-bound `.txt` copy only after backend validation. External TXT is validated and normalized; external Markdown is validated, serialized to plain text, and normalized to a `.txt` destination. Never retain, move, update, or delete source file.
 - Bind each OAuth attempt to its initiating Dental user and session through a persisted, expiring, one-shot transaction. Protect every mutating JSON endpoint with same-origin request validation.
 - Mark folder/file writes with caller-stable operation IDs. Reconcile ambiguous results, but never automatically retry an uncertain Drive write or claim exactly-once semantics.
 - Add authenticated status, OAuth, disconnect, workspace recreation, Picker-token, file list/search/read/create/update, and import-copy endpoints. Do not add delete, move, share, permission, upload, or global-browse endpoints.
-- Add an incremental Radix-based shadcn primitive layer only for the Drive experience. Preserve existing visual tokens and do not migrate Chat, Clinical Assistant, Sidebar, Composer, messages, cards, or motion.
+- Add an incremental Radix-based shadcn primitive layer only for the Drive experience. Approved primitives are `Resizable`, `Sheet`, `ScrollArea`, `AlertDialog`, and `Alert`; reuse repository Spinner and compatible existing/native Button, Input, Textarea, Badge, Tooltip, loading, and empty patterns. Preserve existing visual tokens and do not migrate Chat, Clinical Assistant, Sidebar, Composer, messages, cards, or motion.
 - Add a non-modal, resizable Drive sidecar beside `/assistant` on desktop and a modal Sheet on narrow screens. The workspace remains patient-bound and cannot carry an open document across patient changes.
-- Open existing managed files in an application-native read-only preview before editing. Preview renders the validated `.md` or `.txt` buffer locally, never through a Google-hosted iframe, and switching between Preview and Edit performs no Google request, save, composer submission, or LLM call.
+- Open existing managed TXT files in an application-native read-only preview before editing. Preview renders faithful plain text locally, never through a Google-hosted iframe, and switching between Preview and Edit performs no Google request, save, composer submission, or LLM call. Local assistant drafts may preview Markdown through the existing safe renderer before save; reopening the remote file shows TXT and never claims Markdown reconstruction.
 - Let users insert a complete document or selected text into the current clinical composer draft without submitting it.
 - Let completed assistant messages and current structured clinical draft artifacts open an editable new Drive draft. Clinical draft serialization includes visible clinical sections and excludes review flags.
 - Guard active-patient/thread changes, in-app navigation, logout, workspace close, and browser unload while a Drive document is dirty; internal transitions require save, discard, or cancel.
 - Ship a restrictive CSP containing only application, existing exact Google Fonts, and verified Google Picker origins before production exposure.
 - Keep Drive outside clinical SSE, agent tools, RAG, automatic synchronization, and autonomous LLM authority.
+- Expose exact connection UX states: unconfigured is passive; disconnected has one Connect CTA; connecting immediately replaces it with disabled Spinner plus `Conectando…`; connected shows compact workspace/search/import controls; revoked, workspace-missing, recovery-pending, and general errors use sanitized recovery copy without provider internals and preserve local authoring content.
+- Add focused inline `Alert` presentation for revoked, missing, recovery-pending, and recoverable general errors; reserve `AlertDialog` for explicit consequence confirmation such as possible-orphan recreation or dirty-content discard.
 
 ## Capabilities
 
@@ -46,7 +49,7 @@ This change adds a least-privilege, patient-bound Drive workspace where every tr
 
 ### Modified Capabilities
 
-- None. `openspec/specs/` contains no active capability specs; existing Chat, patient, evolution, and Clinical Assistant runtime contracts remain unchanged.
+- None. Existing `openspec/specs/` capabilities and Chat, patient, evolution, and Clinical Assistant runtime contracts remain unchanged.
 
 ## Change Profile
 
@@ -55,11 +58,11 @@ This change adds a least-privilege, patient-bound Drive workspace where every tr
 
 ## Out Of Scope
 
-- Google Docs native files, PDF, DOCX, images, arbitrary upload, binary content, nested folders, Shared Drives, and organization-wide Drive access.
+- Google Docs native files, PDF, DOCX, images, arbitrary/global upload, binary content, nested folders, Shared Drives, and organization-wide Drive access.
 - File deletion, move, rename after creation, sharing, permissions, comments, background sync, Drive Changes API, Watch API, crawling, and global My Drive search.
 - Agent tools, autonomous Drive reads or writes, RAG, indexing, embeddings, or sending Drive content directly to an LLM.
 - Automatic save, automatic composer submission, automatic persistence of Assistant output, and conflict overwrite.
-- Google Drive/Docs iframe preview, remote document rendering, raw HTML rendering, or a new preview-format pipeline beyond the existing Markdown dependencies and literal plain text.
+- Remote Markdown persistence, Google Drive/Docs iframe preview, remote document rendering, raw HTML rendering, or a new preview-format pipeline beyond the existing Markdown dependencies and literal plain text.
 - Persisting access tokens, file content, source Picker IDs, local clinical drafts, or a duplicate Drive file catalog in PostgreSQL; distributed token cache, Redis, or write-operation ledger.
 - Feature-specific quota accounting before observed usage requires it; Google quota responses remain bounded and sanitized.
 - Replacing Dental authentication, coupling Dental and Google email identities, or adding service-account authorization.
@@ -67,7 +70,7 @@ This change adds a least-privilege, patient-bound Drive workspace where every tr
 
 ## Impact
 
-- Adds migration `0011_google_drive_workspace` for connections and short-lived OAuth transactions, `db/google_drive_repo.py`, Google OAuth/Drive integrations, token cipher, route module, and focused backend tests.
+- Adds migration `0012_google_drive_workspace` for connections and short-lived OAuth transactions, `db/google_drive_repo.py`, Google OAuth/Drive integrations, token cipher, route module, and focused backend tests.
 - Extends `config.py`, `main.py`, `pyproject.toml`, `uv.lock`, backend/deploy environment templates, deployment service environment forwarding, and operational documentation.
 - Extends `AppShell`, Sidebar utility composition, `ClinicalAssistant`, `ClinicalAssistantArea`, `ClinicalTranscript`, `ClinicalComposer`, `lib/api.ts`, frontend tests, and clinical Playwright coverage.
 - Adds `components.json`, only required shadcn/Radix dependencies, and a small `components/ui/` primitive set while preserving current Tailwind tokens and repository UI language.
@@ -110,8 +113,8 @@ This change adds a least-privilege, patient-bound Drive workspace where every tr
 
 - Context: source design uses official Google OAuth, Drive API v3, Picker, Google Auth, and Google Workspace sample semantics as references, adapted to this repository's async FastAPI and `httpx` architecture rather than cloned.
 - Clarification: `/grill-with-docs google-drive-managed-workspace source=openspec mode=grill` resolved four decisions: files bind to an owned patient; search is server-side and cursor-paginated; completed assistant messages and structured clinical drafts may seed local Drive drafts; dirty patient changes are blocked until save, discard, or cancel.
-- Assumptions: default new document format is Markdown; duplicate Drive names are allowed because Drive identity is `file_id`; all user-facing copy is Spanish; current active patient is mandatory for list, search, create, import, read, update, insert, and Assistant-to-Drive actions.
+- Assumptions: local new drafts may remain Markdown while editing, but every managed destination is normalized to `.txt`/`text/plain`; duplicate Drive names are allowed because Drive identity is `file_id`; all user-facing copy is Spanish; current active patient is mandatory for list, search, create, import, read, update, insert, and Assistant-to-Drive actions.
 - Review hardening: accepted signed file/patient binding, per-connection encrypted binding secret, duplicate-resistant writes without blind retry, initiating-session OAuth binding, exact granted scope, no-cache V1, persistent revoked state, same-origin mutation checks, server-bound Picker patient, patient-scoped Drive queries, managed-source rejection, versioned keyring rotation, inbound/outbound byte limits, global dirty guards, CSP, and production OAuth gates. Deferred write ledger and custom Drive rate accounting until observed correctness/quota evidence requires them.
-- Preview hardening: existing files enter application-native read-only Preview; drafts enter Edit; both modes share one local buffer; Markdown reuses installed safe renderer without raw HTML; plain text remains literal; mode controls use native buttons; no iframe, renderer package, Tabs/ToggleGroup dependency, backend endpoint, autosave, or remote mode switch was added.
+- Preview hardening: existing managed TXT files enter application-native read-only Preview; drafts enter Edit; local authoring and persisted plain text are distinct state concepts; Markdown reuses installed safe renderer without raw HTML; remote TXT remains literal and faithful; mode controls use native buttons; no iframe, renderer package, Tabs/ToggleGroup dependency, backend endpoint, autosave, or remote mode switch was added.
 - Grilling: follow-up decisions selected signed file binding, encrypted per-connection binding secret retained only for same Google account, reconcile-without-retry for ambiguous writes, and provider quota only for V1.
 - Boundaries: Google Drive is source of truth for managed file metadata/content; PostgreSQL stores only connection security state, managed-folder identity, and short-lived OAuth transactions; every transfer to Chat or Drive remains visible, editable, and explicitly confirmed by the professional.
