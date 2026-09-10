@@ -13,7 +13,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useConversations } from '../hooks/useConversations';
 import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { useToast } from '../hooks/useToast';
-import { createConversation, deleteConversation } from '../lib/api';
+import { acquireConversation, deleteConversation } from '../lib/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { VideoExplorer } from './VideoExplorer';
 import { ChatThreadList } from './sidebar/ChatThreadList';
@@ -111,8 +111,10 @@ export function Sidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { conversations, loading, error, refetch, rename, filteredConversations } =
-    useConversations(debouncedQuery, showConversations);
+  const { loading, error, refetch, rename, filteredConversations } = useConversations(
+    debouncedQuery,
+    showConversations,
+  );
   const { user, logout } = useAuth();
   const [creatingNew, setCreatingNew] = useState(false);
   const [newChatError, setNewChatError] = useState<string | null>(null);
@@ -133,25 +135,18 @@ export function Sidebar({
   }, [refetch, conversationsRef]);
 
   const handleNewChat = async () => {
-    if (activeConversationId) {
-      const activeConversation = conversations.find(
-        (conversation) => conversation.id === activeConversationId,
-      );
-      if (activeConversation && !activeConversation.preview) {
-        onClose();
-        return;
-      }
-    }
-
     setCreatingNew(true);
     setNewChatError(null);
+    setSearchQuery('');
+    setDebouncedQuery('');
+    setIsSearchOpen(false);
     try {
-      const conversation = await createConversation();
+      const { conversation } = await acquireConversation();
       await refetch();
       navigate(`/c/${conversation.id}`);
       onClose();
     } catch {
-      setNewChatError('No pudimos crear la conversación. Intenta nuevamente.');
+      setNewChatError('No pudimos abrir una conversación. Intenta nuevamente.');
     } finally {
       setCreatingNew(false);
     }

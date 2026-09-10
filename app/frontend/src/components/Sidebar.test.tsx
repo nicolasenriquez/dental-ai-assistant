@@ -83,7 +83,10 @@ describe('Sidebar handleNewChat', () => {
         filteredConversations: [emptyConversation] as api.Conversation[],
       });
 
-      vi.spyOn(api, 'createConversation').mockResolvedValueOnce({} as api.Conversation);
+      vi.spyOn(api, 'acquireConversation').mockResolvedValueOnce({
+        conversation: emptyConversation,
+        reused: true,
+      });
 
       const onClose = vi.fn();
       const refetch = vi.fn();
@@ -105,8 +108,7 @@ describe('Sidebar handleNewChat', () => {
         fireEvent.click(newChatButton);
       });
 
-      // createConversation should NOT have been called
-      expect(api.createConversation).not.toHaveBeenCalled();
+      expect(api.acquireConversation).toHaveBeenCalledTimes(1);
       // onClose should have been called
       expect(onClose).toHaveBeenCalledTimes(1);
     });
@@ -138,9 +140,10 @@ describe('Sidebar handleNewChat', () => {
         filteredConversations: [nonEmptyConversation] as api.Conversation[],
       });
 
-      vi.spyOn(api, 'createConversation').mockResolvedValueOnce(
-        newConversation as api.Conversation,
-      );
+      vi.spyOn(api, 'acquireConversation').mockResolvedValueOnce({
+        conversation: newConversation,
+        reused: false,
+      });
 
       const onClose = vi.fn();
       const refetch = vi.fn();
@@ -164,8 +167,7 @@ describe('Sidebar handleNewChat', () => {
         await new Promise((r) => setTimeout(r, 0));
       });
 
-      // createConversation SHOULD have been called
-      expect(api.createConversation).toHaveBeenCalledTimes(1);
+      expect(api.acquireConversation).toHaveBeenCalledTimes(1);
       // navigate should have been called
       expect(navigateMock).toHaveBeenCalledWith('/c/conv-2');
       // onClose should have been called
@@ -191,9 +193,10 @@ describe('Sidebar handleNewChat', () => {
         updated_at: '2024-01-01T00:00:00Z',
       };
 
-      vi.spyOn(api, 'createConversation').mockResolvedValueOnce(
-        newConversation as api.Conversation,
-      );
+      vi.spyOn(api, 'acquireConversation').mockResolvedValueOnce({
+        conversation: newConversation,
+        reused: false,
+      });
 
       const onClose = vi.fn();
       const refetch = vi.fn();
@@ -217,8 +220,7 @@ describe('Sidebar handleNewChat', () => {
         await new Promise((r) => setTimeout(r, 0));
       });
 
-      // createConversation SHOULD have been called
-      expect(api.createConversation).toHaveBeenCalledTimes(1);
+      expect(api.acquireConversation).toHaveBeenCalledTimes(1);
       // navigate should have been called
       expect(navigateMock).toHaveBeenCalledWith('/c/conv-new');
       // onClose should have been called
@@ -236,7 +238,7 @@ describe('Sidebar handleNewChat', () => {
         filteredConversations: [] as api.Conversation[],
       });
 
-      vi.spyOn(api, 'createConversation').mockRejectedValueOnce(new Error('Network error'));
+      vi.spyOn(api, 'acquireConversation').mockRejectedValueOnce(new Error('Network error'));
 
       const onClose = vi.fn();
       const refetch = vi.fn();
@@ -260,7 +262,7 @@ describe('Sidebar handleNewChat', () => {
 
       // Should show error message
       expect(
-        await screen.findByText('No pudimos crear la conversación. Intenta nuevamente.'),
+        await screen.findByText('No pudimos abrir una conversación. Intenta nuevamente.'),
       ).toBeInTheDocument();
     });
   });

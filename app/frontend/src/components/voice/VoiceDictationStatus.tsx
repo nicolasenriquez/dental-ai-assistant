@@ -78,7 +78,7 @@ export function VoiceDictationStatus({
         ) : voiceState === 'stopping' ? (
           <>
             <Spinner />
-            <span>Preparando audio…</span>
+            <span>Finalizando grabación…</span>
             <time aria-hidden="true">{timer}</time>
           </>
         ) : voiceState === 'transcribing' ? (
@@ -113,14 +113,14 @@ export function VoiceDictationStatus({
           <>
             <TriangleAlert aria-hidden="true" size={16} />
             <span>{voiceError}</span>
-            <button type="button" onClick={onCancelVoice}>
-              Descartar
-            </button>
             {canRetry && (
               <button type="button" onClick={onRetryVoice}>
                 Reintentar
               </button>
             )}
+            <button type="button" onClick={onCancelVoice}>
+              Descartar
+            </button>
           </>
         ) : voiceState === 'requesting_permission' ? (
           <>

@@ -7,11 +7,13 @@ import { EvolutionReviewArtifact } from '../clinical/EvolutionReviewArtifact';
 interface ClinicalDraftItemProps {
   item: DraftItemData;
   onChange: (draft: ClinicalDraft) => void;
-  onSourceChange: (sourceNote: string) => void;
+  onSourceChange: (sourceNote: string) => Promise<boolean>;
   onEvolutionAtChange: (evolutionAt: string) => void;
   onRegenerate: () => void;
   onPrepare: () => void;
   preparing?: boolean;
+  syncState?: 'idle' | 'saving' | 'saved' | 'error';
+  onRetrySync?: () => void;
 }
 
 export function ClinicalDraftItem({
@@ -22,6 +24,8 @@ export function ClinicalDraftItem({
   onRegenerate,
   onPrepare,
   preparing = false,
+  syncState = 'idle',
+  onRetrySync,
 }: ClinicalDraftItemProps) {
   useEffect(() => {
     clinicalTrace('clinical.artifact.rendered', {
@@ -33,27 +37,31 @@ export function ClinicalDraftItem({
   }, [item.artifactStatus, item.id, item.status, item.turnId]);
 
   return (
-    <EvolutionReviewArtifact
-      mode="assistant"
-      sourceNote={item.sourceNote}
-      draft={item.draft}
-      generatedDraft={item.baseline}
-      evolutionAt={item.evolutionAt}
-      stale={item.stale}
-      edited={item.edited}
-      readOnly={
-        item.artifactStatus === 'pending' ||
-        item.artifactStatus === 'approved' ||
-        item.artifactStatus === 'declined' ||
-        item.artifactStatus === 'failed'
-      }
-      sourceEditable
-      onChange={onChange}
-      onSourceChange={onSourceChange}
-      onEvolutionAtChange={onEvolutionAtChange}
-      onRegenerate={onRegenerate}
-      onPrepare={onPrepare}
-      preparing={preparing}
-    />
+    <div data-artifact-id={item.id} tabIndex={-1}>
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote={item.sourceNote}
+        draft={item.draft}
+        generatedDraft={item.baseline}
+        evolutionAt={item.evolutionAt}
+        stale={item.stale}
+        edited={item.edited}
+        readOnly={
+          item.artifactStatus === 'pending' ||
+          item.artifactStatus === 'approved' ||
+          item.artifactStatus === 'declined' ||
+          item.artifactStatus === 'failed'
+        }
+        sourceEditable
+        onChange={onChange}
+        onSourceChange={onSourceChange}
+        onEvolutionAtChange={onEvolutionAtChange}
+        onRegenerate={onRegenerate}
+        onPrepare={onPrepare}
+        preparing={preparing}
+        syncState={syncState}
+        onRetrySync={onRetrySync}
+      />
+    </div>
   );
 }

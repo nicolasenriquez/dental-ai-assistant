@@ -8,12 +8,14 @@ import { Spinner } from '../Spinner';
 interface ApprovalRequestItemProps {
   item: ApprovalItemData;
   onResolve: (decision: 'approve' | 'decline') => void;
+  onBackToEdit: () => void;
   autoOpen?: boolean;
 }
 
 export function ApprovalRequestItem({
   item,
   onResolve,
+  onBackToEdit,
   autoOpen = false,
 }: ApprovalRequestItemProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -115,7 +117,7 @@ export function ApprovalRequestItem({
         onCancel={(event) => committing && event.preventDefault()}
       >
         <div className="clinical-approval-dialog__body">
-          <h2 id={`approval-${item.id}`}>Confirmar guardado</h2>
+          <h2 id={`approval-${item.id}`}>Guardar evolución</h2>
           <span className="clinical-status-badge">
             {committing && <Spinner />}
             {statusLabel}
@@ -124,8 +126,6 @@ export function ApprovalRequestItem({
             <strong>
               {item.patient.first_name} {item.patient.last_name}
             </strong>
-            {' · '}
-            {item.patient.rut_masked}
           </p>
           {evolutionAt && <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>}
           <p>Se incorporará esta evolución a la ficha clínica del paciente.</p>
@@ -136,9 +136,12 @@ export function ApprovalRequestItem({
             className="clinical-secondary-button"
             disabled={committing}
             autoFocus
-            onClick={() => onResolve('decline')}
+            onClick={() => {
+              dialogRef.current?.close();
+              onBackToEdit();
+            }}
           >
-            Volver a editar
+            Seguir editando
           </button>
           <button
             type="button"
@@ -146,7 +149,7 @@ export function ApprovalRequestItem({
             disabled={committing}
             onClick={() => onResolve('approve')}
           >
-            {committing ? 'Guardando…' : 'Guardar evolución'}
+            {committing ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
       </dialog>

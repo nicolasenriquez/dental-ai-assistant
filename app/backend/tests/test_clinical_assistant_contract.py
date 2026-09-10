@@ -176,6 +176,71 @@ async def test_clinical_thread_lifecycle_stays_owner_scoped(monkeypatch) -> None
     ]
 
 
+async def test_clinical_acquisition_and_back_to_edit_stay_owner_scoped(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+
+    owner = UUID(int=1)
+    action = UUID(int=2)
+    calls: list[tuple[object, ...]] = []
+    empty_thread = {
+        "id": UUID(int=3),
+        "owner_user_id": owner,
+        "title": "Asistente clínico",
+        "active_patient_id": None,
+        "active_turn_id": None,
+        "created_at": "2026-09-10T12:00:00Z",
+        "updated_at": "2026-09-10T12:00:00Z",
+        "messages": [],
+        "artifacts": [],
+        "pending_action": None,
+    }
+
+    async def acquire(owner_id):
+        calls.append(("acquire", owner_id))
+        return empty_thread, True
+
+    async def back(owner_id, action_id):
+        calls.append(("back", owner_id, action_id))
+        return {"id": action_id, "artifact_id": UUID(int=4)}
+
+    monkeypatch.setattr(service.repository, "acquire_thread", acquire)
+    monkeypatch.setattr(service.repository, "return_to_editing", back)
+
+    thread, reused = await service.acquire_thread(owner)
+    result = await service.return_to_editing(owner, action)
+
+    assert reused is True
+    assert thread.id == UUID(int=3)
+    assert result["artifact_id"] == UUID(int=4)
+    assert calls == [("acquire", owner), ("back", owner, action)]
+
+
+async def test_auto_title_is_private_deterministic_and_non_blocking(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+
+    captured: list[str] = []
+
+    async def patient(*_args):
+        return {"first_name": "Camila", "last_name": "Rojas", "rut_masked": "12.345.•••-6"}
+
+    async def update(*_args):
+        captured.append(_args[-1])
+
+    monkeypatch.setattr(service.patients_repo, "get_patient", patient)
+    monkeypatch.setattr(service.repository, "update_title_if_default", update)
+    await service._set_contextual_title(UUID(int=1), UUID(int=2), UUID(int=3), "Dolor molar")
+
+    assert captured[0].startswith("Camila Rojas · Evolución · ")
+    assert "12.345" not in captured[0]
+    assert "Dolor" not in captured[0]
+
+    async def fail(*_args):
+        raise RuntimeError("metadata unavailable")
+
+    monkeypatch.setattr(service.repository, "update_title_if_default", fail)
+    await service._set_contextual_title(UUID(int=1), UUID(int=2), UUID(int=3), "Nota privada")
+
+
 async def test_clinical_turn_releases_lock_when_setup_fails(monkeypatch) -> None:
     from backend.clinical_assistant import service
 

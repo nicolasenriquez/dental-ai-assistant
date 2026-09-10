@@ -20,15 +20,47 @@ interface ClinicalTranscriptProps {
   items: ClinicalTranscriptItem[];
   emptyState?: ReactNode;
   onDraftChange: (id: string, draft: ClinicalDraft) => void;
-  onDraftSourceChange: (id: string, sourceNote: string) => void;
+  onDraftSourceChange: (id: string, sourceNote: string) => Promise<boolean>;
   onDraftDateChange: (id: string, evolutionAt: string) => void;
   onDraftRegenerate: (item: DraftItemData) => void;
   onPrepare: (item: DraftItemData) => void;
   onResolve: (item: ApprovalItemData, decision: 'approve' | 'decline') => void;
+  onBackToEdit: (item: ApprovalItemData) => void;
   onRetry: (turnId: string) => void;
   busy?: boolean;
   preparingDraftId?: string | null;
   autoOpenApprovalId?: string | null;
+  artifactSyncState?: Record<string, 'idle' | 'saving' | 'saved' | 'error'>;
+  onRetryArtifactSync?: (item: DraftItemData) => void;
+}
+
+function ProcessingStatus({ items }: { items: ClinicalTranscriptItem[] }) {
+  const activities = items.filter((item) => item.type === 'activity');
+  const status = activities[0]?.status ?? 'pending';
+  return (
+    <section
+      className={`clinical-processing clinical-activity--${status === 'running' || status === 'pending' ? 'active' : status}`}
+      role="status"
+      aria-label="Preparando evolución"
+      aria-live="polite"
+    >
+      <strong>Preparando evolución</strong>
+      <ul>
+        {activities.map((item) => (
+          <li key={item.id} className={`is-${item.status}`}>
+            {item.status === 'running' || item.status === 'pending' ? (
+              <Spinner />
+            ) : item.status === 'failed' || item.status === 'declined' ? (
+              <CircleX aria-hidden="true" size={14} />
+            ) : (
+              <Check aria-hidden="true" size={14} />
+            )}
+            <span>{item.label}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function groupByTurn(items: ClinicalTranscriptItem[]): ClinicalTranscriptItem[][] {
@@ -51,10 +83,13 @@ export function ClinicalTranscript({
   onDraftRegenerate,
   onPrepare,
   onResolve,
+  onBackToEdit,
   onRetry,
   busy = false,
   preparingDraftId = null,
   autoOpenApprovalId = null,
+  artifactSyncState = {},
+  onRetryArtifactSync,
 }: ClinicalTranscriptProps) {
   const follow = useChatAutoFollow();
   const viewport = useConversationViewportCache({
@@ -119,31 +154,14 @@ export function ClinicalTranscript({
               className="clinical-turn-group"
               data-turn-id={group[0]?.turnId}
             >
-              {group.map((item) => {
+              {group.map((item, index) => {
                 if (item.type === 'user' || item.type === 'assistant')
                   return <Message key={item.id} role={item.type} content={item.content} />;
-                if (item.type === 'activity')
-                  return (
-                    <div
-                      key={item.id}
-                      className={`clinical-activity clinical-activity--${
-                        item.status === 'pending' || item.status === 'running'
-                          ? 'active'
-                          : item.status
-                      }`}
-                      role="status"
-                      aria-live="polite"
-                    >
-                      {item.status === 'running' || item.status === 'pending' ? (
-                        <Spinner />
-                      ) : item.status === 'failed' || item.status === 'declined' ? (
-                        <CircleX aria-hidden="true" size={14} strokeWidth={1.8} />
-                      ) : (
-                        <Check aria-hidden="true" size={14} strokeWidth={1.8} />
-                      )}
-                      <span>{item.label}</span>
-                    </div>
-                  );
+                if (item.type === 'activity') {
+                  if (group.slice(0, index).some((candidate) => candidate.type === 'activity'))
+                    return null;
+                  return <ProcessingStatus key={item.id} items={group} />;
+                }
                 if (item.type === 'draft')
                   return (
                     <ClinicalDraftItem
@@ -155,6 +173,8 @@ export function ClinicalTranscript({
                       onRegenerate={() => onDraftRegenerate(item)}
                       onPrepare={() => onPrepare(item)}
                       preparing={preparingDraftId === item.id}
+                      syncState={artifactSyncState[item.id]}
+                      onRetrySync={() => onRetryArtifactSync?.(item)}
                     />
                   );
                 if (item.type === 'approval')
@@ -163,6 +183,7 @@ export function ClinicalTranscript({
                       key={item.id}
                       item={item}
                       onResolve={(decision) => onResolve(item, decision)}
+                      onBackToEdit={() => onBackToEdit(item)}
                       autoOpen={autoOpenApprovalId === item.id}
                     />
                   );

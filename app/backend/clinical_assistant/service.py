@@ -58,6 +58,11 @@ async def create_thread(owner: UUID, title: str) -> ClinicalThreadResponse:
     return ClinicalThreadResponse(**await repository.create_thread(owner, safe_title))
 
 
+async def acquire_thread(owner: UUID) -> tuple[ClinicalThreadResponse, bool]:
+    thread, reused = await repository.acquire_thread(owner)
+    return ClinicalThreadResponse(**thread), reused
+
+
 async def rename_thread(owner: UUID, thread: UUID, title: str) -> ClinicalThreadResponse | None:
     safe_title = (await sanitize_content(owner, title)).display_text
     updated = await repository.rename_thread(owner, thread, safe_title)
@@ -114,6 +119,10 @@ async def resolve_action(
     )
 
 
+async def return_to_editing(owner: UUID, action_id: UUID) -> dict[str, Any]:
+    return cast(dict[str, Any], await repository.return_to_editing(owner, action_id))
+
+
 async def _get_recent_evolutions(context: ClinicalTurnContext) -> dict[str, Any]:
     if context.patient_id is None:
         return {"ok": False, "error": "PATIENT_REQUIRED"}
@@ -141,29 +150,40 @@ async def _draft_evolution(context: ClinicalTurnContext, raw_note: str) -> Clini
     return await clinical_evolutions.generate_draft(context.user_id, context.patient_id, raw_note)
 
 
-def _intent_label(content: str) -> str:
-    lowered = content.casefold()
-    if "urgencia" in lowered or "dolor" in lowered:
-        return "Urgencia"
-    if "postoperator" in lowered or "post operator" in lowered:
-        return "Postoperatorio"
-    if "control" in lowered:
-        return "Control"
-    if "limpieza" in lowered or "higiene" in lowered:
-        return "Higiene"
-    return "Evolución"
-
-
 async def _set_contextual_title(
-    owner: UUID, thread: UUID, patient_id: UUID | None, content: str
+    owner: UUID, thread: UUID, patient_id: UUID | None, _content: str
 ) -> None:
     if patient_id is None:
         return
-    patient = await patients_repo.get_patient(owner, patient_id)
-    if patient is None:
-        return
-    title = f"{patient['first_name']} {patient['last_name']} · {_intent_label(content)}"
-    await repository.update_title_if_default(owner, thread, title)
+    try:
+        patient = await patients_repo.get_patient(owner, patient_id)
+        if patient is None:
+            return
+        started = datetime.now(UTC)
+        months = (
+            "ene",
+            "feb",
+            "mar",
+            "abr",
+            "may",
+            "jun",
+            "jul",
+            "ago",
+            "sep",
+            "oct",
+            "nov",
+            "dic",
+        )
+        title = (
+            f"{patient['first_name']} {patient['last_name']} · "
+            f"Evolución · {started.day} {months[started.month - 1]}"
+        )
+        await repository.update_title_if_default(owner, thread, title)
+        logger.info("conversation.auto_title.success", extra={"thread_id": str(thread)})
+    except Exception:
+        logger.warning(
+            "conversation.auto_title.failed", extra={"thread_id": str(thread)}, exc_info=True
+        )
 
 
 def compose_draft(draft: ClinicalDraft) -> str:

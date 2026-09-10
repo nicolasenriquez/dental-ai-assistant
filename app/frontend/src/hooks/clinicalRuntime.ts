@@ -223,7 +223,8 @@ export type ClinicalReducerAction =
   | { type: 'updateDate'; itemId: string; evolutionAt: string }
   | { type: 'replaceDraft'; itemId: string; draft: ClinicalDraft }
   | { type: 'upsertApproval'; item: ClinicalApprovalItem }
-  | { type: 'resolveApproval'; itemId: string; status: ClinicalItemStatus };
+  | { type: 'resolveApproval'; itemId: string; status: ClinicalItemStatus }
+  | { type: 'returnToEditing'; approvalId: string; artifactId: string | null };
 
 export function createClinicalReducerState(
   items: ClinicalTranscriptItem[] = [],
@@ -346,6 +347,18 @@ export function clinicalReducer(
           ? { ...item, status: action.status }
           : item,
       ),
+    };
+  }
+  if (action.type === 'returnToEditing') {
+    return {
+      ...state,
+      items: state.items
+        .filter((item) => item.id !== action.approvalId)
+        .map((item) =>
+          item.type === 'draft' && item.id === action.artifactId
+            ? { ...item, status: 'completed' as const, artifactStatus: 'draft' as const }
+            : item,
+        ),
     };
   }
   if (action.type === 'updateDraft') {

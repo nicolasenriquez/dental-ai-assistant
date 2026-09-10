@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClinicalDraft } from '../../lib/api';
 import { EvolutionReviewArtifact } from './EvolutionReviewArtifact';
@@ -34,8 +34,8 @@ function renderArtifact(onChange = vi.fn()) {
 
 describe('EvolutionReviewArtifact', () => {
   it.each([
-    [false, false, 'No guardada'],
-    [false, true, 'Editada'],
+    [false, false, 'Borrador'],
+    [false, true, 'Borrador'],
     [true, true, 'Necesita regeneración'],
   ])(
     'shows assistant provenance and lifecycle for stale=%s edited=%s',
@@ -54,7 +54,6 @@ describe('EvolutionReviewArtifact', () => {
           onPrepare={vi.fn()}
         />,
       );
-      expect(screen.getByText('Borrador asistido')).toBeVisible();
       expect(screen.getByText(lifecycle)).toBeVisible();
     },
   );
@@ -150,5 +149,69 @@ describe('EvolutionReviewArtifact', () => {
     );
 
     expect(screen.queryByRole('button', { name: /^Editar / })).not.toBeInTheDocument();
+  });
+
+  it('buffers source edits, cancels locally, and applies once', async () => {
+    const onSourceChange = vi.fn().mockResolvedValue(true);
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={draft}
+        generatedDraft={draft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited={false}
+        sourceEditable
+        onChange={vi.fn()}
+        onSourceChange={onSourceChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver nota clínica original' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar nota original' }));
+    const source = screen.getByRole('textbox', { name: 'Editar nota clínica original' });
+    fireEvent.change(source, { target: { value: 'Cambio local' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(onSourceChange).not.toHaveBeenCalled();
+    expect(screen.getByText('Nota original')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar nota original' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Editar nota clínica original' }), {
+      target: { value: 'Cambio aplicado' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    await waitFor(() => expect(onSourceChange).toHaveBeenCalledOnce());
+    expect(onSourceChange).toHaveBeenCalledWith('Cambio aplicado');
+  });
+
+  it('keeps source text and offers retry when persistence fails', async () => {
+    const onSourceChange = vi.fn().mockResolvedValue(false);
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={draft}
+        generatedDraft={draft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited={false}
+        sourceEditable
+        onChange={vi.fn()}
+        onSourceChange={onSourceChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Ver nota clínica original' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar nota original' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Editar nota clínica original' }), {
+      target: { value: 'Texto conservado' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tu texto sigue aquí');
+    expect(screen.getByRole('textbox', { name: 'Editar nota clínica original' })).toHaveValue(
+      'Texto conservado',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await waitFor(() => expect(onSourceChange).toHaveBeenCalledTimes(2));
   });
 });

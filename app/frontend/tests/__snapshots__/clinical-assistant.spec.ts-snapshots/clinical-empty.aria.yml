@@ -24,7 +24,7 @@
   - log "Transcripción clínica":
     - heading "Trabaja más rápido con tus evoluciones" [level=1]
     - paragraph: Selecciona un paciente y escribe o dicta una nota clínica.
-  - text: Paciente activo
+  - text: Paciente
   - button "Seleccionar paciente activo": /Ana Pérez · \d+\.\d+\.•••-6/
   - button "Quitar paciente activo"
   - textbox "Nota clínica":

@@ -12,6 +12,7 @@ const callbacks = {
   onDraftRegenerate: vi.fn(),
   onPrepare: vi.fn(),
   onResolve: vi.fn(),
+  onBackToEdit: vi.fn(),
   onRetry: vi.fn(),
 };
 

@@ -87,6 +87,58 @@ async def create_thread(owner_user_id: UUID | str, title: str) -> dict[str, Any]
     return {**dict(row), "messages": [], "artifacts": [], "pending_action": None}
 
 
+async def acquire_thread(owner_user_id: UUID | str) -> tuple[dict[str, Any], bool]:
+    """Reuse one provably unused clinical thread, or create one under a user lock."""
+    owner = _uuid(owner_user_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+            str(owner),
+        )
+        rows = await conn.fetch(
+            """
+            SELECT t.id, t.owner_user_id, t.title, t.active_patient_id, t.active_turn_id,
+                   t.created_at, t.updated_at
+            FROM clinical_threads t
+            WHERE t.owner_user_id = $1 AND t.active_turn_id IS NULL
+              AND NOT EXISTS (SELECT 1 FROM clinical_messages m WHERE m.thread_id = t.id)
+              AND NOT EXISTS (SELECT 1 FROM clinical_turn_artifacts a WHERE a.thread_id = t.id)
+              AND NOT EXISTS (SELECT 1 FROM clinical_pending_actions p WHERE p.thread_id = t.id)
+            ORDER BY t.updated_at DESC
+            FOR UPDATE
+            """,
+            owner,
+        )
+        if rows:
+            keep = dict(rows[0])
+            duplicate_ids = [row["id"] for row in rows[1:]]
+            if duplicate_ids:
+                await conn.execute(
+                    "DELETE FROM clinical_threads WHERE owner_user_id = $1 AND id = ANY($2::uuid[])",
+                    owner,
+                    duplicate_ids,
+                )
+            if keep["active_patient_id"] is not None:
+                await conn.execute(
+                    "UPDATE clinical_threads SET active_patient_id = NULL WHERE id = $1",
+                    keep["id"],
+                )
+                keep["active_patient_id"] = None
+            return {**keep, "messages": [], "artifacts": [], "pending_action": None}, True
+
+        row = await conn.fetchrow(
+            """
+            INSERT INTO clinical_threads (id, owner_user_id, title, created_at, updated_at)
+            VALUES ($1, $2, 'Asistente clínico', now(), now())
+            RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                      created_at, updated_at
+            """,
+            uuid4(),
+            owner,
+        )
+        return {**dict(row), "messages": [], "artifacts": [], "pending_action": None}, False
+
+
 async def list_threads(owner_user_id: UUID | str) -> list[dict[str, Any]]:
     async with get_pg_pool().acquire() as conn:
         await conn.execute(
@@ -636,6 +688,34 @@ async def create_pending_action(
             owner,
         )
     return _action_dict(row)
+
+
+async def return_to_editing(owner_user_id: UUID | str, action_id: UUID | str) -> dict[str, Any]:
+    """Remove a pending approval and reopen its artifact without a terminal receipt."""
+    owner = _uuid(owner_user_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        action = await conn.fetchrow(
+            """
+            DELETE FROM clinical_pending_actions
+            WHERE id = $1 AND owner_user_id = $2 AND status = 'pending'
+            RETURNING id, thread_id, artifact_id
+            """,
+            _uuid(action_id),
+            owner,
+        )
+        if action is None:
+            raise LookupError("Pending action not found")
+        if action["artifact_id"] is not None:
+            await conn.execute(
+                """
+                UPDATE clinical_turn_artifacts
+                SET status = 'draft', resolved_at = NULL, updated_at = now()
+                WHERE id = $1 AND owner_user_id = $2 AND status = 'pending'
+                """,
+                action["artifact_id"],
+                owner,
+            )
+        return dict(action)
 
 
 async def resolve_action(

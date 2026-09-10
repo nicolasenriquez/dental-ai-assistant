@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   type ClinicalThreadSummary,
-  createClinicalThread,
+  acquireClinicalThread,
   deleteClinicalThread,
   getClinicalThreads,
   renameClinicalThread,
@@ -53,7 +53,8 @@ export function ClinicalThreadList({
   const create = async () => {
     setCreating(true);
     try {
-      const thread = await createClinicalThread();
+      const { thread } = await acquireClinicalThread();
+      setQuery('');
       navigate(`/a/${thread.id}`);
       await refresh();
     } finally {

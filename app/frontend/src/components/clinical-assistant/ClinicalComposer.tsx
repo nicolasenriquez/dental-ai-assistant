@@ -107,7 +107,9 @@ export function ClinicalComposer({
   return (
     <ComposerShell className="clinical-composer" focused={focused} testId="clinical-composer">
       <div className="clinical-patient-context">
-        <span className="clinical-patient-label">Paciente activo</span>
+        <span className="clinical-patient-label">
+          {patient ? 'Paciente' : 'Selecciona un paciente'}
+        </span>
         <div ref={patientPickerRef} className="clinical-patient-picker">
           <button
             ref={patientTriggerRef}
@@ -119,7 +121,7 @@ export function ClinicalComposer({
             disabled={patientControlsLocked}
             onClick={() => setPatientPickerOpen((current) => !current)}
           >
-            <span>
+            <span title={patient ? `${patient.first_name} ${patient.last_name}` : undefined}>
               {patient
                 ? `${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`
                 : 'Seleccionar paciente'}

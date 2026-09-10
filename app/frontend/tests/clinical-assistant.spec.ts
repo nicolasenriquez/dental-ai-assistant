@@ -4,6 +4,7 @@ const threadId = '11111111-1111-4111-8111-111111111111';
 const patientId = '22222222-2222-4222-8222-222222222222';
 const actionId = '33333333-3333-4333-8333-333333333333';
 const secondActionId = '33333333-3333-4333-8333-333333333334';
+const thirdActionId = '33333333-3333-4333-8333-333333333335';
 const evolutionId = '44444444-4444-4444-8444-444444444444';
 type MockAction = Record<string, unknown>;
 type MockArtifact = Record<string, unknown>;
@@ -161,6 +162,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     };
     threadState = {
       ...threadState,
+      title: 'Ana Pérez · Evolución · 15 ene',
       messages: [
         ...threadState.messages,
         {
@@ -261,7 +263,8 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await page.route(`**/api/clinical-threads/${threadId}/prepare-save`, async (route) => {
     const body = route.request().postDataJSON() as { turn_id: string; artifact_id: string };
     actionCount += 1;
-    const nextActionId = actionCount === 1 ? actionId : secondActionId;
+    const nextActionId =
+      actionCount === 1 ? actionId : actionCount === 2 ? secondActionId : thirdActionId;
     const action = {
       id: nextActionId,
       thread_id: threadId,
@@ -322,6 +325,28 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(resolved),
+    });
+  });
+  await page.route('**/api/clinical-actions/*/return-to-editing', async (route) => {
+    const returnedId = route.request().url().split('/').slice(-2, -1)[0];
+    const current = threadState.actions.find((candidate) => candidate.id === returnedId);
+    threadState = {
+      ...threadState,
+      actions: threadState.actions.filter((candidate) => candidate.id !== returnedId),
+      pending_action: null,
+      pending_action_patient: null,
+      artifacts: threadState.artifacts.map((artifact) =>
+        artifact.id === current?.artifact_id ? { ...artifact, status: 'draft' } : artifact,
+      ),
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: returnedId,
+        thread_id: threadId,
+        artifact_id: current?.artifact_id,
+      }),
     });
   });
 
@@ -386,9 +411,11 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await expect(page.getByText('Pensando…')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Evolución propuesta' })).toBeVisible();
+  await expect(
+    page.locator('.workspace-header').getByText('Ana Pérez · Evolución · 15 ene'),
+  ).toBeVisible();
   await expect(page.getByText('Pensando…')).toHaveCount(0);
-  await expect(page.getByText('Borrador asistido')).toBeVisible();
-  await expect(page.getByText('No guardada')).toBeVisible();
+  await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
   await expect(page.getByRole('article', { name: 'Tú' })).toBeVisible();
   await expect(page.getByRole('article', { name: 'Asistente' })).toBeVisible();
@@ -401,6 +428,13 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await page.getByRole('button', { name: 'Ver nota clínica original' }).click();
   await page.getByRole('button', { name: 'Editar nota original' }).click();
   await page.getByLabel('Editar nota clínica original').fill('Nota fuente corregida.');
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(
+    page.getByRole('article', { name: 'Evolución propuesta' }).getByText('Control preventivo sin hallazgos nuevos.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Editar nota original' }).click();
+  await page.getByLabel('Editar nota clínica original').fill('Nota fuente corregida.');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
   await expect(page.getByText('Necesita regeneración')).toBeVisible();
   await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución propuesta' }));
   await expect(page).toHaveScreenshot('clinical-editing.png', {
@@ -408,18 +442,25 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     maxDiffPixels: 300,
   });
   await page.getByRole('button', { name: 'Regenerar', exact: true }).click();
-  await expect(page.getByText('Borrador asistido')).toBeVisible();
+  await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
 
   await page.getByRole('button', { name: 'Preparar para guardar' }).click();
-  const confirmation = page.getByRole('dialog', { name: 'Confirmar guardado' });
+  let confirmation = page.getByRole('dialog', { name: 'Guardar evolución' });
   await expect(confirmation).toBeVisible();
   await expect(confirmation.getByText('Requiere confirmación')).toBeVisible();
   await expect(page).toHaveScreenshot('clinical-approval-pending.png', {
     animations: 'disabled',
     maxDiffPixels: 300,
   });
-  await confirmation.getByRole('button', { name: 'Guardar evolución' }).click();
+  await confirmation.getByRole('button', { name: 'Seguir editando' }).click();
+  await expect(confirmation).not.toBeVisible();
+  await page.getByRole('button', { name: 'Editar Hallazgos' }).click();
+  await page.getByRole('textbox', { name: 'Hallazgos' }).fill('Hallazgo final revisado.');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+  await page.getByRole('button', { name: 'Preparar para guardar' }).click();
+  confirmation = page.getByRole('dialog', { name: 'Guardar evolución' });
+  await confirmation.getByRole('button', { name: 'Guardar' }).click();
   await expect(confirmation.getByText('Guardando', { exact: true })).toBeVisible();
   await expect(confirmation.locator('.animate-spin')).toHaveCount(1);
   await expect(page.getByText('Evolución guardada', { exact: true })).toBeVisible();
@@ -439,7 +480,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     maxDiffPixels: 300,
   });
   await page.getByRole('button', { name: 'Preparar para guardar' }).last().click();
-  await expect(page.getByRole('dialog', { name: 'Confirmar guardado' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
   await expect(page).toHaveScreenshot('clinical-second-approval.png', {
     animations: 'disabled',
     maxDiffPixels: 300,
@@ -569,4 +610,24 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   await expect(input).toHaveValue('Nota manual\nTexto dictado.');
   await expect(page.getByText('Dictado añadido')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeEnabled();
+});
+
+test('reuses one empty conversation across concurrent browser tabs', async ({ page }) => {
+  await page.goto('/');
+
+  const acquisitions = await page.evaluate(async () => {
+    const acquire = async () => {
+      const response = await fetch('/api/conversations/acquire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!response.ok) throw new Error(`Conversation acquisition failed: ${response.status}`);
+      return (await response.json()) as { conversation: { id: string } };
+    };
+
+    return Promise.all(Array.from({ length: 10 }, acquire));
+  });
+
+  expect(new Set(acquisitions.map(({ conversation }) => conversation.id)).size).toBe(1);
 });

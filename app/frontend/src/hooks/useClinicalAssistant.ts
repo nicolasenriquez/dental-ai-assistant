@@ -8,6 +8,7 @@ import {
   prepareClinicalSave,
   regenerateClinicalDraft,
   resolveClinicalAction,
+  returnClinicalActionToEditing,
   setClinicalActivePatient,
   streamClinicalTurn,
   updateClinicalArtifact,
@@ -126,6 +127,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const [runtime, setRuntime] = useState<ClinicalRuntime>('idle');
   const [error, setError] = useState<string | null>(null);
   const [patientSwitch, setPatientSwitch] = useState<ClinicalPatientSwitch | null>(null);
+  const [artifactSyncState, setArtifactSyncState] = useState<
+    Record<string, 'idle' | 'saving' | 'saved' | 'error'>
+  >({});
   const abortRef = useRef<AbortController | null>(null);
   const turnFailedRef = useRef(false);
   const loadSeqRef = useRef(0);
@@ -368,12 +372,15 @@ export function useClinicalAssistant(threadId: string | undefined) {
       const nextEvolutionAt = patch.evolutionAt ?? current.evolutionAt;
       const previousTimer = artifactTimersRef.current[itemId];
       if (previousTimer) clearTimeout(previousTimer);
+      setArtifactSyncState((state) => ({ ...state, [itemId]: 'saving' }));
       artifactTimersRef.current[itemId] = setTimeout(() => {
         void updateClinicalArtifact(threadId, itemId, {
           source_note: nextSource,
           draft: nextDraft,
           evolution_at: nextEvolutionAt,
-        }).catch(() => setError('No pudimos guardar los cambios del borrador.'));
+        })
+          .then(() => setArtifactSyncState((state) => ({ ...state, [itemId]: 'saved' })))
+          .catch(() => setArtifactSyncState((state) => ({ ...state, [itemId]: 'error' })));
       }, 300);
     },
     [clinicalState.items, threadId],
@@ -388,11 +395,26 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
 
   const updateDraftSource = useCallback(
-    (itemId: string, sourceNote: string) => {
+    async (itemId: string, sourceNote: string): Promise<boolean> => {
+      if (!threadId) return false;
+      const current = clinicalState.items.find(
+        (item) => item.id === itemId && item.type === 'draft',
+      );
+      if (!current || current.type !== 'draft') return false;
       dispatch({ type: 'updateSource', itemId, sourceNote });
-      scheduleArtifactSync(itemId, { sourceNote });
+      try {
+        await updateClinicalArtifact(threadId, itemId, {
+          source_note: sourceNote,
+          draft: current.draft,
+          evolution_at: current.evolutionAt,
+        });
+        setError(null);
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [scheduleArtifactSync],
+    [clinicalState.items, threadId],
   );
 
   const updateDraftDate = useCallback(
@@ -493,6 +515,24 @@ export function useClinicalAssistant(threadId: string | undefined) {
     [],
   );
 
+  const backToEdit = useCallback(async (item: ClinicalApprovalItem): Promise<boolean> => {
+    try {
+      const result = await returnClinicalActionToEditing(item.action.id);
+      dispatch({
+        type: 'returnToEditing',
+        approvalId: item.id,
+        artifactId: result.artifact_id,
+      });
+      setThread((current) => (current ? { ...current, pending_action: null } : current));
+      setRuntime('idle');
+      clinicalTrace('artifact.back_to_edit', { thread_id: item.action.thread_id });
+      return true;
+    } catch {
+      setError('No pudimos volver a la edición. Intenta nuevamente.');
+      return false;
+    }
+  }, []);
+
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
   const retryTurn = useCallback(
@@ -539,10 +579,18 @@ export function useClinicalAssistant(threadId: string | undefined) {
     regenerateDraft,
     prepareDraft,
     resolve,
+    backToEdit,
     patientSwitch,
     cancelPatientSwitch,
     confirmPatientSwitch,
     reload: load,
     retryTurn,
+    artifactSyncState,
+    retryArtifactSync: (item: ClinicalDraftItem) =>
+      scheduleArtifactSync(item.id, {
+        draft: item.draft,
+        sourceNote: item.sourceNote,
+        evolutionAt: item.evolutionAt,
+      }),
   };
 }

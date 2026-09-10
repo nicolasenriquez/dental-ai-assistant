@@ -14,7 +14,7 @@ import type { ConversationRuntime, StreamResult } from '../hooks/useStreamingRes
 import { useToast } from '../hooks/useToast';
 import { isVoiceInFlight, useVoiceDictation } from '../hooks/useVoiceDictation';
 import type { Citation, Message as MessageType } from '../lib/api';
-import { RateLimitError, createConversation } from '../lib/api';
+import { RateLimitError, acquireConversation } from '../lib/api';
 import { exportConversationAsMarkdown } from '../lib/exportMarkdown';
 import { ChatInput, type ChatInputHandle } from './ChatInput';
 import { CitationModal } from './CitationModal';
@@ -506,8 +506,8 @@ export function ChatArea({
         if (creatingConversationRef.current) return false;
         creatingConversationRef.current = true;
         setDraft('');
-        void createConversation()
-          .then((newConversation) => {
+        void acquireConversation()
+          .then(({ conversation: newConversation }) => {
             creatingConversationRef.current = false;
             pendingNewConversationMessages.set(newConversation.id, content);
             navigate(`/c/${newConversation.id}`, { state: { pendingMessage: content } });

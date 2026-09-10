@@ -21,12 +21,14 @@ interface EvolutionReviewArtifactProps {
   saving?: boolean;
   preparing?: boolean;
   onChange: (draft: ClinicalDraft) => void;
-  onSourceChange?: (sourceNote: string) => void;
+  onSourceChange?: (sourceNote: string) => unknown;
   onEvolutionAtChange?: (evolutionAt: string) => void;
   onRegenerate?: () => void;
   onPrepare?: () => void;
   onSave?: () => void;
   staleMessageId?: string;
+  syncState?: 'idle' | 'saving' | 'saved' | 'error';
+  onRetrySync?: () => void;
 }
 
 type ClinicalFieldKey = (typeof clinicalFields)[number]['key'];
@@ -62,8 +64,14 @@ export function EvolutionReviewArtifact({
   onPrepare,
   onSave,
   staleMessageId,
+  syncState = 'idle',
+  onRetrySync,
 }: EvolutionReviewArtifactProps) {
   const [editingSource, setEditingSource] = useState(false);
+  const [sourceEditingValue, setSourceEditingValue] = useState(sourceNote);
+  const [sourceSaveState, setSourceSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    'idle',
+  );
   const [editingField, setEditingField] = useState<ClinicalFieldKey | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [confirmReplace, setConfirmReplace] = useState(false);
@@ -72,7 +80,7 @@ export function EvolutionReviewArtifact({
   const [flagsOpen, setFlagsOpen] = useState(draft.review_flags.length === 1);
   const isAssistant = mode === 'assistant';
   const emptyDraft = !hasClinicalContent(draft);
-  const assistantLifecycle = stale ? 'Necesita regeneración' : edited ? 'Editada' : 'No guardada';
+  const assistantLifecycle = stale ? 'Necesita regeneración' : 'Borrador';
   const parts = dateParts(evolutionAt);
   const updateDate = (date: string, time: string) => {
     if (!date || !time || !onEvolutionAtChange) return;
@@ -91,6 +99,27 @@ export function EvolutionReviewArtifact({
     if (!editingField) return;
     onChange({ ...draft, [editingField]: editingValue });
     cancelFieldEdit();
+  };
+  const startSourceEdit = () => {
+    setSourceEditingValue(sourceNote);
+    setSourceSaveState('idle');
+    setEditingSource(true);
+  };
+  const cancelSourceEdit = () => {
+    setSourceEditingValue(sourceNote);
+    setSourceSaveState('idle');
+    setEditingSource(false);
+  };
+  const applySourceEdit = async () => {
+    if (!onSourceChange) return;
+    setSourceSaveState('saving');
+    const result = await onSourceChange(sourceEditingValue);
+    if (result === false) {
+      setSourceSaveState('error');
+      return;
+    }
+    setSourceSaveState('saved');
+    setEditingSource(false);
   };
 
   return (
@@ -123,7 +152,7 @@ export function EvolutionReviewArtifact({
         {isAssistant && (
           <div className="clinical-artifact-statuses">
             <span className="clinical-artifact-status">Borrador asistido</span>
-            <span>{assistantLifecycle}</span>
+            <span className="clinical-artifact-status">{assistantLifecycle}</span>
             {draft.review_flags.length > 0 && <span>{draft.review_flags.length} por revisar</span>}
           </div>
         )}
@@ -158,8 +187,8 @@ export function EvolutionReviewArtifact({
           {editingSource && sourceEditable ? (
             <textarea
               rows={2}
-              value={sourceNote}
-              onChange={(event) => onSourceChange?.(event.target.value)}
+              value={sourceEditingValue}
+              onChange={(event) => setSourceEditingValue(event.target.value)}
               disabled={readOnly}
               aria-label="Editar nota clínica original"
             />
@@ -174,7 +203,7 @@ export function EvolutionReviewArtifact({
                   ? 'clinical-secondary-button'
                   : 'text-sm text-[var(--accent)] hover:underline'
               }
-              onClick={() => setEditingSource((current) => !current)}
+              onClick={editingSource ? cancelSourceEdit : startSourceEdit}
             >
               {editingSource ? 'Cerrar edición' : 'Editar nota fuente'}
             </button>
@@ -206,7 +235,8 @@ export function EvolutionReviewArtifact({
                   aria-label={`Editar ${label}`}
                   title={`Editar ${label}`}
                 >
-                  {isAssistant ? <Pencil aria-hidden="true" size={15} /> : 'Editar'}
+                  {isAssistant && <Pencil aria-hidden="true" size={14} />}
+                  <span>Editar</span>
                 </button>
               )}
             </div>
@@ -297,18 +327,57 @@ export function EvolutionReviewArtifact({
                 <button
                   type="button"
                   className="clinical-secondary-button"
-                  onClick={() => setEditingSource((current) => !current)}
+                  onClick={editingSource ? cancelSourceEdit : startSourceEdit}
                 >
                   {editingSource ? 'Cerrar edición' : 'Editar nota original'}
                 </button>
               )}
               {editingSource && sourceEditable && (
-                <textarea
-                  rows={2}
-                  value={sourceNote}
-                  onChange={(event) => onSourceChange?.(event.target.value)}
-                  aria-label="Editar nota clínica original"
-                />
+                <div className="clinical-source-editor">
+                  <textarea
+                    rows={3}
+                    value={sourceEditingValue}
+                    onChange={(event) => {
+                      setSourceEditingValue(event.target.value);
+                      setSourceSaveState('idle');
+                    }}
+                    aria-label="Editar nota clínica original"
+                  />
+                  {sourceSaveState === 'error' && (
+                    <div className="clinical-source-error" role="alert">
+                      <span>No pudimos guardar estos cambios. Tu texto sigue aquí.</span>
+                      <button type="button" onClick={() => void applySourceEdit()}>
+                        Reintentar
+                      </button>
+                    </div>
+                  )}
+                  <div className="evolution-review-artifact__field-actions">
+                    <span role="status" aria-live="polite">
+                      {sourceSaveState === 'saving'
+                        ? 'Guardando…'
+                        : sourceSaveState === 'saved'
+                          ? 'Cambios guardados'
+                          : sourceEditingValue !== sourceNote
+                            ? 'Cambios sin guardar'
+                            : ''}
+                    </span>
+                    <button
+                      type="button"
+                      className="clinical-secondary-button"
+                      onClick={cancelSourceEdit}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="clinical-primary-button"
+                      disabled={sourceSaveState === 'saving'}
+                      onClick={() => void applySourceEdit()}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </div>
               )}
             </>
           )}
@@ -318,6 +387,26 @@ export function EvolutionReviewArtifact({
       <div
         className={isAssistant ? 'clinical-artifact-actions' : 'evolution-review-artifact__actions'}
       >
+        {isAssistant && (
+          <div className={`clinical-sync-state is-${syncState}`} role="status" aria-live="polite">
+            <span>
+              {syncState === 'saving'
+                ? 'Guardando…'
+                : syncState === 'error'
+                  ? 'No pudimos guardar estos cambios. Tu contenido sigue aquí.'
+                  : syncState === 'saved'
+                    ? 'Cambios guardados'
+                    : edited
+                      ? 'Cambios sin guardar'
+                      : 'Borrador listo'}
+            </span>
+            {syncState === 'error' && onRetrySync && (
+              <button type="button" onClick={onRetrySync}>
+                Reintentar
+              </button>
+            )}
+          </div>
+        )}
         {!readOnly && stale && onRegenerate ? (
           confirmReplace ? (
             <span className="clinical-regeneration-confirmation">

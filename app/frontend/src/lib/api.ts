@@ -41,6 +41,11 @@ export interface Conversation {
   preview?: string | null;
 }
 
+export interface ConversationAcquisition {
+  conversation: Conversation;
+  reused: boolean;
+}
+
 export interface Citation {
   chunk_id: string;
   video_id: string;
@@ -283,6 +288,8 @@ export const searchConversations = (q: string) =>
   request<Conversation[]>(`/conversations/search?q=${encodeURIComponent(q)}`);
 export const createConversation = () =>
   request<Conversation>('/conversations', { method: 'POST', body: '{}' });
+export const acquireConversation = () =>
+  request<ConversationAcquisition>('/conversations/acquire', { method: 'POST', body: '{}' });
 export const getConversation = (id: string) =>
   request<ConversationWithMessages>(`/conversations/${id}`);
 export const deleteConversation = (id: string) =>
@@ -325,6 +332,11 @@ export const createClinicalThread = (title = 'Asistente clínico') =>
   request<ClinicalThread>('/clinical-threads', {
     method: 'POST',
     body: JSON.stringify({ title }),
+  });
+export const acquireClinicalThread = () =>
+  request<{ thread: ClinicalThread; reused: boolean }>('/clinical-threads/acquire', {
+    method: 'POST',
+    body: '{}',
   });
 export const getClinicalThreads = () => request<ClinicalThreadSummary[]>('/clinical-threads');
 export const getClinicalThread = (id: string) => request<ClinicalThread>(`/clinical-threads/${id}`);
@@ -399,6 +411,11 @@ export const resolveClinicalAction = (
   request<ClinicalPendingAction & { result?: EvolutionDetail }>(
     `/clinical-actions/${actionId}/resolve`,
     { method: 'POST', body: JSON.stringify({ decision, proposal_hash: proposalHash }) },
+  );
+export const returnClinicalActionToEditing = (actionId: string) =>
+  request<{ id: string; thread_id: string; artifact_id: string | null }>(
+    `/clinical-actions/${actionId}/return-to-editing`,
+    { method: 'POST', body: '{}' },
   );
 export const transcribeAudio = async (
   audio: Blob,

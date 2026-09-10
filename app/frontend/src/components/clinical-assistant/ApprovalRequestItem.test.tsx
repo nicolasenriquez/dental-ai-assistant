@@ -56,32 +56,60 @@ function renderItem(
 ) {
   return render(
     <MemoryRouter>
-      <ApprovalRequestItem item={item(status, resource)} onResolve={vi.fn()} autoOpen={autoOpen} />
+      <ApprovalRequestItem
+        item={item(status, resource)}
+        onResolve={vi.fn()}
+        onBackToEdit={vi.fn()}
+        autoOpen={autoOpen}
+      />
     </MemoryRouter>,
   );
 }
 
 describe('ApprovalRequestItem', () => {
+  it('returns to editing without declining the action', () => {
+    const onResolve = vi.fn();
+    const onBackToEdit = vi.fn();
+    render(
+      <MemoryRouter>
+        <ApprovalRequestItem
+          item={item('pending')}
+          onResolve={onResolve}
+          onBackToEdit={onBackToEdit}
+          autoOpen
+        />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Seguir editando' }));
+    expect(onBackToEdit).toHaveBeenCalledOnce();
+    expect(onResolve).not.toHaveBeenCalled();
+  });
+
   it('preserves the pending prompt and modal actions', () => {
     renderItem('pending');
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-    expect(screen.getByRole('dialog', { name: 'Confirmar guardado' })).toBeVisible();
+    expect(screen.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
     expect(screen.getByText('Requiere confirmación')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Volver a editar' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Guardar evolución' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Seguir editando' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled();
   });
 
   it('keeps one saving spinner and disables both actions', () => {
     const view = renderItem('pending', null, true);
     view.rerender(
       <MemoryRouter>
-        <ApprovalRequestItem item={item('running')} onResolve={vi.fn()} autoOpen />
+        <ApprovalRequestItem
+          item={item('running')}
+          onResolve={vi.fn()}
+          onBackToEdit={vi.fn()}
+          autoOpen
+        />
       </MemoryRouter>,
     );
-    const dialog = screen.getByRole('dialog', { name: 'Confirmar guardado' });
+    const dialog = screen.getByRole('dialog', { name: 'Guardar evolución' });
     expect(dialog).toHaveTextContent('Guardando');
     expect(dialog.querySelectorAll('.animate-spin')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Volver a editar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Seguir editando' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Guardando…' })).toBeDisabled();
   });
 

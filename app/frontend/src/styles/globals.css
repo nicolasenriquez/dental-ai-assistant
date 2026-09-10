@@ -1617,6 +1617,37 @@ body,
   color: var(--text-secondary);
 }
 
+.clinical-processing {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  padding: 14px 16px;
+  animation: clinical-item-enter 180ms ease-out both;
+}
+
+.clinical-processing > strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.clinical-processing ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clinical-processing li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .clinical-thinking {
   color: var(--text-secondary);
   background: linear-gradient(
@@ -1731,10 +1762,10 @@ body,
   font-size: 12px;
 }
 .clinical-field-edit {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 64px;
+  min-height: 40px;
   justify-content: center;
-  opacity: 0.55;
+  opacity: 0.78;
 }
 .clinical-field-edit:hover,
 .clinical-field-edit:focus-visible {
@@ -1801,6 +1832,37 @@ body,
   font: inherit;
   line-height: 1.5;
   resize: vertical;
+}
+
+.clinical-source-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.clinical-source-error,
+.clinical-sync-state {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.clinical-source-error,
+.clinical-sync-state.is-error {
+  color: #fca5a5;
+}
+
+.clinical-source-error button,
+.clinical-sync-state button {
+  border: 0;
+  background: transparent;
+  color: #93c5fd;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
 }
 
 .clinical-source-note .clinical-secondary-button {
@@ -2550,11 +2612,67 @@ body,
 }
 
 .clinical-composer-actions {
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 4px 10px 8px;
+}
+.voice-composer-status.is-idle,
+.voice-composer-status.is-success {
+  flex: none;
+}
+
+.voice-composer-status:not(.is-idle):not(.is-success) {
+  width: 100%;
+  flex: 1 0 100%;
+  border-top: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 3%);
+  padding: 8px 10px;
+}
+
+.voice-composer-status:not(.is-idle):not(.is-success) .voice-composer-status__content {
+  flex: 1;
+}
+
+.voice-composer-status.is-recording .voice-waveform {
+  width: min(180px, 30vw);
+  flex: 1;
 }
 .clinical-composer-actions > .chat-send-button {
   flex: none;
+}
+
+@media (max-width: 640px) {
+  .clinical-transcript-stack {
+    padding: 0 14px;
+  }
+
+  .clinical-patient-context {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .clinical-patient-label {
+    grid-column: 1 / -1;
+  }
+
+  .clinical-artifact-heading,
+  .clinical-artifact-actions,
+  .clinical-approval-dialog__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .clinical-artifact-statuses {
+    justify-items: start;
+  }
+
+  .clinical-artifact-actions .clinical-primary-button,
+  .clinical-approval-dialog__footer button {
+    width: 100%;
+  }
+
+  .voice-composer-status.is-recording .voice-waveform {
+    width: 100px;
+  }
 }
 .clinical-receipt {
   border-left: 0;

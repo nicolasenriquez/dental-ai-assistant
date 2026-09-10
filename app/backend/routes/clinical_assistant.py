@@ -44,6 +44,12 @@ async def create_thread(
     return await service.create_thread(_user_id(user), request.title)
 
 
+@router.post("/clinical-threads/acquire")
+async def acquire_thread(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    thread, reused = await service.acquire_thread(_user_id(user))
+    return {"thread": thread, "reused": reused}
+
+
 @router.get("/clinical-threads")
 async def list_threads(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
     return cast(list[dict[str, Any]], await service.list_threads(_user_id(user)))
@@ -231,3 +237,13 @@ async def resolve_action(
         raise HTTPException(status_code=410, detail={"code": "ACTION_EXPIRED"}) from None
     except service.ProposalStaleError:
         raise HTTPException(status_code=409, detail={"code": "PROPOSAL_STALE"}) from None
+
+
+@router.post("/clinical-actions/{action_id}/return-to-editing")
+async def return_to_editing(
+    action_id: UUID, user: dict[str, Any] = Depends(get_current_user)
+) -> dict[str, Any]:
+    try:
+        return cast(dict[str, Any], await service.return_to_editing(_user_id(user), action_id))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Acción pendiente no encontrada") from None

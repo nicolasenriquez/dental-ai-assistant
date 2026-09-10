@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { ClinicalAssistantArea } from '../components/clinical-assistant/ClinicalAssistantArea';
 import { ClinicalThreadList } from '../components/clinical-assistant/ClinicalThreadList';
-import { createClinicalThread } from '../lib/api';
+import { acquireClinicalThread } from '../lib/api';
 
 export function ClinicalAssistant() {
   const { threadId } = useParams<{ threadId: string }>();
@@ -18,8 +18,8 @@ export function ClinicalAssistant() {
     if (threadId || createStarted.current) return;
     createStarted.current = true;
     setCreationFailed(false);
-    void createClinicalThread()
-      .then((thread) => {
+    void acquireClinicalThread()
+      .then(({ thread }) => {
         setCreatedThreadId(thread.id);
         navigate(`/a/${thread.id}`, { replace: true });
       })

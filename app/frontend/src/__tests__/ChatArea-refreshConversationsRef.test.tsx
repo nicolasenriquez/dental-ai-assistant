@@ -354,7 +354,10 @@ describe('ChatArea refreshConversationsRef', () => {
 
   it('should create conversation and navigate when sending with no conversationId', async () => {
     const mockConv = { id: 'new-conv-123', title: 'New Chat', created_at: '', updated_at: '' };
-    vi.spyOn(api, 'createConversation').mockResolvedValue(mockConv as api.Conversation);
+    vi.spyOn(api, 'acquireConversation').mockResolvedValue({
+      conversation: mockConv as api.Conversation,
+      reused: false,
+    });
 
     renderChat(
       <MemoryRouter>
@@ -374,7 +377,7 @@ describe('ChatArea refreshConversationsRef', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
 
     await waitFor(() => {
-      expect(api.createConversation).toHaveBeenCalledTimes(1);
+      expect(api.acquireConversation).toHaveBeenCalledTimes(1);
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/c/new-conv-123', {
@@ -382,8 +385,8 @@ describe('ChatArea refreshConversationsRef', () => {
     });
   });
 
-  it('should handle createConversation error gracefully', async () => {
-    vi.spyOn(api, 'createConversation').mockRejectedValue(new Error('Server error'));
+  it('should handle acquireConversation error gracefully', async () => {
+    vi.spyOn(api, 'acquireConversation').mockRejectedValue(new Error('Server error'));
 
     renderChat(
       <MemoryRouter>

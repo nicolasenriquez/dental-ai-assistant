@@ -428,6 +428,55 @@ async def create_conversation(*, user_id: str, title: str = "New Conversation") 
     }
 
 
+async def acquire_conversation(*, user_id: str) -> tuple[dict, bool]:
+    """Return the user's newest unused conversation, or create one atomically."""
+    now = _now()
+    async with _acquire() as conn, conn.transaction():
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+            str(user_id),
+        )
+        rows = await conn.fetch(
+            """
+            SELECT c.*
+            FROM conversations c
+            WHERE c.user_id = $1
+              AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id)
+            ORDER BY c.updated_at DESC
+            FOR UPDATE
+            """,
+            user_id,
+        )
+        if rows:
+            conversation = dict(rows[0])
+            duplicate_ids = [row["id"] for row in rows[1:]]
+            if duplicate_ids:
+                await conn.execute(
+                    "DELETE FROM conversations WHERE user_id = $1 AND id = ANY($2::text[])",
+                    user_id,
+                    duplicate_ids,
+                )
+            logger.info(
+                "conversation.acquire.reused", extra={"conversation_id": conversation["id"]}
+            )
+            return conversation, True
+
+        conv_id = _new_id()
+        row = await conn.fetchrow(
+            """
+            INSERT INTO conversations (id, user_id, title, created_at, updated_at)
+            VALUES ($1, $2, 'New Conversation', $3, $3)
+            RETURNING *
+            """,
+            conv_id,
+            user_id,
+            now,
+        )
+        conversation = dict(row)
+        logger.info("conversation.acquire.created", extra={"conversation_id": conv_id})
+        return conversation, False
+
+
 async def get_conversation(conv_id: str, user_id: str) -> dict | None:
     """Return the conversation only if it belongs to the given user."""
     async with _acquire() as conn:

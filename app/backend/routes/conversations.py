@@ -43,6 +43,12 @@ async def create_conversation(
     )
 
 
+@router.post("/conversations/acquire")
+async def acquire_conversation(current_user: dict[str, Any] = Depends(get_current_user)):
+    conversation, reused = await repository.acquire_conversation(user_id=str(current_user["id"]))
+    return {"conversation": conversation, "reused": reused}
+
+
 @router.get("/conversations/search")
 async def search_conversations(
     q: str,

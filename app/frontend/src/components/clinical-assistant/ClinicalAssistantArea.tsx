@@ -109,6 +109,7 @@ export function ClinicalAssistantArea({
     }
     void assistant.send(message).then((ok) => {
       if (!ok) setValue((current) => current || message);
+      else onThreadStateChanged?.();
     });
   };
 
@@ -156,11 +157,25 @@ export function ClinicalAssistantArea({
         }}
         preparingDraftId={preparingDraftId}
         autoOpenApprovalId={autoOpenApprovalId}
+        artifactSyncState={assistant.artifactSyncState}
+        onRetryArtifactSync={assistant.retryArtifactSync}
         onRetry={assistant.retryTurn}
         onResolve={async (item, decision) => {
           await assistant.resolve(item, decision);
           setAutoOpenApprovalId(null);
           onThreadStateChanged?.();
+        }}
+        onBackToEdit={(item) => {
+          void assistant.backToEdit(item).then((ok) => {
+            if (!ok) return;
+            setAutoOpenApprovalId(null);
+            window.requestAnimationFrame(() =>
+              document
+                .querySelector<HTMLElement>(`[data-artifact-id="${item.action.artifact_id}"]`)
+                ?.focus(),
+            );
+            onThreadStateChanged?.();
+          });
         }}
       />
       {assistant.error && (
