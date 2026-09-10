@@ -5,6 +5,10 @@
 
 import { Blob as NodeBlob } from 'node:buffer';
 import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+
+afterEach(cleanup);
 
 // jsdom ships a Blob stub without text()/arrayBuffer(); swap in node:buffer's
 // Blob so tests can read content back.

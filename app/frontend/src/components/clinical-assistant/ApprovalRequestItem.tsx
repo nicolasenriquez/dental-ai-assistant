@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Clock, X } from 'lucide-react';
+import { Check, ChevronRight, CircleX, Clock, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalApprovalItem as ApprovalItemData } from '../../hooks/useClinicalAssistant';
@@ -22,6 +22,13 @@ export function ApprovalRequestItem({
   const committing = item.status === 'running';
   const saved = item.status === 'completed';
   const pending = item.status === 'pending' || committing;
+  const statusLabel = {
+    pending: 'Requiere confirmación',
+    running: 'Guardando',
+    completed: 'Guardada',
+    declined: 'Descartada',
+    failed: 'No disponible',
+  }[item.status];
 
   useEffect(() => {
     if (!pending && dialogRef.current?.open) dialogRef.current.close();
@@ -32,14 +39,12 @@ export function ApprovalRequestItem({
   }, [autoOpen, item.status]);
 
   if (saved) {
-    return (
-      <Link
-        className="clinical-receipt"
-        to={`/patients/${item.action.patient_id}/evolutions/${item.action.result_resource_id}`}
-      >
+    const content = (
+      <>
         <Check aria-hidden="true" size={15} />
         <span>
           <strong>Evolución guardada</strong>
+          <small className="clinical-status-badge">{statusLabel}</small>
           {evolutionAt && (
             <time dateTime={evolutionAt}>
               {item.patient.first_name} {item.patient.last_name} ·{' '}
@@ -47,19 +52,43 @@ export function ApprovalRequestItem({
             </time>
           )}
         </span>
-        <span>
-          Ver en ficha <ChevronRight aria-hidden="true" size={15} />
-        </span>
+        {item.action.result_resource_id && (
+          <span>
+            Ver en ficha <ChevronRight aria-hidden="true" size={15} />
+          </span>
+        )}
+      </>
+    );
+    return item.action.result_resource_id ? (
+      <Link
+        className="clinical-receipt"
+        to={`/patients/${item.action.patient_id}/evolutions/${item.action.result_resource_id}`}
+      >
+        {content}
       </Link>
+    ) : (
+      <output className="clinical-receipt">{content}</output>
     );
   }
 
   if (!pending) {
     return (
-      <p className="clinical-activity" role="status">
-        <X aria-hidden="true" size={14} />
-        {item.status === 'declined' ? 'Guardado descartado.' : 'Confirmación no disponible.'}
-      </p>
+      <div
+        className={`clinical-approval-terminal clinical-approval-terminal--${item.status}`}
+        role="status"
+      >
+        {item.status === 'declined' ? (
+          <X aria-hidden="true" size={14} />
+        ) : (
+          <CircleX aria-hidden="true" size={14} />
+        )}
+        <span>
+          <strong>{statusLabel}</strong>
+          {item.status === 'declined'
+            ? 'No se realizaron cambios.'
+            : 'Esta confirmación expiró o ya no puede recuperarse.'}
+        </span>
+      </div>
     );
   }
 
@@ -87,6 +116,10 @@ export function ApprovalRequestItem({
       >
         <div className="clinical-approval-dialog__body">
           <h2 id={`approval-${item.id}`}>Confirmar guardado</h2>
+          <span className="clinical-status-badge">
+            {committing && <Spinner />}
+            {statusLabel}
+          </span>
           <p>
             <strong>
               {item.patient.first_name} {item.patient.last_name}
@@ -113,13 +146,7 @@ export function ApprovalRequestItem({
             disabled={committing}
             onClick={() => onResolve('approve')}
           >
-            {committing ? (
-              <>
-                <Spinner /> Guardando…
-              </>
-            ) : (
-              'Guardar evolución'
-            )}
+            {committing ? 'Guardando…' : 'Guardar evolución'}
           </button>
         </div>
       </dialog>

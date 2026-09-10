@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClinicalDraft } from '../../lib/api';
 import { EvolutionReviewArtifact } from './EvolutionReviewArtifact';
 
@@ -11,6 +11,8 @@ const draft: ClinicalDraft = {
   follow_up: 'Control en seis meses.',
   review_flags: [],
 };
+
+afterEach(cleanup);
 
 function renderArtifact(onChange = vi.fn()) {
   return {
@@ -31,6 +33,51 @@ function renderArtifact(onChange = vi.fn()) {
 }
 
 describe('EvolutionReviewArtifact', () => {
+  it.each([
+    [false, false, 'No guardada'],
+    [false, true, 'Editada'],
+    [true, true, 'Necesita regeneración'],
+  ])(
+    'shows assistant provenance and lifecycle for stale=%s edited=%s',
+    (stale, edited, lifecycle) => {
+      render(
+        <EvolutionReviewArtifact
+          mode="assistant"
+          sourceNote="Nota original"
+          draft={draft}
+          generatedDraft={draft}
+          evolutionAt="2026-09-08T23:23:00-04:00"
+          stale={stale}
+          edited={edited}
+          onChange={vi.fn()}
+          onRegenerate={vi.fn()}
+          onPrepare={vi.fn()}
+        />,
+      );
+      expect(screen.getByText('Borrador asistido')).toBeVisible();
+      expect(screen.getByText(lifecycle)).toBeVisible();
+    },
+  );
+
+  it('prepares an assistant draft without claiming to save it', () => {
+    const onPrepare = vi.fn();
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={draft}
+        generatedDraft={draft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited={false}
+        onChange={vi.fn()}
+        onPrepare={onPrepare}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preparar para guardar' }));
+    expect(onPrepare).toHaveBeenCalledOnce();
+  });
+
   it('starts in read mode and edits one field on demand', () => {
     renderArtifact();
 

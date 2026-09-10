@@ -72,6 +72,7 @@ export function EvolutionReviewArtifact({
   const [flagsOpen, setFlagsOpen] = useState(draft.review_flags.length === 1);
   const isAssistant = mode === 'assistant';
   const emptyDraft = !hasClinicalContent(draft);
+  const assistantLifecycle = stale ? 'Necesita regeneración' : edited ? 'Editada' : 'No guardada';
   const parts = dateParts(evolutionAt);
   const updateDate = (date: string, time: string) => {
     if (!date || !time || !onEvolutionAtChange) return;
@@ -121,9 +122,8 @@ export function EvolutionReviewArtifact({
         </div>
         {isAssistant && (
           <div className="clinical-artifact-statuses">
-            <span className="clinical-artifact-status">
-              {stale ? 'Requiere regenerar' : edited ? 'Editada' : 'Borrador IA'}
-            </span>
+            <span className="clinical-artifact-status">Borrador asistido</span>
+            <span>{assistantLifecycle}</span>
             {draft.review_flags.length > 0 && <span>{draft.review_flags.length} por revisar</span>}
           </div>
         )}
@@ -379,7 +379,7 @@ export function EvolutionReviewArtifact({
                 <Spinner /> Preparando…
               </>
             ) : (
-              'Guardar evolución'
+              'Preparar para guardar'
             )}
           </button>
         ) : null}

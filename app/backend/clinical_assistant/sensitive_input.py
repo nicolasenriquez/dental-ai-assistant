@@ -6,15 +6,12 @@ display/model text and never the original identifier.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
 from backend.db import patients_repo
 from backend.patients.rut import RUT_CANDIDATE_RE, mask_rut, normalize_rut
-
-_COMPACT_RE = re.compile(r"^\d+[0-9kK]$")
 
 
 @dataclass(frozen=True)
@@ -48,11 +45,6 @@ async def sanitize_content(owner_user_id: UUID | str, content: str) -> Sanitized
         try:
             rut_body, check_digit = normalize_rut(candidate)
         except ValueError:
-            if _COMPACT_RE.fullmatch(candidate):
-                display_parts.append(candidate)
-                model_parts.append(candidate)
-                cursor = match.end()
-                continue
             invalid_candidates += 1
             display_parts.append("[RUT no válido]")
             model_parts.append("[RUT_NO_VALIDO]")

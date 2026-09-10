@@ -1607,17 +1607,69 @@ body,
   gap: 8px;
   color: var(--text-secondary);
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
-.clinical-activity-icon {
-  width: 16px;
-  color: var(--success);
-  text-align: center;
+.clinical-activity--failed {
+  color: var(--danger);
+}
+.clinical-activity--declined {
+  color: var(--text-secondary);
 }
 
-.clinical-activity-icon--running {
-  color: var(--accent);
-  animation: spin 900ms linear infinite;
+.clinical-thinking {
+  color: var(--text-secondary);
+  background: linear-gradient(
+    90deg,
+    var(--text-secondary),
+    var(--text-primary),
+    var(--text-secondary)
+  );
+  background-clip: text;
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 13px;
+  animation: clinical-thinking-shimmer 1.8s linear infinite;
+}
+
+@keyframes clinical-thinking-shimmer {
+  to {
+    background-position: -200% center;
+  }
+}
+
+.clinical-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.clinical-approval-terminal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.clinical-approval-terminal > span {
+  display: grid;
+  gap: 2px;
+}
+.clinical-approval-terminal--failed {
+  color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clinical-thinking {
+    animation: none;
+    background: none;
+    color: var(--text-secondary);
+    -webkit-text-fill-color: currentColor;
+  }
 }
 
 .clinical-artifact {
@@ -2881,8 +2933,7 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .clinical-artifact,
-  .clinical-activity-icon--running {
+  .clinical-artifact {
     animation: none;
   }
 }

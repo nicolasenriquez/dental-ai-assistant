@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from backend.config import CLINICAL_TURN_LIMIT_PER_24H
@@ -156,7 +156,7 @@ async def delete_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> boo
             _uuid(thread_id),
             _uuid(owner_user_id),
         )
-    return result == "DELETE 1"
+    return bool(result == "DELETE 1")
 
 
 async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[str, Any] | None:
@@ -427,7 +427,7 @@ async def claim_turn(
             raise LookupError("Thread not found")
         existing = await conn.fetch(
             """
-            SELECT m.role, m.content
+            SELECT m.id, m.role, m.content, m.turn_status, m.turn_error_code
             FROM clinical_messages m
             JOIN clinical_threads t ON t.id = m.thread_id
             WHERE m.turn_id = $1 AND m.thread_id = $2 AND t.owner_user_id = $3
@@ -439,7 +439,19 @@ async def claim_turn(
         if existing:
             if any(msg["role"] == "user" and msg["content"] != content for msg in existing):
                 raise TurnIdempotencyConflictError
-            return {"replay": True, "messages": [dict(msg) for msg in existing]}
+            messages = [dict(msg) for msg in existing]
+            user_message = next(msg for msg in messages if msg["role"] == "user")
+            turn_status = user_message["turn_status"]
+            if turn_status is None:
+                turn_status = (
+                    "completed" if any(msg["role"] == "assistant" for msg in messages) else "failed"
+                )
+            return {
+                "replay": True,
+                "messages": messages,
+                "turn_status": turn_status,
+                "turn_error_code": user_message["turn_error_code"],
+            }
         if (
             row["active_turn_id"] is not None
             and row["active_turn_id"] != turn
@@ -469,8 +481,10 @@ async def claim_turn(
         )
         message = await conn.fetchrow(
             """
-            INSERT INTO clinical_messages (id, thread_id, turn_id, role, content, created_at)
-            VALUES ($1, $2, $3, 'user', $4, now())
+            INSERT INTO clinical_messages (
+                id, thread_id, turn_id, role, content, turn_status, created_at
+            )
+            VALUES ($1, $2, $3, 'user', $4, 'running', now())
             RETURNING id, thread_id, turn_id, role, content, created_at
             """,
             uuid4(),
@@ -514,9 +528,32 @@ async def append_message(
 
 
 async def finish_turn(
-    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    status: Literal["completed", "failed"] = "failed",
+    error_code: str | None = None,
 ) -> None:
-    async with get_pg_pool().acquire() as conn:
+    if status == "failed" and error_code is None:
+        error_code = "CLINICAL_RUNTIME_FAILED"
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        await conn.execute(
+            """
+            UPDATE clinical_messages m
+            SET turn_status = $1, turn_error_code = $2
+            WHERE m.thread_id = $3 AND m.turn_id = $4 AND m.role = 'user'
+              AND m.turn_status = 'running'
+              AND EXISTS (
+                SELECT 1 FROM clinical_threads t
+                WHERE t.id = m.thread_id AND t.owner_user_id = $5
+              )
+            """,
+            status,
+            error_code,
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(owner_user_id),
+        )
         await conn.execute(
             """
             UPDATE clinical_threads SET active_turn_id = NULL, updated_at = now()

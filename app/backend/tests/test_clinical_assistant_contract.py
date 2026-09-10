@@ -82,6 +82,23 @@ async def test_compact_rut_is_redacted(monkeypatch) -> None:
     assert result.masked_ruts == ("••.•••.678-5",)
 
 
+async def test_invalid_compact_rut_is_redacted_without_lookup(monkeypatch) -> None:
+    from backend.clinical_assistant.sensitive_input import sanitize_content
+
+    async def no_patient(owner, rut_body):
+        raise AssertionError("invalid compact candidate must not trigger a lookup")
+
+    monkeypatch.setattr(
+        "backend.clinical_assistant.sensitive_input.patients_repo.get_patient_by_rut",
+        no_patient,
+    )
+    result = await sanitize_content(UUID(int=1), "Nota 123456789")
+    assert "123456789" not in result.display_text
+    assert "123456789" not in result.model_text
+    assert result.display_text == "Nota [RUT no válido]"
+    assert result.invalid_candidates == 1
+
+
 async def test_compact_non_rut_number_is_left_untouched(monkeypatch) -> None:
     from backend.clinical_assistant.sensitive_input import sanitize_content
 
@@ -200,6 +217,47 @@ async def test_clinical_turn_releases_lock_when_setup_fails(monkeypatch) -> None
     assert finished == [(owner, thread, turn)]
 
 
+@pytest.mark.parametrize(
+    ("status", "error_code", "terminal_event", "terminal_error"),
+    [
+        ("completed", None, "turn.completed", None),
+        ("failed", "CLINICAL_MODEL_UNAVAILABLE", "turn.failed", "CLINICAL_MODEL_UNAVAILABLE"),
+        ("running", None, "turn.failed", "TURN_ALREADY_RUNNING"),
+    ],
+)
+async def test_clinical_turn_replay_preserves_terminal_state(
+    monkeypatch, status, error_code, terminal_event, terminal_error
+) -> None:
+    from backend.clinical_assistant import service
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+
+    async def sanitize(_owner, content):
+        return type("Sanitized", (), {"display_text": content})()
+
+    async def claim(*_args):
+        return {
+            "replay": True,
+            "messages": [{"id": UUID(int=4), "role": "user", "content": "Control"}],
+            "turn_status": status,
+            "turn_error_code": error_code,
+        }
+
+    async def unexpected_finish(*_args):
+        raise AssertionError("replay must not finish another worker's turn")
+
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.repository, "claim_turn", claim)
+    monkeypatch.setattr(service.repository, "finish_turn", unexpected_finish)
+
+    chunks = [chunk async for chunk in service.stream_turn(owner, thread, turn, "Control")]
+    events = [json.loads(chunk.split("data: ", 1)[1]) for chunk in chunks]
+    assert chunks[-1].splitlines()[0] == f"event: {terminal_event}"
+    assert events[-1]["data"].get("error_code") == terminal_error
+
+
 @pytest.mark.parametrize("artifact_status", ["stale", "pending", "approved", "declined", "failed"])
 async def test_prepare_save_rejects_every_frozen_artifact(monkeypatch, artifact_status) -> None:
     from backend.clinical_assistant import service
@@ -238,6 +296,23 @@ def test_clinical_invariant_indexes_are_migrated() -> None:
     assert "uq_clinical_pending_actions_thread_pending" in migration
     assert "uq_clinical_messages_thread_turn_user" in migration
     assert "status = 'pending'" in migration
+
+
+def test_clinical_turn_outcomes_are_migrated() -> None:
+    migration = (
+        Path(__file__).parents[1] / "alembic" / "versions" / "0011_add_clinical_turn_outcomes.py"
+    ).read_text(encoding="utf-8")
+    assert "turn_status" in migration
+    assert "turn_error_code" in migration
+    assert "'running', 'completed', 'failed'" in migration
+
+
+def test_production_compose_starts_whisper_without_a_profile() -> None:
+    compose = (Path(__file__).parents[3] / "deploy" / "docker-compose.yml").read_text(
+        encoding="utf-8"
+    )
+    whisper_service = compose.split("\n  whisper:", 1)[1].split("\n  app-green:", 1)[0]
+    assert "profiles:" not in whisper_service
 
 
 def test_approval_hash_is_canonical_sha256() -> None:

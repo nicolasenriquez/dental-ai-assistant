@@ -67,7 +67,7 @@ async def rename_thread(owner: UUID, thread: UUID, title: str) -> ClinicalThread
 
 
 async def delete_thread(owner: UUID, thread: UUID) -> bool:
-    return await repository.delete_thread(owner, thread)
+    return cast(bool, await repository.delete_thread(owner, thread))
 
 
 async def get_thread_response(owner: UUID, thread: UUID) -> ClinicalThreadResponse | None:
@@ -249,15 +249,21 @@ async def stream_turn(
     owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, content: str
 ) -> AsyncIterator[str]:
     """Run one safe clinical turn and always release its thread lock."""
+    claimed_new = {"value": False}
     try:
-        async for chunk in _stream_turn(owner_user_id, thread_id, turn_id, content):
+        async for chunk in _stream_turn(owner_user_id, thread_id, turn_id, content, claimed_new):
             yield chunk
     finally:
-        await repository.finish_turn(owner_user_id, thread_id, turn_id)
+        if claimed_new["value"]:
+            await repository.finish_turn(owner_user_id, thread_id, turn_id)
 
 
 async def _stream_turn(
-    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, content: str
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    content: str,
+    claimed_new: dict[str, bool],
 ) -> AsyncIterator[str]:
     """Run one safe clinical turn and emit typed lifecycle events."""
     owner = UUID(str(owner_user_id))
@@ -278,6 +284,7 @@ async def _stream_turn(
         )
         return
     claimed = await repository.claim_turn(owner, thread, turn, sanitized.display_text)
+    claimed_new["value"] = not claimed["replay"]
 
     yield event(
         "turn.started",
@@ -304,10 +311,20 @@ async def _stream_turn(
                         "content": message["content"],
                     },
                 )
-        yield event(
-            "turn.completed",
-            {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
-        )
+        terminal_data = {
+            "thread_id": str(thread),
+            "turn_id": str(turn),
+            "item_id": str(uuid4()),
+        }
+        if claimed["turn_status"] == "completed":
+            yield event("turn.completed", terminal_data)
+        else:
+            terminal_data["error_code"] = claimed["turn_error_code"] or (
+                "TURN_ALREADY_RUNNING"
+                if claimed["turn_status"] == "running"
+                else "CLINICAL_RUNTIME_FAILED"
+            )
+            yield event("turn.failed", terminal_data)
         return
 
     active_patient_id = claimed["active_patient_id"]
@@ -319,7 +336,7 @@ async def _stream_turn(
         )
         async for item in _assistant_item(owner, thread, turn, message):
             yield item
-        await repository.finish_turn(owner, thread, turn)
+        await repository.finish_turn(owner, thread, turn, "completed")
         yield event(
             "turn.completed",
             {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
@@ -330,7 +347,7 @@ async def _stream_turn(
         message = "Detecté más de un paciente en la nota. Selecciona un paciente activo antes de continuar."
         async for item in _assistant_item(owner, thread, turn, message):
             yield item
-        await repository.finish_turn(owner, thread, turn)
+        await repository.finish_turn(owner, thread, turn, "failed", "PATIENT_REFERENCE_AMBIGUOUS")
         yield event(
             "turn.failed",
             {
@@ -347,7 +364,7 @@ async def _stream_turn(
         if active_patient_id is None:
             updated = await repository.set_active_patient(owner, thread, detected)
             if updated is None:
-                await repository.finish_turn(owner, thread, turn)
+                await repository.finish_turn(owner, thread, turn, "failed", "THREAD_NOT_FOUND")
                 yield event(
                     "turn.failed",
                     {
@@ -374,7 +391,9 @@ async def _stream_turn(
             patient = await patients_repo.get_patient(owner, detected)
             active_patient = await patients_repo.get_patient(owner, active_patient_id)
             if patient is None or active_patient is None:
-                await repository.finish_turn(owner, thread, turn)
+                await repository.finish_turn(
+                    owner, thread, turn, "failed", "PATIENT_SWITCH_REQUIRED"
+                )
                 yield event(
                     "turn.failed",
                     {
@@ -395,7 +414,7 @@ async def _stream_turn(
                     "detected_patient": safe_patient(patient),
                 },
             )
-            await repository.finish_turn(owner, thread, turn)
+            await repository.finish_turn(owner, thread, turn, "failed", "PATIENT_SWITCH_REQUIRED")
             yield event(
                 "turn.failed",
                 {
@@ -427,7 +446,7 @@ async def _stream_turn(
             message = "El RUT indicado no es válido."
         async for item in _assistant_item(owner, thread, turn, message):
             yield item
-        await repository.finish_turn(owner, thread, turn)
+        await repository.finish_turn(owner, thread, turn, "completed")
         yield event(
             "turn.completed",
             {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
@@ -487,12 +506,16 @@ async def _stream_turn(
         message = "Preparé un borrador para tu revisión. Todavía no se ha guardado."
         async for item in _assistant_item(owner, thread, turn, message):
             yield item
+        await repository.finish_turn(owner, thread, turn, "completed")
         yield event(
             "turn.completed",
             {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
         )
     except clinical_evolutions.ClinicalGenerationDisabledError:
         logger.warning("clinical_turn_blocked code=CLINICAL_EXTERNAL_LLM_DISABLED turn_id=%s", turn)
+        await repository.finish_turn(
+            owner, thread, turn, "failed", "CLINICAL_EXTERNAL_LLM_DISABLED"
+        )
         yield event(
             "turn.failed",
             {
@@ -503,6 +526,7 @@ async def _stream_turn(
             },
         )
     except clinical_evolutions.EmptyClinicalDraftError:
+        await repository.finish_turn(owner, thread, turn, "failed", "CLINICAL_CONTENT_INSUFFICIENT")
         yield event(
             "turn.failed",
             {
@@ -514,6 +538,7 @@ async def _stream_turn(
         )
     except clinical_evolutions.ClinicalGenerationError:
         logger.warning("clinical_turn_failed code=CLINICAL_MODEL_UNAVAILABLE turn_id=%s", turn)
+        await repository.finish_turn(owner, thread, turn, "failed", "CLINICAL_MODEL_UNAVAILABLE")
         yield event(
             "turn.failed",
             {
@@ -525,6 +550,7 @@ async def _stream_turn(
         )
     except Exception:
         logger.warning("clinical_turn_failed code=TOOL_EXECUTION_FAILED turn_id=%s", turn)
+        await repository.finish_turn(owner, thread, turn, "failed", "TOOL_EXECUTION_FAILED")
         yield event(
             "turn.failed",
             {

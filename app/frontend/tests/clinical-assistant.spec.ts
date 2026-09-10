@@ -225,6 +225,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       ),
       sseEvent('turn.completed', 5, body.turn_id, `complete-${turnCount}`, 'turn', {}, 'completed'),
     ].join('');
+    await new Promise((resolve) => setTimeout(resolve, 150));
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
   });
   await page.route(`**/api/clinical-threads/${threadId}/drafts`, (route) =>
@@ -316,6 +317,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       pending_action: null,
       pending_action_patient: null,
     };
+    await new Promise((resolve) => setTimeout(resolve, 150));
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -382,7 +384,11 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   const composer = page.getByTestId('clinical-composer').getByLabel('Nota clínica');
   await composer.fill('Control preventivo sin hallazgos nuevos.');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await expect(page.getByText('Pensando…')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Evolución propuesta' })).toBeVisible();
+  await expect(page.getByText('Pensando…')).toHaveCount(0);
+  await expect(page.getByText('Borrador asistido')).toBeVisible();
+  await expect(page.getByText('No guardada')).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
   await expect(page.getByRole('article', { name: 'Tú' })).toBeVisible();
   await expect(page.getByRole('article', { name: 'Asistente' })).toBeVisible();
@@ -395,24 +401,27 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await page.getByRole('button', { name: 'Ver nota clínica original' }).click();
   await page.getByRole('button', { name: 'Editar nota original' }).click();
   await page.getByLabel('Editar nota clínica original').fill('Nota fuente corregida.');
-  await expect(page.getByText('Requiere regenerar')).toBeVisible();
+  await expect(page.getByText('Necesita regeneración')).toBeVisible();
   await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución propuesta' }));
   await expect(page).toHaveScreenshot('clinical-editing.png', {
     animations: 'disabled',
     maxDiffPixels: 300,
   });
   await page.getByRole('button', { name: 'Regenerar', exact: true }).click();
-  await expect(page.getByText('Borrador IA')).toBeVisible();
+  await expect(page.getByText('Borrador asistido')).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
 
-  await page.getByRole('button', { name: 'Guardar evolución' }).click();
+  await page.getByRole('button', { name: 'Preparar para guardar' }).click();
   const confirmation = page.getByRole('dialog', { name: 'Confirmar guardado' });
   await expect(confirmation).toBeVisible();
+  await expect(confirmation.getByText('Requiere confirmación')).toBeVisible();
   await expect(page).toHaveScreenshot('clinical-approval-pending.png', {
     animations: 'disabled',
     maxDiffPixels: 300,
   });
   await confirmation.getByRole('button', { name: 'Guardar evolución' }).click();
+  await expect(confirmation.getByText('Guardando', { exact: true })).toBeVisible();
+  await expect(confirmation.locator('.animate-spin')).toHaveCount(1);
   await expect(page.getByText('Evolución guardada', { exact: true })).toBeVisible();
   await settleClinicalItem(page, page.getByText('Evolución guardada', { exact: true }));
   await expect(page).toHaveScreenshot('clinical-approval-resolved.png', {
@@ -429,7 +438,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     animations: 'disabled',
     maxDiffPixels: 300,
   });
-  await page.getByRole('button', { name: 'Guardar evolución' }).last().click();
+  await page.getByRole('button', { name: 'Preparar para guardar' }).last().click();
   await expect(page.getByRole('dialog', { name: 'Confirmar guardado' })).toBeVisible();
   await expect(page).toHaveScreenshot('clinical-second-approval.png', {
     animations: 'disabled',

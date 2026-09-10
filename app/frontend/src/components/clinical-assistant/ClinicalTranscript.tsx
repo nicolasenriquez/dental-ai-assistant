@@ -65,6 +65,7 @@ export function ClinicalTranscript({
   const { restoreViewport } = viewport;
 
   const latestItem = items[items.length - 1];
+  const showThinking = busy && latestItem?.type === 'user';
   const latestContentRevision =
     latestItem?.type === 'assistant'
       ? latestItem.content.length
@@ -125,7 +126,11 @@ export function ClinicalTranscript({
                   return (
                     <div
                       key={item.id}
-                      className="clinical-activity"
+                      className={`clinical-activity clinical-activity--${
+                        item.status === 'pending' || item.status === 'running'
+                          ? 'active'
+                          : item.status
+                      }`}
                       role="status"
                       aria-live="polite"
                     >
@@ -187,6 +192,16 @@ export function ClinicalTranscript({
               })}
             </section>
           ))}
+          {showThinking && (
+            <div
+              className="clinical-thinking"
+              role="status"
+              aria-live="polite"
+              aria-label="El asistente está preparando una respuesta"
+            >
+              Pensando…
+            </div>
+          )}
         </div>
       )}
       <div ref={follow.bottomSentinelRef} className="clinical-bottom-sentinel" />
