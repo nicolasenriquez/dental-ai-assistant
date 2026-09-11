@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import {
   type ClinicalThreadSummary,
   acquireClinicalThread,
@@ -25,6 +26,7 @@ export function ClinicalThreadList({
   onRequestExpand,
 }: ClinicalThreadListProps) {
   const navigate = useNavigate();
+  const transitionGuard = useOptionalTransitionGuard();
   const [threads, setThreads] = useState<ClinicalThreadSummary[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -33,6 +35,11 @@ export function ClinicalThreadList({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
+
+  const guardTransition = (continuation: () => void) => {
+    if (transitionGuard) transitionGuard.guardTransition(continuation);
+    else continuation();
+  };
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -74,13 +81,12 @@ export function ClinicalThreadList({
     setDeleteError(false);
   };
 
-  const confirmRemove = async () => {
-    if (!confirmId) return;
+  const removeThreadNow = async (threadId: string) => {
     setDeleting(true);
     setDeleteError(false);
     try {
-      await deleteClinicalThread(confirmId);
-      const deletedId = confirmId;
+      await deleteClinicalThread(threadId);
+      const deletedId = threadId;
       setConfirmId(null);
       setThreads((current) => current.filter((thread) => thread.id !== deletedId));
       if (deletedId === activeThreadId) navigate('/assistant');
@@ -90,6 +96,17 @@ export function ClinicalThreadList({
     } finally {
       setDeleting(false);
     }
+  };
+
+  const confirmRemove = () => {
+    if (!confirmId) return;
+    const threadId = confirmId;
+    if (threadId === activeThreadId) {
+      setConfirmId(null);
+      guardTransition(() => void removeThreadNow(threadId));
+      return;
+    }
+    void removeThreadNow(threadId);
   };
 
   return (
@@ -109,8 +126,8 @@ export function ClinicalThreadList({
         error={error}
         query={query}
         onQueryChange={setQuery}
-        onCreate={() => void create()}
-        onSelect={(id) => navigate(`/a/${id}`)}
+        onCreate={() => guardTransition(() => void create())}
+        onSelect={(id) => guardTransition(() => navigate(`/a/${id}`))}
         creating={creating}
         onRetry={() => void refresh()}
         onRequestExpand={onRequestExpand}
@@ -128,7 +145,7 @@ export function ClinicalThreadList({
             query={query}
             isActive={Boolean(item.active)}
             statusLabel={item.statusLabel}
-            onSelect={() => navigate(`/a/${item.id}`)}
+            onSelect={() => guardTransition(() => navigate(`/a/${item.id}`))}
             onDeleteRequest={() => requestRemove(item.id)}
             onRename={(title) => void rename(item.id, title)}
           />

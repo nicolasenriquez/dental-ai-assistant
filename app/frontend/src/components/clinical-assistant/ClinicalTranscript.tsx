@@ -32,6 +32,10 @@ interface ClinicalTranscriptProps {
   autoOpenApprovalId?: string | null;
   artifactSyncState?: Record<string, 'idle' | 'saving' | 'saved' | 'error'>;
   onRetryArtifactSync?: (item: DraftItemData) => void;
+  onSaveToDrive?: (item: Extract<ClinicalTranscriptItem, { type: 'assistant' }>) => void;
+  onSaveDraftToDrive?: (item: DraftItemData) => void;
+  driveTransferDisabled?: boolean;
+  activePatientId?: string | null;
 }
 
 function ProcessingStatus({ items }: { items: ClinicalTranscriptItem[] }) {
@@ -90,6 +94,10 @@ export function ClinicalTranscript({
   autoOpenApprovalId = null,
   artifactSyncState = {},
   onRetryArtifactSync,
+  onSaveToDrive,
+  onSaveDraftToDrive,
+  driveTransferDisabled = false,
+  activePatientId = null,
 }: ClinicalTranscriptProps) {
   const follow = useChatAutoFollow();
   const viewport = useConversationViewportCache({
@@ -155,8 +163,22 @@ export function ClinicalTranscript({
               data-turn-id={group[0]?.turnId}
             >
               {group.map((item, index) => {
-                if (item.type === 'user' || item.type === 'assistant')
+                if (item.type === 'user')
                   return <Message key={item.id} role={item.type} content={item.content} />;
+                if (item.type === 'assistant')
+                  return (
+                    <Message
+                      key={item.id}
+                      role={item.type}
+                      content={item.content}
+                      onSaveToDrive={
+                        item.status === 'completed' && onSaveToDrive
+                          ? () => onSaveToDrive(item)
+                          : undefined
+                      }
+                      saveToDriveDisabled={driveTransferDisabled}
+                    />
+                  );
                 if (item.type === 'activity') {
                   if (group.slice(0, index).some((candidate) => candidate.type === 'activity'))
                     return null;
@@ -175,6 +197,12 @@ export function ClinicalTranscript({
                       preparing={preparingDraftId === item.id}
                       syncState={artifactSyncState[item.id]}
                       onRetrySync={() => onRetryArtifactSync?.(item)}
+                      onSaveToDrive={
+                        onSaveDraftToDrive ? () => onSaveDraftToDrive(item) : undefined
+                      }
+                      saveToDriveDisabled={
+                        driveTransferDisabled || item.patientId !== activePatientId
+                      }
                     />
                   );
                 if (item.type === 'approval')

@@ -14,6 +14,8 @@ interface ClinicalDraftItemProps {
   preparing?: boolean;
   syncState?: 'idle' | 'saving' | 'saved' | 'error';
   onRetrySync?: () => void;
+  onSaveToDrive?: () => void;
+  saveToDriveDisabled?: boolean;
 }
 
 export function ClinicalDraftItem({
@@ -26,6 +28,8 @@ export function ClinicalDraftItem({
   preparing = false,
   syncState = 'idle',
   onRetrySync,
+  onSaveToDrive,
+  saveToDriveDisabled = false,
 }: ClinicalDraftItemProps) {
   useEffect(() => {
     clinicalTrace('clinical.artifact.rendered', {
@@ -62,6 +66,16 @@ export function ClinicalDraftItem({
         syncState={syncState}
         onRetrySync={onRetrySync}
       />
+      {onSaveToDrive && (
+        <button
+          type="button"
+          className="clinical-secondary-button"
+          onClick={onSaveToDrive}
+          disabled={saveToDriveDisabled}
+        >
+          Guardar en Drive
+        </button>
+      )}
     </div>
   );
 }

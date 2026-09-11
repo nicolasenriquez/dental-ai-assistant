@@ -15,6 +15,8 @@ interface MessageProps {
   /** Current tool-call status during streaming (ephemeral progress indicator) */
   streamingStatus?: { tool: string; subject: string } | null;
   statusText?: string;
+  onSaveToDrive?: () => void;
+  saveToDriveDisabled?: boolean;
 }
 
 // ── Typing indicator (3 pulsing dots) ────────────────────────────
@@ -127,6 +129,8 @@ export function Message({
   onCitationClick,
   streamingStatus,
   statusText,
+  onSaveToDrive,
+  saveToDriveDisabled = false,
 }: MessageProps) {
   const isUser = role === 'user';
   const hasSources = !isUser && Array.isArray(sources) && sources.length > 0;
@@ -158,6 +162,16 @@ export function Message({
               <p className="message-status" role="status">
                 {statusText}
               </p>
+            )}
+            {onSaveToDrive && (
+              <button
+                type="button"
+                className="clinical-secondary-button"
+                onClick={onSaveToDrive}
+                disabled={saveToDriveDisabled}
+              >
+                Guardar en Drive
+              </button>
             )}
           </>
         )}

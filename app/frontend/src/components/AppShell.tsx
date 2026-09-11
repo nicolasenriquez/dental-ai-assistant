@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
+import { TransitionGuardBoundary } from '../hooks/useTransitionGuard';
 import { DriveBootstrapBanner } from './DriveBootstrapBanner';
 import { Sidebar } from './Sidebar';
 import { ResizableGroup, ResizableHandle, ResizablePanel } from './ui/resizable';
@@ -122,72 +123,78 @@ export function AppShell({
   };
 
   return (
-    <>
-      <a className="skip-link" href="#main-content">
-        Saltar al contenido principal
-      </a>
-      <div className="app-layout">
-        {isMobileSidebar && sidebarOpen && (
-          <div
-            aria-hidden="true"
-            className="sidebar-overlay"
-            onClick={() => setSidebarOpen(false)}
+    <TransitionGuardBoundary>
+      <>
+        <a className="skip-link" href="#main-content">
+          Saltar al contenido principal
+        </a>
+        <div className="app-layout">
+          {isMobileSidebar && sidebarOpen && (
+            <div
+              aria-hidden="true"
+              className="sidebar-overlay"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+          <Sidebar
+            activeConversationId={activeConversationId}
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            conversationsRef={conversationsRef}
+            showConversations={showConversations}
+            isMobile={isMobileSidebar}
+            isCollapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            runtimeByConversationId={runtimeByConversationId}
+            secondaryContent={secondarySidebarContent?.(sidebarCollapsed, () =>
+              setSidebarCollapsed(false),
+            )}
+            sidebarRef={sidebarRef}
+            onKeyDown={handleSidebarKeyDown}
+            utilities={utilities}
           />
-        )}
-        <Sidebar
-          activeConversationId={activeConversationId}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          conversationsRef={conversationsRef}
-          showConversations={showConversations}
-          isMobile={isMobileSidebar}
-          isCollapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
-          runtimeByConversationId={runtimeByConversationId}
-          secondaryContent={secondarySidebarContent?.(sidebarCollapsed, () =>
-            setSidebarCollapsed(false),
-          )}
-          sidebarRef={sidebarRef}
-          onKeyDown={handleSidebarKeyDown}
-          utilities={utilities}
-        />
-        <div
-          id="main-content"
-          tabIndex={-1}
-          className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}`}
-        >
-          {isMobileSidebar && !sidebarOpen && (
-            <button
-              ref={menuButtonRef}
-              type="button"
-              className="hamburger-btn"
-              onClick={() => setSidebarOpen(true)}
-              aria-expanded={false}
-              aria-controls="app-sidebar"
-              aria-label="Abrir navegación"
-              title="Abrir navegación"
-            >
-              <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
-            </button>
-          )}
-          <DriveBootstrapBanner />
-          {workspaceAccessory ? (
-            <div className="workspace-row">
-              <ResizableGroup orientation="horizontal" className="workspace-resizable">
-                <ResizablePanel defaultSize="62" minSize="30" className="workspace-panel-main">
-                  {children}
-                </ResizablePanel>
-                <ResizableHandle className="workspace-resize-handle" />
-                <ResizablePanel defaultSize="38" minSize="22" className="workspace-panel-accessory">
-                  {workspaceAccessory}
-                </ResizablePanel>
-              </ResizableGroup>
-            </div>
-          ) : (
-            children
-          )}
+          <div
+            id="main-content"
+            tabIndex={-1}
+            className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}`}
+          >
+            {isMobileSidebar && !sidebarOpen && (
+              <button
+                ref={menuButtonRef}
+                type="button"
+                className="hamburger-btn"
+                onClick={() => setSidebarOpen(true)}
+                aria-expanded={false}
+                aria-controls="app-sidebar"
+                aria-label="Abrir navegación"
+                title="Abrir navegación"
+              >
+                <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
+              </button>
+            )}
+            <DriveBootstrapBanner />
+            {workspaceAccessory ? (
+              <div className="workspace-row">
+                <ResizableGroup orientation="horizontal" className="workspace-resizable">
+                  <ResizablePanel defaultSize="62" minSize="30" className="workspace-panel-main">
+                    {children}
+                  </ResizablePanel>
+                  <ResizableHandle className="workspace-resize-handle" />
+                  <ResizablePanel
+                    defaultSize="38"
+                    minSize="22"
+                    className="workspace-panel-accessory"
+                  >
+                    {workspaceAccessory}
+                  </ResizablePanel>
+                </ResizableGroup>
+              </div>
+            ) : (
+              children
+            )}
+          </div>
         </div>
-      </div>
-    </>
+      </>
+    </TransitionGuardBoundary>
   );
 }

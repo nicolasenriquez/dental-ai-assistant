@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type MutableRefObject, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ApiError,
   type DriveFile,
@@ -6,6 +6,7 @@ import {
   createDriveFile,
   getDriveFile,
   getDriveStatus,
+  importDriveCopy,
   listDriveFiles,
   recreateDriveWorkspace,
   searchDriveFiles,
@@ -13,7 +14,8 @@ import {
   updateDriveFile,
 } from '../../lib/api';
 import { normalizeDriveFileName, serializeToPlainText } from '../../lib/driveDocument';
-import type { AuthoringRepresentation } from '../../lib/driveDocument';
+import { type AuthoringRepresentation, isDriveDocumentDirty } from '../../lib/driveDocument';
+import { openDrivePicker } from '../../lib/drivePicker';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Spinner } from '../Spinner';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
@@ -32,6 +34,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 
 interface OpenDoc {
   fileId: string | null;
+  boundPatientId: string | null;
   name: string;
   version: string | null;
   content: string;
@@ -39,16 +42,51 @@ interface OpenDoc {
   representation: AuthoringRepresentation;
 }
 
-interface DriveWorkspaceProps {
+export interface DriveWorkspaceHandle {
+  save: () => Promise<boolean>;
+  discard: () => void;
+}
+
+export interface DriveWorkspaceProps {
   patientId: string | null;
   draftSeed?: { name: string; content: string } | null;
+  onInsertToComposer?: (text: string) => void;
+  onDirtyStateChange?: (dirty: boolean) => void;
+  guardTransition?: (continuation: () => void) => void;
+  handleRef?: MutableRefObject<DriveWorkspaceHandle | null>;
 }
 
 function newOperationId(): string {
   return crypto.randomUUID();
 }
 
-export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspaceProps) {
+function normalizeLocalContentAfterSave(
+  content: string,
+  representation: AuthoringRepresentation,
+): string {
+  if (representation === 'persisted_plain_text') return content;
+  return `${content.replace(/\r\n?/g, '\n').replace(/\n+$/, '')}\n`;
+}
+
+function apiErrorCode(error: unknown): string | null {
+  if (!(error instanceof ApiError) || !error.body || typeof error.body !== 'object') return null;
+  const body = error.body as { error?: unknown; detail?: unknown };
+  if (typeof body.error === 'string') return body.error;
+  if (body.detail && typeof body.detail === 'object' && 'code' in body.detail) {
+    const code = (body.detail as { code?: unknown }).code;
+    return typeof code === 'string' ? code : null;
+  }
+  return null;
+}
+
+export function DriveWorkspace({
+  patientId,
+  draftSeed = null,
+  onInsertToComposer,
+  onDirtyStateChange,
+  guardTransition,
+  handleRef,
+}: DriveWorkspaceProps) {
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [files, setFiles] = useState<DriveFile[]>([]);
@@ -60,10 +98,31 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
   const [mode, setMode] = useState<'viewing' | 'editing'>('viewing');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState(false);
+  const [selectedText, setSelectedText] = useState('');
+  const [unknownWrite, setUnknownWrite] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [recreateDialog, setRecreateDialog] = useState<'missing' | 'recovery' | null>(null);
+  const patientIdRef = useRef(patientId);
   const isMobile = useMemo(() => window.matchMedia?.('(max-width: 767px)')?.matches ?? false, []);
+
+  const dirty = doc
+    ? isDriveDocumentDirty({
+        localAuthoringContent: doc.content,
+        authoringRepresentation: doc.representation,
+        persistedPlainTextBaseline: doc.baseline,
+      })
+    : false;
+
+  useEffect(() => {
+    patientIdRef.current = patientId;
+  }, [patientId]);
+
+  useEffect(() => {
+    onDirtyStateChange?.(dirty);
+  }, [dirty, onDirtyStateChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,12 +142,15 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
     setDoc(null);
     setMode('viewing');
     setSaved(false);
+    setSelectedText('');
+    setImported(false);
   }, [patientId]);
 
   useEffect(() => {
     if (!draftSeed) return;
     setDoc({
       fileId: null,
+      boundPatientId: patientId,
       name: normalizeDriveFileName(draftSeed.name),
       version: null,
       content: draftSeed.content,
@@ -98,6 +160,7 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
     setMode('editing');
     setDocPhase('ready');
     setSaved(false);
+    setSelectedText('');
   }, [draftSeed]);
 
   useEffect(() => {
@@ -108,7 +171,7 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
     setNextPageToken(null);
     listDriveFiles(patientId, undefined)
       .then((page) => {
-        if (cancelled) return;
+        if (cancelled || patientIdRef.current !== patientId) return;
         setFiles(page.files);
         setNextPageToken(page.next_page_token);
       })
@@ -162,8 +225,10 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
 
   const handleOpen = async (file: DriveFile) => {
     if (!patientId) return;
+    const boundPatientId = patientId;
     setDoc({
       fileId: file.id,
+      boundPatientId,
       name: file.name,
       version: file.version,
       content: '',
@@ -176,7 +241,7 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
     try {
       const content = await getDriveFile(file.id, patientId);
       setDoc((prev) =>
-        prev && prev.fileId === file.id
+        prev && prev.fileId === file.id && prev.boundPatientId === boundPatientId
           ? {
               ...prev,
               content: content.content,
@@ -194,18 +259,30 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
   };
 
   const closeDoc = () => {
+    if (dirty && guardTransition) {
+      guardTransition(closeDocNow);
+      return;
+    }
+    closeDocNow();
+  };
+
+  const closeDocNow = () => {
     setDoc(null);
     setMode('viewing');
     setSaved(false);
     setConflictOpen(false);
+    setSelectedText('');
+    setUnknownWrite(false);
   };
 
-  const handleSave = async () => {
-    if (!doc || !patientId) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (!doc || !patientId || doc.boundPatientId !== patientId) return false;
     const exportContent = serializeToPlainText(doc.content, doc.representation);
+    const savedLocalContent = normalizeLocalContentAfterSave(doc.content, doc.representation);
     const operationId = newOperationId();
     setSaving(true);
     setSaved(false);
+    setUnknownWrite(false);
     setErrorMessage(null);
     try {
       if (doc.fileId === null) {
@@ -217,7 +294,13 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
         });
         setDoc((prev) =>
           prev && prev.fileId === null
-            ? { ...prev, fileId: created.id, version: created.version, baseline: exportContent }
+            ? {
+                ...prev,
+                fileId: created.id,
+                version: created.version,
+                content: savedLocalContent,
+                baseline: exportContent,
+              }
             : prev,
         );
       } else {
@@ -229,7 +312,12 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
         });
         setDoc((prev) =>
           prev && prev.fileId === doc.fileId
-            ? { ...prev, version: updated.version, baseline: exportContent }
+            ? {
+                ...prev,
+                content: savedLocalContent,
+                version: updated.version,
+                baseline: exportContent,
+              }
             : prev,
         );
       }
@@ -238,11 +326,14 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
       if (err instanceof ApiError && err.status === 409) {
         setConflictOpen(true);
       } else {
+        setUnknownWrite(apiErrorCode(err) === 'DRIVE_WRITE_UNKNOWN');
         setErrorMessage('No se pudo completar la acción');
       }
+      return false;
     } finally {
       setSaving(false);
     }
+    return true;
   };
 
   const handleViewCurrentVersion = async () => {
@@ -271,6 +362,46 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
       setErrorMessage('No se pudo completar la acción');
     }
   };
+
+  const handleImport = async () => {
+    const boundPatientId = patientId;
+    if (!boundPatientId || importing) return;
+    setImporting(true);
+    setImported(false);
+    setErrorMessage(null);
+    try {
+      const sourceFileId = await openDrivePicker(boundPatientId);
+      if (!sourceFileId || patientIdRef.current !== boundPatientId) return;
+      await importDriveCopy({
+        patient_id: boundPatientId,
+        operation_id: newOperationId(),
+        source_file_id: sourceFileId,
+      });
+      if (patientIdRef.current !== boundPatientId) return;
+      const page = await listDriveFiles(boundPatientId, undefined);
+      if (patientIdRef.current !== boundPatientId) return;
+      setFiles(page.files);
+      setNextPageToken(page.next_page_token);
+      setImported(true);
+    } catch {
+      setErrorMessage('No se pudo completar la acción');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleInsert = (text: string) => {
+    if (!patientId || !doc || doc.boundPatientId !== patientId || !onInsertToComposer) return;
+    onInsertToComposer(text);
+  };
+
+  useEffect(() => {
+    if (!handleRef) return;
+    handleRef.current = { save: handleSave, discard: closeDocNow };
+    return () => {
+      if (handleRef.current?.save === handleSave) handleRef.current = null;
+    };
+  });
 
   const documentView = doc ? (
     <div className="drive-doc">
@@ -311,6 +442,28 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
             Editar
           </button>
         </div>
+        {onInsertToComposer && (
+          <div className="drive-doc-transfer-actions">
+            {mode === 'editing' && selectedText && (
+              <button
+                type="button"
+                className="drive-btn drive-btn-secondary"
+                disabled={!patientId || doc.boundPatientId !== patientId}
+                onClick={() => handleInsert(selectedText)}
+              >
+                Insertar selección en el chat
+              </button>
+            )}
+            <button
+              type="button"
+              className="drive-btn drive-btn-secondary"
+              disabled={!patientId || doc.boundPatientId !== patientId}
+              onClick={() => handleInsert(doc.content)}
+            >
+              Insertar en el chat
+            </button>
+          </div>
+        )}
         {mode === 'editing' && (
           <button
             type="button"
@@ -344,6 +497,10 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
             onChange={(event) =>
               setDoc((prev) => (prev ? { ...prev, content: event.target.value } : prev))
             }
+            onSelect={(event) => {
+              const target = event.currentTarget;
+              setSelectedText(target.value.slice(target.selectionStart, target.selectionEnd));
+            }}
           />
         ) : doc.representation === 'persisted_plain_text' ? (
           <pre className="drive-doc-pre">{doc.content}</pre>
@@ -477,9 +634,19 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
                     if (event.key === 'Enter') void handleSearch();
                   }}
                 />
-                <button type="button" className="drive-btn drive-btn-secondary">
-                  Importar una copia
+                <button
+                  type="button"
+                  className="drive-btn drive-btn-secondary"
+                  onClick={() => void handleImport()}
+                  disabled={importing}
+                >
+                  {importing ? 'Importando…' : 'Importar una copia'}
                 </button>
+                {imported && (
+                  <span className="drive-doc-saved" role="status">
+                    Copia importada
+                  </span>
+                )}
               </div>
               {doc ? null : (
                 <div className="drive-list">
@@ -523,6 +690,9 @@ export function DriveWorkspace({ patientId, draftSeed = null }: DriveWorkspacePr
         <Alert>
           <AlertTitle>No se pudo completar la acción</AlertTitle>
           <AlertDescription>Tu trabajo local se conserva.</AlertDescription>
+          {unknownWrite && (
+            <AlertDescription>Actualiza la lista antes de volver a guardar.</AlertDescription>
+          )}
         </Alert>
       )}
       {connectionContent}

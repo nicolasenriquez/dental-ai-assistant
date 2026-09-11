@@ -13,6 +13,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useConversations } from '../hooks/useConversations';
 import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { useToast } from '../hooks/useToast';
+import { useOptionalTransitionGuard } from '../hooks/useTransitionGuard';
 import { acquireConversation, deleteConversation } from '../lib/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { VideoExplorer } from './VideoExplorer';
@@ -116,6 +117,7 @@ export function Sidebar({
   utilities = [],
 }: SidebarProps) {
   const navigate = useNavigate();
+  const transitionGuard = useOptionalTransitionGuard();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -132,6 +134,11 @@ export function Sidebar({
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { addToast } = useToast();
+
+  const guardTransition = (continuation: () => void) => {
+    if (transitionGuard) transitionGuard.guardTransition(continuation);
+    else continuation();
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 250);
@@ -165,22 +172,32 @@ export function Sidebar({
     setDeleteError(false);
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!confirmId) return;
+  const deleteConversationNow = async (conversationId: string) => {
     setDeleting(true);
     setDeleteError(false);
     try {
-      const response = await deleteConversation(confirmId);
+      const response = await deleteConversation(conversationId);
       if (!response.ok && response.status !== 204) throw new Error('Delete failed');
       setConfirmId(null);
       await refetch();
-      if (activeConversationId === confirmId) navigate('/chat');
+      if (activeConversationId === conversationId) navigate('/chat');
     } catch (deleteFailure) {
       console.error('[Sidebar] Delete conversation failed:', deleteFailure);
       setDeleteError(true);
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!confirmId) return;
+    const conversationId = confirmId;
+    if (activeConversationId === conversationId) {
+      setConfirmId(null);
+      guardTransition(() => void deleteConversationNow(conversationId));
+      return;
+    }
+    void deleteConversationNow(conversationId);
   };
 
   const handleRename = async (id: string, title: string) => {
@@ -231,7 +248,7 @@ export function Sidebar({
             showConversations={showConversations}
             creatingNew={creatingNew}
             onClose={onClose}
-            onNewChat={handleNewChat}
+            onNewChat={() => guardTransition(() => void handleNewChat())}
           />
 
           {secondaryContent && <div className="sidebar-secondary-scroll">{secondaryContent}</div>}
@@ -261,10 +278,12 @@ export function Sidebar({
                   isCollapsed={isCollapsed}
                   activeConversationId={activeConversationId}
                   runtimeByConversationId={runtimeByConversationId}
-                  onNewChat={handleNewChat}
+                  onNewChat={() => guardTransition(() => void handleNewChat())}
                   onSelect={(id) => {
-                    navigate(`/c/${id}`);
-                    onClose();
+                    guardTransition(() => {
+                      navigate(`/c/${id}`);
+                      onClose();
+                    });
                   }}
                   onDeleteRequest={handleDeleteRequest}
                   onRename={handleRename}
@@ -333,7 +352,7 @@ export function Sidebar({
               isCollapsed={isCollapsed}
               loggingOut={loggingOut}
               onClose={onClose}
-              onLogout={handleLogout}
+              onLogout={() => guardTransition(() => void handleLogout())}
             />
           )}
           <span className="sidebar-footer-brand sidebar-label">Dental AI Assistant</span>

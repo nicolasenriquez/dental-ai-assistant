@@ -2,14 +2,19 @@ import { Stethoscope } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
 import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
-import { type ClinicalDraft, type Patient, getPatients } from '../../lib/api';
+import { type ClinicalDraft, type ClinicalPatient, type Patient, getPatients } from '../../lib/api';
 import { WorkspaceHeader } from '../WorkspaceHeader';
+import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { ClinicalComposer } from './ClinicalComposer';
 import { ClinicalTranscript } from './ClinicalTranscript';
 
 interface ClinicalAssistantAreaProps {
   threadId: string;
   onThreadStateChanged?: () => void;
+  guardTransition?: (continuation: () => void) => void;
+  onActivePatientChange?: (patient: ClinicalPatient | null) => void;
+  onComposerInsertReady?: (insert: (text: string) => void) => void;
+  onSaveToDrive?: (seed: { name: string; content: string }) => void;
 }
 
 type QueuedEntry = { id: string; content: string; patientId: string | null; patientName: string };
@@ -17,6 +22,10 @@ type QueuedEntry = { id: string; content: string; patientId: string | null; pati
 export function ClinicalAssistantArea({
   threadId,
   onThreadStateChanged,
+  guardTransition,
+  onActivePatientChange,
+  onComposerInsertReady,
+  onSaveToDrive,
 }: ClinicalAssistantAreaProps) {
   const assistant = useClinicalAssistant(threadId);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -51,6 +60,25 @@ export function ClinicalAssistantArea({
   const voice = useVoiceDictation(voiceScope, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const activePatient = assistant.thread?.active_patient ?? null;
+
+  const insertIntoComposer = useCallback(
+    (text: string) => {
+      if (!text) return;
+      setValue((current) => (current ? `${current}\n${text}` : text));
+      textareaRef.current?.focus();
+    },
+    [setValue],
+  );
+
+  useEffect(() => {
+    onActivePatientChange?.(activePatient);
+  }, [activePatient?.id, onActivePatientChange]);
+
+  useEffect(() => {
+    onComposerInsertReady?.(insertIntoComposer);
+    return () => onComposerInsertReady?.(() => undefined);
+  }, [insertIntoComposer, onComposerInsertReady]);
 
   const loadPatients = useCallback(async () => {
     setPatientsLoading(true);
@@ -148,6 +176,22 @@ export function ClinicalAssistantArea({
         onDraftSourceChange={assistant.updateDraftSource}
         onDraftDateChange={assistant.updateDraftDate}
         onDraftRegenerate={(item) => void assistant.regenerateDraft(item)}
+        onSaveToDrive={
+          onSaveToDrive
+            ? (item) => onSaveToDrive({ name: 'Respuesta del asistente', content: item.content })
+            : undefined
+        }
+        onSaveDraftToDrive={
+          onSaveToDrive
+            ? (item) =>
+                onSaveToDrive({
+                  name: 'Evolución propuesta',
+                  content: composeClinicalDraft(item.draft),
+                })
+            : undefined
+        }
+        driveTransferDisabled={!activePatient}
+        activePatientId={activePatient?.id}
         onPrepare={(item) => {
           setPreparingDraftId(item.id);
           void assistant.prepareDraft(item).then((approval) => {
@@ -221,7 +265,10 @@ export function ClinicalAssistantArea({
             <button
               type="button"
               className="clinical-primary-button"
-              onClick={() => void assistant.confirmPatientSwitch()}
+              onClick={() => {
+                const change = () => void assistant.confirmPatientSwitch();
+                guardTransition ? guardTransition(change) : change();
+              }}
               disabled={voiceInFlight}
             >
               Cambiar paciente
@@ -266,7 +313,10 @@ export function ClinicalAssistantArea({
                     <button
                       type="button"
                       className="clinical-secondary-button"
-                      onClick={() => void assistant.setActivePatient(queued[0].patientId)}
+                      onClick={() => {
+                        const change = () => void assistant.setActivePatient(queued[0].patientId);
+                        guardTransition ? guardTransition(change) : change();
+                      }}
                       disabled={voiceInFlight}
                     >
                       Volver a {queued[0].patientName}
@@ -290,7 +340,10 @@ export function ClinicalAssistantArea({
             }
             textareaRef={textareaRef}
             onChange={setValue}
-            onPatientChange={(patientId) => void assistant.setActivePatient(patientId)}
+            onPatientChange={(patientId) => {
+              const change = () => void assistant.setActivePatient(patientId);
+              guardTransition ? guardTransition(change) : change();
+            }}
             onSubmit={send}
             voice={{
               state: voice.state,
