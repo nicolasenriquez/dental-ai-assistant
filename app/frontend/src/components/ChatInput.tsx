@@ -19,6 +19,7 @@ export interface ChatInputHandle {
   /** Restore text to the input (e.g. after a failed send) and focus */
   setInputText: (text: string) => void;
   focus: () => void;
+  getTextarea: () => HTMLTextAreaElement | null;
 }
 
 interface ChatInputProps {
@@ -101,6 +102,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           textareaRef.current?.focus();
         },
         focus: () => textareaRef.current?.focus(),
+        getTextarea: () => textareaRef.current,
       }),
       [setValue],
     );
@@ -124,13 +126,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const handleKeyDown = useCallback(
       (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === 'Escape' && voiceInFlight) {
+          event.preventDefault();
+          onCancelVoice?.();
+          return;
+        }
         if (event.key === 'Enter' && !event.shiftKey) {
+          if (event.nativeEvent.isComposing) return;
           event.preventDefault();
           if (isSubmitDisabled) return;
           handleSend();
         }
       },
-      [handleSend, isSubmitDisabled],
+      [handleSend, isSubmitDisabled, onCancelVoice, voiceInFlight],
     );
 
     return (

@@ -199,4 +199,36 @@ describe('ClinicalComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Detener grabación' }));
     expect(onStop).toHaveBeenCalledTimes(1);
   });
+
+  it('cancels voice on Escape and ignores Enter during IME composition', () => {
+    const onCancel = vi.fn();
+    const onSubmit = vi.fn();
+    render(
+      <ClinicalComposer
+        patient={patient}
+        patients={patients}
+        value="Nota"
+        busy={false}
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onPatientChange={vi.fn()}
+        onSubmit={onSubmit}
+        voice={{
+          state: 'recording',
+          elapsed: 0,
+          error: null,
+          canRetry: false,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onCancel,
+          onRetry: vi.fn(),
+        }}
+      />,
+    );
+    const input = screen.getByRole('textbox', { name: 'Nota clínica' });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

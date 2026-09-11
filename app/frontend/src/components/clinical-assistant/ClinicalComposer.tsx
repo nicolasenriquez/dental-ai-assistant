@@ -92,12 +92,13 @@ export function ClinicalComposer({
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
   }, [patientPickerOpen]);
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Escape' && voice.state === 'recording') {
+    if (event.key === 'Escape' && voiceInFlight) {
       event.preventDefault();
       voice.onCancel();
       return;
     }
     if (event.key === 'Enter' && !event.shiftKey) {
+      if (event.nativeEvent.isComposing) return;
       event.preventDefault();
       if (submitDisabled || voiceInFlight) return;
       onSubmit();

@@ -3,6 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
 import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
 import { type ClinicalDraft, type ClinicalPatient, type Patient, getPatients } from '../../lib/api';
+import {
+  type ComposerSelection,
+  captureComposerSelection,
+  insertTranscript,
+} from '../../lib/composerSelection';
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { ClinicalComposer } from './ClinicalComposer';
@@ -35,6 +40,10 @@ export function ClinicalAssistantArea({
   const [queueByThread, setQueueByThread] = useState<Record<string, QueuedEntry[]>>({});
   const [preparingDraftId, setPreparingDraftId] = useState<string | null>(null);
   const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
+  const voiceCaretRef = useRef<number | null>(null);
+  const previousVoiceInFlightRef = useRef(false);
   const value = draftByThread[threadId] ?? '';
   const queued = queueByThread[threadId] ?? [];
   const setValue = useCallback(
@@ -54,13 +63,30 @@ export function ClinicalAssistantArea({
   );
   const voiceScope = `clinical:${threadId}:${assistant.thread?.active_patient?.id ?? 'none'}`;
   const appendVoiceText = useCallback(
-    (text: string) => setValue((current) => (current ? `${current}\n${text}` : text)),
+    (text: string) =>
+      setValue((current) => {
+        const inserted = insertTranscript(current, text, voiceSelectionRef.current);
+        voiceCaretRef.current = inserted.caret;
+        return inserted.value;
+      }),
     [setValue],
   );
   const voice = useVoiceDictation(voiceScope, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const activePatient = assistant.thread?.active_patient ?? null;
+
+  useEffect(() => {
+    if (previousVoiceInFlightRef.current && !voiceInFlight) {
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        if (textareaRef.current && voiceCaretRef.current !== null) {
+          textareaRef.current.setSelectionRange(voiceCaretRef.current, voiceCaretRef.current);
+          voiceCaretRef.current = null;
+        }
+      });
+    }
+    previousVoiceInFlightRef.current = voiceInFlight;
+  }, [voiceInFlight]);
 
   const insertIntoComposer = useCallback(
     (text: string) => {
@@ -351,7 +377,10 @@ export function ClinicalAssistantArea({
               error: voice.error,
               canRetry: voice.canRetry,
               stream: voice.stream,
-              onStart: () => void voice.start(),
+              onStart: () => {
+                voiceSelectionRef.current = captureComposerSelection(textareaRef.current);
+                void voice.start();
+              },
               onStop: voice.stop,
               onCancel: voice.cancel,
               onRetry: voice.retry,

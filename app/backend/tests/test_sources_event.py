@@ -989,7 +989,10 @@ class TestRefusalSourcesSuppressionIntegration:
                 }
             return None
 
+        persisted_messages = []
+
         async def mock_create_message(**kwargs):
+            persisted_messages.append(kwargs)
             return {"id": str(uuid4()), **kwargs}
 
         async def mock_list_messages(conv_id, user_id):
@@ -1021,6 +1024,7 @@ class TestRefusalSourcesSuppressionIntegration:
             f"Expected 'event: sources' in output for normal answer, but got: {output}"
         )
         assert "data: [DONE]" in output
+        assert persisted_messages[-1]["termination_reason"] == "completed"
 
 
 class TestChunkExpansionIntegration:

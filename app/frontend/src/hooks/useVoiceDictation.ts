@@ -186,7 +186,7 @@ export function useVoiceDictation(scopeId: string, onText: (text: string) => voi
     if (!mountedRef.current) return;
     setError(null);
     setRetryable(false);
-    updateState('cancelled');
+    updateState('idle');
   }, [invalidate, updateState]);
 
   const canRetry = state === 'error' && retryable && blobRef.current !== null;

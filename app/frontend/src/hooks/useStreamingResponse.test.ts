@@ -70,7 +70,11 @@ describe('useStreamingResponse', () => {
       streamResult = await result.current.startStream('conv-1', 'hi');
     });
 
-    expect(streamResult).toEqual({ fullText: 'Answer here.', sources: [mockCitation] });
+    expect(streamResult).toEqual({
+      fullText: 'Answer here.',
+      sources: [mockCitation],
+      terminationReason: 'completed',
+    });
     expect(result.current.runtimeByConversationId['conv-1']).toMatchObject({
       status: 'running',
       phase: 'completed',
@@ -136,6 +140,9 @@ describe('useStreamingResponse', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/runs/')) {
+          return Promise.resolve({ ok: true, status: 202, body: null });
+        }
         const id = String(input).includes('/a/') ? 'a' : 'b';
         init?.signal?.addEventListener('abort', () => {
           streams[id].fail(new DOMException('Aborted', 'AbortError'));
@@ -159,7 +166,7 @@ describe('useStreamingResponse', () => {
       await expect(aPromise).resolves.toMatchObject({ fullText: '', stopped: true });
     });
 
-    expect(result.current.runtimeByConversationId.a?.phase).toBe('stopping');
+    expect(result.current.runtimeByConversationId.a?.phase).toBe('completed');
     expect(result.current.runtimeByConversationId.b?.status).toBe('running');
 
     await act(async () => {

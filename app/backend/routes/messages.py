@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncGenerator
 from typing import Any, cast
 
@@ -40,10 +41,12 @@ from backend.rag.tools import TOOL_SCHEMAS, execute_tool, serialize_tool_result
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+_cancelled_runs: dict[str, asyncio.Event] = {}
 
 
 class MessageCreate(BaseModel):
     content: str = Field(..., min_length=1, description="Message content (non-empty)")
+    run_id: str | None = Field(default=None, min_length=1, max_length=100)
 
     @field_validator("content", mode="before")
     @classmethod
@@ -73,6 +76,7 @@ async def create_message(
         Final event: "data: [DONE]\n\n"
     """
     user_id = str(current_user["id"])
+    run_started_at = time.monotonic()
 
     # 1. Verify conversation exists AND belongs to current user.
     # 404 (not 403) — don't leak existence of other users' conversations.
@@ -97,6 +101,10 @@ async def create_message(
                 "reset_at": exc.reset_at.isoformat(),
             },
         )
+
+    cancel_event = asyncio.Event()
+    if body.run_id:
+        _cancelled_runs[f"{user_id}:{conv_id}:{body.run_id}"] = cancel_event
 
     # Content is already validated non-empty by Pydantic; strip for storage
     user_content = body.content.strip()
@@ -174,6 +182,7 @@ async def create_message(
         # Two-tier citations (issue #176): strip `[c:<id>]` markers from the
         # stream; use them at [DONE] to flag is_cited on retrieved chunks.
         marker_stripper = CitationMarkerStripper()
+        completed = False
         try:
             async for sse_chunk in stream_chat(
                 llm_messages,
@@ -182,7 +191,10 @@ async def create_message(
                 max_tool_calls=max_tool_calls,
                 final_text_out=final_text_buf,
             ):
+                if cancel_event.is_set():
+                    break
                 if sse_chunk == "data: [DONE]\n\n":
+                    completed = True
                     # Flush any text held back as a partial marker.
                     tail = marker_stripper.flush()
                     if tail:
@@ -270,6 +282,13 @@ async def create_message(
                             role="assistant",
                             content=assistant_text,
                             sources=sources_to_persist,
+                            termination_reason=(
+                                "completed"
+                                if completed
+                                else "user_cancelled"
+                                if cancel_event.is_set()
+                                else "client_disconnected"
+                            ),
                         )
                     )
                 except asyncio.CancelledError:
@@ -289,12 +308,44 @@ async def create_message(
                     pass
                 except Exception as exc:
                     logger.warning("Failed to update conversation title: %s", exc)
+            if body.run_id:
+                _cancelled_runs.pop(f"{user_id}:{conv_id}:{body.run_id}", None)
+            logger.info(
+                "conversation.run.settled",
+                extra={
+                    "conversation_id": conv_id,
+                    "run_id": body.run_id,
+                    "termination_reason": (
+                        "completed"
+                        if completed
+                        else "user_cancelled"
+                        if cancel_event.is_set()
+                        else "client_disconnected"
+                    ),
+                    "duration_ms": round((time.monotonic() - run_started_at) * 1000),
+                },
+            )
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/conversations/{conv_id}/runs/{run_id}/cancel", status_code=202)
+async def cancel_run(
+    conv_id: str,
+    run_id: str,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    user_id = str(current_user["id"])
+    if not await repository.get_conversation(conv_id, user_id=user_id):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    event = _cancelled_runs.get(f"{user_id}:{conv_id}:{run_id}")
+    if event:
+        event.set()
+    return {"status": "cancelling"}
 
 
 # ---------------------------------------------------------------------------

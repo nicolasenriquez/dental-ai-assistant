@@ -106,7 +106,7 @@ describe('useVoiceDictation', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(result.current.state).toBe('cancelled');
+    expect(result.current.state).toBe('idle');
     expect(onText).not.toHaveBeenCalled();
   });
 

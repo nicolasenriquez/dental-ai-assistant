@@ -6,6 +6,7 @@ export interface StreamResult {
   fullText: string;
   sources: Citation[];
   stopped?: boolean;
+  terminationReason?: 'completed' | 'user_cancelled';
 }
 
 export interface StreamingStatus {
@@ -40,7 +41,7 @@ export function useStreamingResponse() {
   const [runtimeByConversationId, setRuntimeByConversationId] = useState<RuntimeByConversationId>(
     {},
   );
-  const streamAbortRef = useRef(new Map<string, AbortController>());
+  const streamAbortRef = useRef(new Map<string, { controller: AbortController; runId: string }>());
 
   const clearRuntime = useCallback((conversationId: string) => {
     setRuntimeByConversationId((current) => {
@@ -61,7 +62,12 @@ export function useStreamingResponse() {
         },
       }));
     }
-    streamAbortRef.current.get(conversationId)?.abort();
+    const active = streamAbortRef.current.get(conversationId);
+    if (!active) return;
+    void fetch(`/api/conversations/${conversationId}/runs/${active.runId}/cancel`, {
+      method: 'POST',
+      credentials: 'include',
+    }).finally(() => active.controller.abort());
   }, []);
 
   const startStream = useCallback(
@@ -71,7 +77,8 @@ export function useStreamingResponse() {
       }
 
       const abortController = new AbortController();
-      streamAbortRef.current.set(conversationId, abortController);
+      const runId = crypto.randomUUID();
+      streamAbortRef.current.set(conversationId, { controller: abortController, runId });
       setRuntimeByConversationId((current) => ({
         ...current,
         [conversationId]: {
@@ -94,7 +101,7 @@ export function useStreamingResponse() {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: userMessage }),
+          body: JSON.stringify({ content: userMessage, run_id: runId }),
           signal: abortController.signal,
         });
 
@@ -235,17 +242,17 @@ export function useStreamingResponse() {
             sources,
           },
         }));
-        return { fullText, sources };
+        return { fullText, sources, terminationReason: 'completed' };
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
           setRuntimeByConversationId((current) => ({
             ...current,
             [conversationId]: {
               ...current[conversationId],
-              phase: 'stopping',
+              phase: 'completed',
             },
           }));
-          return { fullText, sources, stopped: true };
+          return { fullText, sources, stopped: true, terminationReason: 'user_cancelled' };
         }
 
         const streamError = error instanceof Error ? error : new Error(String(error));
@@ -264,7 +271,7 @@ export function useStreamingResponse() {
         }));
         throw streamError;
       } finally {
-        if (streamAbortRef.current.get(conversationId) === abortController) {
+        if (streamAbortRef.current.get(conversationId)?.controller === abortController) {
           streamAbortRef.current.delete(conversationId);
         }
       }
@@ -274,7 +281,7 @@ export function useStreamingResponse() {
 
   useEffect(() => {
     return () => {
-      for (const controller of streamAbortRef.current.values()) controller.abort();
+      for (const { controller } of streamAbortRef.current.values()) controller.abort();
       streamAbortRef.current.clear();
     };
   }, []);

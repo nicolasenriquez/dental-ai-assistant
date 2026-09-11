@@ -147,5 +147,24 @@ describe('ChatInput', () => {
       expect(onStopVoice).toHaveBeenCalledTimes(1);
       expect(onCancelVoice).toHaveBeenCalledTimes(1);
     });
+
+    it('cancels active voice on Escape and does not submit during IME composition', () => {
+      const onSend = vi.fn();
+      const onCancelVoice = vi.fn();
+      render(
+        <ChatInput
+          value="Nota"
+          onValueChange={vi.fn()}
+          onSend={onSend}
+          voiceState="recording"
+          onCancelVoice={onCancelVoice}
+        />,
+      );
+      const input = screen.getByRole('textbox');
+      fireEvent.keyDown(input, { key: 'Escape' });
+      fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+      expect(onCancelVoice).toHaveBeenCalledTimes(1);
+      expect(onSend).not.toHaveBeenCalled();
+    });
   });
 });

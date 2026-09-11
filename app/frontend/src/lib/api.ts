@@ -84,6 +84,14 @@ export interface Message {
   created_at: string;
   /** RAG citations — only populated for freshly-streamed assistant messages */
   sources?: Citation[];
+  termination_reason?:
+    | 'completed'
+    | 'user_cancelled'
+    | 'client_disconnected'
+    | 'provider_timeout'
+    | 'length'
+    | 'failed'
+    | null;
 }
 
 export interface ConversationWithMessages extends Conversation {

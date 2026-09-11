@@ -15,6 +15,11 @@ import { useToast } from '../hooks/useToast';
 import { isVoiceInFlight, useVoiceDictation } from '../hooks/useVoiceDictation';
 import type { Citation, Message as MessageType } from '../lib/api';
 import { RateLimitError, acquireConversation } from '../lib/api';
+import {
+  type ComposerSelection,
+  captureComposerSelection,
+  insertTranscript,
+} from '../lib/composerSelection';
 import { exportConversationAsMarkdown } from '../lib/exportMarkdown';
 import { ChatInput, type ChatInputHandle } from './ChatInput';
 import { CitationModal } from './CitationModal';
@@ -250,6 +255,9 @@ export function ChatArea({
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   const [stoppedMessageIds, setStoppedMessageIds] = useState<Set<string>>(new Set());
   const restoredConversationIdRef = useRef<string | null>(null);
+  const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
+  const voiceCaretRef = useRef<number | null>(null);
+  const previousVoiceInFlightRef = useRef(false);
 
   useLayoutEffect(() => {
     const area = chatAreaRef.current;
@@ -305,12 +313,28 @@ export function ChatArea({
     const key = currentConversationIdRef.current ?? NEW_CHAT_KEY;
     setDrafts((current) => {
       const draft = current[key] ?? '';
-      return { ...current, [key]: draft ? `${draft}\n${text}` : text };
+      const inserted = insertTranscript(draft, text, voiceSelectionRef.current);
+      voiceCaretRef.current = inserted.caret;
+      return { ...current, [key]: inserted.value };
     });
   }, []);
   const voice = useVoiceDictation(`chat:${currentKey}`, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
   voiceInFlightRef.current = voiceInFlight;
+
+  useEffect(() => {
+    if (previousVoiceInFlightRef.current && !voiceInFlight) {
+      requestAnimationFrame(() => {
+        const textarea = chatInputRef.current?.getTextarea();
+        textarea?.focus();
+        if (textarea && voiceCaretRef.current !== null) {
+          textarea.setSelectionRange(voiceCaretRef.current, voiceCaretRef.current);
+          voiceCaretRef.current = null;
+        }
+      });
+    }
+    previousVoiceInFlightRef.current = voiceInFlight;
+  }, [voiceInFlight]);
 
   const setDraft = useCallback((value: string) => {
     const key = currentConversationIdRef.current ?? NEW_CHAT_KEY;
@@ -416,6 +440,7 @@ export function ChatArea({
             content: result.fullText,
             created_at: new Date().toISOString(),
             sources: result.sources.length > 0 ? result.sources : undefined,
+            termination_reason: result.terminationReason,
           };
           setMessages((previous) => [...previous, assistantMessage]);
           if (result.stopped)
@@ -653,7 +678,11 @@ export function ChatArea({
                   content={message.content}
                   sources={message.sources}
                   statusText={
-                    stoppedMessageIds.has(message.id) ? 'Generación detenida.' : undefined
+                    stoppedMessageIds.has(message.id) ||
+                    message.termination_reason === 'user_cancelled' ||
+                    message.termination_reason === 'client_disconnected'
+                      ? 'Generación detenida.'
+                      : undefined
                   }
                   onCitationClick={handleCitationClick}
                 />
@@ -739,7 +768,12 @@ export function ChatArea({
             voiceError={voice.error}
             voiceCanRetry={voice.canRetry}
             voiceStream={voice.stream}
-            onVoice={() => void voice.start()}
+            onVoice={() => {
+              voiceSelectionRef.current = captureComposerSelection(
+                chatInputRef.current?.getTextarea() ?? null,
+              );
+              void voice.start();
+            }}
             onStopVoice={voice.stop}
             onCancelVoice={voice.cancel}
             onRetryVoice={voice.retry}

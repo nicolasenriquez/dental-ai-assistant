@@ -576,6 +576,7 @@ async def create_message(
     role: str,
     content: str,
     sources: list[dict] | None = None,
+    termination_reason: str | None = None,
 ) -> dict | None:
     """Insert a message. Returns None if the conversation does not belong to the user."""
     msg_id = _new_id()
@@ -587,10 +588,11 @@ async def create_message(
         # if a route handler forgets to check.
         result = await conn.execute(
             """
-            INSERT INTO messages (id, conversation_id, role, content, sources, created_at)
-            SELECT $1, $2, $3, $4, $5::jsonb, $6
+            INSERT INTO messages
+                (id, conversation_id, role, content, sources, termination_reason, created_at)
+            SELECT $1, $2, $3, $4, $5::jsonb, $6, $7
             WHERE EXISTS (
-                SELECT 1 FROM conversations WHERE id = $7 AND user_id = $8
+                SELECT 1 FROM conversations WHERE id = $8 AND user_id = $9
             )
             """,
             msg_id,
@@ -598,6 +600,7 @@ async def create_message(
             role,
             content,
             sources_json,
+            termination_reason,
             now,
             conversation_id,
             user_id,
@@ -611,6 +614,7 @@ async def create_message(
         "role": role,
         "content": content,
         "sources": sources,
+        "termination_reason": termination_reason,
         "created_at": now,
     }
 
