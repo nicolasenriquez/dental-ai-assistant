@@ -180,6 +180,60 @@ async def set_revoked(user_id: UUID | str) -> dict[str, Any] | None:
     return await _set_terminal(user_id, "revoked")
 
 
+async def set_pending_folder_operation(
+    user_id: UUID | str, operation_id: UUID | str
+) -> dict[str, Any] | None:
+    """Persist the folder operation marker BEFORE any Google folder create."""
+    pool = get_pg_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            f"""
+            UPDATE google_drive_connections
+            SET pending_folder_operation_id = $2, updated_at = now()
+            WHERE user_id = $1
+            RETURNING {_CONNECTION_COLUMNS}
+            """,
+            _to_uuid(user_id),
+            _to_uuid(operation_id),
+        )
+    return dict(row) if row else None
+
+
+async def complete_folder_operation(
+    user_id: UUID | str,
+    *,
+    folder_id: str,
+    folder_name: str,
+    operation_id: UUID | str,
+) -> dict[str, Any] | None:
+    """Atomically persist the created/reconciled folder as sole authority."""
+    pool = get_pg_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            f"""
+            UPDATE google_drive_connections
+            SET folder_id = $2, folder_name = $3,
+                folder_creation_operation_id = $4,
+                pending_folder_operation_id = NULL,
+                updated_at = now()
+            WHERE user_id = $1
+            RETURNING {_CONNECTION_COLUMNS}
+            """,
+            _to_uuid(user_id),
+            folder_id,
+            folder_name,
+            _to_uuid(operation_id),
+        )
+    return dict(row) if row else None
+
+
+async def mark_workspace_recovery_pending(
+    user_id: UUID | str, operation_id: UUID | str
+) -> dict[str, Any] | None:
+    """Record an ambiguous create so later requests reconcile, never replace."""
+    return await set_pending_folder_operation(user_id, operation_id)
+
+
 async def create_oauth_transaction(
     *,
     state_hash: bytes,

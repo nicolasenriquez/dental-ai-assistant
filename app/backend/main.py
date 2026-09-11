@@ -122,6 +122,26 @@ async def add_popup_security_headers(
     return response
 
 
+# Transport cap for Drive request bodies: 8 MiB before JSON parsing (the
+# decoded persisted content cap stays at 1 MiB). ASGI boundary, so oversized
+# bodies never reach validation, route code, or Google.
+DRIVE_REQUEST_BODY_LIMIT = 8 * 1024 * 1024
+
+
+@app.middleware("http")
+async def drive_request_body_limit(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    if request.url.path.startswith("/api/google-drive/"):
+        content_length = request.headers.get("content-length", "")
+        if content_length.isdigit() and int(content_length) > DRIVE_REQUEST_BODY_LIMIT:
+            return JSONResponse(status_code=413, content={"error": "DRIVE_REQUEST_TOO_LARGE"})
+        body = await request.body()
+        if len(body) > DRIVE_REQUEST_BODY_LIMIT:
+            return JSONResponse(status_code=413, content={"error": "DRIVE_REQUEST_TOO_LARGE"})
+    return await call_next(request)
+
+
 # ---------------------------------------------------------------------------
 # Routes (imported here to keep main.py clean)
 # ---------------------------------------------------------------------------

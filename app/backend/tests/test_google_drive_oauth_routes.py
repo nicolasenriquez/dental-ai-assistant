@@ -229,6 +229,8 @@ def fake_google_integrations(monkeypatch):
         "revoked": [],
         "about_calls": [],
         "folder_calls": [],
+        "refresh_calls": [],
+        "get_folder_calls": [],
         "token_result": types.SimpleNamespace(
             access_token="access-token-xyz",
             refresh_token="refresh-token-xyz",
@@ -278,12 +280,32 @@ def fake_google_integrations(monkeypatch):
         )
         return {"id": "folder-1", "name": name}
 
+    async def refresh_access_token(refresh_token):
+        box["refresh_calls"].append(refresh_token)
+        return box["token_result"]
+
+    async def get_folder(access_token, folder_id):
+        box["get_folder_calls"].append((access_token, folder_id))
+        return {
+            "id": folder_id,
+            "name": "Dental AI Assistant",
+            "mimeType": "application/vnd.google-apps.folder",
+            "trashed": False,
+            "appProperties": {
+                "managedBy": "dental-ai-assistant",
+                "workspaceSchema": "1",
+                "creationOperationId": "folder-op-old",
+            },
+        }
+
     fns = {
         "build_authorization_url": build_authorization_url,
         "exchange_code": exchange_code,
         "revoke_token": revoke_token,
         "about_user_email": about_user_email,
         "create_folder": create_folder,
+        "refresh_access_token": refresh_access_token,
+        "get_folder": get_folder,
     }
     for name, fn in fns.items():
         monkeypatch.setattr(oauth_mod, name, fn, raising=False)
