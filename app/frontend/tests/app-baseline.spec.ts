@@ -118,6 +118,19 @@ async function mockPatientWorkspace(page: Page) {
   await mockJsonRoute(page, `**/api/evolutions/${evolutionIdsFixture[0]}`, evolutionDetailFixture);
 }
 
+async function signIn(page: Page): Promise<void> {
+  const email = process.env.E2E_USER;
+  const password = process.env.E2E_PASSWORD;
+  if (!email || !password) {
+    throw new Error('E2E_USER and E2E_PASSWORD are required for the authenticated baseline.');
+  }
+
+  await page.getByLabel('Correo electrónico').fill(email);
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page).toHaveURL(/\/patients\/?$/);
+}
+
 async function captureView(page: Page, name: string, fullPage = true) {
   const appShell = page.locator('.app-layout');
   const snapshotTarget = (await appShell.count()) > 0 ? appShell : page.locator('body');
@@ -148,12 +161,14 @@ async function mockJsonRoute(page: Page, url: string | RegExp, body: unknown, me
 
 test('captures public views and patients workflow', async ({ page }) => {
   await page.clock.install({ time: '2026-01-15T12:00:00Z' });
+  await page.context().clearCookies();
   await page.goto('/login');
   await captureView(page, 'login');
   await page.getByRole('link', { name: 'Regístrate' }).click();
   await expect(page.getByRole('heading', { name: 'Crear cuenta' })).toBeVisible();
   await captureView(page, 'signup');
   await page.getByRole('link', { name: 'Iniciar sesión' }).click();
+  await signIn(page);
 
   await mockPatientWorkspace(page);
   await page.goto('/patients');
@@ -277,6 +292,7 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
     const isList = pathname === '/api/conversations';
+    const isAcquire = pathname.endsWith('/acquire');
     const isBaseline = pathname.endsWith('/00000000-0000-0000-0000-000000000002');
 
     if (isList && request.method() === 'GET') {
@@ -292,6 +308,14 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(conversationFixture),
+      });
+      return;
+    }
+    if (isAcquire && request.method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ conversation: conversationFixture, reused: false }),
       });
       return;
     }
@@ -712,6 +736,16 @@ test('isolates concurrent conversation streams, stop, retry, and manual scroll',
 });
 
 test('captures sidebar responsive states and preserves the rail contract', async ({ page }) => {
+  await mockJsonRoute(page, '**/api/auth/me', {
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'admin@email.com',
+    is_admin: true,
+    messages_used_today: 1,
+    messages_remaining_today: 24,
+    rate_window_resets_at: null,
+  });
+  await mockJsonRoute(page, '**/api/conversations', conversationListFixture, 'GET');
+
   const viewports = [
     { width: 1440, height: 900, name: '1440' },
     { width: 1280, height: 800, name: '1280' },

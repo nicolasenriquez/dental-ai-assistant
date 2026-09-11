@@ -833,6 +833,36 @@ async def test_drive_mutations_require_same_origin_before_side_effects(
     assert not _calls(managed_context, "create_folder")
 
 
+async def test_drive_mutation_rejects_cross_site_fetch_metadata_before_side_effects(
+    managed_client: AsyncClient, managed_context: dict[str, Any]
+) -> None:
+    response = await managed_client.post(
+        "/api/google-drive/files/search",
+        headers={
+            **_headers(),
+            "Sec-Fetch-Site": "cross-site",
+            "Content-Type": "application/json",
+        },
+        json={"patient_id": PATIENT_ID, "query": "x"},
+    )
+
+    assert response.status_code == 403
+    assert not _calls(managed_context, "refresh_access_token")
+
+
+async def test_drive_mutation_rejects_non_json_body_before_side_effects(
+    managed_client: AsyncClient, managed_context: dict[str, Any]
+) -> None:
+    response = await managed_client.post(
+        "/api/google-drive/files/search",
+        headers={**_headers(), "Content-Type": "text/plain"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 403
+    assert not _calls(managed_context, "refresh_access_token")
+
+
 async def test_drive_request_body_limit_runs_before_json_parsing(
     managed_client: AsyncClient, managed_context: dict[str, Any]
 ) -> None:

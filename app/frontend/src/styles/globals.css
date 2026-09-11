@@ -4064,7 +4064,8 @@ body,
   }
 
   .main-area > main > .workspace-header,
-  .main-area > .chat-area > .workspace-header {
+  .main-area > .chat-area > .workspace-header,
+  .workspace-mode .workspace-panel-main .workspace-header {
     padding-left: 72px;
   }
 }

@@ -87,7 +87,8 @@ def _redirect_result(result: str) -> RedirectResponse:
 def _require_same_origin(request: Request) -> None:
     """Reject cross-site Drive mutations before any Google or DB side effect."""
     origin = request.headers.get("Origin", "")
-    if origin not in config.APP_ORIGINS:
+    fetch_site = request.headers.get("Sec-Fetch-Site")
+    if origin not in config.APP_ORIGINS or (fetch_site is not None and fetch_site != "same-origin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid origin")
 
 
@@ -267,17 +268,14 @@ async def oauth_callback(
 ) -> Response:
     """Validate the one-shot transaction, then exchange exactly once.
 
-    The HttpOnly state cookie is the security anchor: a mismatched query
-    state fails closed, an absent query state uses the cookie alone. Invalid
+    The callback query state must match the HttpOnly state cookie. Invalid
     security state returns direct 400 before any provider call or session
     decode. Every terminal path clears the state cookie.
     """
     invalid = _error("GOOGLE_DRIVE_OAUTH_STATE_INVALID", status.HTTP_400_BAD_REQUEST)
     _clear_state_cookie(invalid)
 
-    if not state_cookie:
-        return invalid
-    if state and not hmac.compare_digest(state, state_cookie):
+    if not state_cookie or not state or not hmac.compare_digest(state, state_cookie):
         return invalid
     raw_state = state_cookie
 
@@ -474,7 +472,14 @@ def _managed_route(handler: Any) -> Any:
 
 async def _same_origin_dependency(request: Request) -> None:
     """Mutation boundary: reject cross-site requests before body parsing."""
-    if request.headers.get("Origin", "") not in config.APP_ORIGINS:
+    origin = request.headers.get("Origin", "")
+    fetch_site = request.headers.get("Sec-Fetch-Site")
+    content_type = request.headers.get("Content-Type", "")
+    if (
+        origin not in config.APP_ORIGINS
+        or (fetch_site is not None and fetch_site != "same-origin")
+        or content_type.split(";", 1)[0].strip().lower() != "application/json"
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid origin")
 
 

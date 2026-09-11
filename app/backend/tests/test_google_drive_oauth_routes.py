@@ -471,6 +471,14 @@ async def test_start_rejects_foreign_origin(client, fake_drive_repo):
     assert fake_drive_repo["transactions"] == {}
 
 
+async def test_start_rejects_cross_site_fetch_metadata(client, fake_drive_repo):
+    headers = _auth_headers()
+    headers["Sec-Fetch-Site"] = "cross-site"
+    r = await _start_oauth(client, headers)
+    assert r.status_code == 403
+    assert fake_drive_repo["transactions"] == {}
+
+
 async def test_start_has_no_get_fallback(client):
     r = await client.get("/api/google-drive/oauth/start", headers=_auth_headers())
     assert r.status_code == 405
@@ -553,8 +561,9 @@ async def test_start_google_mode_without_identity_returns_409(
 # ---------------------------------------------------------------------------
 
 
-async def _callback(client, session_token: str, raw_state: str, query: str = "code=code-1"):
+async def _callback(client, session_token: str, raw_state: str, query: str | None = None):
     cookie = f"session={session_token}; {_STATE_COOKIE}={raw_state}"
+    query = query or f"state={raw_state}&code=code-1"
     return await client.get(f"/api/google-drive/oauth/callback?{query}", headers={"Cookie": cookie})
 
 
@@ -569,10 +578,28 @@ async def test_callback_missing_state_returns_400_before_exchange(client, fake_g
     _assert_state_cookie_cleared(r)
 
 
+async def test_callback_missing_query_state_returns_400_with_valid_cookie(
+    client, fake_google_integrations
+):
+    start_r = await _start_oauth(client, _auth_headers())
+    raw_state = _state_from_response(start_r)
+    r = await _callback(client, _session_token(USER_ID), raw_state, query="code=code-1")
+
+    assert r.status_code == 400
+    assert r.json()["error"] == "GOOGLE_DRIVE_OAUTH_STATE_INVALID"
+    assert fake_google_integrations["exchange_codes"] == []
+    _assert_state_cookie_cleared(r)
+
+
 async def test_callback_state_cookie_mismatch_returns_400(client, fake_google_integrations):
     start_r = await _start_oauth(client, _auth_headers())
-    _state_from_response(start_r)  # real cookie state
-    r = await _callback(client, _session_token(USER_ID), "wrong-state-value")
+    real_state = _state_from_response(start_r)
+    r = await _callback(
+        client,
+        _session_token(USER_ID),
+        "wrong-state-value",
+        query=f"state={real_state}&code=code-1",
+    )
     assert r.status_code == 400
     assert r.json()["error"] == "GOOGLE_DRIVE_OAUTH_STATE_INVALID"
     assert fake_google_integrations["exchange_codes"] == []

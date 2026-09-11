@@ -108,6 +108,13 @@ async function setupDriveMocks(page: Page, setup: DriveSetup): Promise<void> {
   await page.route('**/api/clinical-threads*', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
+  await page.route('**/api/clinical-threads/acquire', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'CLINICAL_THREAD_MOCKED' }),
+    }),
+  );
   // Keep any real provider navigation inside the test context and record it
   // as the observable handoff seam.
   await page.route(`${PROVIDER_URL_PREFIX}**`, (route) =>
