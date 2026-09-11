@@ -248,3 +248,81 @@ GOOGLE_DRIVE_AUTO_ONBOARD: bool = os.environ.get(
     "yes",
     "on",
 )
+
+# Google Drive connection boundary. Complete absence starts the app with
+# GOOGLE_DRIVE_CONFIGURED=False (Drive endpoints report 503); partial or
+# malformed configuration fails startup. The token keyring is an independent
+# version-to-32-byte-key mapping and is never derived from JWT_SECRET.
+GOOGLE_DRIVE_CLIENT_ID: str = os.environ.get("GOOGLE_DRIVE_CLIENT_ID", "")
+GOOGLE_DRIVE_CLIENT_SECRET: str = os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET", "")
+GOOGLE_DRIVE_OAUTH_REDIRECT_URI: str = os.environ.get("GOOGLE_DRIVE_OAUTH_REDIRECT_URI", "")
+GOOGLE_DRIVE_RETURN_URL: str = os.environ.get("GOOGLE_DRIVE_RETURN_URL", "")
+
+
+def _parse_drive_token_keyring(raw: str) -> dict[str, bytes]:
+    """Parse ``GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS`` ("1:<b64>,2:<b64>").
+
+    Each value must URL-safe-base64-decode to exactly 32 bytes. Malformed
+    entries raise RuntimeError — partial key material fails startup closed.
+    """
+    import base64
+    import binascii
+
+    keyring: dict[str, bytes] = {}
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        version, _, b64 = chunk.partition(":")
+        if not version or not b64:
+            raise RuntimeError(
+                "Malformed GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS entry: expected 'version:<b64>'"
+            )
+        try:
+            key = base64.urlsafe_b64decode(b64.encode())
+        except (binascii.Error, ValueError) as exc:
+            raise RuntimeError(
+                "GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS contains a non-base64 key"
+            ) from exc
+        if len(key) != 32:
+            raise RuntimeError(
+                "GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS keys must decode to exactly 32 bytes"
+            )
+        keyring[version] = key
+    return keyring
+
+
+_drive_raw_values = (
+    GOOGLE_DRIVE_CLIENT_ID,
+    GOOGLE_DRIVE_CLIENT_SECRET,
+    GOOGLE_DRIVE_OAUTH_REDIRECT_URI,
+    GOOGLE_DRIVE_RETURN_URL,
+)
+_drive_keyring_raw: str = os.environ.get("GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS", "")
+_drive_active_version: str = os.environ.get("GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION", "")
+
+GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS: dict[str, bytes]
+GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION: str
+GOOGLE_DRIVE_CONFIGURED: bool
+
+if any(_drive_raw_values) or _drive_keyring_raw or _drive_active_version:
+    if not all(_drive_raw_values):
+        raise RuntimeError(
+            "Incomplete Google Drive configuration: GOOGLE_DRIVE_CLIENT_ID, "
+            "GOOGLE_DRIVE_CLIENT_SECRET, GOOGLE_DRIVE_OAUTH_REDIRECT_URI, and "
+            "GOOGLE_DRIVE_RETURN_URL must all be set"
+        )
+    GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS = _parse_drive_token_keyring(_drive_keyring_raw)
+    if not GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS:
+        raise RuntimeError("GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS must contain at least one key")
+    if _drive_active_version not in GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS:
+        raise RuntimeError(
+            "GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION must reference a key in "
+            "GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS"
+        )
+    GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION = _drive_active_version
+    GOOGLE_DRIVE_CONFIGURED = True
+else:
+    GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS = {}
+    GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION = ""
+    GOOGLE_DRIVE_CONFIGURED = False

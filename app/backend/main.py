@@ -121,6 +121,7 @@ from backend.routes import (  # noqa: E402
     clinical_assistant,
     conversations,
     evolutions,
+    google_drive,
     ingest,
     messages,
     patients,
@@ -144,6 +145,10 @@ app.include_router(evolutions.patient_router, prefix="/api")
 app.include_router(clinical_assistant.router, prefix="/api")
 app.include_router(clinical_artifacts.router, prefix="/api")
 app.include_router(transcriptions.router, prefix="/api")
+
+# Drive routes declare their own session dependency (the OAuth callback is
+# cross-site browser navigation and cannot carry the mutation-origin guard).
+app.include_router(google_drive.router, prefix="/api")
 
 # Library-mutation routes (ingest a video, backfill the whole channel) and
 # admin routes — all gated on get_current_admin. These endpoints write to the
@@ -170,6 +175,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
         )
         or request.url.path.startswith("/api/clinical-threads/")
         or request.url.path.startswith("/api/clinical-actions/")
+        or request.url.path.startswith("/api/google-drive/")
         or (
             request.url.path.startswith("/api/patients/")
             and request.url.path.endswith("/evolutions")

@@ -39,6 +39,7 @@ dependencies = [
     # depend on it explicitly to install everywhere.
     "greenlet",
     "google-auth>=2.29",
+    "cryptography>=50.0.1",
 ]
 
 [project.optional-dependencies]

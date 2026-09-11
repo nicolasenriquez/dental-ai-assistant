@@ -136,6 +136,25 @@ async def create_identity(
         return await _insert(new_conn)
 
 
+async def get_google_identity(user_id: UUID | str) -> dict[str, Any] | None:
+    """Fetch the user's Google provider identity (V1: at most one per user).
+
+    ``provider_email_snapshot`` is server-side verified material; Drive OAuth
+    in Google mode uses it as the expected-account email, never request input.
+    """
+    pool = get_pg_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT user_id, provider, provider_subject, provider_email_snapshot
+            FROM auth_identities
+            WHERE user_id = $1 AND provider = 'google'
+            """,
+            UUID(str(user_id)) if not isinstance(user_id, UUID) else user_id,
+        )
+    return dict(row) if row else None
+
+
 async def update_identity_email_snapshot(
     provider: str, provider_subject: str, provider_email_snapshot: str
 ) -> None:
