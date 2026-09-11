@@ -321,7 +321,7 @@ describe('Clinical Assistant Drive transfer', () => {
 
     await openAssistantMessageDraft();
     fireEvent.change(composer(), { target: { value: 'nota previa' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Insertar en el chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Usar en el chat' }));
 
     expect(composer()).toHaveValue('nota previa\nMensaje del asistente');
     expect(composer()).toHaveFocus();
@@ -378,7 +378,7 @@ describe('Clinical Assistant Drive transfer', () => {
     const editor = await openAssistantMessageDraft();
     expect(dispatchBeforeUnload().defaultPrevented).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() => expect(apiSeam.createDriveFile).toHaveBeenCalledTimes(1));
     await screen.findByText('Guardado');
 

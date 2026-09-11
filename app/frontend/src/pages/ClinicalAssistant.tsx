@@ -34,6 +34,15 @@ function ClinicalAssistantContent() {
   const [creationFailed, setCreationFailed] = useState(false);
   const [createAttempt, setCreateAttempt] = useState(0);
   const [drivePatientId, setDrivePatientId] = useState<string | null>(null);
+  const [driveOpen, setDriveOpen] = useState(() => {
+    const mobile = window.matchMedia?.('(max-width: 767px)').matches ?? false;
+    try {
+      const saved = window.localStorage.getItem('dental.drive.workspace.open.v1');
+      return saved === null ? !mobile : saved === 'true';
+    } catch {
+      return !mobile;
+    }
+  });
   const [driveDraftSeed, setDriveDraftSeed] = useState<{ name: string; content: string } | null>(
     null,
   );
@@ -43,6 +52,23 @@ function ClinicalAssistantContent() {
   const driveRef = useRef<DriveWorkspaceHandle>(null);
   const composerInsertRef = useRef<(text: string) => void>(() => undefined);
   const createStarted = useRef(false);
+
+  const setDriveVisibility = (open: boolean) => {
+    setDriveOpen(open);
+    try {
+      window.localStorage.setItem('dental.drive.workspace.open.v1', String(open));
+    } catch {
+      // Storage is optional; the workspace remains available for this session.
+    }
+    if (!open) {
+      window.requestAnimationFrame?.(() => {
+        const utility = Array.from(
+          document.querySelectorAll<HTMLElement>('[data-drive-utility="true"]'),
+        ).find((element) => !element.closest('[inert], [aria-hidden="true"]'));
+        utility?.focus();
+      });
+    }
+  };
 
   useEffect(() => {
     if (!driveDirty) return;
@@ -110,6 +136,13 @@ function ClinicalAssistantContent() {
     <AppShell
       showConversations={false}
       workspaceMode
+      utilities={[
+        {
+          id: 'google-drive',
+          label: 'Google Drive',
+          onActivate: () => setDriveVisibility(true),
+        },
+      ]}
       secondarySidebarContent={(isCollapsed, onRequestExpand) => (
         <ClinicalThreadList
           activeThreadId={activeId ?? undefined}
@@ -119,14 +152,21 @@ function ClinicalAssistantContent() {
         />
       )}
       workspaceAccessory={
-        <DriveWorkspace
-          handleRef={driveRef}
-          patientId={drivePatientId}
-          draftSeed={driveDraftSeed}
-          guardTransition={transitionGuard.guardTransition}
-          onInsertToComposer={(text) => composerInsertRef.current(text)}
-          onDirtyStateChange={setDriveDirty}
-        />
+        driveOpen ? (
+          <DriveWorkspace
+            handleRef={driveRef}
+            patientId={drivePatientId}
+            draftSeed={driveDraftSeed}
+            guardTransition={transitionGuard.guardTransition}
+            onInsertToComposer={(text) => composerInsertRef.current(text)}
+            onDirtyStateChange={setDriveDirty}
+            open={driveOpen}
+            onClose={() => {
+              const close = () => setDriveVisibility(false);
+              transitionGuard.guardTransition(close);
+            }}
+          />
+        ) : null
       }
     >
       {activeId ? (

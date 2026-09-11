@@ -16,6 +16,25 @@ import { ResizableGroup, ResizableHandle, ResizablePanel } from './ui/resizable'
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+const DRIVE_LAYOUT_KEY = 'dental.drive.workspace.layout.v1';
+
+function readDriveLayout(): { main: number; accessory: number } {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DRIVE_LAYOUT_KEY) ?? 'null') as {
+      main?: unknown;
+      accessory?: unknown;
+    } | null;
+    if (typeof parsed?.main !== 'number' || typeof parsed.accessory !== 'number') {
+      return { main: 68, accessory: 32 };
+    }
+    const main = Math.min(72, Math.max(58, parsed.main));
+    const accessory = Math.min(40, Math.max(28, parsed.accessory));
+    return { main, accessory };
+  } catch {
+    return { main: 68, accessory: 32 };
+  }
+}
+
 export interface AppShellUtility {
   id: string;
   label: string;
@@ -50,6 +69,10 @@ export function AppShell({
   const [isMobileSidebar, setIsMobileSidebar] = useState(
     () => window.matchMedia?.('(max-width: 767px)').matches ?? true,
   );
+  const [isCompactWorkspace, setIsCompactWorkspace] = useState(
+    () => window.matchMedia?.('(max-width: 1024px)').matches ?? true,
+  );
+  const [workspaceLayout] = useState(readDriveLayout);
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarWasOpen = useRef(false);
@@ -64,6 +87,15 @@ export function AppShell({
       setIsMobileSidebar(mediaQuery.matches);
       if (mediaQuery.matches) setSidebarCollapsed(false);
     };
+    update();
+    mediaQuery.addEventListener?.('change', update);
+    return () => mediaQuery.removeEventListener?.('change', update);
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.('(max-width: 1024px)');
+    if (!mediaQuery) return;
+    const update = () => setIsCompactWorkspace(mediaQuery.matches);
     update();
     mediaQuery.addEventListener?.('change', update);
     return () => mediaQuery.removeEventListener?.('change', update);
@@ -174,21 +206,53 @@ export function AppShell({
             )}
             <DriveBootstrapBanner />
             {workspaceAccessory ? (
-              <div className="workspace-row">
-                <ResizableGroup orientation="horizontal" className="workspace-resizable">
-                  <ResizablePanel defaultSize="62" minSize="30" className="workspace-panel-main">
-                    {children}
-                  </ResizablePanel>
-                  <ResizableHandle className="workspace-resize-handle" />
-                  <ResizablePanel
-                    defaultSize="38"
-                    minSize="22"
-                    className="workspace-panel-accessory"
+              isCompactWorkspace ? (
+                <div className="workspace-mobile-stack">
+                  {children}
+                  {workspaceAccessory}
+                </div>
+              ) : (
+                <div className="workspace-row">
+                  <ResizableGroup
+                    id="clinical-workspace"
+                    orientation="horizontal"
+                    className="workspace-resizable"
+                    defaultLayout={workspaceLayout}
+                    onLayoutChanged={(layout) => {
+                      try {
+                        window.localStorage.setItem(
+                          DRIVE_LAYOUT_KEY,
+                          JSON.stringify({
+                            main: Math.min(72, Math.max(58, layout.main ?? 68)),
+                            accessory: Math.min(40, Math.max(28, layout.accessory ?? 32)),
+                          }),
+                        );
+                      } catch {
+                        // Storage is optional; the live layout still works.
+                      }
+                    }}
                   >
-                    {workspaceAccessory}
-                  </ResizablePanel>
-                </ResizableGroup>
-              </div>
+                    <ResizablePanel
+                      id="main"
+                      defaultSize="68"
+                      minSize="58"
+                      className="workspace-panel-main"
+                    >
+                      {children}
+                    </ResizablePanel>
+                    <ResizableHandle className="workspace-resize-handle" />
+                    <ResizablePanel
+                      id="accessory"
+                      defaultSize="32"
+                      minSize="28"
+                      maxSize="40"
+                      className="workspace-panel-accessory"
+                    >
+                      {workspaceAccessory}
+                    </ResizablePanel>
+                  </ResizableGroup>
+                </div>
+              )
             ) : (
               children
             )}

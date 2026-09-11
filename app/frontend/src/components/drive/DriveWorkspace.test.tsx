@@ -204,9 +204,11 @@ describe('connection presentation', () => {
 
     expect(await screen.findByText('Google Drive')).toBeInTheDocument();
     expect(screen.getByText('Conectado')).toBeInTheDocument();
-    expect(screen.getByText('Dental AI Assistant')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.textContent === 'Conectado · Dental AI Workspace'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Buscar documentos' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Importar una copia' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Agregar desde Drive' })).toBeInTheDocument();
   });
 
   it('shows the exact revoked Alert and preserves the Dental session', async () => {
@@ -290,7 +292,7 @@ describe('patient-scoped list', () => {
       gate.resolve({ files: [], next_page_token: null });
     });
 
-    expect(await screen.findByText('No hay documentos para este paciente.')).toBeInTheDocument();
+    expect(await screen.findByText('Aún no hay documentos')).toBeInTheDocument();
     expect(listDriveFilesMock).toHaveBeenCalledWith('p1', undefined);
   });
 
@@ -347,7 +349,7 @@ describe('document preview and edit', () => {
     renderWorkspace();
 
     await openFirstFile();
-    expect(await screen.findByText('Abriendo…')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Abriendo documento')).toBeInTheDocument();
 
     act(() => {
       gate.resolve({ ...fileBody, content: 'texto remoto\n' });
@@ -440,8 +442,8 @@ describe('document preview and edit', () => {
     const editor = await screen.findByRole('textbox', { name: 'Contenido del documento' });
     fireEvent.change(editor, { target: { value: 'Línea uno\nLínea dos' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
-    expect(await screen.findByText('Guardando…')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    expect(await screen.findByRole('status', { name: 'Guardando…' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Guardando…' })).toBeDisabled();
     expect(updateDriveFileMock).not.toHaveBeenCalled();
 
@@ -479,7 +481,7 @@ describe('document preview and edit', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
     const editor = screen.getByRole('textbox', { name: 'Contenido del documento' });
     fireEvent.change(editor, { target: { value: 'cambio local' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
 
     expect(await screen.findByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ver versión actual' })).toBeInTheDocument();
@@ -499,7 +501,7 @@ describe('document preview and edit', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Editar' }));
     const editor = screen.getByRole('textbox', { name: 'Contenido del documento' });
     fireEvent.change(editor, { target: { value: 'contenido local' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
 
     expect(await screen.findByText('No se pudo completar la acción')).toBeInTheDocument();
     expect(screen.getByText('Tu trabajo local se conserva.')).toBeInTheDocument();

@@ -150,7 +150,7 @@ describe('Drive-to-composer insertion', () => {
 
     await openFirstFile();
     await screen.findByText('texto remoto');
-    fireEvent.click(screen.getByRole('button', { name: 'Insertar en el chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Usar en el chat' }));
 
     expect(onInsertToComposer).toHaveBeenCalledWith('texto remoto\n');
     expect(createDriveFileMock).not.toHaveBeenCalled();
@@ -168,7 +168,7 @@ describe('Drive-to-composer insertion', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
     const editor = screen.getByRole('textbox', { name: 'Contenido del documento' });
     fireEvent.change(editor, { target: { value: 'texto editado' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Insertar en el chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Usar en el chat' }));
 
     expect(onInsertToComposer).toHaveBeenCalledWith('texto editado');
     expect(updateDriveFileMock).not.toHaveBeenCalled();
@@ -190,7 +190,7 @@ describe('Drive-to-composer insertion', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Insertar selección en el chat' }));
 
     expect(onInsertToComposer).toHaveBeenCalledWith('completo');
-    expect(screen.getByRole('button', { name: 'Insertar en el chat' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usar en el chat' })).toBeInTheDocument();
   });
 
   it('hides selection insertion when the editor has no selection', async () => {
@@ -211,9 +211,9 @@ describe('Drive-to-composer insertion', () => {
       />,
     );
 
-    const insert = await screen.findByRole('button', { name: 'Insertar en el chat' });
+    const insert = await screen.findByRole('button', { name: 'Usar en el chat' });
     expect(insert).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Importar una copia' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Agregar desde Drive' })).not.toBeInTheDocument();
   });
 });
 
@@ -224,8 +224,8 @@ describe('stable operation ids', () => {
     const view = render(<Workspace patientId="p1" draftSeed={{ name: 'b1', content: 'uno\n' }} />);
 
     await screen.findByRole('textbox', { name: 'Contenido del documento' });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
-    await screen.findByText('Guardando…');
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await screen.findByRole('status', { name: 'Guardando…' });
     act(() => {
       firstGate.resolve({ ...fileBody, id: 'f2' });
     });
@@ -233,7 +233,7 @@ describe('stable operation ids', () => {
 
     view.rerender(<Workspace patientId="p1" draftSeed={{ name: 'b2', content: 'dos\n' }} />);
     await screen.findByRole('textbox', { name: 'Contenido del documento' });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() => expect(createDriveFileMock).toHaveBeenCalledTimes(2));
 
     const first = createDriveFileMock.mock.calls[0][0].operation_id as string;
@@ -247,11 +247,11 @@ describe('stable operation ids', () => {
     openDrivePickerMock.mockResolvedValue('source-1');
     renderWorkspace('p1');
 
-    await screen.findByRole('button', { name: 'Importar una copia' });
-    fireEvent.click(screen.getByRole('button', { name: 'Importar una copia' }));
+    await screen.findByRole('button', { name: 'Agregar desde Drive' });
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar desde Drive' }));
     await waitFor(() => expect(importDriveCopyMock).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Importar una copia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar desde Drive' }));
     await waitFor(() => expect(importDriveCopyMock).toHaveBeenCalledTimes(2));
 
     const first = importDriveCopyMock.mock.calls[0][0].operation_id as string;
@@ -269,8 +269,8 @@ describe('Picker import copy', () => {
     importDriveCopyMock.mockResolvedValue({ ...fileBody, id: 'f3', name: 'importado.txt' });
     renderWorkspace('p1');
 
-    await screen.findByRole('button', { name: 'Importar una copia' });
-    fireEvent.click(screen.getByRole('button', { name: 'Importar una copia' }));
+    await screen.findByRole('button', { name: 'Agregar desde Drive' });
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar desde Drive' }));
 
     await waitFor(() =>
       expect(importDriveCopyMock).toHaveBeenCalledWith({
@@ -279,7 +279,7 @@ describe('Picker import copy', () => {
         source_file_id: 'source-file-1',
       }),
     );
-    expect(await screen.findByText('Copia importada')).toBeInTheDocument();
+    expect(await screen.findByText('Documento agregado')).toBeInTheDocument();
     expect(listDriveFilesMock).toHaveBeenCalledTimes(2);
   });
 
@@ -287,12 +287,12 @@ describe('Picker import copy', () => {
     openDrivePickerMock.mockResolvedValue(null);
     renderWorkspace('p1');
 
-    await screen.findByRole('button', { name: 'Importar una copia' });
-    fireEvent.click(screen.getByRole('button', { name: 'Importar una copia' }));
+    await screen.findByRole('button', { name: 'Agregar desde Drive' });
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar desde Drive' }));
 
     await waitFor(() => expect(openDrivePickerMock).toHaveBeenCalledWith('p1'));
     expect(importDriveCopyMock).not.toHaveBeenCalled();
-    expect(screen.queryByText('Copia importada')).not.toBeInTheDocument();
+    expect(screen.queryByText('Documento agregado')).not.toBeInTheDocument();
   });
 
   it('preserves the workspace on import failure without automatic retry', async () => {
@@ -300,8 +300,8 @@ describe('Picker import copy', () => {
     importDriveCopyMock.mockRejectedValue(new api.ApiError(503, { error: 'DRIVE_UNAVAILABLE' }));
     renderWorkspace('p1');
 
-    await screen.findByRole('button', { name: 'Importar una copia' });
-    fireEvent.click(screen.getByRole('button', { name: 'Importar una copia' }));
+    await screen.findByRole('button', { name: 'Agregar desde Drive' });
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar desde Drive' }));
 
     await waitFor(() => expect(importDriveCopyMock).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('No se pudo completar la acción')).toBeInTheDocument();
@@ -311,10 +311,10 @@ describe('Picker import copy', () => {
     openDrivePickerMock.mockResolvedValue(null);
     const { rerender } = renderWorkspace('p1');
 
-    await screen.findByRole('button', { name: 'Importar una copia' });
+    await screen.findByRole('button', { name: 'Agregar desde Drive' });
     rerender(<Workspace patientId="p2" />);
-    await screen.findByRole('button', { name: 'Importar una copia' });
-    fireEvent.click(screen.getByRole('button', { name: 'Importar una copia' }));
+    await screen.findByRole('button', { name: 'Agregar desde Drive' });
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar desde Drive' }));
 
     await waitFor(() => expect(openDrivePickerMock).toHaveBeenCalledWith('p2'));
   });

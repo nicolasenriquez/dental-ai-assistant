@@ -320,6 +320,7 @@ export function Sidebar({
                 aria-label={isCollapsed ? utility.label : undefined}
                 title={isCollapsed ? utility.label : undefined}
                 data-tooltip={isCollapsed ? utility.label : undefined}
+                data-drive-utility={utility.id === 'google-drive' ? 'true' : undefined}
               >
                 <PanelRight aria-hidden="true" size={16} strokeWidth={1.7} />
                 <span className="sidebar-label">{utility.label}</span>
@@ -370,6 +371,7 @@ export function Sidebar({
                 utility.onActivate();
                 onClose();
               }}
+              data-drive-utility={utility.id === 'google-drive' ? 'true' : undefined}
             >
               <PanelRight aria-hidden="true" size={16} strokeWidth={1.7} />
               <span className="sidebar-label">{utility.label}</span>

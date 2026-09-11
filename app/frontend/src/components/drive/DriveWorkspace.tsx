@@ -1,4 +1,4 @@
-import { type MutableRefObject, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type MutableRefObject, type ReactNode, useEffect, useRef, useState } from 'react';
 import {
   ApiError,
   type DriveFile,
@@ -16,7 +16,6 @@ import {
 import { normalizeDriveFileName, serializeToPlainText } from '../../lib/driveDocument';
 import { type AuthoringRepresentation, isDriveDocumentDirty } from '../../lib/driveDocument';
 import { openDrivePicker } from '../../lib/drivePicker';
-import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Spinner } from '../Spinner';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import {
@@ -29,18 +28,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
-import { ScrollArea } from '../ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
+import { DriveDocumentView, type DriveDocumentViewModel } from './DriveDocumentView';
+import { DriveFileBrowser } from './DriveFileBrowser';
+import { DriveWorkspaceHeader } from './DriveWorkspaceHeader';
 
-interface OpenDoc {
-  fileId: string | null;
-  boundPatientId: string | null;
-  name: string;
-  version: string | null;
-  content: string;
-  baseline: string | null;
-  representation: AuthoringRepresentation;
-}
+type OpenDoc = DriveDocumentViewModel;
 
 export interface DriveWorkspaceHandle {
   save: () => Promise<boolean>;
@@ -54,6 +47,8 @@ export interface DriveWorkspaceProps {
   onDirtyStateChange?: (dirty: boolean) => void;
   guardTransition?: (continuation: () => void) => void;
   handleRef?: MutableRefObject<DriveWorkspaceHandle | null>;
+  open?: boolean;
+  onClose?: () => void;
 }
 
 function newOperationId(): string {
@@ -86,12 +81,16 @@ export function DriveWorkspace({
   onDirtyStateChange,
   guardTransition,
   handleRef,
+  open = true,
+  onClose,
 }: DriveWorkspaceProps) {
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [query, setQuery] = useState('');
   const [doc, setDoc] = useState<OpenDoc | null>(null);
   const [docPhase, setDocPhase] = useState<'opening' | 'ready'>('ready');
@@ -106,7 +105,20 @@ export function DriveWorkspace({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [recreateDialog, setRecreateDialog] = useState<'missing' | 'recovery' | null>(null);
   const patientIdRef = useRef(patientId);
-  const isMobile = useMemo(() => window.matchMedia?.('(max-width: 767px)')?.matches ?? false, []);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchSequence = useRef(0);
+  const [isSheet, setIsSheet] = useState(
+    () => window.matchMedia?.('(max-width: 1024px)')?.matches ?? false,
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.('(max-width: 1024px)');
+    if (!mediaQuery) return;
+    const update = () => setIsSheet(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener?.('change', update);
+    return () => mediaQuery.removeEventListener?.('change', update);
+  }, []);
 
   const dirty = doc
     ? isDriveDocumentDirty({
@@ -144,6 +156,9 @@ export function DriveWorkspace({
     setSaved(false);
     setSelectedText('');
     setImported(false);
+    setQuery('');
+    setSearchSubmitted(false);
+    setSearchLoading(false);
   }, [patientId]);
 
   useEffect(() => {
@@ -153,6 +168,7 @@ export function DriveWorkspace({
       boundPatientId: patientId,
       name: normalizeDriveFileName(draftSeed.name),
       version: null,
+      mimeType: 'text/plain',
       content: draftSeed.content,
       baseline: null,
       representation: 'local_markdown',
@@ -205,15 +221,44 @@ export function DriveWorkspace({
   const handleSearch = async () => {
     if (!patientId) return;
     const trimmed = query.trim();
-    if (!trimmed) {
-      const page = await listDriveFiles(patientId, undefined);
+    const sequence = ++searchSequence.current;
+    setSearchSubmitted(Boolean(trimmed));
+    setSearchLoading(true);
+    try {
+      const page = trimmed
+        ? await searchDriveFiles({ patient_id: patientId, query: trimmed })
+        : await listDriveFiles(patientId, undefined);
+      if (sequence !== searchSequence.current || patientIdRef.current !== patientId) return;
       setFiles(page.files);
       setNextPageToken(page.next_page_token);
-      return;
+    } catch {
+      if (sequence === searchSequence.current) setErrorMessage('No se pudo completar la acción');
+    } finally {
+      if (sequence === searchSequence.current) setSearchLoading(false);
     }
-    const page = await searchDriveFiles({ patient_id: patientId, query: trimmed });
-    setFiles(page.files);
-    setNextPageToken(page.next_page_token);
+  };
+
+  useEffect(() => {
+    if (!patientId || driveStatus?.status !== 'connected' || !query.trim()) return;
+    const timer = window.setTimeout(() => void handleSearch(), 300);
+    return () => window.clearTimeout(timer);
+  }, [query, patientId, driveStatus?.status]);
+
+  const handleClearSearch = () => {
+    searchSequence.current += 1;
+    setQuery('');
+    setSearchSubmitted(false);
+    setSearchLoading(false);
+    if (!patientId) return;
+    setListLoading(true);
+    void listDriveFiles(patientId, undefined)
+      .then((page) => {
+        if (patientIdRef.current !== patientId) return;
+        setFiles(page.files);
+        setNextPageToken(page.next_page_token);
+      })
+      .catch(() => setErrorMessage('No se pudo completar la acción'))
+      .finally(() => setListLoading(false));
   };
 
   const handleLoadMore = async () => {
@@ -231,6 +276,7 @@ export function DriveWorkspace({
       boundPatientId,
       name: file.name,
       version: file.version,
+      mimeType: file.mimeType,
       content: '',
       baseline: null,
       representation: 'persisted_plain_text',
@@ -273,6 +319,7 @@ export function DriveWorkspace({
     setConflictOpen(false);
     setSelectedText('');
     setUnknownWrite(false);
+    window.requestAnimationFrame?.(() => searchInputRef.current?.focus());
   };
 
   const handleSave = async (): Promise<boolean> => {
@@ -298,6 +345,7 @@ export function DriveWorkspace({
                 ...prev,
                 fileId: created.id,
                 version: created.version,
+                mimeType: created.mimeType,
                 content: savedLocalContent,
                 baseline: exportContent,
               }
@@ -316,6 +364,7 @@ export function DriveWorkspace({
                 ...prev,
                 content: savedLocalContent,
                 version: updated.version,
+                mimeType: updated.mimeType,
                 baseline: exportContent,
               }
             : prev,
@@ -404,111 +453,24 @@ export function DriveWorkspace({
   });
 
   const documentView = doc ? (
-    <div className="drive-doc">
-      <div className="drive-doc-header">
-        <button type="button" className="drive-btn drive-btn-secondary" onClick={closeDoc}>
-          Volver
-        </button>
-        {doc.fileId === null ? (
-          <label className="drive-doc-name-input">
-            Nombre del documento
-            <input
-              type="text"
-              value={doc.name}
-              onChange={(event) =>
-                setDoc((prev) =>
-                  prev ? { ...prev, name: normalizeDriveFileName(event.target.value) } : prev,
-                )
-              }
-            />
-          </label>
-        ) : (
-          <span className="drive-doc-name">{doc.name}</span>
-        )}
-        <span className="drive-doc-format">TXT</span>
-        <div className="drive-doc-modes" role="group" aria-label="Modo de visualización">
-          <button
-            type="button"
-            aria-pressed={mode === 'viewing'}
-            onClick={() => setMode('viewing')}
-          >
-            Vista previa
-          </button>
-          <button
-            type="button"
-            aria-pressed={mode === 'editing'}
-            onClick={() => setMode('editing')}
-          >
-            Editar
-          </button>
-        </div>
-        {onInsertToComposer && (
-          <div className="drive-doc-transfer-actions">
-            {mode === 'editing' && selectedText && (
-              <button
-                type="button"
-                className="drive-btn drive-btn-secondary"
-                disabled={!patientId || doc.boundPatientId !== patientId}
-                onClick={() => handleInsert(selectedText)}
-              >
-                Insertar selección en el chat
-              </button>
-            )}
-            <button
-              type="button"
-              className="drive-btn drive-btn-secondary"
-              disabled={!patientId || doc.boundPatientId !== patientId}
-              onClick={() => handleInsert(doc.content)}
-            >
-              Insertar en el chat
-            </button>
-          </div>
-        )}
-        {mode === 'editing' && (
-          <button
-            type="button"
-            className="drive-btn drive-btn-primary"
-            onClick={() => void handleSave()}
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <Spinner /> Guardando…
-              </>
-            ) : (
-              'Guardar'
-            )}
-          </button>
-        )}
-        {saved && (
-          <span className="drive-doc-saved" role="status">
-            Guardado
-          </span>
-        )}
-      </div>
-      <ScrollArea className="drive-doc-body">
-        {docPhase === 'opening' ? (
-          <p className="drive-doc-status">Abriendo…</p>
-        ) : mode === 'editing' ? (
-          <textarea
-            aria-label="Contenido del documento"
-            className="drive-doc-editor"
-            value={doc.content}
-            onChange={(event) =>
-              setDoc((prev) => (prev ? { ...prev, content: event.target.value } : prev))
-            }
-            onSelect={(event) => {
-              const target = event.currentTarget;
-              setSelectedText(target.value.slice(target.selectionStart, target.selectionEnd));
-            }}
-          />
-        ) : doc.representation === 'persisted_plain_text' ? (
-          <pre className="drive-doc-pre">{doc.content}</pre>
-        ) : (
-          <MarkdownRenderer content={doc.content} />
-        )}
-      </ScrollArea>
-    </div>
+    <DriveDocumentView
+      doc={doc}
+      docPhase={docPhase}
+      mode={mode}
+      saving={saving}
+      saved={saved}
+      selectedText={selectedText}
+      patientId={patientId}
+      onBack={closeDoc}
+      onModeChange={setMode}
+      onSave={() => void handleSave()}
+      onInsert={handleInsert}
+      setDoc={setDoc}
+      setSelectedText={setSelectedText}
+      onNameChange={(name) =>
+        setDoc((prev) => (prev ? { ...prev, name: normalizeDriveFileName(name) } : prev))
+      }
+    />
   ) : null;
 
   if (!driveStatus) return null;
@@ -611,81 +573,76 @@ export function DriveWorkspace({
       );
       break;
     case 'connected':
-      connectionContent = (
-        <>
-          <div className="drive-header">
-            <h2 className="drive-header-title">Google Drive</h2>
-            <span className="drive-header-status">Conectado</span>
-            <span className="drive-header-workspace">
-              {driveStatus.workspace?.folder_name ?? 'Dental AI Assistant'}
-            </span>
-          </div>
-          {patientId ? (
-            <>
-              <div className="drive-list-tools">
-                <input
-                  type="search"
-                  className="drive-search"
-                  aria-label="Buscar documentos"
-                  placeholder="Buscar documentos"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') void handleSearch();
-                  }}
-                />
-                <button
-                  type="button"
-                  className="drive-btn drive-btn-secondary"
-                  onClick={() => void handleImport()}
-                  disabled={importing}
-                >
-                  {importing ? 'Importando…' : 'Importar una copia'}
-                </button>
-                {imported && (
-                  <span className="drive-doc-saved" role="status">
-                    Copia importada
-                  </span>
-                )}
-              </div>
-              {doc ? null : (
-                <div className="drive-list">
-                  {listLoading ? (
-                    <p className="drive-list-status">Cargando documentos…</p>
-                  ) : files.length === 0 ? (
-                    <p className="drive-list-status">No hay documentos para este paciente.</p>
-                  ) : (
-                    <>
-                      <ul className="drive-file-list">
-                        {files.map((file) => (
-                          <li key={file.id}>
-                            <button type="button" onClick={() => void handleOpen(file)}>
-                              {file.name}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                      {nextPageToken && (
-                        <button
-                          type="button"
-                          className="drive-btn drive-btn-secondary"
-                          onClick={() => void handleLoadMore()}
-                        >
-                          Cargar más
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </>
-          ) : null}
-        </>
+      connectionContent = !doc && (
+        <DriveFileBrowser
+          patientId={patientId}
+          query={query}
+          files={files}
+          listLoading={listLoading}
+          searchLoading={searchLoading}
+          searchSubmitted={searchSubmitted}
+          importing={importing}
+          imported={imported}
+          nextPageToken={nextPageToken}
+          onQueryChange={setQuery}
+          onSearch={() => void handleSearch()}
+          onClearSearch={handleClearSearch}
+          onImport={() => void handleImport()}
+          onOpen={(file) => void handleOpen(file)}
+          onLoadMore={() => void handleLoadMore()}
+          searchInputRef={searchInputRef}
+        />
       );
   }
 
-  return (
-    <div className="drive-workspace">
+  const requestCloseWorkspace = () => {
+    const close = () => {
+      closeDocNow();
+      onClose?.();
+    };
+    if (doc && dirty && guardTransition) {
+      guardTransition(close);
+      return;
+    }
+    close();
+  };
+
+  const conflictView = conflictOpen ? (
+    <Alert>
+      <AlertTitle>El documento cambió</AlertTitle>
+      <AlertDescription>
+        Otra versión del documento se guardó en Google Drive. Tu texto local se conserva.
+      </AlertDescription>
+      <div className="drive-alert-actions">
+        <button
+          type="button"
+          className="drive-btn drive-btn-secondary"
+          onClick={() => setConflictOpen(false)}
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          className="drive-btn drive-btn-primary"
+          onClick={() => void handleViewCurrentVersion()}
+        >
+          Ver versión actual
+        </button>
+      </div>
+    </Alert>
+  ) : null;
+
+  const workspaceContent = (
+    <div
+      className="drive-workspace"
+      role="region"
+      aria-label="Espacio de documentos de Google Drive"
+    >
+      <DriveWorkspaceHeader
+        status={driveStatus}
+        patientId={patientId}
+        onClose={requestCloseWorkspace}
+      />
       {errorMessage && (
         <Alert>
           <AlertTitle>No se pudo completar la acción</AlertTitle>
@@ -695,51 +652,12 @@ export function DriveWorkspace({
           )}
         </Alert>
       )}
-      {connectionContent}
-      {!isMobile && documentView}
-      {isMobile && (
-        <Sheet
-          open={doc !== null}
-          onOpenChange={(open) => {
-            if (!open) closeDoc();
-          }}
-        >
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>Documento</SheetTitle>
-            </SheetHeader>
-            {documentView}
-          </SheetContent>
-        </Sheet>
-      )}
-      {conflictOpen && (
-        <Alert>
-          <AlertTitle>El documento cambió</AlertTitle>
-          <AlertDescription>
-            Otra versión del documento se guardó en Google Drive. Tu texto local se conserva.
-          </AlertDescription>
-          <div className="drive-alert-actions">
-            <button
-              type="button"
-              className="drive-btn drive-btn-secondary"
-              onClick={() => setConflictOpen(false)}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="drive-btn drive-btn-primary"
-              onClick={() => void handleViewCurrentVersion()}
-            >
-              Ver versión actual
-            </button>
-          </div>
-        </Alert>
-      )}
+      {doc ? documentView : connectionContent}
+      {conflictView}
       <AlertDialog
         open={recreateDialog !== null}
-        onOpenChange={(open) => {
-          if (!open) setRecreateDialog(null);
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setRecreateDialog(null);
         }}
       >
         <AlertDialogContent>
@@ -760,5 +678,18 @@ export function DriveWorkspace({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+
+  if (!isSheet) return open ? workspaceContent : null;
+
+  return (
+    <Sheet open={open} onOpenChange={(nextOpen) => !nextOpen && requestCloseWorkspace()}>
+      <SheetContent className="drive-sheet-workspace">
+        <SheetHeader>
+          <SheetTitle>{doc ? 'Documento' : 'Google Drive'}</SheetTitle>
+        </SheetHeader>
+        {workspaceContent}
+      </SheetContent>
+    </Sheet>
   );
 }

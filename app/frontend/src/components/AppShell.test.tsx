@@ -55,6 +55,52 @@ vi.mock('./Sidebar', () => ({
 }));
 
 describe('AppShell mobile sidebar', () => {
+  it('renders the desktop workspace as a resizable accessory split', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+
+    const { container } = render(
+      <AppShell showConversations={false} workspaceMode workspaceAccessory={<aside>Drive</aside>}>
+        <main>Contenido</main>
+      </AppShell>,
+    );
+
+    expect(container.querySelector('.workspace-row')).toBeInTheDocument();
+    expect(container.querySelector('.workspace-resize-handle')).toBeInTheDocument();
+    expect(container.querySelector('.workspace-mobile-stack')).not.toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
+
+  it('renders the compact workspace without the desktop split group', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('1024'),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+    const { container } = render(
+      <AppShell showConversations={false} workspaceMode workspaceAccessory={<aside>Drive</aside>}>
+        <main>Contenido</main>
+      </AppShell>,
+    );
+
+    expect(container.querySelector('.workspace-mobile-stack')).toBeInTheDocument();
+    expect(container.querySelector('.workspace-row')).not.toBeInTheDocument();
+    expect(container.querySelector('.workspace-resize-handle')).not.toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
+
   it('removes the closed mobile sidebar from accessibility navigation', () => {
     vi.stubGlobal(
       'matchMedia',
