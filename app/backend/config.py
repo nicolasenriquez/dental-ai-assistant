@@ -24,7 +24,16 @@ def _find_and_load_env() -> None:
 
     In containerized deploys there is no .env file on disk — env vars are
     injected by docker-compose. Missing .env is therefore not an error.
+
+    Tests run under pytest and never load an ambient .env: pytest injects its
+    own pinned defaults in ``tests/conftest.py`` and sets
+    ``AI_TUTOR_DISABLE_DOTENV`` before any backend import, so a developer's
+    gitignored docker-compose .env (e.g. ``AUTH_MODE=google``) cannot leak
+    into the test process.
     """
+    if os.environ.get("AI_TUTOR_DISABLE_DOTENV") == "1":
+        logger.info("AI_TUTOR_DISABLE_DOTENV set; skipping ambient .env load")
+        return
     current = Path(__file__).resolve()
     # Try each parent directory up to the filesystem root
     for parent in current.parents:

@@ -1118,29 +1118,14 @@ async def import_copy(
 
     name = _normalized_managed_name(str(body.name or source.get("name") or ""))
 
-    # ponytail: import-copy writes its binding MAC in the single create call
-    # (the 4.1 contract forbids update_file here), so the MAC is operation-
-    # bound rather than file-ID-bound; complete file-ID binding needs a
-    # metadata-update pass if 4.3 proves imported copies fail validation.
-    provisional = _binding_mac(secret, str(body.operation_id), patient_ref, user_id)
-    properties = _file_properties(patient_ref, str(body.operation_id), provisional)
-    try:
-        created = await google_drive.create_file(
-            access_token,
-            folder_id=folder_id,
-            name=name,
-            content=content,
-            app_properties=properties,
-        )
-    except google_drive.GoogleDriveError as exc:
-        if exc.code not in _WRITE_AMBIGUOUS_CODES:
-            raise
-        found = await google_drive.find_file_by_creation_operation(
-            access_token, str(body.operation_id)
-        )
-        if found is None:
-            raise _DriveDomainError(
-                "DRIVE_WRITE_UNKNOWN", status.HTTP_503_SERVICE_UNAVAILABLE
-            ) from None
-        created = found
+    created = await _create_with_binding(
+        access_token,
+        folder_id=folder_id,
+        name=name,
+        content=content,
+        operation_id=str(body.operation_id),
+        patient_ref=patient_ref,
+        binding_secret=secret,
+        user_id=user_id,
+    )
     return JSONResponse(status_code=status.HTTP_201_CREATED, content=_file_body(created))

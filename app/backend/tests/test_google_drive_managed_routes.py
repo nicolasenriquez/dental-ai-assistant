@@ -135,6 +135,7 @@ def managed_context(monkeypatch):
         "list_result": {"files": [], "next_page_token": None},
         "reconcile_file": None,
         "create_error": None,
+        "update_error": None,
         "calls": [],
     }
 
@@ -310,7 +311,9 @@ def managed_context(monkeypatch):
                 {"file_id": file_id, "content": content, "app_properties": dict(app_properties)},
             )
         )
-        return {**state["file"], "version": "8"}
+        if state["update_error"] is not None:
+            raise state["update_error"]
+        return {**state["file"], "id": file_id, "version": "8"}
 
     async def find_file_by_creation_operation(access_token: str, operation_id: str):
         state["calls"].append(("find_file_by_creation_operation", str(operation_id)))
@@ -634,6 +637,37 @@ async def test_uncertain_create_reconciles_once_without_blind_retry(
     assert len(_calls(managed_context, "find_file_by_creation_operation")) == 1
 
 
+@pytest.mark.parametrize("marker_present", [True, False])
+async def test_uncertain_update_reconciles_once_to_success_or_unknown(
+    managed_client: AsyncClient, managed_context: dict[str, Any], marker_present: bool
+) -> None:
+    managed_context["update_error"] = google_drive.GoogleDriveError(
+        "DRIVE_UNAVAILABLE", "update outcome unknown"
+    )
+    operation_id = "88888888-8888-8888-8888-888888888888"
+    if marker_present:
+        managed_context["file"]["appProperties"]["lastOperationId"] = operation_id
+
+    response = await managed_client.put(
+        "/api/google-drive/files/file-1",
+        headers={**_headers(), "Content-Type": "application/json"},
+        json={
+            "patient_id": PATIENT_ID,
+            "operation_id": operation_id,
+            "content": "cambio\n",
+            "expected_version": "7",
+        },
+    )
+
+    assert len(_calls(managed_context, "update_file")) == 1
+    assert len(_calls(managed_context, "get_file_metadata")) == 2
+    if marker_present:
+        assert response.status_code == 200
+    else:
+        assert response.status_code == 503
+        assert response.json() == {"error": "DRIVE_WRITE_UNKNOWN"}
+
+
 async def test_managed_source_is_rejected_before_download_or_copy(
     managed_client: AsyncClient, managed_context: dict[str, Any]
 ) -> None:
@@ -674,9 +708,63 @@ async def test_import_copy_never_mutates_original_source(
     assert response.status_code in (200, 201)
     assert len(_calls(managed_context, "download_file")) == 1
     assert len(_calls(managed_context, "create_file")) == 1
-    assert not _calls(managed_context, "update_file")
     assert not _calls(managed_context, "delete_file")
+    assert all(call[1]["file_id"] != "source-1" for call in _calls(managed_context, "update_file"))
     assert _calls(managed_context, "create_file")[0][1]["name"] == "importado.txt"
+
+
+async def test_imported_copy_binding_is_file_id_bound_and_survives_listing(
+    managed_client: AsyncClient, managed_context: dict[str, Any]
+) -> None:
+    operation_id = "77777777-7777-7777-7777-777777777777"
+    response = await managed_client.post(
+        "/api/google-drive/import-copy",
+        headers={**_headers(), "Content-Type": "application/json"},
+        json={
+            "patient_id": PATIENT_ID,
+            "operation_id": operation_id,
+            "source_file_id": "source-1",
+            "name": "importado.md",
+        },
+    )
+
+    assert response.status_code in (200, 201)
+    copy_id = response.json()["id"]
+    updates = _calls(managed_context, "update_file")
+    assert len(updates) == 1
+    assert updates[0][1]["file_id"] == copy_id
+    assert updates[0][1]["app_properties"]["bindingMac"] == _binding_mac(
+        managed_context["binding_secret"], copy_id, managed_context["patient_ref"]
+    )
+    assert updates[0][1]["app_properties"]["creationOperationId"] == operation_id
+
+    managed_context["list_result"] = {
+        "files": [
+            {
+                **managed_context["file"],
+                "id": copy_id,
+                "name": "importado.txt",
+                "appProperties": {
+                    "managedBy": "dental-ai-assistant",
+                    "workspaceSchema": "1",
+                    "patientRef": managed_context["patient_ref"],
+                    "bindingMac": _binding_mac(
+                        managed_context["binding_secret"], copy_id, managed_context["patient_ref"]
+                    ),
+                    "creationOperationId": operation_id,
+                },
+            },
+            managed_context["file"],
+        ],
+        "next_page_token": None,
+    }
+
+    listing = await managed_client.get(
+        f"/api/google-drive/files?patient_id={PATIENT_ID}", headers=_headers()
+    )
+
+    assert listing.status_code == 200
+    assert [item["id"] for item in listing.json()["files"]] == [copy_id, "file-1"]
 
 
 async def test_picker_token_is_no_store_and_requires_owned_patient(

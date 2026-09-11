@@ -20,6 +20,11 @@ os.environ["SUPADATA_API_KEY"] = "test-supadata-key"
 os.environ["YOUTUBE_CHANNEL_ID"] = "UC_testchannel"
 os.environ["CHANNEL_SYNC_TYPE"] = "video"
 os.environ["CLINICAL_EXTERNAL_LLM_ENABLED"] = "false"
+# Keep config's ambient .env discovery disabled for the whole test process:
+# a developer's gitignored docker-compose .env (e.g. AUTH_MODE=google) must
+# not leak into tests. PYTEST_CURRENT_TEST is not set yet at conftest import
+# time, so an explicit marker is required.
+os.environ["AI_TUTOR_DISABLE_DOTENV"] = "1"
 
 import pytest
 
