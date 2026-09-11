@@ -270,6 +270,29 @@ async def test_auth_config_google_mode_exposes_public_client_id(client, google_m
     assert "secret" not in str(body).lower()
 
 
+async def test_google_id_token_verifier_receives_google_http_request(monkeypatch, google_mode):
+    from backend.routes import auth as auth_route
+
+    calls: dict[str, Any] = {}
+
+    def fake_verify(token: str, request: Any, audience: str) -> dict[str, Any]:
+        calls["token"] = token
+        calls["request"] = request
+        calls["audience"] = audience
+        return {"sub": "google-sub", "email": "ana@gmail.com", "email_verified": True}
+
+    from google.oauth2 import id_token as google_id_token
+
+    monkeypatch.setattr(google_id_token, "verify_oauth2_token", fake_verify)
+
+    claims = await auth_route.verify_google_id_token("google-token")
+
+    assert claims["sub"] == "google-sub"
+    assert calls["token"] == "google-token"
+    assert callable(calls["request"])
+    assert calls["audience"] == "test-client.apps.googleusercontent.com"
+
+
 # ---------------------------------------------------------------------------
 # Backend provider enforcement
 # ---------------------------------------------------------------------------

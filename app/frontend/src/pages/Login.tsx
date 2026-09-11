@@ -84,7 +84,12 @@ export function Login() {
             void handleGoogleCredential(resp);
           },
         });
-        gis.renderButton(container, { theme: 'outline', size: 'large', width: '100%' });
+        const buttonWidth = Math.min(container.clientWidth || 400, 400);
+        gis.renderButton(container, {
+          theme: 'outline',
+          size: 'large',
+          width: String(buttonWidth),
+        });
       })
       .catch(() => {
         setFormError('No se pudo cargar Google Sign-In.');
@@ -131,7 +136,7 @@ export function Login() {
               {formError}
             </div>
           )}
-          <div ref={gisContainerRef} data-testid="google-signin-button" />
+          <div ref={gisContainerRef} className="w-full" data-testid="google-signin-button" />
         </div>
       )}
       {status === 'authenticating-google' && (

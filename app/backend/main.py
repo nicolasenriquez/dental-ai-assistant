@@ -6,6 +6,7 @@ Handles lifespan startup (DB init + seeding) and route registration.
 import logging
 import os
 import subprocess
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
@@ -109,6 +110,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_popup_security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Keep GIS popup communication available when FedCM is disabled."""
+    response = await call_next(request)
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    return response
+
 
 # ---------------------------------------------------------------------------
 # Routes (imported here to keep main.py clean)

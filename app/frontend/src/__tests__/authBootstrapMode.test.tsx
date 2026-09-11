@@ -178,6 +178,9 @@ describe('Google mode login page', () => {
     expect(options.callback).toBeTypeOf('function');
     expect(gisPrompt).not.toHaveBeenCalled();
     expect(gisRenderButton).toHaveBeenCalled();
+    const buttonWidth = gisRenderButton.mock.calls[0][1].width as string;
+    expect(buttonWidth).toMatch(/^\d+$/);
+    expect(Number(buttonWidth)).toBeLessThanOrEqual(400);
   });
 
   it('hands the GIS credential to loginWithGoogle and shows immediate feedback', async () => {

@@ -144,13 +144,14 @@ async def verify_google_id_token(credential: str) -> dict[str, Any]:
     not reimplement JWT signature verification. Any provider failure or invalid
     token raises ValueError — callers map it to sanitized 401.
     """
+    from google.auth.transport.requests import Request
     from google.oauth2 import id_token as google_id_token
 
     try:
         return await asyncio.to_thread(
             google_id_token.verify_oauth2_token,
             credential,
-            None,
+            Request(),
             config.GOOGLE_CLIENT_ID,
         )
     except Exception as exc:
