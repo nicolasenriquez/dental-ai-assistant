@@ -144,18 +144,13 @@ Local development is Docker-first. From the repository root, use the commands in
 ```bash
 just dev-up-build  # first run or after image/dependency changes
 just dev-up        # start existing local images
+just dev-logs      # follow app + postgres logs
 just dev-down      # stop services and preserve named volumes
 ```
 
-These targets run the local `postgres` and `app-blue` services; the local override publishes the app on `localhost:8000` and enables demo seed data. The `e2e-baseline` targets are the intentional host-side exception because they invoke Bun directly. Use the host-local flow below only when Docker is unavailable or when a task specifically requires it.
+These targets run the local `postgres` and `app-blue` services; the local override publishes the app on `localhost:8000` and enables demo seed data.
 
-Host-local fallback — install and start everything (backend venv + deps, frontend deps, both dev servers):
-
-```bash
-cd app
-./start.sh         # POSIX
-start.bat          # Windows
-```
+Host-side exceptions: backend `pytest` / `ruff` / `mypy`, frontend `vitest` / `tsc` / `biome`, and the `e2e-baseline` targets (invoke Bun directly). App runtime stays Docker; use `app/start.sh` / `start.bat` only when Docker is unavailable.
 
 Manual backend:
 

@@ -1,10 +1,12 @@
 /**
  * useAuth — session state hook backed by /api/auth/me, shared via AuthContext.
  *
- * On mount, `AuthProvider` calls `me()` once to hydrate the user AND their
- * daily rate-limit counter (MISSION §10 invariant #1 + issue #52).
- * Login/signup set the cookie, then `refresh()` re-hits `/me` so the counter
- * lands with the authoritative value from Postgres.
+ * Boot sequence: `getAuthConfig()` establishes the backend-owned auth mode,
+ * then `me()` hydrates the user AND their daily rate-limit counter (MISSION
+ * §10 invariant #1 + issue #52). The single `status` union is the
+ * discriminated bootstrap state (OpenSpec google-drive-managed-workspace):
+ * configuration, provider authentication, session establishment, and
+ * downstream Drive bootstrap never live in parallel booleans.
  *
  * `refresh()` is exposed so the chat area can call it after each successful
  * send — the counter needs to decrement by one per message. Because the
@@ -21,50 +23,107 @@ import {
   useState,
 } from 'react';
 import {
+  type AuthConfig,
   AuthError,
   type AuthMeResponse,
   login as apiLogin,
+  loginWithGoogle as apiLoginWithGoogle,
   logout as apiLogout,
   signup as apiSignup,
+  getAuthConfig,
   me,
 } from '../lib/authApi';
 
-export type AuthStatus = 'loading' | 'authed' | 'anon';
+export type BootstrapStatus =
+  | 'loading-config'
+  | 'unauthenticated-local'
+  | 'unauthenticated-google'
+  | 'authenticating-google'
+  | 'establishing-session'
+  | 'checking-drive'
+  | 'authorizing-drive'
+  | 'preparing-workspace'
+  | 'ready'
+  | 'ready-without-drive'
+  | 'error';
+
+export function isAuthenticatedStatus(status: BootstrapStatus): boolean {
+  return status === 'ready' || status === 'ready-without-drive';
+}
+
+export function isUnauthenticatedStatus(status: BootstrapStatus): boolean {
+  return status === 'unauthenticated-local' || status === 'unauthenticated-google';
+}
 
 export interface UseAuthResult {
-  status: AuthStatus;
+  status: BootstrapStatus;
   user: AuthMeResponse | null;
   error: string | null;
+  authConfig: AuthConfig | null;
   signup: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<UseAuthResult | null>(null);
 
+function anonStatusFor(mode: AuthConfig['mode'] | null | undefined): BootstrapStatus {
+  return mode === 'google' ? 'unauthenticated-google' : 'unauthenticated-local';
+}
+
 function useAuthState(): UseAuthResult {
   const [user, setUser] = useState<AuthMeResponse | null>(null);
-  const [status, setStatus] = useState<AuthStatus>('loading');
+  const [status, setStatus] = useState<BootstrapStatus>('loading-config');
+  const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function boot() {
+      try {
+        const cfg = await getAuthConfig();
+        if (cancelled) return;
+        setAuthConfig(cfg);
+        try {
+          const u = await me();
+          if (cancelled) return;
+          setUser(u);
+          setStatus('ready');
+        } catch (e) {
+          if (cancelled) return;
+          setUser(null);
+          setStatus(anonStatusFor(cfg.mode));
+          if (e instanceof AuthError && e.status !== 401) {
+            setError(e.message);
+          }
+        }
+      } catch (e) {
+        if (cancelled) return;
+        setStatus('error');
+        setError(e instanceof Error ? e.message : 'No se pudo cargar la configuración.');
+      }
+    }
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
       const u = await me();
       setUser(u);
-      setStatus('authed');
+      setStatus('ready');
     } catch (e) {
       setUser(null);
-      setStatus('anon');
+      setStatus(anonStatusFor(authConfig?.mode));
       if (e instanceof AuthError && e.status !== 401) {
         setError(e.message);
       }
     }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  }, [authConfig]);
 
   const doLogin = useCallback(
     async (email: string, password: string) => {
@@ -79,6 +138,27 @@ function useAuthState(): UseAuthResult {
       }
     },
     [refresh],
+  );
+
+  const doLoginWithGoogle = useCallback(
+    async (credential: string) => {
+      setError(null);
+      setStatus('authenticating-google');
+      try {
+        await apiLoginWithGoogle(credential);
+        setStatus('establishing-session');
+        const u = await me();
+        setUser(u);
+        setStatus('ready');
+      } catch (e) {
+        setUser(null);
+        setStatus(anonStatusFor(authConfig?.mode));
+        const msg = e instanceof Error ? e.message : 'Google login failed';
+        setError(msg);
+        throw e;
+      }
+    },
+    [authConfig],
   );
 
   const doSignup = useCallback(
@@ -101,21 +181,23 @@ function useAuthState(): UseAuthResult {
       await apiLogout();
     } finally {
       setUser(null);
-      setStatus('anon');
+      setStatus(anonStatusFor(authConfig?.mode));
     }
-  }, []);
+  }, [authConfig]);
 
   return useMemo(
     () => ({
       status,
       user,
       error,
+      authConfig,
       signup: doSignup,
       login: doLogin,
+      loginWithGoogle: doLoginWithGoogle,
       logout: doLogout,
       refresh,
     }),
-    [status, user, error, doSignup, doLogin, doLogout, refresh],
+    [status, user, error, authConfig, doSignup, doLogin, doLoginWithGoogle, doLogout, refresh],
   );
 }
 

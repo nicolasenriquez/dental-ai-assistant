@@ -214,3 +214,37 @@ _cors_raw: str = os.environ.get(
     f"http://localhost:{FRONTEND_PORT},http://127.0.0.1:{FRONTEND_PORT}",
 )
 CORS_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+
+# Authentication mode — backend-owned provider selection, not only presentation.
+# `local` preserves email/password signup/login and disables Google auth;
+# `google` enables Google auth and disables local signup/login. Unknown values
+# fail startup. Google mode requires a public Google client ID.
+AUTH_MODE: str = os.environ.get("AUTH_MODE", "local").strip().lower()
+if AUTH_MODE not in ("local", "google"):
+    raise RuntimeError(f"AUTH_MODE must be 'local' or 'google', got {AUTH_MODE!r}")
+
+GOOGLE_CLIENT_ID: str = os.environ.get("GOOGLE_CLIENT_ID", "")
+if AUTH_MODE == "google" and not GOOGLE_CLIENT_ID:
+    raise RuntimeError("AUTH_MODE=google requires GOOGLE_CLIENT_ID")
+
+# Exact allowed application origins for the GIS same-origin JSON request-context
+# guard. Comma-separated; empty list fails the guard closed.
+_app_origins_raw: str = os.environ.get("APP_ORIGINS", "")
+APP_ORIGINS: list[str] = [o.strip() for o in _app_origins_raw.split(",") if o.strip()]
+
+# Google Drive workspace feature switches (Phase 2+). Default off until the
+# Drive connection boundary exists.
+GOOGLE_DRIVE_ENABLED: bool = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+GOOGLE_DRIVE_AUTO_ONBOARD: bool = os.environ.get(
+    "GOOGLE_DRIVE_AUTO_ONBOARD", "false"
+).strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)

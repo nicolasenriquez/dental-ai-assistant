@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { AddVideoModal } from '../components/AddVideoModal';
 import { useAdminVideos } from '../hooks/useAdminVideos';
-import { useAuth } from '../hooks/useAuth';
+import { isAuthenticatedStatus, isUnauthenticatedStatus, useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { type AdminVideo, addVideoByUrl, deleteVideo, resyncVideo, syncChannel } from '../lib/api';
 
@@ -19,9 +19,10 @@ export function AdminVideos() {
   const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const authed = isAuthenticatedStatus(status);
   const { videos, loading, refetch } = useAdminVideos(
     debouncedQuery,
-    status === 'authed' && Boolean(user?.is_admin),
+    authed && Boolean(user?.is_admin),
   );
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -34,15 +35,15 @@ export function AdminVideos() {
   }, [searchQuery]);
 
   // Guard rendering
-  if (status === 'loading') {
+  if (!authed) {
+    if (isUnauthenticatedStatus(status) || status === 'error') {
+      return <Navigate to="/login" replace state={{ from: '/admin' }} />;
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text-secondary)]">
         Cargando…
       </div>
     );
-  }
-  if (status === 'anon') {
-    return <Navigate to="/login" replace state={{ from: '/admin' }} />;
   }
   if (!user?.is_admin) {
     return <Navigate to="/" replace />;

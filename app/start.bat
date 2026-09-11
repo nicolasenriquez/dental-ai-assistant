@@ -1,5 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
+echo NOTICE: host fallback - default runtime is 'just dev-up-build' (Docker).
+echo NOTICE: use this script only when Docker is unavailable.
 
 set SCRIPT_DIR=%~dp0
 set BACKEND_DIR=%SCRIPT_DIR%backend

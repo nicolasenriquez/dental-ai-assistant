@@ -38,6 +38,7 @@ dependencies = [
     # marker omits macOS Apple Silicon (platform_machine == 'arm64'), so we
     # depend on it explicitly to install everywhere.
     "greenlet",
+    "google-auth>=2.29",
 ]
 
 [project.optional-dependencies]

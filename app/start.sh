@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -e
+echo "NOTICE: host fallback — default runtime is 'just dev-up-build' (Docker)."
+echo "NOTICE: use this script only when Docker is unavailable."
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$SCRIPT_DIR/backend"

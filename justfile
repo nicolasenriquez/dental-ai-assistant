@@ -12,6 +12,10 @@ voice_services := "postgres app-blue whisper"
 e2e_image := "mcr.microsoft.com/playwright:v1.62.1-noble"
 repo_dir := justfile_directory()
 
+# Default runtime is Docker. Bare `just` == first-run Docker boot.
+default:
+    just dev-up-build
+
 # Start local services without forcing an image rebuild.
 [unix]
 dev-up:
@@ -41,6 +45,13 @@ dev-up-voice:
 # Stop local services and preserve named volumes.
 dev-down:
     {{compose}} --profile voice down --remove-orphans
+
+# Helpers for Docker-default loop.
+dev-logs:
+    {{compose}} logs -f app-blue postgres
+
+dev-ps:
+    {{compose}} ps
 
 # Run the authenticated UI baseline against local app-blue only.
 # E2E_USER and E2E_PASSWORD are loaded from the local, gitignored .env file.

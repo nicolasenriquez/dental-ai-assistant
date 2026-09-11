@@ -59,7 +59,7 @@ For full code conventions, repo layout, and the rules AI coding agents should fo
 
 ## Quick Start
 
-### Docker + just (recommended)
+### Docker + just (default)
 
 Starts PostgreSQL and `app-blue`, serving the built frontend and FastAPI at
 `http://localhost:8000`. Does not start Caddy or `app-green`.
@@ -83,6 +83,11 @@ just dev-up-build
 ```
 
 Subsequent starts can use `just dev-up`. Stop containers with `just dev-down`.
+Logs with `just dev-logs`. The app runs Alembic migrations automatically on
+startup, so a fresh Postgres database is brought up to schema on first run.
+
+<details>
+<summary>Host fallback (only when Docker unavailable)</summary>
 
 ### Prerequisites
 
@@ -122,10 +127,10 @@ uv --project backend run uvicorn backend.main:app --reload --port 8000
 cd app/frontend && bun install && bun run dev
 ```
 
-The app runs Alembic migrations automatically on startup, so a fresh Postgres database is brought up to schema on first run.
-
 Use `just dev-up` to start local PostgreSQL and `app-blue`. Use `just dev-down`
 to stop Compose services without deleting database data.
+
+</details>
 
 ---
 

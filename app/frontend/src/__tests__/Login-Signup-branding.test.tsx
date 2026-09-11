@@ -14,11 +14,13 @@ import { Signup } from '../pages/Signup';
 // Mock useAuth to provide a valid context
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({
-    status: 'anon',
+    status: 'unauthenticated-local',
     user: null,
     error: null,
+    authConfig: null,
     login: vi.fn(),
     signup: vi.fn(),
+    loginWithGoogle: vi.fn(),
     logout: vi.fn(),
     refresh: vi.fn(),
   }),

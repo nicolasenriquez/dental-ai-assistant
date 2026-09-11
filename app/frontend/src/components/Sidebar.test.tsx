@@ -293,7 +293,7 @@ describe('Sidebar logout', () => {
     const logoutMock = vi.fn().mockResolvedValue(undefined);
     const { useAuth } = await import('../hooks/useAuth');
     vi.mocked(useAuth).mockReturnValue({
-      status: 'authed',
+      status: 'ready',
       user: {
         id: 'user-1',
         email: 'test@example.com',
@@ -303,8 +303,10 @@ describe('Sidebar logout', () => {
         rate_window_resets_at: null,
       } as never,
       error: null,
+      authConfig: null,
       signup: vi.fn(),
       login: vi.fn(),
+      loginWithGoogle: vi.fn(),
       logout: logoutMock,
       refresh: vi.fn(),
     });
@@ -447,7 +449,7 @@ describe('Sidebar navigation and conversations', () => {
   it('shows administration only for admin users', async () => {
     const { useAuth } = await import('../hooks/useAuth');
     vi.mocked(useAuth).mockReturnValueOnce({
-      status: 'authed',
+      status: 'ready',
       user: {
         id: 'admin-1',
         email: 'admin@example.com',
@@ -457,8 +459,10 @@ describe('Sidebar navigation and conversations', () => {
         rate_window_resets_at: null,
       },
       error: null,
+      authConfig: null,
       signup: vi.fn(),
       login: vi.fn(),
+      loginWithGoogle: vi.fn(),
       logout: vi.fn(),
       refresh: vi.fn(),
     });

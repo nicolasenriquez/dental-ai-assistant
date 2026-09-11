@@ -13,7 +13,12 @@ import {
 import { AppShell } from './components/AppShell';
 import { ChatArea } from './components/ChatArea';
 import { ToastProvider } from './components/ToastProvider';
-import { AuthProvider, useAuth } from './hooks/useAuth';
+import {
+  AuthProvider,
+  isAuthenticatedStatus,
+  isUnauthenticatedStatus,
+  useAuth,
+} from './hooks/useAuth';
 import { useStreamingResponse } from './hooks/useStreamingResponse';
 import { AdminVideos } from './pages/AdminVideos';
 import { ClinicalAssistant } from './pages/ClinicalAssistant';
@@ -33,17 +38,17 @@ function RequireAuth({ children }: RequireAuthProps) {
   const { status } = useAuth();
   const location = useLocation();
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text-secondary)]">
-        Loading…
-      </div>
-    );
+  if (isAuthenticatedStatus(status)) {
+    return <>{children}</>;
   }
-  if (status === 'anon') {
+  if (isUnauthenticatedStatus(status) || status === 'error') {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   }
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text-secondary)]">
+      Loading…
+    </div>
+  );
 }
 
 // ── Layout wrapper used by all routes ────────────────────────────

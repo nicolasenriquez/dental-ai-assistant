@@ -5,7 +5,7 @@ description: Sets up and starts the AI Tutor project locally — environment fil
 
 # Initialize Project
 
-Run the following commands to set up and start the AI Tutor locally.
+Run from the repository root. Default runtime is Docker.
 
 ## Input
 
@@ -14,48 +14,26 @@ None required. Run from the repository root.
 ## Process
 
 ### 1. Create Environment File
-```bash
-cp .env.example .env
+```powershell
+Copy-Item deploy\.env.example .env
 ```
-Creates your local environment configuration from the example template.
+Fill in `OPENROUTER_API_KEY`, `POSTGRES_*`, `JWT_SECRET`.
 
-### 2. Install Dependencies
+### 2. Boot Docker
 ```bash
-uv sync
+just dev-up-build
 ```
-Installs all Python packages defined in pyproject.toml.
+Starts `postgres` + `app-blue` on `http://localhost:8000`. Migrations run automatically on startup.
 
-### 3. Start Database
-```bash
-docker-compose up -d db
-```
-Starts PostgreSQL in a Docker container.
-
-### 4. Run Database Migrations
-```bash
-uv run alembic upgrade head
-```
-Applies all pending database migrations.
-
-### 5. Start Development Server
-```bash
-uv run uvicorn app.main:app --reload --port 8123
-```
-Starts the FastAPI server with hot-reload on port 8123.
-
-### 6. Validate Setup
+### 3. Validate Setup
 
 Check that everything is working:
 
 ```bash
-# Test API health
-curl -s http://localhost:8123/health
-
-# Test database connection
-curl -s http://localhost:8123/health/db
+curl -s http://localhost:8000/api/health
 ```
 
-Both should return `{"status":"healthy"}` responses.
+Should return a healthy response.
 
 ## Output
 
@@ -63,19 +41,18 @@ A running local AI Tutor instance.
 
 ### Access Points
 
-- Swagger UI: http://localhost:8123/docs
-- Health Check: http://localhost:8123/health
-- Database: localhost (Docker container)
+- App + API: http://localhost:8000
+- Health Check: http://localhost:8000/api/health
+- Database: 127.0.0.1:5433 (loopback only, via compose `postgres`)
 
 ## Cleanup
 
 To stop services:
 ```bash
-# Stop dev server: Ctrl+C
-# Stop database: docker-compose down
+just dev-down
 ```
 
 ## Notes
 
-- Port numbers and the exact `docker-compose` service name may differ — check `docker-compose.yml`,
-  `.env.example`, and the project README for project-specific values before running.
+- Host-native `uv`/`bun` flows (`app/start.sh`, `start.bat`) only when Docker is unavailable.
+- Host-side test/lint (`pytest`, `ruff`, `mypy`, `vitest`, `tsc`, `biome`) still run on the host.
