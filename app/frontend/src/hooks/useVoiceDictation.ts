@@ -225,6 +225,15 @@ export function useVoiceDictation(scopeId: string, onText: (text: string) => voi
 
       streamRef.current = stream;
       setStream(stream);
+      for (const track of stream.getTracks()) {
+        track.onended = () => {
+          if (!isCurrentOperation(operation, sourceScope) || cancelledRef.current) return;
+          cleanup();
+          updateState('error');
+          setError('El micrófono se desconectó. Tu texto se conserva.');
+          setRetryable(false);
+        };
+      }
       const mimeType = MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = mimeType
         ? new MediaRecorder(stream, { mimeType })

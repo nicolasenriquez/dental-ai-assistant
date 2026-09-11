@@ -98,7 +98,13 @@ export interface ClinicalPatientSwitch {
   detected: ClinicalPatient;
 }
 
-export type ClinicalRuntime = 'idle' | 'streaming' | 'awaiting_approval' | 'saving' | 'failed';
+export type ClinicalRuntime =
+  | 'idle'
+  | 'streaming'
+  | 'stopping'
+  | 'awaiting_approval'
+  | 'saving'
+  | 'failed';
 
 export interface ClinicalEvent {
   name: string;

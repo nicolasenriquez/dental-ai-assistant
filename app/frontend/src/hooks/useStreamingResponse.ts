@@ -6,7 +6,13 @@ export interface StreamResult {
   fullText: string;
   sources: Citation[];
   stopped?: boolean;
-  terminationReason?: 'completed' | 'user_cancelled';
+  terminationReason?:
+    | 'completed'
+    | 'user_cancelled'
+    | 'client_disconnected'
+    | 'provider_timeout'
+    | 'length'
+    | 'failed';
 }
 
 export interface StreamingStatus {
@@ -95,6 +101,7 @@ export function useStreamingResponse() {
 
       let fullText = '';
       let sources: Citation[] = [];
+      let terminationReason: StreamResult['terminationReason'] = 'completed';
 
       try {
         const res = await fetch(`/api/conversations/${conversationId}/messages`, {
@@ -166,6 +173,15 @@ export function useStreamingResponse() {
                 }
               } catch (e) {
                 console.warn('[useStreamingResponse] Failed to parse sources event:', e);
+              }
+            } else if (resolvedEventType === 'termination') {
+              if (
+                data === 'completed' ||
+                data === 'provider_timeout' ||
+                data === 'length' ||
+                data === 'failed'
+              ) {
+                terminationReason = data;
               }
             } else if (resolvedEventType === 'status') {
               try {
@@ -242,7 +258,7 @@ export function useStreamingResponse() {
             sources,
           },
         }));
-        return { fullText, sources, terminationReason: 'completed' };
+        return { fullText, sources, terminationReason };
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
           setRuntimeByConversationId((current) => ({

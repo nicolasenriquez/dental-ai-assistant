@@ -22,10 +22,35 @@ These tests lock in:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
+
+async def test_cancel_interrupts_in_flight_work() -> None:
+    from backend.llm.openrouter import RunCancelled, _wait_or_cancel
+
+    cancel_event = asyncio.Event()
+    work_cancelled = asyncio.Event()
+
+    async def slow_work() -> str:
+        try:
+            await asyncio.Event().wait()
+        finally:
+            work_cancelled.set()
+        return "unreachable"
+
+    task = asyncio.create_task(_wait_or_cancel(slow_work(), cancel_event))
+    await asyncio.sleep(0)
+    cancel_event.set()
+
+    with pytest.raises(RunCancelled):
+        await task
+    assert work_cancelled.is_set()
 
 
 class _FakeDeltaChunk:

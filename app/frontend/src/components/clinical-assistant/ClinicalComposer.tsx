@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, ListPlus, Search, X } from 'lucide-react';
+import { Check, ChevronsUpDown, ListPlus, Search, Square, X } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
@@ -30,6 +30,8 @@ interface ClinicalComposerProps {
   onChange: (value: string) => void;
   onPatientChange: (patientId: string | null) => void;
   onSubmit: () => void;
+  onStop?: () => void;
+  stopping?: boolean;
   voice: ClinicalVoiceControls;
   patientControlsDisabled?: boolean;
   submitDisabled?: boolean;
@@ -47,6 +49,8 @@ export function ClinicalComposer({
   onChange,
   onPatientChange,
   onSubmit,
+  onStop,
+  stopping = false,
   voice,
   patientControlsDisabled = false,
   submitDisabled = false,
@@ -106,7 +110,17 @@ export function ClinicalComposer({
   };
 
   return (
-    <ComposerShell className="clinical-composer" focused={focused} testId="clinical-composer">
+    <ComposerShell
+      className="clinical-composer"
+      focused={focused}
+      testId="clinical-composer"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && voiceInFlight) {
+          event.preventDefault();
+          voice.onCancel();
+        }
+      }}
+    >
       <div className="clinical-patient-context">
         <span className="clinical-patient-label">
           {patient ? 'Paciente' : 'Selecciona un paciente'}
@@ -225,7 +239,9 @@ export function ClinicalComposer({
         ref={textareaRef}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        onKeyDown={onKeyDown}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') onKeyDown(event);
+        }}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         rows={1}
@@ -250,6 +266,18 @@ export function ClinicalComposer({
           onCancelVoice={voice.onCancel}
           onRetryVoice={voice.onRetry}
         />
+        {onStop && (
+          <button
+            type="button"
+            className="chat-stop-button"
+            onClick={onStop}
+            disabled={stopping}
+            aria-label={stopping ? 'Deteniendo respuesta' : 'Detener respuesta'}
+          >
+            {stopping ? <span aria-hidden="true" className="spinner" /> : <Square size={13} />}
+            <span className="sr-only">{stopping ? 'Deteniendo…' : 'Detener'}</span>
+          </button>
+        )}
         <button
           type="button"
           className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}

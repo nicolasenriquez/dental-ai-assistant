@@ -179,6 +179,7 @@ async def create_message(
     async def event_generator() -> AsyncGenerator[str, None]:
         full_response: list[str] = []
         final_text_buf: list[str] = []
+        termination_reason_out: list[str] = []
         # Two-tier citations (issue #176): strip `[c:<id>]` markers from the
         # stream; use them at [DONE] to flag is_cited on retrieved chunks.
         marker_stripper = CitationMarkerStripper()
@@ -190,11 +191,17 @@ async def create_message(
                 tool_executor=executor,
                 max_tool_calls=max_tool_calls,
                 final_text_out=final_text_buf,
+                cancel_event=cancel_event,
+                termination_reason_out=termination_reason_out,
             ):
                 if cancel_event.is_set():
                     break
                 if sse_chunk == "data: [DONE]\n\n":
                     completed = True
+                    terminal_reason = (
+                        termination_reason_out[-1] if termination_reason_out else "completed"
+                    )
+                    yield f"event: termination\ndata: {terminal_reason}\n\n"
                     # Flush any text held back as a partial marker.
                     tail = marker_stripper.flush()
                     if tail:
@@ -257,6 +264,15 @@ async def create_message(
             # state; we catch the re-raised CancelledError so the generator
             # can exit cleanly.
             assistant_text = _extract_text_from_sse(full_response)
+            termination_reason = (
+                "user_cancelled"
+                if cancel_event.is_set()
+                else termination_reason_out[-1]
+                if termination_reason_out
+                else "completed"
+                if completed
+                else "client_disconnected"
+            )
             if assistant_text:
                 # Apply the same refusal detection used for the live SSE
                 # `event: sources` suppression so reloading the conversation
@@ -282,13 +298,7 @@ async def create_message(
                             role="assistant",
                             content=assistant_text,
                             sources=sources_to_persist,
-                            termination_reason=(
-                                "completed"
-                                if completed
-                                else "user_cancelled"
-                                if cancel_event.is_set()
-                                else "client_disconnected"
-                            ),
+                            termination_reason=termination_reason,
                         )
                     )
                 except asyncio.CancelledError:
@@ -315,13 +325,7 @@ async def create_message(
                 extra={
                     "conversation_id": conv_id,
                     "run_id": body.run_id,
-                    "termination_reason": (
-                        "completed"
-                        if completed
-                        else "user_cancelled"
-                        if cancel_event.is_set()
-                        else "client_disconnected"
-                    ),
+                    "termination_reason": termination_reason,
                     "duration_ms": round((time.monotonic() - run_started_at) * 1000),
                 },
             )

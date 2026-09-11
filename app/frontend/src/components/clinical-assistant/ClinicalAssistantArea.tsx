@@ -40,6 +40,7 @@ export function ClinicalAssistantArea({
   const [queueByThread, setQueueByThread] = useState<Record<string, QueuedEntry[]>>({});
   const [preparingDraftId, setPreparingDraftId] = useState<string | null>(null);
   const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
   const voiceCaretRef = useRef<number | null>(null);
@@ -125,8 +126,9 @@ export function ClinicalAssistantArea({
     const next = queued[0];
     if (assistant.runtime !== 'idle' || voiceInFlight || !next || next.patientId !== patientId)
       return;
-    updateQueue((current) => current.slice(1));
-    void assistant.send(next.content);
+    void assistant.send(next.content).then((accepted) => {
+      if (accepted) updateQueue((current) => current.filter((item) => item.id !== next.id));
+    });
   }, [
     assistant.runtime,
     assistant.send,
@@ -140,27 +142,33 @@ export function ClinicalAssistantArea({
   const send = () => {
     if (!value.trim() || voiceInFlight) return;
     const message = value.trim();
-    setValue('');
     const busy =
       assistant.runtime === 'streaming' ||
+      assistant.runtime === 'stopping' ||
       assistant.runtime === 'awaiting_approval' ||
       assistant.runtime === 'saving';
     if (busy) {
-      if (queued.length < 3) {
-        updateQueue((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
-            content: message,
-            patientId: assistant.thread?.active_patient?.id ?? null,
-            patientName: assistant.thread?.active_patient
-              ? `${assistant.thread.active_patient.first_name} ${assistant.thread.active_patient.last_name}`
-              : 'Sin paciente',
-          },
-        ]);
+      if (queued.length >= 3) {
+        setQueueError('Ya tienes 3 mensajes pendientes.');
+        return;
       }
+      setQueueError(null);
+      setValue('');
+      updateQueue((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          content: message,
+          patientId: assistant.thread?.active_patient?.id ?? null,
+          patientName: assistant.thread?.active_patient
+            ? `${assistant.thread.active_patient.first_name} ${assistant.thread.active_patient.last_name}`
+            : 'Sin paciente',
+        },
+      ]);
       return;
     }
+    setQueueError(null);
+    setValue('');
     void assistant.send(message).then((ok) => {
       if (!ok) setValue((current) => current || message);
       else onThreadStateChanged?.();
@@ -251,6 +259,11 @@ export function ClinicalAssistantArea({
       {assistant.error && (
         <p className="clinical-error" role="alert">
           {assistant.error}
+        </p>
+      )}
+      {queueError && (
+        <p className="clinical-error" role="alert">
+          {queueError}
         </p>
       )}
       {assistant.patientSwitch && (
@@ -361,6 +374,7 @@ export function ClinicalAssistantArea({
             value={value}
             busy={
               assistant.runtime === 'streaming' ||
+              assistant.runtime === 'stopping' ||
               assistant.runtime === 'awaiting_approval' ||
               assistant.runtime === 'saving'
             }
@@ -371,6 +385,12 @@ export function ClinicalAssistantArea({
               guardTransition ? guardTransition(change) : change();
             }}
             onSubmit={send}
+            onStop={
+              assistant.runtime === 'streaming' || assistant.runtime === 'stopping'
+                ? assistant.stop
+                : undefined
+            }
+            stopping={assistant.runtime === 'stopping'}
             voice={{
               state: voice.state,
               elapsed: voice.elapsed,

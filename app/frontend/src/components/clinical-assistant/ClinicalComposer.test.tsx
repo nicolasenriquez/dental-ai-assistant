@@ -231,4 +231,37 @@ describe('ClinicalComposer', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it('exposes Stop and cancels voice from any focused composer control', () => {
+    const onStop = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <ClinicalComposer
+        patient={patient}
+        patients={patients}
+        value="Nota"
+        busy
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onPatientChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onStop={onStop}
+        voice={{
+          state: 'recording',
+          elapsed: 0,
+          error: null,
+          canRetry: false,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onCancel,
+          onRetry: vi.fn(),
+        }}
+      />,
+    );
+    const stop = screen.getByRole('button', { name: 'Detener respuesta' });
+    fireEvent.keyDown(stop, { key: 'Escape' });
+    fireEvent.click(stop);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
 });

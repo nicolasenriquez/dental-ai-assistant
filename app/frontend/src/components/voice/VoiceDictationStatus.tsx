@@ -91,7 +91,9 @@ export function VoiceDictationStatus({
             ) : (
               <>
                 <span>Sigue transcribiendo…</span>
-                <time>{transcriptionTimer}</time>
+                <time role="timer" aria-live="off">
+                  {transcriptionTimer}
+                </time>
                 <span>Puedes seguir editando.</span>
               </>
             )}

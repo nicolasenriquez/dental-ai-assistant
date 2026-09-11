@@ -146,6 +146,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         className={voiceInFlight ? 'chat-composer--voice-active' : ''}
         focused={focused}
         disabled={isDisabled}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && voiceInFlight) {
+            event.preventDefault();
+            onCancelVoice?.();
+          }
+        }}
       >
         <textarea
           ref={textareaRef}
@@ -158,7 +164,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           value={inputValue}
           disabled={isDisabled}
           onChange={handleChange}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') handleKeyDown(event);
+          }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           rows={1}

@@ -11,13 +11,20 @@ continue until finish_reason=stop. Terminates with `data: [DONE]\\n\\n`.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Any, cast
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from typing import Any, TypeVar, cast
 
-from openai import APIConnectionError, APIError, APIStatusError, AsyncOpenAI
+from openai import (
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncOpenAI,
+)
 from openai.types.chat import ChatCompletionMessageParam
 
 from backend.config import (
@@ -30,6 +37,26 @@ from backend.config import (
 from backend.rag import catalog
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
+
+
+class RunCancelled(Exception):
+    """The owning request explicitly cancelled this model run."""
+
+
+async def _wait_or_cancel(awaitable: Awaitable[T], cancel_event: asyncio.Event | None) -> T:
+    if cancel_event is None:
+        return await awaitable
+    work = asyncio.ensure_future(awaitable)
+    cancelled = asyncio.create_task(cancel_event.wait())
+    done, _ = await asyncio.wait({work, cancelled}, return_when=asyncio.FIRST_COMPLETED)
+    if cancelled in done:
+        work.cancel()
+        await asyncio.gather(work, return_exceptions=True)
+        raise RunCancelled
+    cancelled.cancel()
+    return await work
+
 
 # Heartbeat cadence for the SSE keepalive. Kimi K2.6 regularly goes 60-140s of
 # silent tool-call streaming + tool execution before emitting the first
@@ -196,6 +223,8 @@ async def stream_chat(
     tool_executor: ToolExecutor | None = None,
     max_tool_calls: int = 0,
     final_text_out: list[str] | None = None,
+    cancel_event: asyncio.Event | None = None,
+    termination_reason_out: list[str] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream a chat completion via OpenRouter. When tools + executor are
     supplied, execute tool calls in a loop until finish_reason=stop.
@@ -288,7 +317,12 @@ async def stream_chat(
             pending: dict[int, dict[str, Any]] = {}
             finish_reason: str | None = None
 
-            async for chunk in stream:
+            iterator: AsyncIterator[Any] = stream.__aiter__()
+            while True:
+                try:
+                    chunk = await _wait_or_cancel(anext(iterator), cancel_event)
+                except StopAsyncIteration:
+                    break
                 if not chunk.choices:
                     continue
                 choice = chunk.choices[0]
@@ -366,7 +400,9 @@ async def stream_chat(
                             f"data: {json.dumps({'type': 'tool_call_start', 'tool': tool_name, 'subject': subject})}\n\n"
                         )
                         try:
-                            payload = await tool_executor(tool_name, tool_args_raw)
+                            payload = await _wait_or_cancel(
+                                tool_executor(tool_name, tool_args_raw), cancel_event
+                            )
                         except Exception as exc:
                             logger.warning("tool executor raised: %s", exc, exc_info=True)
                             payload = f"Error: tool execution failed: {exc}"
@@ -393,6 +429,10 @@ async def stream_chat(
             # refusal check.
             if final_text_out is not None:
                 final_text_out.append("".join(assistant_text_parts))
+            if termination_reason_out is not None:
+                termination_reason_out.append(
+                    "length" if finish_reason == "length" else "completed"
+                )
             if round_content_deltas == 0:
                 logger.warning(
                     "stream_chat final round emitted zero content tokens "
@@ -406,12 +446,27 @@ async def stream_chat(
 
         yield "data: [DONE]\n\n"
 
+    except RunCancelled:
+        if termination_reason_out is not None:
+            termination_reason_out.append("user_cancelled")
+        return
+    except APITimeoutError as exc:
+        if termination_reason_out is not None:
+            termination_reason_out.append("provider_timeout")
+        logger.error("OpenRouter streaming timed out: %s", exc)
+        if tokens_yielded == 0:
+            raise RuntimeError(f"OpenRouter streaming timed out: {exc}") from exc
+        yield f"data: {json.dumps({'error': str(exc)})}\n\n"
     except (APIError, APIConnectionError, APIStatusError) as exc:
+        if termination_reason_out is not None:
+            termination_reason_out.append("failed")
         logger.error("OpenRouter streaming API error: %s", exc)
         if tokens_yielded == 0:
             raise RuntimeError(f"OpenRouter streaming failed: {exc}") from exc
         yield f"data: {json.dumps({'error': str(exc)})}\n\n"
     except Exception as exc:
+        if termination_reason_out is not None:
+            termination_reason_out.append("failed")
         logger.error("Unexpected error during streaming: %s", exc)
         if tokens_yielded == 0:
             raise RuntimeError(f"Streaming failed unexpectedly: {exc}") from exc

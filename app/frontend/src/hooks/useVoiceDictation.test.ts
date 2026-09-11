@@ -30,11 +30,13 @@ class FakeRecorder {
 }
 
 function installRecorder() {
+  const track = { stop: vi.fn(), onended: null as (() => void) | null };
   Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: FakeRecorder });
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
-    value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] }) },
+    value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [track] }) },
   });
+  return track;
 }
 
 describe('useVoiceDictation', () => {
@@ -125,6 +127,15 @@ describe('useVoiceDictation', () => {
     );
     expect(result.current.canRetry).toBe(false);
     expect(transcribeAudio).not.toHaveBeenCalled();
+  });
+
+  it('returns an explicit error when the microphone track ends', async () => {
+    const track = installRecorder();
+    const { result } = renderHook(() => useVoiceDictation('thread-a', vi.fn()));
+    await act(async () => result.current.start());
+    act(() => track.onended?.());
+    expect(result.current.state).toBe('error');
+    expect(result.current.error).toContain('micrófono se desconectó');
   });
 
   it('retries the same Blob within one scope', async () => {

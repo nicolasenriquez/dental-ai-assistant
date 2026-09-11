@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { KeyboardEventHandler, ReactNode } from 'react';
 
 interface ComposerShellProps {
   children: ReactNode;
@@ -6,6 +6,7 @@ interface ComposerShellProps {
   focused?: boolean;
   disabled?: boolean;
   testId?: string;
+  onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
 }
 
 export function ComposerShell({
@@ -14,11 +15,13 @@ export function ComposerShell({
   focused = false,
   disabled = false,
   testId,
+  onKeyDown,
 }: ComposerShellProps) {
   return (
     <div
       className={`chat-composer${className ? ` ${className}` : ''}${focused ? ' is-focused' : ''}${disabled ? ' is-disabled' : ''}`}
       data-testid={testId}
+      onKeyDown={onKeyDown}
     >
       {children}
     </div>

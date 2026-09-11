@@ -71,10 +71,10 @@ interface EmptyStateProps {
 
 function EmptyState({ onStarterClick }: EmptyStateProps) {
   const starters = [
-    'How do I use subagents in Claude Code?',
-    'How should I structure an agent team?',
-    "How does Cole's complete agentic coding workflow look end-to-end?",
-    'How do I turn Claude Code into an engineering team?',
+    '¿Cómo uso subagentes en Claude Code?',
+    '¿Cómo debería estructurar un equipo de agentes?',
+    '¿Cómo es el flujo completo de desarrollo agéntico de Cole?',
+    '¿Cómo convierto Claude Code en un equipo de ingeniería?',
   ];
 
   return (
@@ -208,6 +208,15 @@ function getRuntimeStatusText(runtime: ConversationRuntime | undefined, isStream
   }
   if (runtime.phase === 'streaming' || isStreaming) return 'Generando respuesta…';
   return null;
+}
+
+function terminationLabel(reason: MessageType['termination_reason']): string | undefined {
+  if (reason === 'user_cancelled') return 'Generación detenida.';
+  if (reason === 'client_disconnected') return 'Conexión interrumpida.';
+  if (reason === 'length') return 'Respuesta incompleta por límite de longitud.';
+  if (reason === 'provider_timeout') return 'El proveedor agotó el tiempo de espera.';
+  if (reason === 'failed') return 'La generación terminó con un error.';
+  return undefined;
 }
 
 interface ChatAreaProps {
@@ -483,8 +492,13 @@ export function ChatArea({
           const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
           console.error('[ChatArea] Failed to send message:', errorMessage);
           if (currentConversationIdRef.current === id) {
-            addToast('No pudimos enviar el mensaje. Intenta nuevamente.', 'error');
-            setTimeout(() => chatInputRef.current?.setInputText(content), 50);
+            if (sendError instanceof TypeError) {
+              await reload();
+              addToast('La conexión se interrumpió. Sincronizamos el estado guardado.', 'error');
+            } else {
+              addToast('No pudimos enviar el mensaje. Intenta nuevamente.', 'error');
+              setTimeout(() => chatInputRef.current?.setInputText(content), 50);
+            }
           }
         }
       } finally {
@@ -502,6 +516,7 @@ export function ChatArea({
       onContentAppended,
       refreshAuth,
       refreshConversationsRef,
+      reload,
       setMessages,
       setQueuedMessage,
       startStream,
@@ -678,11 +693,9 @@ export function ChatArea({
                   content={message.content}
                   sources={message.sources}
                   statusText={
-                    stoppedMessageIds.has(message.id) ||
-                    message.termination_reason === 'user_cancelled' ||
-                    message.termination_reason === 'client_disconnected'
+                    stoppedMessageIds.has(message.id)
                       ? 'Generación detenida.'
-                      : undefined
+                      : terminationLabel(message.termination_reason)
                   }
                   onCitationClick={handleCitationClick}
                 />

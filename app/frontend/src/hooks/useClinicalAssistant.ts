@@ -345,7 +345,15 @@ export function useClinicalAssistant(threadId: string | undefined) {
         }
         return !turnFailedRef.current;
       } catch (caught) {
-        if (!(caught instanceof DOMException && caught.name === 'AbortError')) {
+        if (caught instanceof DOMException && caught.name === 'AbortError') {
+          setRuntime('idle');
+          setError(null);
+          try {
+            await load();
+          } catch {
+            // The composer must remain usable even if reconciliation fails.
+          }
+        } else {
           setError(safeError('CLINICAL_TURN_FAILED'));
           setRuntime('failed');
         }
@@ -533,7 +541,11 @@ export function useClinicalAssistant(threadId: string | undefined) {
     }
   }, []);
 
-  const stop = useCallback(() => abortRef.current?.abort(), []);
+  const stop = useCallback(() => {
+    if (!abortRef.current) return;
+    setRuntime('stopping');
+    abortRef.current.abort();
+  }, []);
 
   const retryTurn = useCallback(
     (turnId: string) => {
