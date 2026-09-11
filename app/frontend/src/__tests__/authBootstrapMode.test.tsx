@@ -183,6 +183,7 @@ describe('Google mode login page', () => {
     expect(options.ux_mode).toBe('popup');
     expect(options.auto_select).toBe(false);
     expect(options.use_fedcm_for_button).toBe(false);
+    expect(options.button_auto_select).toBe(false);
     expect(options.login_uri).toBeUndefined();
     expect(options.callback).toBeTypeOf('function');
     expect(gisPrompt).not.toHaveBeenCalled();

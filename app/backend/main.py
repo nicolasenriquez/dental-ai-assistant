@@ -102,6 +102,29 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="RAG YouTube Chat API", lifespan=lifespan)
 
+# Parent-document origins observed while loading GIS and raw PickerBuilder.
+# Keep provider paths narrow; embedded Google documents own their subresource
+# policy. GIS injects a style element, while existing React layout components
+# use style attributes for dynamic values; script elements stay locked.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "script-src 'self' https://accounts.google.com/gsi/client "
+    "https://apis.google.com/js/api.js https://apis.google.com/_/scs/; "
+    "style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; "
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com "
+    "https://accounts.google.com/gsi/style; "
+    "style-src-attr 'unsafe-inline'; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data:; "
+    "connect-src 'self' https://accounts.google.com/gsi/; "
+    "frame-src 'self' https://accounts.google.com/gsi/ "
+    "https://docs.google.com/picker https://www.youtube.com/embed/"
+)
+
 # Allow the Vite dev server to reach the API during development
 app.add_middleware(
     CORSMiddleware,
@@ -116,9 +139,13 @@ app.add_middleware(
 async def add_popup_security_headers(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
-    """Keep GIS popup communication available when FedCM is disabled."""
+    """Apply browser policy required by GIS, Picker, and existing embeds."""
     response = await call_next(request)
+    response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
 

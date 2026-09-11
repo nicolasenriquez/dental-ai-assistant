@@ -60,5 +60,9 @@ export default defineConfig({
       name: 'drive-bootstrap',
       testMatch: /drive-bootstrap\.spec\.ts/,
     },
+    {
+      name: 'provider-smoke',
+      testMatch: /google-provider-smoke\.spec\.ts/,
+    },
   ],
 });
