@@ -509,3 +509,26 @@ export const resyncVideo = (id: string) =>
 
 export const syncChannel = () =>
   request<SyncChannelResponse>('/admin/videos/sync-channel', { method: 'POST' });
+
+// ─── Google Drive bootstrap ────────────────────────────────────────────────
+// Phase 3 seam: status check after session hydration and the sole OAuth-start
+// handoff. The start endpoint is POST-only and returns the backend-built
+// provider URL; the frontend follows it with `window.location.assign` exactly
+// once — never GET, a form, a browser-built URL, or a chained popup.
+
+export interface DriveStatus {
+  configured: boolean;
+  status:
+    | 'unconfigured'
+    | 'disconnected'
+    | 'connected'
+    | 'workspace_missing'
+    | 'workspace_recovery_pending'
+    | 'revoked';
+  workspace?: { folder_name: string };
+}
+
+export const getDriveStatus = () => request<DriveStatus>('/google-drive/status');
+
+export const startDriveOAuth = () =>
+  request<{ authorization_url: string }>('/google-drive/oauth/start', { method: 'POST' });

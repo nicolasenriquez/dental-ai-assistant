@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
+import { DriveBootstrapBanner } from './DriveBootstrapBanner';
 import { Sidebar } from './Sidebar';
 
 const FOCUSABLE_SELECTOR =
@@ -157,6 +158,7 @@ export function AppShell({
               <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
             </button>
           )}
+          <DriveBootstrapBanner />
           {children}
         </div>
       </div>

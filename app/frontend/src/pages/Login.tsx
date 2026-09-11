@@ -100,7 +100,7 @@ export function Login() {
   }, [status, authConfig]);
 
   useEffect(() => {
-    if (status === 'ready') {
+    if (status === 'ready' || status === 'ready-without-drive') {
       navigate(returnTo, { replace: true });
     }
   }, [status, navigate, returnTo]);
@@ -145,7 +145,11 @@ export function Login() {
           <p className="text-sm text-[var(--text-secondary)]">Iniciando sesión…</p>
         </div>
       )}
-      {(status === 'establishing-session' || status === 'ready') && (
+      {(status === 'establishing-session' ||
+        status === 'checking-drive' ||
+        status === 'authorizing-drive' ||
+        status === 'preparing-workspace' ||
+        status === 'ready') && (
         <div className="w-full max-w-sm flex flex-col items-center gap-3 bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6">
           <Spinner />
           <p className="text-sm text-[var(--text-secondary)]">Cuenta verificada</p>

@@ -46,6 +46,7 @@ vi.mock('../hooks/useAuth', () => ({
     login: vi.fn(),
     logout: vi.fn(),
     refresh: vi.fn(),
+    connectDrive: vi.fn(),
   })),
 }));
 
@@ -309,6 +310,7 @@ describe('Sidebar logout', () => {
       loginWithGoogle: vi.fn(),
       logout: logoutMock,
       refresh: vi.fn(),
+      connectDrive: vi.fn(),
     });
 
     const onClose = vi.fn();
@@ -465,6 +467,7 @@ describe('Sidebar navigation and conversations', () => {
       loginWithGoogle: vi.fn(),
       logout: vi.fn(),
       refresh: vi.fn(),
+      connectDrive: vi.fn(),
     });
 
     render(

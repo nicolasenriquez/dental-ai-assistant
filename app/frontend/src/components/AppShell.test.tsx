@@ -3,6 +3,10 @@ import type { KeyboardEventHandler, RefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AppShell } from './AppShell';
 
+vi.mock('./DriveBootstrapBanner', () => ({
+  DriveBootstrapBanner: () => null,
+}));
+
 vi.mock('./Sidebar', () => ({
   Sidebar: ({
     sidebarRef,

@@ -56,5 +56,9 @@ export default defineConfig({
       testMatch: /clinical-assistant\.spec\.ts/,
       use: { storageState: authStatePath },
     },
+    {
+      name: 'drive-bootstrap',
+      testMatch: /drive-bootstrap\.spec\.ts/,
+    },
   ],
 });

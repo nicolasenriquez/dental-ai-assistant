@@ -43,6 +43,15 @@ vi.mock('../lib/authApi', () => ({
   loginWithGoogle: vi.fn(),
 }));
 
+vi.mock('../lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/api')>();
+  return {
+    ...actual,
+    getDriveStatus: vi.fn().mockResolvedValue({ configured: true, status: 'connected' }),
+    startDriveOAuth: vi.fn(),
+  };
+});
+
 const localConfig = {
   mode: 'local',
   google_client_id: null,

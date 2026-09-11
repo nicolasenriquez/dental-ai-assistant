@@ -22,6 +22,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { getDriveStatus, startDriveOAuth } from '../lib/api';
 import {
   type AuthConfig,
   AuthError,
@@ -55,6 +56,18 @@ export function isUnauthenticatedStatus(status: BootstrapStatus): boolean {
   return status === 'unauthenticated-local' || status === 'unauthenticated-google';
 }
 
+const HANDLED_CALLBACK_RESULTS = [
+  'connected',
+  'consent_denied',
+  'account_mismatch',
+  'provider_error',
+];
+
+function callbackResult(): string | null {
+  const result = new URLSearchParams(window.location.search).get('result');
+  return result && HANDLED_CALLBACK_RESULTS.includes(result) ? result : null;
+}
+
 export interface UseAuthResult {
   status: BootstrapStatus;
   user: AuthMeResponse | null;
@@ -65,6 +78,7 @@ export interface UseAuthResult {
   loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  connectDrive: () => Promise<void>;
 }
 
 const AuthContext = createContext<UseAuthResult | null>(null);
@@ -79,6 +93,49 @@ function useAuthState(): UseAuthResult {
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Post-hydration Drive bootstrap. Runs only after authoritative
+  // /api/auth/me success. A handled callback result (denial, mismatch,
+  // provider error) never re-triggers auto-onboarding; a connected result
+  // verifies status before ready. The OAuth handoff is always the backend
+  // POST contract followed by `window.location.assign` exactly once.
+  async function driveBootstrap(cfg: AuthConfig, isCancelled: () => boolean): Promise<void> {
+    const result = callbackResult();
+    if (result !== null && result !== 'connected') {
+      setStatus('ready-without-drive');
+      return;
+    }
+    if (!cfg.drive_enabled) {
+      setStatus('ready');
+      return;
+    }
+    setStatus(result === 'connected' ? 'preparing-workspace' : 'checking-drive');
+    try {
+      const drive = await getDriveStatus();
+      if (isCancelled()) return;
+      if (drive.status === 'connected') {
+        setStatus('ready');
+        return;
+      }
+      if (drive.status === 'disconnected' && cfg.drive_auto_onboard && result === null) {
+        setStatus('authorizing-drive');
+        try {
+          const { authorization_url } = await startDriveOAuth();
+          if (isCancelled()) return;
+          window.location.assign(authorization_url);
+        } catch (e) {
+          if (isCancelled()) return;
+          setError(e instanceof Error ? e.message : 'Google Drive no está disponible.');
+          setStatus('ready-without-drive');
+        }
+        return;
+      }
+      setStatus('ready-without-drive');
+    } catch {
+      if (isCancelled()) return;
+      setStatus('ready-without-drive');
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function boot() {
@@ -90,7 +147,7 @@ function useAuthState(): UseAuthResult {
           const u = await me();
           if (cancelled) return;
           setUser(u);
-          setStatus('ready');
+          await driveBootstrap(cfg, () => cancelled);
         } catch (e) {
           if (cancelled) return;
           setUser(null);
@@ -130,14 +187,21 @@ function useAuthState(): UseAuthResult {
       setError(null);
       try {
         await apiLogin(email, password);
-        await refresh();
+        const u = await me();
+        setUser(u);
+        const cfg = authConfig;
+        if (!cfg) {
+          setStatus('ready');
+          return;
+        }
+        await driveBootstrap(cfg, () => false);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Login failed';
         setError(msg);
         throw e;
       }
     },
-    [refresh],
+    [authConfig],
   );
 
   const doLoginWithGoogle = useCallback(
@@ -149,7 +213,12 @@ function useAuthState(): UseAuthResult {
         setStatus('establishing-session');
         const u = await me();
         setUser(u);
-        setStatus('ready');
+        const cfg = authConfig;
+        if (!cfg) {
+          setStatus('ready');
+          return;
+        }
+        await driveBootstrap(cfg, () => false);
       } catch (e) {
         setUser(null);
         setStatus(anonStatusFor(authConfig?.mode));
@@ -185,6 +254,19 @@ function useAuthState(): UseAuthResult {
     }
   }, [authConfig]);
 
+  const connectDrive = useCallback(async () => {
+    setError(null);
+    setStatus('authorizing-drive');
+    try {
+      const { authorization_url } = await startDriveOAuth();
+      window.location.assign(authorization_url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Google Drive no está disponible.');
+      setStatus('ready-without-drive');
+      throw e;
+    }
+  }, []);
+
   return useMemo(
     () => ({
       status,
@@ -196,8 +278,20 @@ function useAuthState(): UseAuthResult {
       loginWithGoogle: doLoginWithGoogle,
       logout: doLogout,
       refresh,
+      connectDrive,
     }),
-    [status, user, error, authConfig, doSignup, doLogin, doLoginWithGoogle, doLogout, refresh],
+    [
+      status,
+      user,
+      error,
+      authConfig,
+      doSignup,
+      doLogin,
+      doLoginWithGoogle,
+      doLogout,
+      refresh,
+      connectDrive,
+    ],
   );
 }
 
