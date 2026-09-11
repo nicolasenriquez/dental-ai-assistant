@@ -1,4 +1,4 @@
-import { Library } from 'lucide-react';
+import { Library, PanelRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
   type KeyboardEventHandler,
@@ -78,6 +78,12 @@ function DailyQuotaCounter({ isCollapsed, used, remaining, resetsAt }: DailyQuot
   );
 }
 
+export interface SidebarUtility {
+  id: string;
+  label: string;
+  onActivate: () => void;
+}
+
 export interface SidebarProps {
   activeConversationId?: string;
   isOpen: boolean;
@@ -91,6 +97,7 @@ export interface SidebarProps {
   sidebarRef?: RefObject<HTMLElement>;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
   secondaryContent?: ReactNode;
+  utilities?: SidebarUtility[];
 }
 
 export function Sidebar({
@@ -106,6 +113,7 @@ export function Sidebar({
   sidebarRef,
   onKeyDown,
   secondaryContent,
+  utilities = [],
 }: SidebarProps) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
@@ -279,22 +287,41 @@ export function Sidebar({
           />
         )}
 
-        {showConversations && (
+        {(utilities.length > 0 || showConversations) && (
           <div className="sidebar-chat-utilities">
-            <button
-              type="button"
-              className="sidebar-nav-button sidebar-library-action"
-              onClick={() => {
-                setExplorerOpen(true);
-                onClose();
-              }}
-              aria-label={isCollapsed ? 'Biblioteca' : undefined}
-              title={isCollapsed ? 'Biblioteca' : undefined}
-              data-tooltip={isCollapsed ? 'Biblioteca' : undefined}
-            >
-              <Library aria-hidden="true" size={16} strokeWidth={1.7} />
-              <span className="sidebar-label">Biblioteca</span>
-            </button>
+            {utilities.map((utility) => (
+              <button
+                key={utility.id}
+                type="button"
+                className="sidebar-nav-button sidebar-library-action"
+                onClick={() => {
+                  utility.onActivate();
+                  onClose();
+                }}
+                aria-label={isCollapsed ? utility.label : undefined}
+                title={isCollapsed ? utility.label : undefined}
+                data-tooltip={isCollapsed ? utility.label : undefined}
+              >
+                <PanelRight aria-hidden="true" size={16} strokeWidth={1.7} />
+                <span className="sidebar-label">{utility.label}</span>
+              </button>
+            ))}
+            {showConversations && (
+              <button
+                type="button"
+                className="sidebar-nav-button sidebar-library-action"
+                onClick={() => {
+                  setExplorerOpen(true);
+                  onClose();
+                }}
+                aria-label={isCollapsed ? 'Biblioteca' : undefined}
+                title={isCollapsed ? 'Biblioteca' : undefined}
+                data-tooltip={isCollapsed ? 'Biblioteca' : undefined}
+              >
+                <Library aria-hidden="true" size={16} strokeWidth={1.7} />
+                <span className="sidebar-label">Biblioteca</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -312,6 +339,25 @@ export function Sidebar({
           <span className="sidebar-footer-brand sidebar-label">Dental AI Assistant</span>
         </div>
       </motion.aside>
+
+      {isMobile && !isOpen && utilities.length > 0 && (
+        <div className="sidebar-mobile-utilities" role="toolbar" aria-label="Utilidades">
+          {utilities.map((utility) => (
+            <button
+              key={utility.id}
+              type="button"
+              className="sidebar-nav-button sidebar-mobile-utility"
+              onClick={() => {
+                utility.onActivate();
+                onClose();
+              }}
+            >
+              <PanelRight aria-hidden="true" size={16} strokeWidth={1.7} />
+              <span className="sidebar-label">{utility.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {confirmId && (
         <ConfirmDialog

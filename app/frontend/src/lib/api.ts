@@ -532,3 +532,94 @@ export const getDriveStatus = () => request<DriveStatus>('/google-drive/status')
 
 export const startDriveOAuth = () =>
   request<{ authorization_url: string }>('/google-drive/oauth/start', { method: 'POST' });
+
+// ─── Google Drive managed workspace ────────────────────────────────────────
+// Phase 4/5 seam: patient-scoped list/search/read/create/update, no-store
+// Picker token, import-copy, workspace recreation, and explicit disconnect.
+// Search is body-based; document names and query terms never enter URLs.
+
+export interface DriveFile {
+  id: string;
+  name: string;
+  version: string;
+  mimeType: string;
+  modifiedTime: string;
+}
+
+export interface DriveFilePage {
+  files: DriveFile[];
+  next_page_token: string | null;
+}
+
+export interface DriveFileContent extends DriveFile {
+  content: string;
+}
+
+export const listDriveFiles = (patientId: string, pageToken?: string) => {
+  const query = pageToken
+    ? `?patient_id=${encodeURIComponent(patientId)}&page_token=${encodeURIComponent(pageToken)}`
+    : `?patient_id=${encodeURIComponent(patientId)}`;
+  return request<DriveFilePage>(`/google-drive/files${query}`);
+};
+
+export const searchDriveFiles = (body: {
+  patient_id: string;
+  query: string;
+  page_token?: string;
+}) =>
+  request<DriveFilePage>('/google-drive/files/search', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const getDriveFile = (fileId: string, patientId: string) =>
+  request<DriveFileContent>(
+    `/google-drive/files/${encodeURIComponent(fileId)}?patient_id=${encodeURIComponent(patientId)}`,
+  );
+
+export const createDriveFile = (body: {
+  patient_id: string;
+  operation_id: string;
+  name: string;
+  content: string;
+}) => request<DriveFile>('/google-drive/files', { method: 'POST', body: JSON.stringify(body) });
+
+export const updateDriveFile = (
+  fileId: string,
+  body: {
+    patient_id: string;
+    operation_id: string;
+    content: string;
+    expected_version: string;
+  },
+) =>
+  request<DriveFile>(`/google-drive/files/${encodeURIComponent(fileId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+
+export const getDrivePickerToken = (patientId: string) =>
+  request<{ access_token: string; expires_in: number }>('/google-drive/picker-token', {
+    method: 'POST',
+    body: JSON.stringify({ patient_id: patientId }),
+  });
+
+export const importDriveCopy = (body: {
+  patient_id: string;
+  operation_id: string;
+  source_file_id: string;
+  name?: string;
+}) =>
+  request<DriveFile>('/google-drive/import-copy', { method: 'POST', body: JSON.stringify(body) });
+
+export const recreateDriveWorkspace = (operationId: string, acknowledgePossibleOrphan: boolean) =>
+  request<DriveStatus>('/google-drive/workspace/recreate', {
+    method: 'POST',
+    body: JSON.stringify({
+      operation_id: operationId,
+      acknowledge_possible_orphan: acknowledgePossibleOrphan,
+    }),
+  });
+
+export const disconnectDrive = () =>
+  request<DriveStatus>('/google-drive/disconnect', { method: 'POST' });

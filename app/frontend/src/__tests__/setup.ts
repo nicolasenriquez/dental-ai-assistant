@@ -29,3 +29,13 @@ if (NativeRequest) {
   }
   globalThis.Request = TestRequest;
 }
+
+// react-resizable-panels (Drive workspace sidecar) measures panels with
+// ResizeObserver; jsdom does not implement it.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}

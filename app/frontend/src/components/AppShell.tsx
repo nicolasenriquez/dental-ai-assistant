@@ -10,9 +10,16 @@ import {
 import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { DriveBootstrapBanner } from './DriveBootstrapBanner';
 import { Sidebar } from './Sidebar';
+import { ResizableGroup, ResizableHandle, ResizablePanel } from './ui/resizable';
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+export interface AppShellUtility {
+  id: string;
+  label: string;
+  onActivate: () => void;
+}
 
 interface AppShellProps {
   children: ReactNode;
@@ -22,6 +29,8 @@ interface AppShellProps {
   runtimeByConversationId?: RuntimeByConversationId;
   secondarySidebarContent?: (isCollapsed: boolean, onRequestExpand: () => void) => ReactNode;
   workspaceMode?: boolean;
+  utilities?: AppShellUtility[];
+  workspaceAccessory?: ReactNode;
 }
 
 export function AppShell({
@@ -32,6 +41,8 @@ export function AppShell({
   runtimeByConversationId,
   secondarySidebarContent,
   workspaceMode = false,
+  utilities = [],
+  workspaceAccessory,
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -138,6 +149,7 @@ export function AppShell({
           )}
           sidebarRef={sidebarRef}
           onKeyDown={handleSidebarKeyDown}
+          utilities={utilities}
         />
         <div
           id="main-content"
@@ -159,7 +171,21 @@ export function AppShell({
             </button>
           )}
           <DriveBootstrapBanner />
-          {children}
+          {workspaceAccessory ? (
+            <div className="workspace-row">
+              <ResizableGroup orientation="horizontal" className="workspace-resizable">
+                <ResizablePanel defaultSize="62" minSize="30" className="workspace-panel-main">
+                  {children}
+                </ResizablePanel>
+                <ResizableHandle className="workspace-resize-handle" />
+                <ResizablePanel defaultSize="38" minSize="22" className="workspace-panel-accessory">
+                  {workspaceAccessory}
+                </ResizablePanel>
+              </ResizableGroup>
+            </div>
+          ) : (
+            children
+          )}
         </div>
       </div>
     </>

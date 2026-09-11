@@ -18,12 +18,16 @@
     "e2e:baseline:update": "playwright test --project=baseline --update-snapshots"
   },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.23",
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-scroll-area": "^1.2.18",
     "file-saver": "^2.0.0",
     "lucide-react": "^1.41.0",
     "motion": "^13.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
+    "react-resizable-panels": "^4.12.4",
     "react-router-dom": "^6.23.1",
     "react-syntax-highlighter": "^15.5.0",
     "remark-gfm": "^4.0.0"
