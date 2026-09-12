@@ -632,8 +632,6 @@ def _verify_managed_file(
         return False
     if metadata.get("mimeType") != "text/plain":
         return False
-    if not (metadata.get("name") or "").lower().endswith(".txt"):
-        return False
     try:
         size = int(metadata.get("size") or -1)
     except (TypeError, ValueError):

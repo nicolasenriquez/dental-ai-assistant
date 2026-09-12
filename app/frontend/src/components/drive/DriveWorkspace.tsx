@@ -2,6 +2,7 @@ import { type MutableRefObject, type ReactNode, useEffect, useRef, useState } fr
 import {
   ApiError,
   type DriveFile,
+  type DriveFileContent,
   type DriveStatus,
   createDriveFile,
   getDriveFile,
@@ -74,6 +75,12 @@ function apiErrorCode(error: unknown): string | null {
   return null;
 }
 
+function diagnosticError(error: unknown): string {
+  if (error instanceof ApiError) return `API error ${error.status}`;
+  if (error instanceof Error && error.message.length <= 120) return error.message;
+  return 'unknown error';
+}
+
 export function DriveWorkspace({
   patientId,
   draftSeed = null,
@@ -103,6 +110,7 @@ export function DriveWorkspace({
   const [unknownWrite, setUnknownWrite] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [debugErrorMessage, setDebugErrorMessage] = useState<string | null>(null);
   const [recreateDialog, setRecreateDialog] = useState<'missing' | 'recovery' | null>(null);
   const patientIdRef = useRef(patientId);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -143,7 +151,10 @@ export function DriveWorkspace({
         if (!cancelled) setDriveStatus(status);
       })
       .catch(() => {
-        if (!cancelled) setErrorMessage('No se pudo completar la acción');
+        if (!cancelled) {
+          setDebugErrorMessage(null);
+          setErrorMessage('No se pudo completar la acción');
+        }
       });
     return () => {
       cancelled = true;
@@ -192,7 +203,10 @@ export function DriveWorkspace({
         setNextPageToken(page.next_page_token);
       })
       .catch(() => {
-        if (!cancelled) setErrorMessage('No se pudo completar la acción');
+        if (!cancelled) {
+          setDebugErrorMessage(null);
+          setErrorMessage('No se pudo completar la acción');
+        }
       })
       .finally(() => {
         if (!cancelled) setListLoading(false);
@@ -214,6 +228,7 @@ export function DriveWorkspace({
       }
     } catch {
       setConnecting(false);
+      setDebugErrorMessage(null);
       setErrorMessage('No se pudo completar la acción');
     }
   };
@@ -232,7 +247,10 @@ export function DriveWorkspace({
       setFiles(page.files);
       setNextPageToken(page.next_page_token);
     } catch {
-      if (sequence === searchSequence.current) setErrorMessage('No se pudo completar la acción');
+      if (sequence === searchSequence.current) {
+        setDebugErrorMessage(null);
+        setErrorMessage('No se pudo completar la acción');
+      }
     } finally {
       if (sequence === searchSequence.current) setSearchLoading(false);
     }
@@ -257,7 +275,10 @@ export function DriveWorkspace({
         setFiles(page.files);
         setNextPageToken(page.next_page_token);
       })
-      .catch(() => setErrorMessage('No se pudo completar la acción'))
+      .catch(() => {
+        setDebugErrorMessage(null);
+        setErrorMessage('No se pudo completar la acción');
+      })
       .finally(() => setListLoading(false));
   };
 
@@ -266,6 +287,24 @@ export function DriveWorkspace({
     const page = await listDriveFiles(patientId, nextPageToken);
     setFiles((prev) => [...prev, ...page.files]);
     setNextPageToken(page.next_page_token);
+  };
+
+  const showLoadedFile = (content: DriveFileContent, boundPatientId: string): void => {
+    setDoc({
+      fileId: content.id,
+      boundPatientId,
+      name: content.name,
+      version: content.version,
+      mimeType: content.mimeType,
+      content: content.content,
+      baseline: content.content,
+      representation: 'persisted_plain_text',
+    });
+    setDocPhase('ready');
+    setMode('viewing');
+    setSaved(false);
+    setImported(false);
+    setSelectedText('');
   };
 
   const handleOpen = async (file: DriveFile) => {
@@ -286,18 +325,12 @@ export function DriveWorkspace({
     setSaved(false);
     try {
       const content = await getDriveFile(file.id, patientId);
-      setDoc((prev) =>
-        prev && prev.fileId === file.id && prev.boundPatientId === boundPatientId
-          ? {
-              ...prev,
-              content: content.content,
-              baseline: content.content,
-              version: content.version,
-            }
-          : prev,
-      );
+      if (patientIdRef.current === boundPatientId) {
+        showLoadedFile(content, boundPatientId);
+      }
     } catch {
       setDoc(null);
+      setDebugErrorMessage(null);
       setErrorMessage('No se pudo completar la acción');
     } finally {
       setDocPhase('ready');
@@ -331,6 +364,7 @@ export function DriveWorkspace({
     setSaved(false);
     setUnknownWrite(false);
     setErrorMessage(null);
+    setDebugErrorMessage(null);
     try {
       if (doc.fileId === null) {
         const created = await createDriveFile({
@@ -376,6 +410,7 @@ export function DriveWorkspace({
         setConflictOpen(true);
       } else {
         setUnknownWrite(apiErrorCode(err) === 'DRIVE_WRITE_UNKNOWN');
+        setDebugErrorMessage(null);
         setErrorMessage('No se pudo completar la acción');
       }
       return false;
@@ -396,6 +431,7 @@ export function DriveWorkspace({
           : prev,
       );
     } catch {
+      setDebugErrorMessage(null);
       setErrorMessage('No se pudo completar la acción');
     }
   };
@@ -408,6 +444,7 @@ export function DriveWorkspace({
       const status = await recreateDriveWorkspace(newOperationId(), true);
       if (status) setDriveStatus(status);
     } catch {
+      setDebugErrorMessage(null);
       setErrorMessage('No se pudo completar la acción');
     }
   };
@@ -418,9 +455,24 @@ export function DriveWorkspace({
     setImporting(true);
     setImported(false);
     setErrorMessage(null);
+    setDebugErrorMessage(null);
     try {
       const sourceFileId = await openDrivePicker(boundPatientId);
       if (!sourceFileId || patientIdRef.current !== boundPatientId) return;
+
+      let managedFile: DriveFileContent | null = null;
+      try {
+        managedFile = await getDriveFile(sourceFileId, boundPatientId);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+      }
+
+      if (managedFile) {
+        if (patientIdRef.current !== boundPatientId) return;
+        showLoadedFile(managedFile, boundPatientId);
+        return;
+      }
+
       await importDriveCopy({
         patient_id: boundPatientId,
         operation_id: newOperationId(),
@@ -432,8 +484,13 @@ export function DriveWorkspace({
       setFiles(page.files);
       setNextPageToken(page.next_page_token);
       setImported(true);
-    } catch {
+    } catch (error) {
       setErrorMessage('No se pudo completar la acción');
+      if (import.meta.env.DEV) {
+        const detail = diagnosticError(error);
+        console.error('[DEBUG-google-drive]', detail);
+        setDebugErrorMessage(detail);
+      }
     } finally {
       setImporting(false);
     }
@@ -646,7 +703,11 @@ export function DriveWorkspace({
       {errorMessage && (
         <Alert>
           <AlertTitle>No se pudo completar la acción</AlertTitle>
-          <AlertDescription>Tu trabajo local se conserva.</AlertDescription>
+          <AlertDescription>
+            {debugErrorMessage
+              ? `Google Drive: ${debugErrorMessage}`
+              : 'Tu trabajo local se conserva.'}
+          </AlertDescription>
           {unknownWrite && (
             <AlertDescription>Actualiza la lista antes de volver a guardar.</AlertDescription>
           )}

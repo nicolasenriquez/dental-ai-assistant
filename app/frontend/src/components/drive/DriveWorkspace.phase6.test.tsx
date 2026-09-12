@@ -245,6 +245,7 @@ describe('stable operation ids', () => {
 
   it('uses a fresh operation id for each import action', async () => {
     openDrivePickerMock.mockResolvedValue('source-1');
+    getDriveFileMock.mockRejectedValue(new api.ApiError(404, { error: 'DRIVE_FILE_NOT_MANAGED' }));
     renderWorkspace('p1');
 
     await screen.findByRole('button', { name: 'Agregar desde Drive' });
@@ -263,9 +264,23 @@ describe('stable operation ids', () => {
 });
 
 describe('Picker import copy', () => {
+  it('opens a managed Picker selection instead of importing it', async () => {
+    openDrivePickerMock.mockResolvedValue('f1');
+    renderWorkspace('p1');
+
+    await screen.findByRole('button', { name: 'Agregar desde Drive' });
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar desde Drive' }));
+
+    expect(await screen.findByText('texto remoto')).toBeInTheDocument();
+    expect(importDriveCopyMock).not.toHaveBeenCalled();
+  });
+
   it('imports the selected source for the bound patient and refreshes the list', async () => {
     listDriveFilesMock.mockResolvedValue({ files: [], next_page_token: null });
     openDrivePickerMock.mockResolvedValue('source-file-1');
+    getDriveFileMock.mockRejectedValueOnce(
+      new api.ApiError(404, { error: 'DRIVE_FILE_NOT_MANAGED' }),
+    );
     importDriveCopyMock.mockResolvedValue({ ...fileBody, id: 'f3', name: 'importado.txt' });
     renderWorkspace('p1');
 
@@ -295,8 +310,24 @@ describe('Picker import copy', () => {
     expect(screen.queryByText('Documento agregado')).not.toBeInTheDocument();
   });
 
+  it('surfaces Picker error codes during local diagnosis', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    openDrivePickerMock.mockRejectedValue(new Error('GOOGLE_PICKER_ACTION_ERROR'));
+    renderWorkspace('p1');
+
+    await screen.findByRole('button', { name: 'Agregar desde Drive' });
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar desde Drive' }));
+
+    expect(await screen.findByText('Google Drive: GOOGLE_PICKER_ACTION_ERROR')).toBeInTheDocument();
+    expect(importDriveCopyMock).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith('[DEBUG-google-drive]', 'GOOGLE_PICKER_ACTION_ERROR');
+    consoleError.mockRestore();
+  });
+
   it('preserves the workspace on import failure without automatic retry', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     openDrivePickerMock.mockResolvedValue('source-file-1');
+    getDriveFileMock.mockRejectedValue(new api.ApiError(404, { error: 'DRIVE_FILE_NOT_MANAGED' }));
     importDriveCopyMock.mockRejectedValue(new api.ApiError(503, { error: 'DRIVE_UNAVAILABLE' }));
     renderWorkspace('p1');
 
@@ -305,6 +336,8 @@ describe('Picker import copy', () => {
 
     await waitFor(() => expect(importDriveCopyMock).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('No se pudo completar la acción')).toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalledWith('[DEBUG-google-drive]', 'API error 503');
+    consoleError.mockRestore();
   });
 
   it('keeps the Picker bound to the patient that was active when it opened', async () => {

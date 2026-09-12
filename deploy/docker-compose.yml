@@ -45,6 +45,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        VITE_GOOGLE_PICKER_API_KEY: ${VITE_GOOGLE_PICKER_API_KEY:-}
+        VITE_GOOGLE_DRIVE_APP_ID: ${VITE_GOOGLE_DRIVE_APP_ID:-}
+        GOOGLE_DRIVE_ENABLED: ${GOOGLE_DRIVE_ENABLED:-false}
     image: dynachat-app:latest
     container_name: dynachat-app-blue
     restart: unless-stopped
@@ -122,6 +126,10 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        VITE_GOOGLE_PICKER_API_KEY: ${VITE_GOOGLE_PICKER_API_KEY:-}
+        VITE_GOOGLE_DRIVE_APP_ID: ${VITE_GOOGLE_DRIVE_APP_ID:-}
+        GOOGLE_DRIVE_ENABLED: ${GOOGLE_DRIVE_ENABLED:-false}
     image: dynachat-app:latest
     container_name: dynachat-app-green
     restart: unless-stopped

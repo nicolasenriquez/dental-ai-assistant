@@ -594,6 +594,19 @@ async def test_tampered_file_binding_is_rejected_before_content_read(
     assert not _calls(managed_context, "download_file")
 
 
+async def test_managed_plain_text_file_without_extension_can_be_read(
+    managed_client: AsyncClient, managed_context: dict[str, Any]
+) -> None:
+    managed_context["file"]["name"] = "evaluation_prueba"
+
+    response = await managed_client.get(
+        f"/api/google-drive/files/file-1?patient_id={PATIENT_ID}", headers=_headers()
+    )
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "texto remoto\n"
+
+
 async def test_update_version_conflict_does_not_write(
     managed_client: AsyncClient, managed_context: dict[str, Any]
 ) -> None:

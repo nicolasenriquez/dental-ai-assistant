@@ -19,7 +19,17 @@ RUN bun install --frozen-lockfile
 
 # Now bring in the source and build.
 COPY app/frontend/ ./
-RUN bun run build
+# Public values are intentionally baked into frontend assets. They are not
+# OAuth secrets; restrict the API key in Google Cloud by origin and API.
+ARG VITE_GOOGLE_PICKER_API_KEY
+ARG VITE_GOOGLE_DRIVE_APP_ID
+ARG GOOGLE_DRIVE_ENABLED=false
+ENV VITE_GOOGLE_PICKER_API_KEY=${VITE_GOOGLE_PICKER_API_KEY} \
+    VITE_GOOGLE_DRIVE_APP_ID=${VITE_GOOGLE_DRIVE_APP_ID}
+RUN if [ "$GOOGLE_DRIVE_ENABLED" = "true" ]; then \
+      test -n "$VITE_GOOGLE_PICKER_API_KEY" && \
+      test -n "$VITE_GOOGLE_DRIVE_APP_ID"; \
+    fi && bun run build
 # Output: /src/frontend/dist
 
 # ----------------------------------------------------------------------------

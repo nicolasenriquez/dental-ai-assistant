@@ -59,7 +59,7 @@ const getDrivePickerTokenMock = api.getDrivePickerToken as unknown as Mock;
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('VITE_GOOGLE_PICKER_API_KEY', 'picker-api-key');
-  vi.stubEnv('VITE_GOOGLE_DRIVE_APP_ID', 'picker-app-id');
+  vi.stubEnv('VITE_GOOGLE_DRIVE_APP_ID', '123456789012');
   getDrivePickerTokenMock.mockResolvedValue({ access_token: 'access-token-1', expires_in: 300 });
 });
 
@@ -103,6 +103,7 @@ function stubPickerGlobals() {
   const picker = {
     PickerBuilder: vi.fn(() => builderCalls),
     DocsView: MockDocsView,
+    Action: { PICKED: 'picked', CANCEL: 'cancel', ERROR: 'error', LOADED: 'loaded' },
     ViewId: { DOCS: 'DOCS' },
   };
   vi.stubGlobal('google', {
@@ -119,6 +120,20 @@ function stubStorageSpies() {
 }
 
 describe('openDrivePicker', () => {
+  it('fails before minting a token when public Picker config is missing', async () => {
+    vi.stubEnv('VITE_GOOGLE_PICKER_API_KEY', '');
+
+    await expect(seam().openDrivePicker('p1')).rejects.toThrow('GOOGLE_PICKER_API_KEY_MISSING');
+    expect(getDrivePickerTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('fails before minting a token when the public App ID is not a project number', async () => {
+    vi.stubEnv('VITE_GOOGLE_DRIVE_APP_ID', 'picker-app-id');
+
+    await expect(seam().openDrivePicker('p1')).rejects.toThrow('GOOGLE_PICKER_APP_ID_INVALID');
+    expect(getDrivePickerTokenMock).not.toHaveBeenCalled();
+  });
+
   it('requests a fresh patient-bound token before building the Picker', async () => {
     stubPickerGlobals();
     await openAndCancel('p1');
@@ -131,7 +146,7 @@ describe('openDrivePicker', () => {
     stubPickerGlobals();
     await openAndCancel('p1');
 
-    expect(builderCalls.setAppId).toHaveBeenCalledWith('picker-app-id');
+    expect(builderCalls.setAppId).toHaveBeenCalledWith('123456789012');
     expect(builderCalls.setDeveloperKey).toHaveBeenCalledWith('picker-api-key');
     expect(builderCalls.setOrigin).toHaveBeenCalledWith(window.location.origin);
     expect(builderCalls.setCallback).toHaveBeenCalled();
@@ -145,7 +160,31 @@ describe('openDrivePicker', () => {
     expect(builderCalls.addView).toHaveBeenCalledTimes(1);
     const [view] = builderCalls.addView.mock.calls[0];
     expect(view).toBeInstanceOf(MockDocsView);
-    expect(view.setMimeTypes).toHaveBeenCalledWith(expect.arrayContaining(['text/plain']));
+    expect(view.setMimeTypes).toHaveBeenCalledWith('text/plain,text/markdown');
+  });
+
+  it('ignores the Picker loaded lifecycle action until a terminal action arrives', async () => {
+    stubPickerGlobals();
+    const opening = seam().openDrivePicker('p1');
+
+    await vi.waitFor(() => expect(builderCalls.setCallback).toHaveBeenCalled());
+    const [callback] = builderCalls.setCallback.mock.calls[0];
+    let outcome: 'resolved' | 'rejected' | undefined;
+    void opening.then(
+      () => {
+        outcome = 'resolved';
+      },
+      () => {
+        outcome = 'rejected';
+      },
+    );
+
+    callback({ action: 'loaded' });
+    await Promise.resolve();
+
+    expect(outcome).toBeUndefined();
+    callback({ action: 'cancel' });
+    await expect(opening).resolves.toBeNull();
   });
 
   it('resolves with the picked document id', async () => {
@@ -168,6 +207,17 @@ describe('openDrivePicker', () => {
     callback({ action: 'cancel' });
 
     await expect(opening).resolves.toBeNull();
+  });
+
+  it('rejects Picker errors instead of treating them as cancellation', async () => {
+    stubPickerGlobals();
+    const opening = seam().openDrivePicker('p1');
+
+    await vi.waitFor(() => expect(builderCalls.setCallback).toHaveBeenCalled());
+    const [callback] = builderCalls.setCallback.mock.calls[0];
+    callback({ action: 'error' });
+
+    await expect(opening).rejects.toThrow('GOOGLE_PICKER_ACTION_ERROR');
   });
 
   it('never persists the Picker token anywhere', async () => {
