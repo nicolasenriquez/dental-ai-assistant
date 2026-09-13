@@ -11,6 +11,7 @@ import {
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { ClinicalComposer } from './ClinicalComposer';
+import { ClinicalPatientPicker } from './ClinicalPatientPicker';
 import { ClinicalTranscript } from './ClinicalTranscript';
 
 interface ClinicalAssistantAreaProps {
@@ -85,6 +86,13 @@ export function ClinicalAssistantArea({
   const voice = useVoiceDictation(voiceScope, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
   const activePatient = assistant.thread?.active_patient ?? null;
+  const requestPatientChange = useCallback(
+    (patientId: string | null) => {
+      const change = () => void assistant.setActivePatient(patientId);
+      guardTransition ? guardTransition(change) : change();
+    },
+    [assistant.setActivePatient, guardTransition],
+  );
 
   useEffect(() => {
     if (previousVoiceInFlightRef.current && !voiceInFlight) {
@@ -215,6 +223,17 @@ export function ClinicalAssistantArea({
               Google Drive
             </button>
           ) : undefined
+        }
+        workspaceContext={
+          <ClinicalPatientPicker
+            patient={activePatient}
+            patients={patients}
+            patientsLoading={patientsLoading}
+            patientsError={patientsError}
+            onRetryPatients={() => void loadPatients()}
+            onPatientChange={requestPatientChange}
+            disabled={voiceInFlight}
+          />
         }
       />
       <ClinicalTranscript
@@ -382,8 +401,7 @@ export function ClinicalAssistantArea({
                       type="button"
                       className="clinical-secondary-button"
                       onClick={() => {
-                        const change = () => void assistant.setActivePatient(queued[0].patientId);
-                        guardTransition ? guardTransition(change) : change();
+                        requestPatientChange(queued[0].patientId);
                       }}
                       disabled={voiceInFlight}
                     >
@@ -396,18 +414,10 @@ export function ClinicalAssistantArea({
           )}
           <ClinicalComposer
             patient={assistant.thread?.active_patient ?? null}
-            patients={patients}
-            patientsLoading={patientsLoading}
-            patientsError={patientsError}
-            onRetryPatients={() => void loadPatients()}
             value={value}
             busy={assistant.runtime === 'streaming' || assistant.runtime === 'stopping'}
             textareaRef={textareaRef}
             onChange={setValue}
-            onPatientChange={(patientId) => {
-              const change = () => void assistant.setActivePatient(patientId);
-              guardTransition ? guardTransition(change) : change();
-            }}
             onSubmit={send}
             onStop={
               assistant.runtime === 'streaming' || assistant.runtime === 'stopping'
@@ -429,7 +439,6 @@ export function ClinicalAssistantArea({
               onCancel: voice.cancel,
               onRetry: voice.retry,
             }}
-            patientControlsDisabled={voiceInFlight}
             submitDisabled={
               voiceInFlight ||
               assistant.runtime === 'awaiting_approval' ||

@@ -418,8 +418,20 @@ body,
 
 .workspace-header__actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 8px;
+}
+
+.workspace-header__context {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.workspace-header__context .clinical-patient-context {
+  min-height: 0;
+  border-bottom: 0;
+  padding: 0;
 }
 
 .chat-message-stack {
@@ -1694,6 +1706,40 @@ body,
   color: var(--danger);
 }
 
+.clinical-evolution-approval-prompt,
+.clinical-evolution-approval-terminal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.clinical-evolution-approval-prompt {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.clinical-evolution-approval-prompt > span,
+.clinical-evolution-approval-terminal > span {
+  display: grid;
+  gap: 2px;
+}
+
+.clinical-evolution-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.clinical-evolution-approval-terminal--failed {
+  color: var(--danger);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .clinical-thinking {
     animation: none;
@@ -1756,8 +1802,10 @@ body,
   cursor: pointer;
 }
 .clinical-artifact-statuses {
-  display: grid;
-  justify-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
   color: var(--text-secondary);
   font-size: 12px;
 }
@@ -1793,6 +1841,39 @@ body,
 
 .clinical-artifact-heading p {
   margin: 3px 0 0;
+}
+
+.clinical-artifact-lifecycle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.clinical-artifact-lifecycle li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.clinical-artifact-lifecycle li + li::before {
+  color: var(--text-tertiary);
+  content: "›";
+}
+
+.clinical-artifact-lifecycle li.is-current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.clinical-artifact-lifecycle li.is-complete {
+  color: var(--text-secondary);
 }
 
 .clinical-draft-fields {
@@ -1964,18 +2045,118 @@ body,
   padding: 12px 16px;
 }
 
-.clinical-artifact-date {
+.clinical-artifact-utility-row,
+.clinical-artifact-terminal-actions,
+.clinical-artifact-review-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+
+.clinical-artifact-review-actions {
+  align-items: flex-start;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.clinical-artifact-review-actions .clinical-evolution-approval-prompt {
+  flex: 1 1 360px;
+  margin: 0;
+}
+
+.clinical-artifact-terminal-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.clinical-drive-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 14px;
+  margin: 0 16px;
+  border-top: 1px solid var(--border);
+  padding: 12px 0 0;
   color: var(--text-secondary);
   font-size: 12px;
 }
 
-.clinical-artifact-date time {
+.clinical-artifact-overflow {
+  position: relative;
+  margin-left: auto;
   color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.clinical-artifact-overflow summary {
+  min-height: 40px;
+  border-radius: 8px;
+  padding: 10px 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.clinical-artifact-overflow summary::-webkit-details-marker {
+  display: none;
+}
+
+.clinical-artifact-overflow summary:hover,
+.clinical-artifact-overflow summary:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.clinical-artifact-overflow__menu {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: calc(100% + 4px);
+  display: grid;
+  min-width: 150px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  padding: 4px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 28%);
+}
+
+.clinical-artifact-overflow__menu button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.clinical-artifact-overflow__menu button:hover,
+.clinical-artifact-overflow__menu button:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.clinical-artifact-overflow__menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.clinical-artifact-overflow__status {
+  display: block;
+  margin-top: 4px;
+  color: #fca5a5;
+  font-size: 11px;
 }
 
 .evolution-review-artifact {
@@ -2656,17 +2837,55 @@ body,
 
   .clinical-artifact-heading,
   .clinical-artifact-actions,
+  .clinical-artifact-review-actions,
+  .clinical-artifact-terminal-actions,
   .clinical-approval-dialog__footer {
     align-items: stretch;
     flex-direction: column;
   }
 
   .clinical-artifact-statuses {
-    justify-items: start;
+    justify-content: flex-start;
   }
 
   .clinical-artifact-actions .clinical-primary-button,
+  .clinical-artifact-actions .clinical-secondary-button,
+  .clinical-artifact-review-actions .clinical-primary-button,
+  .clinical-artifact-review-actions .clinical-secondary-button,
   .clinical-approval-dialog__footer button {
+    width: 100%;
+  }
+
+  .clinical-evolution-approval-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .clinical-evolution-approval-actions button {
+    flex: 1 1 100%;
+  }
+
+  .clinical-artifact-overflow {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .clinical-artifact-overflow summary {
+    text-align: left;
+  }
+
+  .clinical-artifact-overflow__menu {
+    position: static;
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .clinical-drive-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .clinical-drive-row button {
     width: 100%;
   }
 
@@ -3025,6 +3244,24 @@ body,
 }
 
 @media (max-width: 767px) {
+  .workspace-header {
+    min-height: 50px;
+    height: auto;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .workspace-header__context {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .workspace-header__context .clinical-patient-context {
+    width: 100%;
+  }
+
   .clinical-transcript-stack {
     padding: 0 16px;
   }
@@ -3051,8 +3288,13 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .clinical-artifact {
+  .clinical-artifact,
+  .clinical-artifact-lifecycle li,
+  .clinical-artifact-lifecycle li::before,
+  .clinical-artifact-overflow summary,
+  .clinical-sync-state {
     animation: none;
+    transition: none;
   }
 }
 

@@ -282,6 +282,29 @@ function dispatchBeforeUnload(): Event {
 }
 
 describe('Clinical Assistant Drive transfer', () => {
+  it('places the single active-patient selector in the workspace header', () => {
+    renderAssistant();
+
+    const header = screen.getByRole('banner');
+    expect(
+      within(header).getByRole('button', { name: 'Seleccionar paciente activo' }),
+    ).toHaveTextContent('Ana Pérez · 12.345.•••-6');
+    expect(
+      within(screen.getByTestId('clinical-composer')).queryByRole('button', {
+        name: 'Seleccionar paciente activo',
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('changes the hook-owned patient through the header selector', async () => {
+    renderAssistant();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente activo' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Bruno/ }));
+
+    expect(mocks.setActivePatient).toHaveBeenCalledWith('p2');
+  });
+
   it('starts closed and exposes one header launcher instead of a sidebar utility', () => {
     renderAssistant();
 
@@ -323,11 +346,9 @@ describe('Clinical Assistant Drive transfer', () => {
   it('serializes a structured draft with visible labels only, no empty sections or review flags', async () => {
     renderAssistant();
 
-    const draftButton = screen
-      .getAllByRole('button', { name: 'Guardar en Drive' })
-      .find((button) => button.closest('article') === null);
-    expect(draftButton).toBeDefined();
-    fireEvent.click(draftButton as HTMLElement);
+    const artifact = screen.getByRole('article', { name: 'Evolución clínica' });
+    fireEvent.click(within(artifact).getByText('Más acciones'));
+    fireEvent.click(within(artifact).getByRole('button', { name: 'Guardar en Drive' }));
 
     const editor = await screen.findByRole('textbox', { name: 'Contenido del documento' });
     expect(editor).toHaveValue(

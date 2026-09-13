@@ -10,6 +10,7 @@ interface ApprovalRequestItemProps {
   onResolve: (decision: 'approve' | 'decline') => void;
   onBackToEdit: () => void;
   autoOpen?: boolean;
+  embedded?: boolean;
 }
 
 export function ApprovalRequestItem({
@@ -17,6 +18,7 @@ export function ApprovalRequestItem({
   onResolve,
   onBackToEdit,
   autoOpen = false,
+  embedded = false,
 }: ApprovalRequestItemProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const payload = item.action.proposal_payload;
@@ -33,14 +35,16 @@ export function ApprovalRequestItem({
   }[item.status];
 
   useEffect(() => {
-    if (!pending && dialogRef.current?.open) dialogRef.current.close();
-  }, [pending]);
+    if ((!pending || (embedded && committing)) && dialogRef.current?.open)
+      dialogRef.current.close();
+  }, [committing, embedded, pending]);
   useEffect(() => {
     if (autoOpen && item.status === 'pending' && !dialogRef.current?.open)
       dialogRef.current?.showModal();
   }, [autoOpen, item.status]);
 
   if (saved) {
+    if (embedded) return null;
     const content = (
       <>
         <Check aria-hidden="true" size={15} />
@@ -73,10 +77,12 @@ export function ApprovalRequestItem({
     );
   }
 
+  if (embedded && committing) return null;
+
   if (!pending) {
     return (
       <div
-        className={`clinical-approval-terminal clinical-approval-terminal--${item.status}`}
+        className={`${embedded ? 'clinical-evolution-approval-terminal' : 'clinical-approval-terminal'} clinical-approval-terminal--${item.status}`}
         role="status"
       >
         {item.status === 'declined' ? (
@@ -96,18 +102,35 @@ export function ApprovalRequestItem({
 
   return (
     <>
-      {!autoOpen && (
-        <div className="clinical-approval-prompt">
+      {!autoOpen && !committing && (
+        <div
+          className={embedded ? 'clinical-evolution-approval-prompt' : 'clinical-approval-prompt'}
+        >
           <span>
             <Clock aria-hidden="true" size={15} /> Guardado pendiente
           </span>
-          <button
-            type="button"
-            className="clinical-primary-button"
-            onClick={() => dialogRef.current?.showModal()}
-          >
-            Continuar
-          </button>
+          {embedded ? (
+            <div className="clinical-evolution-approval-actions">
+              <button
+                type="button"
+                className="clinical-primary-button"
+                onClick={() => dialogRef.current?.showModal()}
+              >
+                Confirmar guardado
+              </button>
+              <button type="button" className="clinical-secondary-button" onClick={onBackToEdit}>
+                Seguir editando
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="clinical-primary-button"
+              onClick={() => dialogRef.current?.showModal()}
+            >
+              Continuar
+            </button>
+          )}
         </div>
       )}
       <dialog
@@ -119,7 +142,7 @@ export function ApprovalRequestItem({
         <div className="clinical-approval-dialog__body">
           <h2 id={`approval-${item.id}`}>Guardar evolución</h2>
           <span className="clinical-status-badge">
-            {committing && <Spinner />}
+            {committing && !embedded && <Spinner />}
             {statusLabel}
           </span>
           <p>
@@ -141,7 +164,7 @@ export function ApprovalRequestItem({
               onBackToEdit();
             }}
           >
-            Seguir editando
+            {embedded ? 'Volver a editar' : 'Seguir editando'}
           </button>
           <button
             type="button"
@@ -149,7 +172,7 @@ export function ApprovalRequestItem({
             disabled={committing}
             onClick={() => onResolve('approve')}
           >
-            {committing ? 'Guardando…' : 'Guardar'}
+            {committing ? 'Guardando…' : embedded ? 'Guardar evolución' : 'Guardar'}
           </button>
         </div>
       </dialog>

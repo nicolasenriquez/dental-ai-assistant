@@ -1,5 +1,5 @@
-import { Check, ChevronsUpDown, ListPlus, Search, Square, X } from 'lucide-react';
-import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { ListPlus, Square } from 'lucide-react';
+import { type KeyboardEvent, type RefObject, useState } from 'react';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
 import type { ClinicalPatient } from '../../lib/api';
@@ -20,81 +20,32 @@ export interface ClinicalVoiceControls {
 
 interface ClinicalComposerProps {
   patient: ClinicalPatient | null;
-  patients: import('../../lib/api').Patient[];
-  patientsLoading?: boolean;
-  patientsError?: boolean;
-  onRetryPatients?: () => void;
   value: string;
   busy: boolean;
   textareaRef: RefObject<HTMLTextAreaElement>;
   onChange: (value: string) => void;
-  onPatientChange: (patientId: string | null) => void;
   onSubmit: () => void;
   onStop?: () => void;
   stopping?: boolean;
   voice: ClinicalVoiceControls;
-  patientControlsDisabled?: boolean;
   submitDisabled?: boolean;
 }
 
 export function ClinicalComposer({
   patient,
-  patients,
-  patientsLoading = false,
-  patientsError = false,
-  onRetryPatients,
   value,
   busy,
   textareaRef,
   onChange,
-  onPatientChange,
   onSubmit,
   onStop,
   stopping = false,
   voice,
-  patientControlsDisabled = false,
   submitDisabled = false,
 }: ClinicalComposerProps) {
   const [focused, setFocused] = useState(false);
-  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
-  const [patientQuery, setPatientQuery] = useState('');
-  const [activeOption, setActiveOption] = useState(0);
-  const patientPickerRef = useRef<HTMLDivElement>(null);
-  const patientTriggerRef = useRef<HTMLButtonElement>(null);
   const voiceInFlight = isVoiceInFlight(voice.state);
-  const patientControlsLocked = patientControlsDisabled || voiceInFlight;
   useAutosizeTextarea({ ref: textareaRef, value });
-  const filteredPatients = useMemo(() => {
-    const query = patientQuery.trim().toLocaleLowerCase();
-    if (!query) return patients;
-    return patients.filter((option) =>
-      `${option.first_name} ${option.last_name} ${option.rut_masked}`
-        .toLocaleLowerCase()
-        .includes(query),
-    );
-  }, [patientQuery, patients]);
-  const choosePatient = (patientId: string) => {
-    if (patientControlsLocked) return;
-    onPatientChange(patientId);
-    setPatientPickerOpen(false);
-    setPatientQuery('');
-    setActiveOption(0);
-  };
-  const closePatientPicker = () => {
-    setPatientPickerOpen(false);
-    requestAnimationFrame(() => patientTriggerRef.current?.focus());
-  };
-  useEffect(() => {
-    if (patientControlsLocked) setPatientPickerOpen(false);
-  }, [patientControlsLocked]);
-  useEffect(() => {
-    if (!patientPickerOpen) return;
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!patientPickerRef.current?.contains(event.target as Node)) setPatientPickerOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOnOutsideClick);
-    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
-  }, [patientPickerOpen]);
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Escape' && voiceInFlight) {
       event.preventDefault();
@@ -121,120 +72,6 @@ export function ClinicalComposer({
         }
       }}
     >
-      <div className="clinical-patient-context">
-        <span className="clinical-patient-label">
-          {patient ? 'Paciente' : 'Selecciona un paciente'}
-        </span>
-        <div ref={patientPickerRef} className="clinical-patient-picker">
-          <button
-            ref={patientTriggerRef}
-            type="button"
-            className="clinical-patient-trigger"
-            aria-label="Seleccionar paciente activo"
-            aria-haspopup="listbox"
-            aria-expanded={patientPickerOpen}
-            disabled={patientControlsLocked}
-            onClick={() => setPatientPickerOpen((current) => !current)}
-          >
-            <span title={patient ? `${patient.first_name} ${patient.last_name}` : undefined}>
-              {patient
-                ? `${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`
-                : 'Seleccionar paciente'}
-            </span>
-            <ChevronsUpDown aria-hidden="true" size={15} />
-          </button>
-          {patientPickerOpen && (
-            <div className="clinical-patient-popover">
-              <label className="clinical-patient-search">
-                <Search aria-hidden="true" size={15} />
-                <input
-                  autoFocus
-                  role="combobox"
-                  aria-label="Buscar paciente por nombre o RUT"
-                  aria-controls="clinical-patient-options"
-                  aria-expanded="true"
-                  aria-activedescendant={filteredPatients[activeOption]?.id}
-                  value={patientQuery}
-                  disabled={patientControlsLocked}
-                  onChange={(event) => {
-                    setPatientQuery(event.target.value);
-                    setActiveOption(0);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') closePatientPicker();
-                    if (event.key === 'ArrowDown') {
-                      event.preventDefault();
-                      if (filteredPatients.length > 0) {
-                        setActiveOption((current) =>
-                          Math.min(current + 1, filteredPatients.length - 1),
-                        );
-                      }
-                    }
-                    if (event.key === 'ArrowUp') {
-                      event.preventDefault();
-                      setActiveOption((current) => Math.max(current - 1, 0));
-                    }
-                    if (event.key === 'Enter' && filteredPatients[activeOption]) {
-                      event.preventDefault();
-                      choosePatient(filteredPatients[activeOption].id);
-                    }
-                  }}
-                  placeholder="Buscar por nombre o RUT…"
-                />
-              </label>
-              <div id="clinical-patient-options" role="listbox" tabIndex={-1}>
-                {patientsLoading ? (
-                  <p role="status">Cargando pacientes…</p>
-                ) : patientsError ? (
-                  <div role="alert">
-                    <p>No pudimos cargar los pacientes.</p>
-                    {onRetryPatients && (
-                      <button type="button" onClick={onRetryPatients}>
-                        Reintentar
-                      </button>
-                    )}
-                  </div>
-                ) : filteredPatients.length === 0 ? (
-                  <p>No se encontraron pacientes.</p>
-                ) : (
-                  filteredPatients.map((option, index) => (
-                    <button
-                      type="button"
-                      role="option"
-                      id={option.id}
-                      key={option.id}
-                      aria-selected={option.id === patient?.id}
-                      disabled={patientControlsLocked}
-                      className={index === activeOption ? 'is-active' : undefined}
-                      onMouseEnter={() => setActiveOption(index)}
-                      onClick={() => choosePatient(option.id)}
-                    >
-                      <span>
-                        <strong>
-                          {option.first_name} {option.last_name}
-                        </strong>
-                        <small>{option.rut_masked}</small>
-                      </span>
-                      {option.id === patient?.id && <Check aria-hidden="true" size={15} />}
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-        {patient && (
-          <button
-            type="button"
-            className="clinical-patient-clear focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            onClick={() => onPatientChange(null)}
-            disabled={patientControlsLocked}
-            aria-label="Quitar paciente activo"
-          >
-            <X aria-hidden="true" size={17} />
-          </button>
-        )}
-      </div>
       <textarea
         ref={textareaRef}
         value={value}

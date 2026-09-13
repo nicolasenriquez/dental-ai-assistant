@@ -5,6 +5,8 @@ import { formatClinicalDateTime } from '../../lib/clinicalDate';
 import { Spinner } from '../Spinner';
 import { clinicalFields, hasClinicalContent } from './evolutionFields';
 
+export type ClinicalArtifactStage = 'draft' | 'review' | 'saving' | 'saved';
+
 interface EvolutionReviewArtifactProps {
   mode: 'assistant' | 'manual';
   sourceNote: string;
@@ -26,6 +28,10 @@ interface EvolutionReviewArtifactProps {
   onRegenerate?: () => void;
   onPrepare?: () => void;
   onSave?: () => void;
+  embedded?: boolean;
+  lifecycleLabel?: string;
+  lifecycleStage?: ClinicalArtifactStage;
+  showAssistantActions?: boolean;
   staleMessageId?: string;
   syncState?: 'idle' | 'saving' | 'saved' | 'error';
   onRetrySync?: () => void;
@@ -63,6 +69,10 @@ export function EvolutionReviewArtifact({
   onRegenerate,
   onPrepare,
   onSave,
+  embedded = false,
+  lifecycleLabel,
+  lifecycleStage,
+  showAssistantActions = true,
   staleMessageId,
   syncState = 'idle',
   onRetrySync,
@@ -80,7 +90,11 @@ export function EvolutionReviewArtifact({
   const [flagsOpen, setFlagsOpen] = useState(draft.review_flags.length === 1);
   const isAssistant = mode === 'assistant';
   const emptyDraft = !hasClinicalContent(draft);
-  const assistantLifecycle = stale ? 'Necesita regeneración' : 'Borrador';
+  const visibleStage = lifecycleStage ?? 'draft';
+  const assistantLifecycle =
+    lifecycleLabel ?? (stale && visibleStage === 'draft' ? 'Necesita regeneración' : 'Borrador');
+  const showActions = !embedded || !isAssistant || showAssistantActions;
+  const Root = embedded ? ('div' as const) : ('article' as const);
   const parts = dateParts(evolutionAt);
   const updateDate = (date: string, time: string) => {
     if (!date || !time || !onEvolutionAtChange) return;
@@ -123,9 +137,15 @@ export function EvolutionReviewArtifact({
   };
 
   return (
-    <article
-      className={isAssistant ? 'clinical-artifact' : 'evolution-review-artifact'}
-      aria-label="Evolución propuesta"
+    <Root
+      className={
+        embedded
+          ? 'clinical-artifact-content'
+          : isAssistant
+            ? 'clinical-artifact'
+            : 'evolution-review-artifact'
+      }
+      aria-label={embedded ? undefined : isAssistant ? 'Evolución clínica' : 'Evolución propuesta'}
     >
       <div
         className={isAssistant ? 'clinical-artifact-heading' : 'evolution-review-artifact__heading'}
@@ -133,7 +153,7 @@ export function EvolutionReviewArtifact({
         <div>
           <h3>
             {isAssistant && <Sparkles aria-hidden="true" size={15} />}{' '}
-            {isAssistant ? 'Evolución propuesta' : 'Borrador para revisar'}
+            {isAssistant ? 'Evolución clínica' : 'Borrador para revisar'}
           </h3>
           <div className="clinical-artifact-metadata">
             <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>
@@ -152,7 +172,49 @@ export function EvolutionReviewArtifact({
         {isAssistant && (
           <div className="clinical-artifact-statuses">
             <span className="clinical-artifact-status">Borrador asistido</span>
-            <span className="clinical-artifact-status">{assistantLifecycle}</span>
+            {assistantLifecycle !== 'Borrador' && (
+              <span className="clinical-artifact-status">{assistantLifecycle}</span>
+            )}
+            <ol
+              className="clinical-artifact-lifecycle"
+              data-stage={visibleStage}
+              data-lifecycle-label={assistantLifecycle}
+              aria-label="Etapa de la evolución"
+              aria-live={visibleStage === 'saving' ? 'polite' : undefined}
+            >
+              {(['draft', 'review', 'saved'] as const).map((stage, index) => {
+                const currentIndex =
+                  visibleStage === 'draft' ? 0 : visibleStage === 'review' ? 1 : 2;
+                const label =
+                  stage === 'saved' && visibleStage === 'saving'
+                    ? 'Guardando…'
+                    : {
+                        draft: 'Borrador',
+                        review: 'Revisión',
+                        saved: 'Guardada',
+                      }[stage];
+                return (
+                  <li
+                    key={stage}
+                    className={
+                      stage === visibleStage || (stage === 'saved' && visibleStage === 'saving')
+                        ? 'is-current'
+                        : index < currentIndex
+                          ? 'is-complete'
+                          : undefined
+                    }
+                    aria-current={
+                      stage === visibleStage || (stage === 'saved' && visibleStage === 'saving')
+                        ? 'step'
+                        : undefined
+                    }
+                  >
+                    {stage === 'saved' && visibleStage === 'saving' && <Spinner size={15} />}
+                    <span>{label}</span>
+                  </li>
+                );
+              })}
+            </ol>
             {draft.review_flags.length > 0 && <span>{draft.review_flags.length} por revisar</span>}
           </div>
         )}
@@ -384,95 +446,101 @@ export function EvolutionReviewArtifact({
         </div>
       )}
 
-      <div
-        className={isAssistant ? 'clinical-artifact-actions' : 'evolution-review-artifact__actions'}
-      >
-        {isAssistant && (
-          <div className={`clinical-sync-state is-${syncState}`} role="status" aria-live="polite">
-            <span>
-              {syncState === 'saving'
-                ? 'Guardando…'
-                : syncState === 'error'
-                  ? 'No pudimos guardar estos cambios. Tu contenido sigue aquí.'
-                  : syncState === 'saved'
-                    ? 'Cambios guardados'
-                    : edited
-                      ? 'Cambios sin guardar'
-                      : 'Borrador listo'}
-            </span>
-            {syncState === 'error' && onRetrySync && (
-              <button type="button" onClick={onRetrySync}>
-                Reintentar
-              </button>
-            )}
-          </div>
-        )}
-        {!readOnly && stale && onRegenerate ? (
-          confirmReplace ? (
-            <span className="clinical-regeneration-confirmation">
-              <span>Reemplazar el borrador editado</span>
+      {showActions && (
+        <div
+          className={
+            isAssistant ? 'clinical-artifact-actions' : 'evolution-review-artifact__actions'
+          }
+        >
+          {isAssistant && (
+            <div className={`clinical-sync-state is-${syncState}`} role="status" aria-live="polite">
+              <span>
+                {syncState === 'saving'
+                  ? 'Guardando cambios…'
+                  : syncState === 'error'
+                    ? 'No pudimos guardar estos cambios. Tu contenido sigue aquí.'
+                    : syncState === 'saved'
+                      ? 'Cambios guardados'
+                      : edited
+                        ? 'Cambios sin guardar'
+                        : ''}
+              </span>
+              {syncState === 'error' && onRetrySync && (
+                <button type="button" onClick={onRetrySync}>
+                  Reintentar
+                </button>
+              )}
+            </div>
+          )}
+          {!readOnly && stale && onRegenerate ? (
+            confirmReplace ? (
+              <span className="clinical-regeneration-confirmation">
+                <span>Reemplazar el borrador editado</span>
+                <button
+                  type="button"
+                  className="clinical-secondary-button"
+                  onClick={() => setConfirmReplace(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="clinical-primary-button"
+                  disabled={editingField !== null}
+                  onClick={() => {
+                    setConfirmReplace(false);
+                    onRegenerate();
+                  }}
+                >
+                  Regenerar
+                </button>
+              </span>
+            ) : (
               <button
                 type="button"
                 className="clinical-secondary-button"
-                onClick={() => setConfirmReplace(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="clinical-primary-button"
                 disabled={editingField !== null}
-                onClick={() => {
-                  setConfirmReplace(false);
-                  onRegenerate();
-                }}
+                onClick={() => (edited ? setConfirmReplace(true) : onRegenerate())}
               >
                 Regenerar
               </button>
-            </span>
-          ) : (
+            )
+          ) : !readOnly && onSave ? (
+            <button
+              type="button"
+              disabled={!canSave || saving || editingField !== null}
+              onClick={onSave}
+              aria-describedby={stale ? staleMessageId : undefined}
+              className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <Spinner /> Guardando…
+                </>
+              ) : (
+                'Guardar evolución'
+              )}
+            </button>
+          ) : !readOnly && onPrepare ? (
             <button
               type="button"
               className="clinical-primary-button"
-              disabled={editingField !== null}
-              onClick={() => (edited ? setConfirmReplace(true) : onRegenerate())}
+              disabled={emptyDraft || editingField !== null || preparing}
+              onClick={onPrepare}
             >
-              Regenerar
+              {preparing ? (
+                <>
+                  <Spinner /> Preparando…
+                </>
+              ) : isAssistant ? (
+                'Revisar y guardar'
+              ) : (
+                'Preparar para guardar'
+              )}
             </button>
-          )
-        ) : !readOnly && onSave ? (
-          <button
-            type="button"
-            disabled={!canSave || saving || editingField !== null}
-            onClick={onSave}
-            aria-describedby={stale ? staleMessageId : undefined}
-            className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-50"
-          >
-            {saving ? (
-              <>
-                <Spinner /> Guardando…
-              </>
-            ) : (
-              'Guardar evolución'
-            )}
-          </button>
-        ) : !readOnly && onPrepare ? (
-          <button
-            type="button"
-            className="clinical-primary-button"
-            disabled={emptyDraft || editingField !== null || preparing}
-            onClick={onPrepare}
-          >
-            {preparing ? (
-              <>
-                <Spinner /> Preparando…
-              </>
-            ) : (
-              'Preparar para guardar'
-            )}
-          </button>
-        ) : null}
-      </div>
-    </article>
+          ) : null}
+        </div>
+      )}
+    </Root>
   );
 }

@@ -15,6 +15,28 @@ import { Spinner } from '../Spinner';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 import { ClinicalDraftItem } from './ClinicalDraftItem';
 
+type ResultItemData = Extract<ClinicalTranscriptItem, { type: 'result' }>;
+
+function draftForApproval(
+  group: ClinicalTranscriptItem[],
+  approval: ApprovalItemData,
+): DraftItemData | undefined {
+  return group.find(
+    (candidate): candidate is DraftItemData =>
+      candidate.type === 'draft' && candidate.id === approval.action.artifact_id,
+  );
+}
+
+function approvalForResult(
+  group: ClinicalTranscriptItem[],
+  result: ResultItemData,
+): ApprovalItemData | undefined {
+  return group.find(
+    (candidate): candidate is ApprovalItemData =>
+      candidate.type === 'approval' && candidate.id === result.actionId,
+  );
+}
+
 interface ClinicalTranscriptProps {
   threadId: string;
   items: ClinicalTranscriptItem[];
@@ -184,16 +206,29 @@ export function ClinicalTranscript({
                     return null;
                   return <ProcessingStatus key={item.id} items={group} />;
                 }
-                if (item.type === 'draft')
+                if (item.type === 'draft') {
+                  const approval = group.find(
+                    (candidate): candidate is ApprovalItemData =>
+                      candidate.type === 'approval' && candidate.action.artifact_id === item.id,
+                  );
+                  const result = group.find(
+                    (candidate): candidate is ResultItemData =>
+                      candidate.type === 'result' && candidate.actionId === approval?.id,
+                  );
                   return (
                     <ClinicalDraftItem
                       key={item.id}
                       item={item}
+                      approval={approval}
+                      result={result}
                       onChange={(draft) => onDraftChange(item.id, draft)}
                       onSourceChange={(sourceNote) => onDraftSourceChange(item.id, sourceNote)}
                       onEvolutionAtChange={(evolutionAt) => onDraftDateChange(item.id, evolutionAt)}
                       onRegenerate={() => onDraftRegenerate(item)}
                       onPrepare={() => onPrepare(item)}
+                      onResolve={onResolve}
+                      onBackToEdit={onBackToEdit}
+                      autoOpenApproval={autoOpenApprovalId === approval?.id}
                       preparing={preparingDraftId === item.id}
                       syncState={artifactSyncState[item.id]}
                       onRetrySync={() => onRetryArtifactSync?.(item)}
@@ -205,6 +240,8 @@ export function ClinicalTranscript({
                       }
                     />
                   );
+                }
+                if (item.type === 'approval' && draftForApproval(group, item)) return null;
                 if (item.type === 'approval')
                   return (
                     <ApprovalRequestItem
@@ -215,7 +252,9 @@ export function ClinicalTranscript({
                       autoOpen={autoOpenApprovalId === item.id}
                     />
                   );
-                if (item.type === 'result')
+                if (item.type === 'result') {
+                  const approval = approvalForResult(group, item);
+                  if (approval && draftForApproval(group, approval)) return null;
                   return (
                     <output key={item.id} className="clinical-result">
                       <strong>{item.message}</strong>
@@ -226,6 +265,7 @@ export function ClinicalTranscript({
                       )}
                     </output>
                   );
+                }
                 return (
                   <div key={item.id} className="clinical-error" role="alert">
                     <span>{item.message}</span>

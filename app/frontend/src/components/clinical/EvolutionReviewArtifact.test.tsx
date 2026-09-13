@@ -73,8 +73,27 @@ describe('EvolutionReviewArtifact', () => {
         onPrepare={onPrepare}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Preparar para guardar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y guardar' }));
     expect(onPrepare).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the manual preparation label and accessible name', () => {
+    render(
+      <EvolutionReviewArtifact
+        mode="manual"
+        sourceNote="Nota original"
+        draft={draft}
+        generatedDraft={draft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited={false}
+        onChange={vi.fn()}
+        onPrepare={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('article', { name: 'Evolución propuesta' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Preparar para guardar' })).toBeVisible();
   });
 
   it('starts in read mode and edits one field on demand', () => {

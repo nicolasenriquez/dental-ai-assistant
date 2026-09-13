@@ -1,8 +1,12 @@
 import { useEffect } from 'react';
-import type { ClinicalDraftItem as DraftItemData } from '../../hooks/useClinicalAssistant';
+import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
+import type {
+  ClinicalApprovalItem,
+  ClinicalDraftItem as DraftItemData,
+} from '../../hooks/useClinicalAssistant';
 import type { ClinicalDraft } from '../../lib/api';
 import { clinicalTrace } from '../../lib/clinicalTelemetry';
-import { EvolutionReviewArtifact } from '../clinical/EvolutionReviewArtifact';
+import { ClinicalEvolutionArtifact } from './ClinicalEvolutionArtifact';
 
 interface ClinicalDraftItemProps {
   item: DraftItemData;
@@ -16,6 +20,11 @@ interface ClinicalDraftItemProps {
   onRetrySync?: () => void;
   onSaveToDrive?: () => void;
   saveToDriveDisabled?: boolean;
+  approval?: ClinicalApprovalItem;
+  result?: ClinicalResultItem;
+  onResolve?: (item: ClinicalApprovalItem, decision: 'approve' | 'decline') => void;
+  onBackToEdit?: (item: ClinicalApprovalItem) => void;
+  autoOpenApproval?: boolean;
 }
 
 export function ClinicalDraftItem({
@@ -30,6 +39,11 @@ export function ClinicalDraftItem({
   onRetrySync,
   onSaveToDrive,
   saveToDriveDisabled = false,
+  approval,
+  result,
+  onResolve,
+  onBackToEdit,
+  autoOpenApproval = false,
 }: ClinicalDraftItemProps) {
   useEffect(() => {
     clinicalTrace('clinical.artifact.rendered', {
@@ -41,41 +55,23 @@ export function ClinicalDraftItem({
   }, [item.artifactStatus, item.id, item.status, item.turnId]);
 
   return (
-    <div data-artifact-id={item.id} tabIndex={-1}>
-      <EvolutionReviewArtifact
-        mode="assistant"
-        sourceNote={item.sourceNote}
-        draft={item.draft}
-        generatedDraft={item.baseline}
-        evolutionAt={item.evolutionAt}
-        stale={item.stale}
-        edited={item.edited}
-        readOnly={
-          item.artifactStatus === 'pending' ||
-          item.artifactStatus === 'approved' ||
-          item.artifactStatus === 'declined' ||
-          item.artifactStatus === 'failed'
-        }
-        sourceEditable
-        onChange={onChange}
-        onSourceChange={onSourceChange}
-        onEvolutionAtChange={onEvolutionAtChange}
-        onRegenerate={onRegenerate}
-        onPrepare={onPrepare}
-        preparing={preparing}
-        syncState={syncState}
-        onRetrySync={onRetrySync}
-      />
-      {onSaveToDrive && (
-        <button
-          type="button"
-          className="clinical-secondary-button"
-          onClick={onSaveToDrive}
-          disabled={saveToDriveDisabled}
-        >
-          Guardar en Drive
-        </button>
-      )}
-    </div>
+    <ClinicalEvolutionArtifact
+      item={item}
+      approval={approval}
+      result={result}
+      onChange={onChange}
+      onSourceChange={onSourceChange}
+      onEvolutionAtChange={onEvolutionAtChange}
+      onRegenerate={onRegenerate}
+      onPrepare={onPrepare}
+      onResolve={onResolve}
+      onBackToEdit={onBackToEdit}
+      preparing={preparing}
+      syncState={syncState}
+      onRetrySync={onRetrySync}
+      onSaveToDrive={onSaveToDrive}
+      saveToDriveDisabled={saveToDriveDisabled}
+      autoOpenApproval={autoOpenApproval}
+    />
   );
 }
