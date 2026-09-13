@@ -28,4 +28,4 @@ The Clinical Assistant currently exposes one clinical job as separate draft, app
 
 - Adds one Alembic migration, a focused export repository/service, and additive Drive/clinical API fields and routes.
 - Changes Clinical Assistant, Drive workspace, transcript composition, typed API wrappers, and their existing Vitest/Playwright suites.
-- Uses the installed React, FastAPI, asyncpg, Alembic, Google Drive integration, and UI primitives; no new dependency or provider is introduced.
+- Uses the installed React, FastAPI, asyncpg, Alembic, Google Drive integration, and UI primitives by default. Focused frontend interaction primitives may be added only under the dependency gate in `design.md`; no provider, framework, state library, styling system, animation library, or runtime service is introduced.
