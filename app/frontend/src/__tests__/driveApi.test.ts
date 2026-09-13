@@ -58,7 +58,7 @@ type DriveApiSeam = {
       expected_version: string;
     },
   ) => Promise<unknown>;
-  getDrivePickerToken?: (patientId: string) => Promise<unknown>;
+  getDrivePickerToken?: (patientId?: string | null) => Promise<unknown>;
   importDriveCopy?: (body: {
     patient_id: string;
     operation_id: string;
@@ -208,6 +208,15 @@ describe('managed Drive api wrappers', () => {
     expect(url).toBe('/api/google-drive/picker-token');
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body as string)).toEqual({ patient_id: 'p1' });
+  });
+
+  it('getDrivePickerToken can request a global Notes token without a patient', async () => {
+    mockJson({ access_token: 'at', expires_in: 300 });
+    await call(seam.getDrivePickerToken, 'getDrivePickerToken')();
+    const [url, init] = lastFetch();
+    expect(url).toBe('/api/google-drive/picker-token');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({});
   });
 
   it('importDriveCopy POSTs the untrusted source ID for a managed copy', async () => {

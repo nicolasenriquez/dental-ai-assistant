@@ -142,6 +142,10 @@ function renderWorkspace(patientId: string | null = 'p1') {
   return render(<Workspace patientId={patientId} />);
 }
 
+async function selectDocuments() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Documentos' }));
+}
+
 function stubMobile() {
   vi.stubGlobal(
     'matchMedia',
@@ -154,6 +158,7 @@ function stubMobile() {
 }
 
 async function openFirstFile(name = 'nota.txt') {
+  await selectDocuments();
   const row = await screen.findByRole('button', { name });
   fireEvent.click(row);
 }
@@ -209,8 +214,9 @@ describe('connection presentation', () => {
     expect(await screen.findByText('Google Drive')).toBeInTheDocument();
     expect(screen.getByText('Conectado')).toBeInTheDocument();
     expect(screen.getByText('Conectado')).toBeInTheDocument();
+    await selectDocuments();
     expect(screen.getByRole('searchbox', { name: 'Buscar documentos' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Abrir desde Drive' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Importar copia desde Drive' })).toBeInTheDocument();
   });
 
   it('shows the exact revoked Alert and preserves the Dental session', async () => {
@@ -289,6 +295,7 @@ describe('patient-scoped list', () => {
     listDriveFilesMock.mockReturnValue(gate.promise);
     renderWorkspace();
 
+    await selectDocuments();
     expect(await screen.findByText('Cargando documentos…')).toBeInTheDocument();
     act(() => {
       gate.resolve({ files: [], next_page_token: null });
@@ -307,6 +314,7 @@ describe('patient-scoped list', () => {
       });
     renderWorkspace();
 
+    await selectDocuments();
     expect(await screen.findByRole('button', { name: 'nota.txt' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cargar más' }));
 
@@ -319,6 +327,7 @@ describe('patient-scoped list', () => {
     listDriveFilesMock.mockResolvedValue({ files: [fileBody], next_page_token: null });
     const { rerender } = renderWorkspace('p1');
 
+    await selectDocuments();
     await screen.findByRole('button', { name: 'nota.txt' });
     rerender(<Workspace patientId="p2" />);
 
@@ -328,6 +337,7 @@ describe('patient-scoped list', () => {
   it('searches through the body-scoped endpoint, never the URL', async () => {
     renderWorkspace();
 
+    await selectDocuments();
     const searchbox = await screen.findByRole('searchbox', { name: 'Buscar documentos' });
     fireEvent.change(searchbox, { target: { value: 'dolor' } });
     fireEvent.keyDown(searchbox, { key: 'Enter' });

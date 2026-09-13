@@ -11,9 +11,9 @@
  * - `Guardar en Drive` opens an editable local Markdown draft with the
  *   message text or the serialized draft (visible labels only, empty
  *   sections and review flags omitted) and performs no Drive API write.
- * - `Insertar en el chat` appends the complete local buffer to the current
- *   composer draft with newline separation, focuses the composer, and never
- *   submits, queues, or starts an SSE/LLM request.
+ * - `Insertar nota completa` and `Insertar selección` append Drive content
+ *   with provenance and blank-line separation, focus the composer, and never
+ *   submit, queue, or start an SSE/LLM request.
  * - Transfer actions are disabled without a matching active patient.
  * - While the Drive editor is dirty, changing the active patient is
  *   suspended and a dialog offers `Guardar cambios`, `Descartar cambios`,
@@ -260,6 +260,7 @@ function renderAssistant() {
 }
 
 async function openAssistantMessageDraft() {
+  fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
   const assistantMessage = screen.getByRole('article', { name: 'Asistente' });
   fireEvent.click(within(assistantMessage).getByRole('button', { name: 'Guardar en Drive' }));
   return screen.findByRole('textbox', { name: 'Contenido del documento' });
@@ -281,8 +282,29 @@ function dispatchBeforeUnload(): Event {
 }
 
 describe('Clinical Assistant Drive transfer', () => {
+  it('starts closed and exposes one header launcher instead of a sidebar utility', () => {
+    renderAssistant();
+
+    const launcher = screen.getByRole('button', { name: 'Abrir Google Drive' });
+    expect(launcher).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Conectado')).not.toBeInTheDocument();
+  });
+
+  it('returns focus to the header launcher after closing Drive', async () => {
+    renderAssistant();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
+    await screen.findByText('Conectado');
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar Google Drive' }));
+
+    const launcher = await screen.findByRole('button', { name: 'Abrir Google Drive' });
+    await waitFor(() => expect(launcher).toHaveFocus());
+  });
+
   it('passes the active patient to the Drive workspace and loads its files', async () => {
     renderAssistant();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
 
     expect(await screen.findByText('Conectado')).toBeInTheDocument();
     await waitFor(() => expect(apiSeam.listDriveFiles).toHaveBeenCalledWith('p1', undefined));
@@ -321,10 +343,13 @@ describe('Clinical Assistant Drive transfer', () => {
 
     await openAssistantMessageDraft();
     fireEvent.change(composer(), { target: { value: 'nota previa' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Usar en el chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Insertar nota completa' }));
 
-    expect(composer()).toHaveValue('nota previa\nMensaje del asistente');
+    expect(composer()).toHaveValue(
+      'nota previa\n\nFuente: Google Drive · Respuesta del asistente.txt\nMensaje del asistente',
+    );
     expect(composer()).toHaveFocus();
+    expect(screen.getByRole('status', { name: 'Añadido al borrador' })).toBeVisible();
     expect(mocks.send).not.toHaveBeenCalled();
     expect(apiSeam.createDriveFile).not.toHaveBeenCalled();
   });
@@ -332,6 +357,8 @@ describe('Clinical Assistant Drive transfer', () => {
   it('disables every transfer action without an active patient', async () => {
     mocks.thread.active_patient = null;
     renderAssistant();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
 
     await screen.findByText('Conectado');
     const transferButtons = screen.queryAllByRole('button', { name: 'Guardar en Drive' });

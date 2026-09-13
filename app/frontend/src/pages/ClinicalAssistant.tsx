@@ -48,15 +48,7 @@ function ClinicalAssistantContent() {
         : null,
     );
   }, []);
-  const [driveOpen, setDriveOpen] = useState(() => {
-    const mobile = window.matchMedia?.('(max-width: 767px)').matches ?? false;
-    try {
-      const saved = window.localStorage.getItem('dental.drive.workspace.open.v1');
-      return saved === null ? !mobile : saved === 'true';
-    } catch {
-      return !mobile;
-    }
-  });
+  const [driveOpen, setDriveOpen] = useState(false);
   const [driveDraftSeed, setDriveDraftSeed] = useState<{ name: string; content: string } | null>(
     null,
   );
@@ -69,11 +61,6 @@ function ClinicalAssistantContent() {
 
   const setDriveVisibility = (open: boolean) => {
     setDriveOpen(open);
-    try {
-      window.localStorage.setItem('dental.drive.workspace.open.v1', String(open));
-    } catch {
-      // Storage is optional; the workspace remains available for this session.
-    }
     if (!open) {
       window.requestAnimationFrame?.(() => {
         const utility = Array.from(
@@ -82,6 +69,11 @@ function ClinicalAssistantContent() {
         utility?.focus();
       });
     }
+  };
+
+  const requestDriveVisibility = (open: boolean) => {
+    if (open) setDriveVisibility(true);
+    else transitionGuard.guardTransition(() => setDriveVisibility(false));
   };
 
   useEffect(() => {
@@ -151,13 +143,6 @@ function ClinicalAssistantContent() {
       showConversations={false}
       workspaceMode
       workspaceAccessoryMode={driveSurface}
-      utilities={[
-        {
-          id: 'google-drive',
-          label: 'Google Drive',
-          onActivate: () => setDriveVisibility(true),
-        },
-      ]}
       secondarySidebarContent={(isCollapsed, onRequestExpand) => (
         <ClinicalThreadList
           activeThreadId={activeId ?? undefined}
@@ -178,7 +163,7 @@ function ClinicalAssistantContent() {
             onInsertToComposer={(text) => composerInsertRef.current(text)}
             onDirtyStateChange={setDriveDirty}
             open={driveOpen}
-            onClose={() => setDriveVisibility(false)}
+            onClose={() => requestDriveVisibility(false)}
           />
         ) : null
       }
@@ -195,6 +180,8 @@ function ClinicalAssistantContent() {
           onComposerInsertReady={(insert) => {
             composerInsertRef.current = insert;
           }}
+          driveOpen={driveOpen}
+          onToggleDrive={() => requestDriveVisibility(!driveOpen)}
           onSaveToDrive={(seed) =>
             transitionGuard.guardTransition(() => {
               setDriveDraftSeed(seed);

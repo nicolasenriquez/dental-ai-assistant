@@ -35,7 +35,7 @@ interface DriveDocumentViewProps {
   onBack: () => void;
   onModeChange: (mode: 'viewing' | 'editing') => void;
   onSave: () => void;
-  onInsert: (text: string) => void;
+  onInsert?: (text: string) => void;
   setDoc: Dispatch<SetStateAction<DriveDocumentViewModel | null>>;
   setSelectedText: (text: string) => void;
   onNameChange: (name: string) => void;
@@ -136,14 +136,14 @@ export function DriveDocumentView({
       <footer className="drive-doc-actions">
         {onInsert && (
           <>
-            {mode === 'editing' && selectedText && (
+            {mode === 'editing' && selectedText.trim() && (
               <button
                 type="button"
                 className="drive-btn drive-btn-secondary"
                 disabled={!canTransfer}
                 onClick={() => onInsert(selectedText)}
               >
-                Insertar selección en el chat
+                Insertar selección
               </button>
             )}
             <button
@@ -152,9 +152,16 @@ export function DriveDocumentView({
               disabled={!canTransfer}
               onClick={() => onInsert(doc.content)}
             >
-              Usar en el chat
+              Insertar nota completa
             </button>
           </>
+        )}
+        {onInsert && !canTransfer && (
+          <p className="drive-insert-prerequisite">
+            {patientId
+              ? 'Selecciona el paciente asociado para insertar este contenido.'
+              : 'Selecciona un paciente para insertar este contenido.'}
+          </p>
         )}
         {mode === 'editing' && (
           <button

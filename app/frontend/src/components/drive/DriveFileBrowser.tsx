@@ -13,6 +13,7 @@ interface DriveFileBrowserProps {
   searchSubmitted: boolean;
   importing: boolean;
   imported: boolean;
+  importLabel?: string;
   nextPageToken: string | null;
   onQueryChange: (query: string) => void;
   onSearch: () => void;
@@ -66,6 +67,7 @@ export function DriveFileBrowser({
   searchSubmitted,
   importing,
   imported,
+  importLabel = 'Agregar desde Drive',
   nextPageToken,
   onQueryChange,
   onSearch,
@@ -79,7 +81,7 @@ export function DriveFileBrowser({
     return (
       <section className="drive-empty-state" aria-live="polite">
         <FileText aria-hidden="true" size={22} />
-        <h3>Selecciona un paciente primero</h3>
+        <h3>Seleccionar paciente</h3>
         <p>Los documentos de Drive se muestran después de seleccionar un paciente.</p>
       </section>
     );
@@ -115,7 +117,7 @@ export function DriveFileBrowser({
             </button>
           )}
         </div>
-        {!managedOnly && (listLoading || files.length > 0 || searchSubmitted) && (
+        {(listLoading || files.length > 0 || searchSubmitted) && (
           <button
             type="button"
             className="drive-btn drive-btn-primary"
@@ -127,7 +129,7 @@ export function DriveFileBrowser({
                 <Spinner /> Importando…
               </>
             ) : (
-              'Agregar desde Drive'
+              importLabel
             )}
           </button>
         )}
@@ -160,16 +162,14 @@ export function DriveFileBrowser({
               ? 'Los resultados que guardes desde el Asistente aparecerán aquí.'
               : 'Agrega un documento desde tu Drive para usarlo en el chat.'}
           </p>
-          {!managedOnly && (
-            <button
-              type="button"
-              className="drive-btn drive-btn-primary"
-              onClick={onImport}
-              disabled={importing}
-            >
-              Agregar desde Drive
-            </button>
-          )}
+          <button
+            type="button"
+            className="drive-btn drive-btn-primary"
+            onClick={onImport}
+            disabled={importing}
+          >
+            {importLabel}
+          </button>
         </div>
       ) : (
         <>

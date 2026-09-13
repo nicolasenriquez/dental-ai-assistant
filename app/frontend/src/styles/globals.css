@@ -4196,6 +4196,44 @@ body,
   font-size: 12px;
 }
 
+.drive-section-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.drive-section-button {
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 8px 6px;
+  cursor: pointer;
+}
+
+.drive-section-button:hover,
+.drive-section-button[aria-pressed="true"] {
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+
+.drive-section-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.drive-journals {
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .drive-list-tools {
   display: flex;
   gap: 8px;
@@ -4597,6 +4635,21 @@ body,
   position: sticky;
   bottom: 0;
   background: var(--surface-1);
+}
+
+.drive-insertion-feedback,
+.drive-insert-prerequisite {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.drive-insertion-feedback {
+  color: var(--success);
+}
+
+.drive-insert-prerequisite {
+  flex: 1 1 100%;
 }
 
 .drive-document-skeleton {

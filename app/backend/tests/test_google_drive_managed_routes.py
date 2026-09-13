@@ -921,6 +921,19 @@ async def test_picker_token_is_no_store_and_requires_owned_patient(
     assert response.headers["pragma"].lower() == "no-cache"
 
 
+async def test_picker_token_supports_global_notes_without_patient(
+    managed_client: AsyncClient, managed_context: dict[str, Any]
+) -> None:
+    response = await managed_client.post(
+        "/api/google-drive/picker-token",
+        headers={**_headers(), "Content-Type": "application/json"},
+        json={},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"access_token": "request-access-token", "expires_in": 300}
+
+
 async def test_revoked_connection_is_sanitized_and_does_not_refresh(
     managed_client: AsyncClient, managed_context: dict[str, Any]
 ) -> None:

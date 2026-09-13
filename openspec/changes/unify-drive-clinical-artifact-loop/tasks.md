@@ -10,9 +10,16 @@
 
 ## 3. Notes, Picker, and composer flow
 
-- [ ] 3.1 Add behavior tests for global Notes without a patient, patient-bound Documents prerequisite/empty states, cross-patient Journals, patient changes, and the two Picker intents
-- [ ] 3.2 Refactor Drive into compact keyboard-operable `Notas`, `Documentos`, and `Diarios` sections while preserving existing source and managed-document primitives
-- [ ] 3.3 Add tested `Insertar selección` and `Insertar nota completa` actions with contextual success feedback, provenance, blank-line separation, focus, patient prerequisite, and no automatic send
+- [x] 3.1 Add behavior tests for global Notes without a patient, patient-bound Documents prerequisite/empty states, cross-patient Journals, patient changes, and the two Picker intents
+  Traceability: requirements `Responsive Drive workspace accessory`, `Patient-safe workspace transitions`, `Picker intents are explicit`, and `Evolution journals are cross-patient read surfaces`; first external proof for the three-section Drive boundary.
+  Notes: Added `app/frontend/src/components/drive/DriveWorkspace.sections.test.tsx` with 10 fail-first cases covering global Notes without patient context, Documents prerequisite/empty states, cross-patient Journals, patient-switch isolation, global-note Picker opening, managed-copy Picker import, and cancellation. Focused Vitest collection succeeds and current pre-3.2 runtime fails 10/10 against the intentionally absent section shell. Frontend TypeScript, Biome check, and `git diff --check` pass.
+- [x] 3.2 Refactor Drive into compact keyboard-operable `Notas`, `Documentos`, and `Diarios` sections while preserving existing source and managed-document primitives
+  Traceability: requirements `Responsive Drive workspace accessory`, `Patient-safe workspace transitions`, `Picker intents are explicit`, and `Evolution journals are cross-patient read surfaces`.
+  Notes: Added the three-section navigation in `DriveWorkspace`, kept `DriveSourceList` and managed-document primitives intact, routed global Notes through a patient-free Picker token, kept managed imports patient-bound, and added lazy structured journal summaries. Updated legacy Drive tests to select `Documentos` explicitly. Validation: frontend `55` test files / `424` tests pass, `bun run type-check`, `bun run build`, targeted Biome checks, backend managed-Drive `42` tests, and `git diff --check` pass.
+- [x] 3.3 Add tested `Insertar selección` and `Insertar nota completa` actions with contextual success feedback, provenance, blank-line separation, focus, patient prerequisite, and no automatic send
+  Traceability: requirements `Explicit Drive-to-composer insertion` and `Queue and stale-operation safety`; scenarios `Complete note is inserted`, `Selection is inserted`, `Patient is missing`, and `Insertion never submits`.
+  Notes: Added explicit full-note and selection actions for managed and external text documents, Drive provenance, blank-line composer appending, focus return, patient gating, local success/error feedback, and failure-safe callbacks. Insertion only updates the composer draft; it does not submit, queue, call Drive writes, or create threads. Added coverage in `DriveWorkspace.sections.test.tsx` and `ClinicalAssistant.drive.test.tsx`.
+  Validation: focused Vitest `4` files / `29` tests pass; full frontend Vitest `55` files / `428` tests pass; `bun run tsc --noEmit`, `bun run build`, task-scoped Biome checks, and `git diff --check` pass. Repo-wide Biome still reports pre-existing import ordering in `app/frontend/src/__tests__/authBootstrapMode.test.tsx`, which task did not modify.
 - [x] 3.4 Preserve composer text and block submit/queue during approval and canonical saving while allowing turns during Drive-only work
 
 ## 4. Clinical artifact shell

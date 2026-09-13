@@ -49,11 +49,11 @@ beforeEach(() => {
 
 it('opens editable sources from Picker without importing or binding a patient', async () => {
   render(<DriveWorkspace patientId="a" patient={patient} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Abrir desde Drive' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Abrir nota desde Drive' }));
   expect(
     await screen.findByRole('textbox', { name: 'Contenido del documento' }),
   ).not.toHaveAttribute('readonly');
-  expect(openDrivePicker).toHaveBeenCalledWith('a');
+  expect(openDrivePicker).toHaveBeenCalledWith();
   expect(api.importDriveCopy).not.toHaveBeenCalled();
   expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
 });
@@ -80,8 +80,8 @@ it('preserves source edits and exact selection across patient changes, then save
   );
   expect(editor).toHaveValue('  Exact\nBeta  ');
   expect(screen.getByText(/Usar para: Beta/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Usar selección en Assistant' }));
-  expect(insert).toHaveBeenCalledWith('  Exact');
+  fireEvent.click(screen.getByRole('button', { name: 'Insertar selección' }));
+  expect(insert).toHaveBeenCalledWith('Fuente: Google Drive · notas.md\n  Exact');
   fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
   await waitFor(() =>
     expect(api.updateDriveSourceText).toHaveBeenCalledWith('source', '  Exact\nBeta  ', '1'),
@@ -99,7 +99,7 @@ it('allows browsing without a patient, searches locally and guards dirty Back', 
   })) as HTMLTextAreaElement;
   editor.setSelectionRange(6, 10);
   fireEvent.select(editor);
-  expect(screen.getByRole('button', { name: 'Usar selección en Assistant' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Insertar selección' })).toBeDisabled();
   fireEvent.keyDown(editor, { ctrlKey: true, key: 'f' });
   const search = screen.getByRole('searchbox', { name: 'Buscar dentro del documento' });
   fireEvent.change(search, { target: { value: 'Alpha' } });
@@ -107,7 +107,7 @@ it('allows browsing without a patient, searches locally and guards dirty Back', 
   expect(editor.selectionStart).toBe(0);
   fireEvent.click(screen.getByRole('button', { name: 'Coincidencia siguiente' }));
   expect(editor.selectionStart).toBe(11);
-  expect(screen.queryByRole('button', { name: 'Usar selección en Assistant' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Insertar selección' })).toBeNull();
   fireEvent.change(editor, { target: { value: 'dirty' } });
   fireEvent.click(screen.getByRole('button', { name: 'Volver a Google Drive' }));
   expect(guard).toHaveBeenCalled();

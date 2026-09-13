@@ -908,7 +908,7 @@ class _UpdateBody(BaseModel):
 
 
 class _PickerTokenBody(BaseModel):
-    patient_id: UUID
+    patient_id: UUID | None = None
 
 
 class _ImportCopyBody(BaseModel):
@@ -1247,7 +1247,8 @@ async def picker_token(
         return _error("GOOGLE_DRIVE_NOT_CONFIGURED", status.HTTP_503_SERVICE_UNAVAILABLE)
 
     user_id = str(user["id"])
-    await _require_owned_patient(user_id, body.patient_id)
+    if body.patient_id is not None:
+        await _require_owned_patient(user_id, body.patient_id)
     _, access_token = await _connection_access_token(user_id)
     return JSONResponse(
         status_code=status.HTTP_200_OK,

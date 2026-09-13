@@ -4,6 +4,7 @@ import { getPatients } from '../../lib/api';
 import { ClinicalAssistantArea } from './ClinicalAssistantArea';
 
 const send = vi.fn();
+const runtime = vi.hoisted(() => ({ value: 'streaming' }));
 
 vi.mock('../../lib/api', async () => {
   const actual = await vi.importActual<typeof import('../../lib/api')>('../../lib/api');
@@ -14,7 +15,7 @@ vi.mock('../../hooks/useClinicalAssistant', () => ({
   useClinicalAssistant: () => ({
     thread: null,
     items: [],
-    runtime: 'streaming',
+    runtime: runtime.value,
     error: null,
     send,
     stop: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('../../hooks/useClinicalAssistant', () => ({
 describe('ClinicalAssistantArea queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    runtime.value = 'streaming';
     vi.mocked(getPatients).mockResolvedValue([]);
   });
 
@@ -56,5 +58,18 @@ describe('ClinicalAssistantArea queue', () => {
     expect(composer).toHaveValue('Cuatro');
     expect(screen.getByRole('alert')).toHaveTextContent('Ya tienes 3 mensajes pendientes.');
     expect(screen.getByText('3 mensajes en cola')).toBeVisible();
+  });
+
+  it('preserves the draft and does not queue while approval is pending', () => {
+    runtime.value = 'awaiting_approval';
+    render(<ClinicalAssistantArea threadId="thread-1" />);
+    const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
+
+    fireEvent.change(composer, { target: { value: 'Siguiente nota' } });
+
+    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+    expect(composer).toHaveValue('Siguiente nota');
+    expect(screen.getByText('Revisa la evolución pendiente antes de continuar.')).toBeVisible();
+    expect(screen.queryByText(/mensaje.*en cola/)).not.toBeInTheDocument();
   });
 });

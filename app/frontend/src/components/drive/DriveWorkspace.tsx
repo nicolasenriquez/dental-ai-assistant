@@ -10,6 +10,7 @@ import {
   ApiError,
   type DriveFile,
   type DriveFileContent,
+  type DriveJournalSummary,
   type DriveSourceFile,
   type DriveStatus,
   createDriveFile,
@@ -17,7 +18,9 @@ import {
   getDriveSource,
   getDriveSourceText,
   getDriveStatus,
+  importDriveCopy,
   listDriveFiles,
+  listDriveJournals,
   listDriveSources,
   recreateDriveWorkspace,
   searchDriveFiles,
@@ -49,6 +52,7 @@ import { DriveWorkspaceHome } from './DriveWorkspaceHome';
 import type { DrivePatientContext, WorkspaceDocument } from './editors/types';
 
 type OpenDoc = DriveDocumentViewModel;
+type DriveSection = 'notes' | 'documents' | 'journals';
 
 export interface DriveWorkspaceHandle {
   save: () => Promise<boolean>;
@@ -98,6 +102,11 @@ function diagnosticError(error: unknown): string {
   return 'unknown error';
 }
 
+function formatDriveInsertion(text: string, sourceName: string): string {
+  const name = sourceName.replace(/\s+/g, ' ').trim() || 'Nota de Drive';
+  return `Fuente: Google Drive · ${name}\n${text}`;
+}
+
 export function DriveWorkspace({
   patientId,
   patient = null,
@@ -130,6 +139,10 @@ export function DriveWorkspace({
   const [sources, setSources] = useState<DriveSourceFile[]>([]);
   const [sourcePage, setSourcePage] = useState<string | null>(null);
   const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [section, setSection] = useState<DriveSection>('notes');
+  const [journals, setJournals] = useState<DriveJournalSummary[]>([]);
+  const [journalsLoading, setJournalsLoading] = useState(false);
+  const [journalsLoaded, setJournalsLoaded] = useState(false);
   const openSequence = useRef(0);
   const [docPhase, setDocPhase] = useState<'opening' | 'ready'>('ready');
   const [mode, setMode] = useState<'viewing' | 'editing'>('viewing');
@@ -137,6 +150,7 @@ export function DriveWorkspace({
   const [saved, setSaved] = useState(false);
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(false);
+  const [insertionFeedback, setInsertionFeedback] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [unknownWrite, setUnknownWrite] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
@@ -200,6 +214,7 @@ export function DriveWorkspace({
     setSaved(false);
     setSelectedText('');
     setImported(false);
+    setInsertionFeedback(null);
     setQuery('');
     setSearchSubmitted(false);
     setSearchLoading(false);
@@ -233,10 +248,30 @@ export function DriveWorkspace({
     if (driveStatus?.status === 'connected') void loadSources();
   }, [driveStatus?.status]);
 
+  const loadJournals = async () => {
+    setJournalsLoading(true);
+    try {
+      const page = await listDriveJournals();
+      setJournals(page.journals);
+      setJournalsLoaded(true);
+    } catch {
+      setErrorMessage('No se pudieron cargar los diarios.');
+    } finally {
+      setJournalsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (driveStatus?.status === 'connected' && section === 'journals' && !journalsLoaded) {
+      void loadJournals();
+    }
+  }, [driveStatus?.status, journalsLoaded, section]);
+
   const openSource = async (fileId: string) => {
     const sequence = ++openSequence.current;
     setDocPhase('opening');
     setErrorMessage(null);
+    setInsertionFeedback(null);
     try {
       let source = await getDriveSource(fileId);
       let content = '';
@@ -272,6 +307,7 @@ export function DriveWorkspace({
     setMode('editing');
     setDocPhase('ready');
     setSaved(false);
+    setInsertionFeedback(null);
     setSelectedText('');
   }, [draftSeed]);
 
@@ -389,6 +425,7 @@ export function DriveWorkspace({
     setMode('viewing');
     setSaved(false);
     setImported(false);
+    setInsertionFeedback(null);
     setSelectedText('');
   };
 
@@ -408,6 +445,7 @@ export function DriveWorkspace({
     setDocPhase('opening');
     setMode('viewing');
     setSaved(false);
+    setInsertionFeedback(null);
     try {
       const content = await getDriveFile(file.id, patientId);
       if (patientIdRef.current === boundPatientId) {
@@ -437,6 +475,7 @@ export function DriveWorkspace({
     setSaved(false);
     setConflictOpen(false);
     setSelectedText('');
+    setInsertionFeedback(null);
     setUnknownWrite(false);
     window.requestAnimationFrame?.(() => searchInputRef.current?.focus());
   };
@@ -576,11 +615,11 @@ export function DriveWorkspace({
     }
   };
 
-  const handleImport = async () => {
-    if (!patientId || importing) return;
+  const handleOpenNote = async () => {
+    if (importing) return;
     setImporting(true);
     try {
-      const picked = await openDrivePicker(patientId);
+      const picked = await openDrivePicker();
       if (picked) await openSource(picked.id);
     } catch {
       setErrorMessage('No se pudo abrir el selector de Drive.');
@@ -589,9 +628,46 @@ export function DriveWorkspace({
     }
   };
 
-  const handleInsert = (text: string) => {
-    if (!patientId || !doc || doc.boundPatientId !== patientId || !onInsertToComposer) return;
-    onInsertToComposer(text);
+  const handleImport = async () => {
+    if (!patientId || importing) return;
+    setImporting(true);
+    try {
+      const picked = await openDrivePicker(patientId);
+      if (picked) {
+        const importedFile = await importDriveCopy({
+          patient_id: patientId,
+          operation_id: newOperationId(),
+          source_file_id: picked.id,
+        });
+        setFiles((previous) => [
+          importedFile,
+          ...previous.filter((file) => file.id !== importedFile.id),
+        ]);
+        setImported(true);
+      }
+    } catch {
+      setErrorMessage('No se pudo importar la copia desde Drive.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleInsert = (text: string, sourceName: string, boundPatientId?: string | null) => {
+    if (
+      !text ||
+      !patientId ||
+      !onInsertToComposer ||
+      (boundPatientId !== undefined && boundPatientId !== patientId)
+    )
+      return;
+    try {
+      onInsertToComposer(formatDriveInsertion(text, sourceName));
+      setInsertionFeedback('Añadido al borrador');
+      setErrorMessage(null);
+    } catch {
+      setInsertionFeedback(null);
+      setErrorMessage('No se pudo añadir el contenido al borrador.');
+    }
   };
 
   useEffect(() => {
@@ -618,7 +694,7 @@ export function DriveWorkspace({
       onBack={closeDoc}
       onModeChange={setMode}
       onSave={() => void handleSave()}
-      onInsert={handleInsert}
+      onInsert={(text) => handleInsert(text, doc.name, doc.boundPatientId)}
       setDoc={setDoc}
       setSelectedText={setSelectedText}
       onNameChange={(name) =>
@@ -628,6 +704,56 @@ export function DriveWorkspace({
   ) : null;
 
   if (!driveStatus) return null;
+
+  const sectionNavigation = (
+    <nav className="drive-section-nav" aria-label="Secciones de Google Drive">
+      {(
+        [
+          ['notes', 'Notas'],
+          ['documents', 'Documentos'],
+          ['journals', 'Diarios'],
+        ] as const
+      ).map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          className="drive-section-button"
+          aria-pressed={section === value}
+          onClick={() => setSection(value)}
+        >
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
+
+  const journalContent = (
+    <section className="drive-journals" aria-label="Diarios de evoluciones">
+      {journalsLoading && <p className="drive-list-status">Cargando diarios…</p>}
+      {!journalsLoading && journals.length === 0 && (
+        <p className="drive-empty-state" aria-live="polite">
+          Aún no hay diarios.
+        </p>
+      )}
+      {!journalsLoading && journals.length > 0 && (
+        <ul className="drive-file-list">
+          {journals.map((journal) => (
+            <li key={`${journal.period_type}-${journal.period_key}-${journal.journal_part}`}>
+              <button type="button" className="drive-file-row">
+                <span className="drive-file-main">
+                  <strong>{journal.display_name}</strong>
+                  <span>{journal.period_type === 'weekly' ? 'Semanal' : 'Diario'}</span>
+                </span>
+                <time dateTime={journal.updated_at}>
+                  {new Date(journal.updated_at).toLocaleDateString('es-CL')}
+                </time>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
 
   let connectionContent: ReactNode;
   switch (driveStatus.status) {
@@ -728,36 +854,49 @@ export function DriveWorkspace({
       break;
     case 'connected':
       connectionContent = !workspaceDocument && (
-        <DriveWorkspaceHome
-          files={sources}
-          loading={sourcesLoading}
-          canPick={Boolean(patientId)}
-          picking={importing}
-          onPick={() => void handleImport()}
-          onOpen={(file) => void openSource(file.id)}
-          onMore={sourcePage ? () => void loadSources(sourcePage) : undefined}
-          patient={patient}
-        >
-          <DriveFileBrowser
-            managedOnly
-            patientId={patientId}
-            query={query}
-            files={files}
-            listLoading={listLoading}
-            searchLoading={searchLoading}
-            searchSubmitted={searchSubmitted}
-            importing={importing}
-            imported={imported}
-            nextPageToken={nextPageToken}
-            onQueryChange={setQuery}
-            onSearch={() => void handleSearch()}
-            onClearSearch={handleClearSearch}
-            onImport={() => void handleImport()}
-            onOpen={(file) => void handleOpen(file)}
-            onLoadMore={() => void handleLoadMore()}
-            searchInputRef={searchInputRef}
-          />
-        </DriveWorkspaceHome>
+        <>
+          {sectionNavigation}
+          {section === 'notes' ? (
+            <DriveWorkspaceHome
+              files={sources}
+              loading={sourcesLoading}
+              picking={importing}
+              onPick={() => void handleOpenNote()}
+              onOpen={(file) => void openSource(file.id)}
+              onMore={sourcePage ? () => void loadSources(sourcePage) : undefined}
+            />
+          ) : section === 'documents' ? (
+            <div className="min-h-0 flex-1 overflow-auto">
+              {patient && (
+                <p className="drive-header-patient">
+                  {patient.displayName} · {patient.rutMasked}
+                </p>
+              )}
+              <DriveFileBrowser
+                managedOnly
+                patientId={patientId}
+                query={query}
+                files={files}
+                listLoading={listLoading}
+                searchLoading={searchLoading}
+                searchSubmitted={searchSubmitted}
+                importing={importing}
+                imported={imported}
+                importLabel="Importar copia desde Drive"
+                nextPageToken={nextPageToken}
+                onQueryChange={setQuery}
+                onSearch={() => void handleSearch()}
+                onClearSearch={handleClearSearch}
+                onImport={() => void handleImport()}
+                onOpen={(file) => void handleOpen(file)}
+                onLoadMore={() => void handleLoadMore()}
+                searchInputRef={searchInputRef}
+              />
+            </div>
+          ) : (
+            journalContent
+          )}
+        </>
       );
   }
 
@@ -820,6 +959,16 @@ export function DriveWorkspace({
           )}
         </Alert>
       )}
+      {insertionFeedback && (
+        <p
+          className="drive-insertion-feedback"
+          role="status"
+          aria-label={insertionFeedback}
+          aria-live="polite"
+        >
+          {insertionFeedback}
+        </p>
+      )}
       {docPhase === 'opening' && !doc && (
         <div role="status" aria-label="Abriendo documento" className="drive-file-skeleton">
           <span />
@@ -836,9 +985,7 @@ export function DriveWorkspace({
           onBack={closeDoc}
           onClose={requestCloseWorkspace}
           onSave={() => void handleSave()}
-          onInsert={(text) => {
-            if (patientId) onInsertToComposer?.(text);
-          }}
+          onInsert={(text) => handleInsert(text, sourceDoc.source.name)}
           onChange={(content) =>
             setWorkspaceDocument((previous) =>
               previous?.kind === 'source' ? { ...previous, content } : previous,

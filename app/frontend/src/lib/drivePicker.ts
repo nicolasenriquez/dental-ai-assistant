@@ -101,7 +101,9 @@ export interface PickedDriveSource {
   mimeType?: string;
 }
 
-export async function openDrivePicker(patientId: string): Promise<PickedDriveSource | null> {
+export async function openDrivePicker(
+  patientId?: string | null,
+): Promise<PickedDriveSource | null> {
   const env = import.meta.env;
   const appId = env.VITE_GOOGLE_DRIVE_APP_ID;
   const developerKey = env.VITE_GOOGLE_PICKER_API_KEY;

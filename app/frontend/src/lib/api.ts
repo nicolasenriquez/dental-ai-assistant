@@ -616,6 +616,21 @@ export interface DriveFileContent extends DriveFile {
   content: string;
 }
 
+export interface DriveJournalSummary {
+  period_type: 'weekly' | 'daily';
+  period_key: string;
+  journal_part: number;
+  display_name: string;
+  updated_at: string;
+}
+
+export interface DriveJournalPage {
+  journals: DriveJournalSummary[];
+}
+
+export const listDriveJournals = () =>
+  request<DriveJournalPage>('/google-drive/evolution-journals');
+
 export const listDriveFiles = (patientId: string, pageToken?: string) => {
   const query = pageToken
     ? `?patient_id=${encodeURIComponent(patientId)}&page_token=${encodeURIComponent(pageToken)}`
@@ -659,10 +674,10 @@ export const updateDriveFile = (
     body: JSON.stringify(body),
   });
 
-export const getDrivePickerToken = (patientId: string) =>
+export const getDrivePickerToken = (patientId?: string | null) =>
   request<{ access_token: string; expires_in: number }>('/google-drive/picker-token', {
     method: 'POST',
-    body: JSON.stringify({ patient_id: patientId }),
+    body: JSON.stringify(patientId ? { patient_id: patientId } : {}),
   });
 
 export const importDriveCopy = (body: {

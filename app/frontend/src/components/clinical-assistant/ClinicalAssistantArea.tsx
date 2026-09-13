@@ -1,4 +1,4 @@
-import { Stethoscope } from 'lucide-react';
+import { HardDrive, Stethoscope } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
 import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
@@ -20,9 +20,17 @@ interface ClinicalAssistantAreaProps {
   onActivePatientChange?: (patient: ClinicalPatient | null) => void;
   onComposerInsertReady?: (insert: (text: string) => void) => void;
   onSaveToDrive?: (seed: { name: string; content: string }) => void;
+  driveOpen?: boolean;
+  onToggleDrive?: () => void;
 }
 
 type QueuedEntry = { id: string; content: string; patientId: string | null; patientName: string };
+
+function appendWithBlankLine(current: string, inserted: string): string {
+  if (!current) return inserted;
+  const trailingNewlines = current.match(/\n*$/)?.[0].length ?? 0;
+  return `${current}${'\n'.repeat(Math.max(0, 2 - trailingNewlines))}${inserted}`;
+}
 
 export function ClinicalAssistantArea({
   threadId,
@@ -31,6 +39,8 @@ export function ClinicalAssistantArea({
   onActivePatientChange,
   onComposerInsertReady,
   onSaveToDrive,
+  driveOpen = false,
+  onToggleDrive,
 }: ClinicalAssistantAreaProps) {
   const assistant = useClinicalAssistant(threadId);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -92,7 +102,7 @@ export function ClinicalAssistantArea({
   const insertIntoComposer = useCallback(
     (text: string) => {
       if (!text) return;
-      setValue((current) => (current ? `${current}\n${text}` : text));
+      setValue((current) => appendWithBlankLine(current, text));
       textareaRef.current?.focus();
     },
     [setValue],
@@ -142,12 +152,9 @@ export function ClinicalAssistantArea({
   const send = () => {
     if (!value.trim() || voiceInFlight) return;
     const message = value.trim();
-    const busy =
-      assistant.runtime === 'streaming' ||
-      assistant.runtime === 'stopping' ||
-      assistant.runtime === 'awaiting_approval' ||
-      assistant.runtime === 'saving';
-    if (busy) {
+    const queueable = assistant.runtime === 'streaming' || assistant.runtime === 'stopping';
+    if (assistant.runtime === 'awaiting_approval' || assistant.runtime === 'saving') return;
+    if (queueable) {
       if (queued.length >= 3) {
         setQueueError('Ya tienes 3 mensajes pendientes.');
         return;
@@ -193,6 +200,21 @@ export function ClinicalAssistantArea({
           assistant.thread?.active_patient
             ? `Paciente · ${assistant.thread.active_patient.rut_masked}`
             : 'Sin paciente activo'
+        }
+        actions={
+          onToggleDrive ? (
+            <button
+              type="button"
+              className="clinical-secondary-button"
+              data-drive-utility="true"
+              aria-expanded={driveOpen}
+              aria-label={driveOpen ? 'Cerrar Google Drive' : 'Abrir Google Drive'}
+              onClick={onToggleDrive}
+            >
+              <HardDrive aria-hidden="true" size={16} />
+              Google Drive
+            </button>
+          ) : undefined
         }
       />
       <ClinicalTranscript
@@ -317,6 +339,13 @@ export function ClinicalAssistantArea({
       )}
       <div className="chat-input-dock clinical-composer-dock">
         <div className="chat-input-dock-inner">
+          {(assistant.runtime === 'awaiting_approval' || assistant.runtime === 'saving') && (
+            <p className="clinical-composer-lock" role="status">
+              {assistant.runtime === 'saving'
+                ? 'Espera mientras guardamos la evolución.'
+                : 'Revisa la evolución pendiente antes de continuar.'}
+            </p>
+          )}
           {queued.length > 0 && (
             <div className="clinical-queue" aria-label="Mensajes en cola">
               <strong>
@@ -372,12 +401,7 @@ export function ClinicalAssistantArea({
             patientsError={patientsError}
             onRetryPatients={() => void loadPatients()}
             value={value}
-            busy={
-              assistant.runtime === 'streaming' ||
-              assistant.runtime === 'stopping' ||
-              assistant.runtime === 'awaiting_approval' ||
-              assistant.runtime === 'saving'
-            }
+            busy={assistant.runtime === 'streaming' || assistant.runtime === 'stopping'}
             textareaRef={textareaRef}
             onChange={setValue}
             onPatientChange={(patientId) => {
@@ -406,7 +430,11 @@ export function ClinicalAssistantArea({
               onRetry: voice.retry,
             }}
             patientControlsDisabled={voiceInFlight}
-            submitDisabled={voiceInFlight}
+            submitDisabled={
+              voiceInFlight ||
+              assistant.runtime === 'awaiting_approval' ||
+              assistant.runtime === 'saving'
+            }
           />
         </div>
       </div>

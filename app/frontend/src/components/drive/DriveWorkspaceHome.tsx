@@ -1,28 +1,21 @@
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import type { DriveSourceFile } from '../../lib/api';
 import { DriveSourceList } from './DriveSourceList';
-import type { DrivePatientContext } from './editors/types';
 
 export function DriveWorkspaceHome({
   files,
   loading,
-  canPick,
   picking,
   onPick,
   onOpen,
   onMore,
-  patient,
-  children,
 }: {
   files: DriveSourceFile[];
   loading: boolean;
-  canPick: boolean;
   picking: boolean;
   onPick: () => void;
   onOpen: (file: DriveSourceFile) => void;
   onMore?: () => void;
-  patient: DrivePatientContext | null;
-  children: ReactNode;
 }) {
   const [query, setQuery] = useState('');
   const filtered = files.filter((file) =>
@@ -33,27 +26,26 @@ export function DriveWorkspaceHome({
       <input
         type="search"
         className="drive-search"
-        aria-label="Buscar archivos"
-        placeholder="Buscar archivos en Drive..."
+        aria-label="Buscar notas"
+        placeholder="Buscar notas en Drive..."
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
       <button
         type="button"
         className="drive-btn drive-btn-primary my-3"
-        disabled={!canPick || picking}
+        disabled={picking}
         onClick={onPick}
       >
-        {picking ? 'Abriendo…' : 'Abrir desde Drive'}
+        {picking ? 'Abriendo…' : 'Abrir nota desde Drive'}
       </button>
-      {!canPick && <p>Selecciona un paciente para abrir el selector de Drive.</p>}
-      <h2>Fuentes</h2>
+      <h2>Notas</h2>
       <DriveSourceList files={filtered} loading={loading} onOpen={onOpen} />
       {!loading && !filtered.length && (
         <p>
           {query
-            ? 'Sin coincidencias en los archivos cargados.'
-            : 'No hay archivos disponibles todavía. Abre un archivo desde Google Drive para incorporarlo a tu flujo de trabajo.'}
+            ? 'Sin coincidencias en las notas cargadas.'
+            : 'No hay notas disponibles todavía. Abre una nota desde Google Drive para incorporarla a tu flujo de trabajo.'}
         </p>
       )}
       {onMore && (
@@ -63,24 +55,9 @@ export function DriveWorkspaceHome({
           onClick={onMore}
           disabled={loading}
         >
-          Cargar más fuentes
+          Cargar más notas
         </button>
       )}
-      <section className="mt-4 border-t pt-3" aria-label="Paciente actual">
-        <h2>Paciente actual</h2>
-        {canPick ? (
-          <>
-            {patient && (
-              <p className="drive-header-patient">
-                {patient.displayName} · {patient.rutMasked}
-              </p>
-            )}
-            {children}
-          </>
-        ) : (
-          <p>Selecciona un paciente para ver sus documentos administrados.</p>
-        )}
-      </section>
     </div>
   );
 }

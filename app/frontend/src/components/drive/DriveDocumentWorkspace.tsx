@@ -12,7 +12,7 @@ interface Props {
   onClose: () => void;
   onChange: (value: string) => void;
   onSave: () => void;
-  onInsert: (value: string) => void;
+  onInsert?: (value: string) => void;
 }
 
 export function DriveDocumentWorkspace({
@@ -102,22 +102,31 @@ export function DriveDocumentWorkspace({
           )}
         </div>
       )}
-      {selection && (
-        <footer className="flex flex-wrap items-center gap-2">
-          <span>{selection.trim().split(/\s+/).filter(Boolean).length} palabras</span>
-          <p>
-            {patient
-              ? `Usar para: ${patient.displayName} · ${patient.rutMasked}`
-              : 'Selecciona un paciente antes de usar este fragmento.'}
-          </p>
+      {onInsert && text && (
+        <footer className="drive-doc-actions">
+          {selection.trim() && (
+            <button
+              type="button"
+              className="drive-btn drive-btn-secondary"
+              disabled={!patient}
+              onClick={() => onInsert(selection)}
+            >
+              Insertar selección
+            </button>
+          )}
           <button
             type="button"
-            className="drive-btn drive-btn-primary"
+            className="drive-btn drive-btn-secondary"
             disabled={!patient}
-            onClick={() => onInsert(selection)}
+            onClick={() => onInsert(content)}
           >
-            Usar selección en Assistant
+            Insertar nota completa
           </button>
+          <p className="drive-insert-prerequisite">
+            {patient
+              ? `Usar para: ${patient.displayName} · ${patient.rutMasked}`
+              : 'Selecciona un paciente para insertar este contenido.'}
+          </p>
         </footer>
       )}
     </section>
