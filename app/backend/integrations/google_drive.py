@@ -269,6 +269,109 @@ async def download_file(access_token: str, file_id: str) -> bytes:
     return content
 
 
+SOURCE_KINDS = {
+    "text/plain": "text",
+    "text/markdown": "markdown",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.google-apps.document": "google-doc",
+    "application/pdf": "pdf",
+}
+_SOURCE_FIELDS = _FILE_FIELDS + ",webViewLink,capabilities(canEdit,canDownload)"
+
+
+async def list_source_files(access_token: str, page_token: str | None = None) -> dict[str, Any]:
+    mime_query = " or ".join(f"mimeType = '{mime}'" for mime in SOURCE_KINDS)
+    params = {
+        "q": f"trashed = false and ({mime_query}) and not appProperties has "
+        f"{{ key='managedBy' and value='{MANAGED_BY}' }}",
+        "pageSize": "100",
+        "orderBy": "modifiedTime desc,name",
+        "fields": f"nextPageToken,files({_SOURCE_FIELDS})",
+    }
+    if page_token:
+        params["pageToken"] = page_token
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        response = await _read(
+            client, "GET", _FILES_URL, params=params, headers=_headers(access_token)
+        )
+    if response.status_code != 200:
+        raise _error_for_status(response.status_code)
+    data = response.json()
+    return {"files": data.get("files", []), "next_page_token": data.get("nextPageToken")}
+
+
+async def get_source_metadata(access_token: str, file_id: str) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        response = await _read(
+            client,
+            "GET",
+            f"{_FILES_URL}/{file_id}",
+            params={"fields": _SOURCE_FIELDS},
+            headers=_headers(access_token),
+        )
+    if response.status_code != 200:
+        raise _error_for_status(response.status_code)
+    return dict(response.json())
+
+
+async def download_blob(access_token: str, file_id: str) -> bytes:
+    # Source reads are bounded while streaming, before buffering the response.
+    async with (
+        httpx.AsyncClient(timeout=_TIMEOUT) as client,
+        client.stream(
+            "GET",
+            f"{_FILES_URL}/{file_id}",
+            params={"alt": "media"},
+            headers=_headers(access_token),
+        ) as response,
+    ):
+        if response.status_code != 200:
+            raise _error_for_status(response.status_code)
+        content = bytearray()
+        async for chunk in response.aiter_bytes(65536):
+            content.extend(chunk)
+            if len(content) > MAX_CONTENT_BYTES:
+                raise GoogleDriveError("DRIVE_FILE_TOO_LARGE", "Source exceeds size limit")
+    return bytes(content)
+
+
+async def export_workspace_document(access_token: str, file_id: str) -> bytes:
+    """Bounded plain-text export for native documents; never an Office editor."""
+    async with (
+        httpx.AsyncClient(timeout=_TIMEOUT) as client,
+        client.stream(
+            "GET",
+            f"{_FILES_URL}/{file_id}/export",
+            params={"mimeType": "text/plain"},
+            headers=_headers(access_token),
+        ) as response,
+    ):
+        if response.status_code != 200:
+            raise _error_for_status(response.status_code)
+        content = bytearray()
+        async for chunk in response.aiter_bytes(65536):
+            content.extend(chunk)
+            if len(content) > MAX_CONTENT_BYTES:
+                raise GoogleDriveError("DRIVE_FILE_TOO_LARGE", "Export exceeds size limit")
+    return bytes(content)
+
+
+async def update_blob(
+    access_token: str, file_id: str, content: bytes, mime_type: str
+) -> dict[str, Any]:
+    """One media-only write; preserve all source metadata and never retry."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        response = await client.patch(
+            f"{_UPLOAD_FILES_URL}/{file_id}",
+            params={"uploadType": "media", "fields": _SOURCE_FIELDS},
+            headers={**_headers(access_token), "Content-Type": mime_type},
+            content=content,
+        )
+    if response.status_code != 200:
+        raise _error_for_status(response.status_code)
+    return dict(response.json())
+
+
 def _upload_body(metadata: dict[str, Any], content: bytes) -> tuple[bytes, str]:
     boundary = f"dynachat-{uuid4().hex}"
     prefix = (

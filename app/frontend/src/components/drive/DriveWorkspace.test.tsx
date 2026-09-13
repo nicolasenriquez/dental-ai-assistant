@@ -65,6 +65,7 @@ vi.mock('../../lib/api', async (importOriginal) => {
     getDriveStatus: vi.fn(),
     startDriveOAuth: vi.fn(),
     listDriveFiles: vi.fn(),
+    listDriveSources: vi.fn(),
     searchDriveFiles: vi.fn(),
     getDriveFile: vi.fn(),
     createDriveFile: vi.fn(),
@@ -79,6 +80,7 @@ const driveSeam = api as unknown as {
   getDriveStatus: unknown;
   startDriveOAuth: unknown;
   listDriveFiles: unknown;
+  listDriveSources: unknown;
   searchDriveFiles: unknown;
   getDriveFile: unknown;
   createDriveFile: unknown;
@@ -89,6 +91,7 @@ const driveSeam = api as unknown as {
 const getDriveStatusMock = driveSeam.getDriveStatus as Mock;
 const startDriveOAuthMock = driveSeam.startDriveOAuth as Mock;
 const listDriveFilesMock = driveSeam.listDriveFiles as Mock;
+const listDriveSourcesMock = driveSeam.listDriveSources as Mock;
 const searchDriveFilesMock = driveSeam.searchDriveFiles as Mock;
 const getDriveFileMock = driveSeam.getDriveFile as Mock;
 const createDriveFileMock = driveSeam.createDriveFile as Mock;
@@ -124,6 +127,7 @@ beforeEach(() => {
     authorization_url: 'https://accounts.google.com/o/oauth2/auth?x=1',
   });
   listDriveFilesMock.mockResolvedValue({ files: [], next_page_token: null });
+  listDriveSourcesMock.mockResolvedValue({ files: [], next_page_token: null });
   searchDriveFilesMock.mockResolvedValue({ files: [], next_page_token: null });
   getDriveFileMock.mockResolvedValue({ ...fileBody, content: '**negrita**\n' });
   createDriveFileMock.mockResolvedValue({ ...fileBody, id: 'f2', name: 'borrador.txt' });
@@ -204,11 +208,9 @@ describe('connection presentation', () => {
 
     expect(await screen.findByText('Google Drive')).toBeInTheDocument();
     expect(screen.getByText('Conectado')).toBeInTheDocument();
-    expect(
-      screen.getByText((_, element) => element?.textContent === 'Conectado · Dental AI Workspace'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Conectado')).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Buscar documentos' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Agregar desde Drive' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abrir desde Drive' })).toBeInTheDocument();
   });
 
   it('shows the exact revoked Alert and preserves the Dental session', async () => {

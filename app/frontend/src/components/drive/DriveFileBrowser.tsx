@@ -4,6 +4,7 @@ import type { DriveFile } from '../../lib/api';
 import { Spinner } from '../Spinner';
 
 interface DriveFileBrowserProps {
+  managedOnly?: boolean;
   patientId: string | null;
   query: string;
   files: DriveFile[];
@@ -56,6 +57,7 @@ function SkeletonRows() {
 }
 
 export function DriveFileBrowser({
+  managedOnly = false,
   patientId,
   query,
   files,
@@ -113,7 +115,7 @@ export function DriveFileBrowser({
             </button>
           )}
         </div>
-        {(listLoading || files.length > 0 || searchSubmitted) && (
+        {!managedOnly && (listLoading || files.length > 0 || searchSubmitted) && (
           <button
             type="button"
             className="drive-btn drive-btn-primary"
@@ -153,15 +155,21 @@ export function DriveFileBrowser({
         <div className="drive-empty-state" aria-live="polite">
           <FileText aria-hidden="true" size={22} />
           <h3>Aún no hay documentos</h3>
-          <p>Agrega un documento desde tu Drive para usarlo en el chat.</p>
-          <button
-            type="button"
-            className="drive-btn drive-btn-primary"
-            onClick={onImport}
-            disabled={importing}
-          >
-            Agregar desde Drive
-          </button>
+          <p>
+            {managedOnly
+              ? 'Los resultados que guardes desde el Asistente aparecerán aquí.'
+              : 'Agrega un documento desde tu Drive para usarlo en el chat.'}
+          </p>
+          {!managedOnly && (
+            <button
+              type="button"
+              className="drive-btn drive-btn-primary"
+              onClick={onImport}
+              disabled={importing}
+            >
+              Agregar desde Drive
+            </button>
+          )}
         </div>
       ) : (
         <>

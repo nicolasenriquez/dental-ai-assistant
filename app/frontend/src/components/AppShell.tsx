@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { GroupImperativeHandle } from 'react-resizable-panels';
 import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { TransitionGuardBoundary } from '../hooks/useTransitionGuard';
 import { DriveBootstrapBanner } from './DriveBootstrapBanner';
@@ -51,6 +52,7 @@ interface AppShellProps {
   workspaceMode?: boolean;
   utilities?: AppShellUtility[];
   workspaceAccessory?: ReactNode;
+  workspaceAccessoryMode?: 'compact' | 'document';
 }
 
 export function AppShell({
@@ -63,6 +65,7 @@ export function AppShell({
   workspaceMode = false,
   utilities = [],
   workspaceAccessory,
+  workspaceAccessoryMode = 'compact',
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -73,6 +76,15 @@ export function AppShell({
     () => window.matchMedia?.('(max-width: 1024px)').matches ?? true,
   );
   const [workspaceLayout] = useState(readDriveLayout);
+  const workspaceGroup = useRef<GroupImperativeHandle>(null);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      workspaceGroup.current?.setLayout(
+        workspaceAccessoryMode === 'document' ? { main: 50, accessory: 50 } : workspaceLayout,
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [workspaceAccessoryMode, workspaceLayout]);
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarWasOpen = useRef(false);
@@ -214,11 +226,17 @@ export function AppShell({
               ) : (
                 <div className="workspace-row">
                   <ResizableGroup
+                    groupRef={workspaceGroup}
                     id="clinical-workspace"
                     orientation="horizontal"
                     className="workspace-resizable"
-                    defaultLayout={workspaceLayout}
+                    defaultLayout={
+                      workspaceAccessoryMode === 'document'
+                        ? { main: 50, accessory: 50 }
+                        : workspaceLayout
+                    }
                     onLayoutChanged={(layout) => {
+                      if (workspaceAccessoryMode === 'document') return;
                       try {
                         window.localStorage.setItem(
                           DRIVE_LAYOUT_KEY,
@@ -235,7 +253,7 @@ export function AppShell({
                     <ResizablePanel
                       id="main"
                       defaultSize="68"
-                      minSize="58"
+                      minSize={workspaceAccessoryMode === 'document' ? '40' : '58'}
                       className="workspace-panel-main"
                     >
                       {children}
@@ -245,7 +263,7 @@ export function AppShell({
                       id="accessory"
                       defaultSize="32"
                       minSize="28"
-                      maxSize="40"
+                      maxSize={workspaceAccessoryMode === 'document' ? '60' : '40'}
                       className="workspace-panel-accessory"
                     >
                       {workspaceAccessory}

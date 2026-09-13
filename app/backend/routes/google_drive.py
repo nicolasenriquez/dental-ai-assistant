@@ -26,6 +26,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+import httpx
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -853,6 +854,110 @@ def _normalized_managed_name(raw: str) -> str:
     if name is None or not _valid_name(name):
         raise _DriveDomainError("DRIVE_FILE_NAME_INVALID", status.HTTP_422_UNPROCESSABLE_ENTITY)
     return name
+
+
+def _source_body(metadata: dict[str, Any]) -> dict[str, Any]:
+    mime = metadata.get("mimeType")
+    if (
+        mime not in google_drive.SOURCE_KINDS
+        or metadata.get("trashed")
+        or (metadata.get("appProperties") or {}).get("managedBy") == google_drive.MANAGED_BY
+    ):
+        raise _DriveDomainError("GOOGLE_DRIVE_NOT_FOUND", 404)
+    body = {
+        key: metadata[key]
+        for key in ("id", "name", "mimeType", "modifiedTime", "version", "webViewLink")
+        if key in metadata
+    }
+    body["kind"] = google_drive.SOURCE_KINDS[mime]
+    body["editable"] = mime in ("text/plain", "text/markdown") and bool(
+        (metadata.get("capabilities") or {}).get("canEdit")
+    )
+    return body
+
+
+async def _source_context(user: dict[str, Any], file_id: str) -> tuple[str, dict[str, Any]]:
+    if not _validate_opaque(file_id):
+        raise _DriveDomainError("DRIVE_FILE_ID_INVALID", 422)
+    _, token = await _connection_access_token(str(user["id"]))
+    metadata = await google_drive.get_source_metadata(token, file_id)
+    _source_body(metadata)
+    return token, metadata
+
+
+async def _source_text(token: str, metadata: dict[str, Any]) -> str:
+    if metadata["mimeType"] not in ("text/plain", "text/markdown"):
+        raise _DriveDomainError("DRIVE_FILE_TYPE_UNSUPPORTED", 422)
+    if not (metadata.get("capabilities") or {}).get("canDownload", False):
+        raise _DriveDomainError("GOOGLE_DRIVE_ACCESS_DENIED", 403)
+    raw: bytes = await google_drive.download_blob(token, metadata["id"])
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise _DriveDomainError("DRIVE_FILE_ENCODING_INVALID", 422) from None
+
+
+class _SourceUpdateBody(BaseModel):
+    content: str
+    expectedVersion: str
+
+
+@router.get("/sources")
+@_managed_route
+async def list_sources(
+    page_token: str | None = None,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Any:
+    if not _validate_opaque(page_token):
+        raise _DriveDomainError("DRIVE_PAGE_TOKEN_INVALID", 422)
+    _, token = await _connection_access_token(str(user["id"]))
+    page = await google_drive.list_source_files(token, page_token)
+    files = []
+    for metadata in page["files"]:
+        try:
+            files.append(_source_body(metadata))
+        except _DriveDomainError:
+            continue
+    return {"files": files, "next_page_token": page["next_page_token"]}
+
+
+@router.get("/sources/{file_id}")
+@_managed_route
+async def get_source(file_id: str, user: dict[str, Any] = Depends(get_current_user)) -> Any:
+    _, metadata = await _source_context(user, file_id)
+    return _source_body(metadata)
+
+
+@router.get("/sources/{file_id}/content")
+@_managed_route
+async def get_source_content(file_id: str, user: dict[str, Any] = Depends(get_current_user)) -> Any:
+    token, metadata = await _source_context(user, file_id)
+    return {**_source_body(metadata), "content": await _source_text(token, metadata)}
+
+
+@router.put("/sources/{file_id}/content", dependencies=[Depends(_same_origin_dependency)])
+@_managed_route
+async def put_source_content(
+    file_id: str,
+    body: _SourceUpdateBody,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Any:
+    token, metadata = await _source_context(user, file_id)
+    if not _source_body(metadata)["editable"]:
+        raise _DriveDomainError("GOOGLE_DRIVE_ACCESS_DENIED", 403)
+    if not body.expectedVersion or str(metadata.get("version", "")) != body.expectedVersion:
+        raise _DriveDomainError("DRIVE_VERSION_CONFLICT", 409)
+    try:
+        raw = body.content.encode("utf-8")
+    except UnicodeEncodeError:
+        raise _DriveDomainError("DRIVE_FILE_ENCODING_INVALID", 422) from None
+    if len(raw) > MAX_CONTENT_BYTES:
+        raise _DriveDomainError("DRIVE_FILE_TOO_LARGE", 422)
+    try:
+        updated = await google_drive.update_blob(token, file_id, raw, metadata["mimeType"])
+    except httpx.HTTPError:
+        raise _DriveDomainError("DRIVE_WRITE_UNKNOWN", 503) from None
+    return {**_source_body(updated), "content": body.content}
 
 
 async def _managed_context(

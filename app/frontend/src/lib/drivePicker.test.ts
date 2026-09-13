@@ -26,7 +26,7 @@ import { type Mock, afterEach, beforeAll, beforeEach, describe, expect, it, vi }
 import * as api from '../lib/api';
 
 type DrivePickerSeam = {
-  openDrivePicker: (patientId: string) => Promise<string | null>;
+  openDrivePicker: (patientId: string) => Promise<{ id: string } | null>;
 };
 
 let drivePicker: DrivePickerSeam | null = null;
@@ -160,7 +160,9 @@ describe('openDrivePicker', () => {
     expect(builderCalls.addView).toHaveBeenCalledTimes(1);
     const [view] = builderCalls.addView.mock.calls[0];
     expect(view).toBeInstanceOf(MockDocsView);
-    expect(view.setMimeTypes).toHaveBeenCalledWith('text/plain,text/markdown');
+    expect(view.setMimeTypes).toHaveBeenCalledWith(
+      'text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.google-apps.document,application/pdf',
+    );
   });
 
   it('ignores the Picker loaded lifecycle action until a terminal action arrives', async () => {
@@ -187,15 +189,22 @@ describe('openDrivePicker', () => {
     await expect(opening).resolves.toBeNull();
   });
 
-  it('resolves with the picked document id', async () => {
+  it('resolves with available picked document metadata', async () => {
     stubPickerGlobals();
     const opening = seam().openDrivePicker('p1');
 
     await vi.waitFor(() => expect(builderCalls.setCallback).toHaveBeenCalled());
     const [callback] = builderCalls.setCallback.mock.calls[0];
-    callback({ action: 'picked', docs: [{ id: 'source-file-1' }] });
+    callback({
+      action: 'picked',
+      docs: [{ id: 'source-file-1', name: 'notas.txt', mimeType: 'text/plain' }],
+    });
 
-    await expect(opening).resolves.toBe('source-file-1');
+    await expect(opening).resolves.toEqual({
+      id: 'source-file-1',
+      name: 'notas.txt',
+      mimeType: 'text/plain',
+    });
   });
 
   it('resolves null when the user cancels', async () => {

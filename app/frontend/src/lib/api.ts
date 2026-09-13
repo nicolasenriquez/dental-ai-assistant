@@ -546,6 +546,57 @@ export const startDriveOAuth = () =>
 // Picker token, import-copy, workspace recreation, and explicit disconnect.
 // Search is body-based; document names and query terms never enter URLs.
 
+export type DriveSourceKind = 'text' | 'markdown' | 'docx' | 'google-doc' | 'pdf' | 'unsupported';
+
+export interface DriveSourceFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  modifiedTime: string;
+  version?: string;
+  kind: DriveSourceKind;
+  editable: boolean;
+  webViewLink?: string;
+}
+
+export interface DriveSourcePage {
+  files: DriveSourceFile[];
+  next_page_token: string | null;
+}
+
+export interface DriveSourceTextContent extends DriveSourceFile {
+  content: string;
+}
+
+export async function listDriveSources(pageToken?: string): Promise<DriveSourcePage> {
+  const query = pageToken ? `?page_token=${encodeURIComponent(pageToken)}` : '';
+  return request<DriveSourcePage>(`/google-drive/sources${query}`);
+}
+
+export async function getDriveSource(fileId: string): Promise<DriveSourceFile> {
+  return request<DriveSourceFile>(`/google-drive/sources/${encodeURIComponent(fileId)}`);
+}
+
+export async function getDriveSourceText(fileId: string): Promise<DriveSourceTextContent> {
+  return request<DriveSourceTextContent>(
+    `/google-drive/sources/${encodeURIComponent(fileId)}/content`,
+  );
+}
+
+export async function updateDriveSourceText(
+  fileId: string,
+  content: string,
+  expectedVersion: string,
+): Promise<DriveSourceTextContent> {
+  return request<DriveSourceTextContent>(
+    `/google-drive/sources/${encodeURIComponent(fileId)}/content`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ content, expectedVersion }),
+    },
+  );
+}
+
 export interface DriveFile {
   id: string;
   name: string;

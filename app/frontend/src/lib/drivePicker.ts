@@ -2,6 +2,8 @@ import { getDrivePickerToken } from './api';
 
 interface PickerDocument {
   id?: unknown;
+  name?: unknown;
+  mimeType?: unknown;
 }
 
 interface PickerResponse {
@@ -93,7 +95,13 @@ function loadPickerApi(): Promise<void> {
   return pickerApiPromise;
 }
 
-export async function openDrivePicker(patientId: string): Promise<string | null> {
+export interface PickedDriveSource {
+  id: string;
+  name?: string;
+  mimeType?: string;
+}
+
+export async function openDrivePicker(patientId: string): Promise<PickedDriveSource | null> {
   const env = import.meta.env;
   const appId = env.VITE_GOOGLE_DRIVE_APP_ID;
   const developerKey = env.VITE_GOOGLE_PICKER_API_KEY;
@@ -107,7 +115,7 @@ export async function openDrivePicker(patientId: string): Promise<string | null>
   const picker = window.google?.picker;
   if (!picker) throw new Error('Google Picker no está disponible.');
 
-  return new Promise<string | null>((resolve, reject) => {
+  return new Promise<PickedDriveSource | null>((resolve, reject) => {
     let settled = false;
     let pickerInstance: PickerInstance | null = null;
     const pickedAction = picker.Action?.PICKED ?? 'picked';
@@ -118,7 +126,7 @@ export async function openDrivePicker(patientId: string): Promise<string | null>
       pickerInstance?.setVisible?.(false);
       pickerInstance?.dispose?.();
     };
-    const finish = (value: string | null) => {
+    const finish = (value: PickedDriveSource | null) => {
       if (settled) return;
       settled = true;
       closePicker();
@@ -131,7 +139,15 @@ export async function openDrivePicker(patientId: string): Promise<string | null>
       reject(new Error(message));
     };
     const view = new picker.DocsView(picker.ViewId?.DOCS);
-    view.setMimeTypes('text/plain,text/markdown');
+    view.setMimeTypes(
+      [
+        'text/plain',
+        'text/markdown',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.google-apps.document',
+        'application/pdf',
+      ].join(','),
+    );
     view.setIncludeFolders?.(false);
     const builder = new picker.PickerBuilder();
     builder.setAppId(appId);
@@ -154,7 +170,16 @@ export async function openDrivePicker(patientId: string): Promise<string | null>
         fail('GOOGLE_PICKER_DOCUMENT_ID_MISSING');
         return;
       }
-      finish(response.action === pickedAction && typeof id === 'string' ? id : null);
+      const picked = response.docs?.[0];
+      finish(
+        response.action === pickedAction && typeof id === 'string'
+          ? {
+              id,
+              ...(typeof picked?.name === 'string' ? { name: picked.name } : {}),
+              ...(typeof picked?.mimeType === 'string' ? { mimeType: picked.mimeType } : {}),
+            }
+          : null,
+      );
     });
     pickerInstance = builder.build();
     pickerInstance.setVisible?.(true);

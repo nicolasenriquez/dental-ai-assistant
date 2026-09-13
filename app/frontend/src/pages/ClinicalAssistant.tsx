@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { ClinicalAssistantArea } from '../components/clinical-assistant/ClinicalAssistantArea';
 import { ClinicalThreadList } from '../components/clinical-assistant/ClinicalThreadList';
 import { DriveWorkspace, type DriveWorkspaceHandle } from '../components/drive/DriveWorkspace';
+import type { DrivePatientContext } from '../components/drive/editors/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +16,7 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
 import { TransitionGuardProvider, useTransitionGuard } from '../hooks/useTransitionGuard';
+import type { ClinicalPatient } from '../lib/api';
 import { acquireClinicalThread } from '../lib/api';
 
 export function ClinicalAssistant() {
@@ -33,7 +35,19 @@ function ClinicalAssistantContent() {
   const [threadListVersion, setThreadListVersion] = useState(0);
   const [creationFailed, setCreationFailed] = useState(false);
   const [createAttempt, setCreateAttempt] = useState(0);
-  const [drivePatientId, setDrivePatientId] = useState<string | null>(null);
+  const [drivePatient, setDrivePatient] = useState<DrivePatientContext | null>(null);
+  const [driveSurface, setDriveSurface] = useState<'compact' | 'document'>('compact');
+  const onPatientChange = useCallback((patient: ClinicalPatient | null) => {
+    setDrivePatient(
+      patient
+        ? {
+            id: patient.id,
+            displayName: `${patient.first_name} ${patient.last_name}`,
+            rutMasked: patient.rut_masked,
+          }
+        : null,
+    );
+  }, []);
   const [driveOpen, setDriveOpen] = useState(() => {
     const mobile = window.matchMedia?.('(max-width: 767px)').matches ?? false;
     try {
@@ -136,6 +150,7 @@ function ClinicalAssistantContent() {
     <AppShell
       showConversations={false}
       workspaceMode
+      workspaceAccessoryMode={driveSurface}
       utilities={[
         {
           id: 'google-drive',
@@ -155,16 +170,15 @@ function ClinicalAssistantContent() {
         driveOpen ? (
           <DriveWorkspace
             handleRef={driveRef}
-            patientId={drivePatientId}
+            patientId={drivePatient?.id ?? null}
+            patient={drivePatient}
+            onSurfaceChange={setDriveSurface}
             draftSeed={driveDraftSeed}
             guardTransition={transitionGuard.guardTransition}
             onInsertToComposer={(text) => composerInsertRef.current(text)}
             onDirtyStateChange={setDriveDirty}
             open={driveOpen}
-            onClose={() => {
-              const close = () => setDriveVisibility(false);
-              transitionGuard.guardTransition(close);
-            }}
+            onClose={() => setDriveVisibility(false)}
           />
         ) : null
       }
@@ -173,12 +187,20 @@ function ClinicalAssistantContent() {
         <ClinicalAssistantArea
           threadId={activeId}
           onThreadStateChanged={() => setThreadListVersion((version) => version + 1)}
-          guardTransition={transitionGuard.guardTransition}
-          onActivePatientChange={(patient) => setDrivePatientId(patient?.id ?? null)}
+          guardTransition={(continuation) => {
+            if (driveRef.current?.preservesPatientSwitch?.()) continuation();
+            else transitionGuard.guardTransition(continuation);
+          }}
+          onActivePatientChange={onPatientChange}
           onComposerInsertReady={(insert) => {
             composerInsertRef.current = insert;
           }}
-          onSaveToDrive={setDriveDraftSeed}
+          onSaveToDrive={(seed) =>
+            transitionGuard.guardTransition(() => {
+              setDriveDraftSeed(seed);
+              setDriveVisibility(true);
+            })
+          }
         />
       ) : (
         <main className="clinical-assistant-area">

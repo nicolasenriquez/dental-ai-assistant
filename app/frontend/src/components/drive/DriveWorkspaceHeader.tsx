@@ -3,11 +3,10 @@ import type { DriveStatus } from '../../lib/api';
 
 interface DriveWorkspaceHeaderProps {
   status: DriveStatus | null;
-  patientId: string | null;
   onClose?: () => void;
 }
 
-export function DriveWorkspaceHeader({ status, patientId, onClose }: DriveWorkspaceHeaderProps) {
+export function DriveWorkspaceHeader({ status, onClose }: DriveWorkspaceHeaderProps) {
   const connected = status?.status === 'connected';
   return (
     <header className="drive-workspace-header">
@@ -17,10 +16,9 @@ export function DriveWorkspaceHeader({ status, patientId, onClose }: DriveWorksp
           <h2 className="drive-header-title">Google Drive</h2>
           {connected && (
             <p className="drive-header-status">
-              <span>Conectado</span> · Dental AI Workspace
+              <span>Conectado</span>
             </p>
           )}
-          {patientId && <p className="drive-header-patient">Paciente activo</p>}
         </div>
       </div>
       {onClose && (

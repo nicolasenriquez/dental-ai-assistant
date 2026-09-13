@@ -1,18 +1,29 @@
-import { type MutableRefObject, type ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  type MutableRefObject,
+  type ReactNode,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   ApiError,
   type DriveFile,
   type DriveFileContent,
+  type DriveSourceFile,
   type DriveStatus,
   createDriveFile,
   getDriveFile,
+  getDriveSource,
+  getDriveSourceText,
   getDriveStatus,
-  importDriveCopy,
   listDriveFiles,
+  listDriveSources,
   recreateDriveWorkspace,
   searchDriveFiles,
   startDriveOAuth,
   updateDriveFile,
+  updateDriveSourceText,
 } from '../../lib/api';
 import { normalizeDriveFileName, serializeToPlainText } from '../../lib/driveDocument';
 import { type AuthoringRepresentation, isDriveDocumentDirty } from '../../lib/driveDocument';
@@ -31,18 +42,24 @@ import {
 } from '../ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { DriveDocumentView, type DriveDocumentViewModel } from './DriveDocumentView';
+import { DriveDocumentWorkspace } from './DriveDocumentWorkspace';
 import { DriveFileBrowser } from './DriveFileBrowser';
 import { DriveWorkspaceHeader } from './DriveWorkspaceHeader';
+import { DriveWorkspaceHome } from './DriveWorkspaceHome';
+import type { DrivePatientContext, WorkspaceDocument } from './editors/types';
 
 type OpenDoc = DriveDocumentViewModel;
 
 export interface DriveWorkspaceHandle {
   save: () => Promise<boolean>;
   discard: () => void;
+  preservesPatientSwitch?: () => boolean;
 }
 
 export interface DriveWorkspaceProps {
   patientId: string | null;
+  patient?: DrivePatientContext | null;
+  onSurfaceChange?: (surface: 'compact' | 'document') => void;
   draftSeed?: { name: string; content: string } | null;
   onInsertToComposer?: (text: string) => void;
   onDirtyStateChange?: (dirty: boolean) => void;
@@ -83,6 +100,8 @@ function diagnosticError(error: unknown): string {
 
 export function DriveWorkspace({
   patientId,
+  patient = null,
+  onSurfaceChange,
   draftSeed = null,
   onInsertToComposer,
   onDirtyStateChange,
@@ -99,7 +118,19 @@ export function DriveWorkspace({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [query, setQuery] = useState('');
-  const [doc, setDoc] = useState<OpenDoc | null>(null);
+  const [workspaceDocument, setWorkspaceDocument] = useState<WorkspaceDocument | null>(null);
+  const doc = workspaceDocument?.kind === 'managed' ? workspaceDocument.document : null;
+  const sourceDoc = workspaceDocument?.kind === 'source' ? workspaceDocument : null;
+  const setDoc = (action: SetStateAction<OpenDoc | null>) =>
+    setWorkspaceDocument((previous) => {
+      const managed = previous?.kind === 'managed' ? previous.document : null;
+      const next = typeof action === 'function' ? action(managed) : action;
+      return next ? { kind: 'managed', document: next } : null;
+    });
+  const [sources, setSources] = useState<DriveSourceFile[]>([]);
+  const [sourcePage, setSourcePage] = useState<string | null>(null);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const openSequence = useRef(0);
   const [docPhase, setDocPhase] = useState<'opening' | 'ready'>('ready');
   const [mode, setMode] = useState<'viewing' | 'editing'>('viewing');
   const [saving, setSaving] = useState(false);
@@ -128,13 +159,15 @@ export function DriveWorkspace({
     return () => mediaQuery.removeEventListener?.('change', update);
   }, []);
 
-  const dirty = doc
-    ? isDriveDocumentDirty({
-        localAuthoringContent: doc.content,
-        authoringRepresentation: doc.representation,
-        persistedPlainTextBaseline: doc.baseline,
-      })
-    : false;
+  const dirty = sourceDoc
+    ? sourceDoc.content !== sourceDoc.baseline
+    : doc
+      ? isDriveDocumentDirty({
+          localAuthoringContent: doc.content,
+          authoringRepresentation: doc.representation,
+          persistedPlainTextBaseline: doc.baseline,
+        })
+      : false;
 
   useEffect(() => {
     patientIdRef.current = patientId;
@@ -162,7 +195,7 @@ export function DriveWorkspace({
   }, []);
 
   useEffect(() => {
-    setDoc(null);
+    setWorkspaceDocument((previous) => (previous?.kind === 'source' ? previous : null));
     setMode('viewing');
     setSaved(false);
     setSelectedText('');
@@ -171,6 +204,58 @@ export function DriveWorkspace({
     setSearchSubmitted(false);
     setSearchLoading(false);
   }, [patientId]);
+
+  useEffect(() => {
+    onSurfaceChange?.(workspaceDocument ? 'document' : 'compact');
+  }, [Boolean(workspaceDocument), onSurfaceChange]);
+
+  const loadSources = async (pageToken?: string) => {
+    setSourcesLoading(true);
+    try {
+      const page = await listDriveSources(pageToken);
+      setSources((previous) =>
+        pageToken
+          ? [
+              ...previous,
+              ...page.files.filter((file) => !previous.some((item) => item.id === file.id)),
+            ]
+          : page.files,
+      );
+      setSourcePage(page.next_page_token);
+    } catch {
+      setErrorMessage('No se pudieron cargar las fuentes.');
+    } finally {
+      setSourcesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (driveStatus?.status === 'connected') void loadSources();
+  }, [driveStatus?.status]);
+
+  const openSource = async (fileId: string) => {
+    const sequence = ++openSequence.current;
+    setDocPhase('opening');
+    setErrorMessage(null);
+    try {
+      let source = await getDriveSource(fileId);
+      let content = '';
+      if (source.kind === 'text' || source.kind === 'markdown') {
+        const loaded = await getDriveSourceText(fileId);
+        source = loaded;
+        content = loaded.content;
+      }
+      if (sequence !== openSequence.current) return;
+      setWorkspaceDocument({ kind: 'source', source, content, baseline: content });
+      setUnknownWrite(false);
+      setConflictOpen(false);
+      setSources((previous) => [source, ...previous.filter((file) => file.id !== source.id)]);
+    } catch {
+      if (sequence === openSequence.current) setErrorMessage('No se pudo abrir el documento.');
+    } finally {
+      if (sequence === openSequence.current) setDocPhase('ready');
+    }
+  };
 
   useEffect(() => {
     if (!draftSeed) return;
@@ -346,6 +431,7 @@ export function DriveWorkspace({
   };
 
   const closeDocNow = () => {
+    openSequence.current += 1;
     setDoc(null);
     setMode('viewing');
     setSaved(false);
@@ -356,6 +442,42 @@ export function DriveWorkspace({
   };
 
   const handleSave = async (): Promise<boolean> => {
+    if (sourceDoc) {
+      if (
+        saving ||
+        unknownWrite ||
+        conflictOpen ||
+        !sourceDoc.source.editable ||
+        !sourceDoc.source.version
+      )
+        return false;
+      setSaving(true);
+      try {
+        const updated = await updateDriveSourceText(
+          sourceDoc.source.id,
+          sourceDoc.content,
+          sourceDoc.source.version,
+        );
+        setWorkspaceDocument((previous) =>
+          previous?.kind === 'source' && previous.source.id === updated.id
+            ? { ...previous, source: updated, baseline: sourceDoc.content }
+            : previous,
+        );
+        setErrorMessage(null);
+        return true;
+      } catch (error) {
+        setConflictOpen(error instanceof ApiError && error.status === 409);
+        setUnknownWrite(!(error instanceof ApiError) || error.status >= 500);
+        setErrorMessage(
+          error instanceof ApiError && error.status === 409
+            ? 'El archivo cambió en Drive. Conserva tus cambios y vuelve a abrirlo para revisar la versión actual.'
+            : 'No se pudo confirmar el guardado. Tu trabajo local se conserva.',
+        );
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    }
     if (!doc || !patientId || doc.boundPatientId !== patientId) return false;
     const exportContent = serializeToPlainText(doc.content, doc.representation);
     const savedLocalContent = normalizeLocalContentAfterSave(doc.content, doc.representation);
@@ -421,6 +543,11 @@ export function DriveWorkspace({
   };
 
   const handleViewCurrentVersion = async () => {
+    if (sourceDoc) {
+      const reload = () => void openSource(sourceDoc.source.id);
+      guardTransition ? guardTransition(reload) : reload();
+      return;
+    }
     if (!doc?.fileId || !patientId) return;
     setConflictOpen(false);
     try {
@@ -450,47 +577,13 @@ export function DriveWorkspace({
   };
 
   const handleImport = async () => {
-    const boundPatientId = patientId;
-    if (!boundPatientId || importing) return;
+    if (!patientId || importing) return;
     setImporting(true);
-    setImported(false);
-    setErrorMessage(null);
-    setDebugErrorMessage(null);
     try {
-      const sourceFileId = await openDrivePicker(boundPatientId);
-      if (!sourceFileId || patientIdRef.current !== boundPatientId) return;
-
-      let managedFile: DriveFileContent | null = null;
-      try {
-        managedFile = await getDriveFile(sourceFileId, boundPatientId);
-      } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 404) throw error;
-      }
-
-      if (managedFile) {
-        if (patientIdRef.current !== boundPatientId) return;
-        showLoadedFile(managedFile, boundPatientId);
-        return;
-      }
-
-      await importDriveCopy({
-        patient_id: boundPatientId,
-        operation_id: newOperationId(),
-        source_file_id: sourceFileId,
-      });
-      if (patientIdRef.current !== boundPatientId) return;
-      const page = await listDriveFiles(boundPatientId, undefined);
-      if (patientIdRef.current !== boundPatientId) return;
-      setFiles(page.files);
-      setNextPageToken(page.next_page_token);
-      setImported(true);
-    } catch (error) {
-      setErrorMessage('No se pudo completar la acción');
-      if (import.meta.env.DEV) {
-        const detail = diagnosticError(error);
-        console.error('[DEBUG-google-drive]', detail);
-        setDebugErrorMessage(detail);
-      }
+      const picked = await openDrivePicker(patientId);
+      if (picked) await openSource(picked.id);
+    } catch {
+      setErrorMessage('No se pudo abrir el selector de Drive.');
     } finally {
       setImporting(false);
     }
@@ -503,7 +596,11 @@ export function DriveWorkspace({
 
   useEffect(() => {
     if (!handleRef) return;
-    handleRef.current = { save: handleSave, discard: closeDocNow };
+    handleRef.current = {
+      save: handleSave,
+      discard: closeDocNow,
+      preservesPatientSwitch: () => Boolean(sourceDoc),
+    };
     return () => {
       if (handleRef.current?.save === handleSave) handleRef.current = null;
     };
@@ -630,25 +727,37 @@ export function DriveWorkspace({
       );
       break;
     case 'connected':
-      connectionContent = !doc && (
-        <DriveFileBrowser
-          patientId={patientId}
-          query={query}
-          files={files}
-          listLoading={listLoading}
-          searchLoading={searchLoading}
-          searchSubmitted={searchSubmitted}
-          importing={importing}
-          imported={imported}
-          nextPageToken={nextPageToken}
-          onQueryChange={setQuery}
-          onSearch={() => void handleSearch()}
-          onClearSearch={handleClearSearch}
-          onImport={() => void handleImport()}
-          onOpen={(file) => void handleOpen(file)}
-          onLoadMore={() => void handleLoadMore()}
-          searchInputRef={searchInputRef}
-        />
+      connectionContent = !workspaceDocument && (
+        <DriveWorkspaceHome
+          files={sources}
+          loading={sourcesLoading}
+          canPick={Boolean(patientId)}
+          picking={importing}
+          onPick={() => void handleImport()}
+          onOpen={(file) => void openSource(file.id)}
+          onMore={sourcePage ? () => void loadSources(sourcePage) : undefined}
+          patient={patient}
+        >
+          <DriveFileBrowser
+            managedOnly
+            patientId={patientId}
+            query={query}
+            files={files}
+            listLoading={listLoading}
+            searchLoading={searchLoading}
+            searchSubmitted={searchSubmitted}
+            importing={importing}
+            imported={imported}
+            nextPageToken={nextPageToken}
+            onQueryChange={setQuery}
+            onSearch={() => void handleSearch()}
+            onClearSearch={handleClearSearch}
+            onImport={() => void handleImport()}
+            onOpen={(file) => void handleOpen(file)}
+            onLoadMore={() => void handleLoadMore()}
+            searchInputRef={searchInputRef}
+          />
+        </DriveWorkspaceHome>
       );
   }
 
@@ -657,7 +766,7 @@ export function DriveWorkspace({
       closeDocNow();
       onClose?.();
     };
-    if (doc && dirty && guardTransition) {
+    if (workspaceDocument && dirty && guardTransition) {
       guardTransition(close);
       return;
     }
@@ -695,25 +804,52 @@ export function DriveWorkspace({
       role="region"
       aria-label="Espacio de documentos de Google Drive"
     >
-      <DriveWorkspaceHeader
-        status={driveStatus}
-        patientId={patientId}
-        onClose={requestCloseWorkspace}
-      />
+      {!sourceDoc && <DriveWorkspaceHeader status={driveStatus} onClose={requestCloseWorkspace} />}
       {errorMessage && (
         <Alert>
           <AlertTitle>No se pudo completar la acción</AlertTitle>
           <AlertDescription>
             {debugErrorMessage
               ? `Google Drive: ${debugErrorMessage}`
-              : 'Tu trabajo local se conserva.'}
+              : errorMessage === 'No se pudo completar la acción'
+                ? 'Tu trabajo local se conserva.'
+                : errorMessage}
           </AlertDescription>
           {unknownWrite && (
             <AlertDescription>Actualiza la lista antes de volver a guardar.</AlertDescription>
           )}
         </Alert>
       )}
-      {doc ? documentView : connectionContent}
+      {docPhase === 'opening' && !doc && (
+        <div role="status" aria-label="Abriendo documento" className="drive-file-skeleton">
+          <span />
+          <span />
+        </div>
+      )}
+      {sourceDoc ? (
+        <DriveDocumentWorkspace
+          key={sourceDoc.source.id}
+          document={sourceDoc}
+          patient={patient}
+          saving={saving}
+          showClose={!isSheet}
+          onBack={closeDoc}
+          onClose={requestCloseWorkspace}
+          onSave={() => void handleSave()}
+          onInsert={(text) => {
+            if (patientId) onInsertToComposer?.(text);
+          }}
+          onChange={(content) =>
+            setWorkspaceDocument((previous) =>
+              previous?.kind === 'source' ? { ...previous, content } : previous,
+            )
+          }
+        />
+      ) : doc ? (
+        documentView
+      ) : (
+        connectionContent
+      )}
       {conflictView}
       <AlertDialog
         open={recreateDialog !== null}
@@ -747,7 +883,7 @@ export function DriveWorkspace({
     <Sheet open={open} onOpenChange={(nextOpen) => !nextOpen && requestCloseWorkspace()}>
       <SheetContent className="drive-sheet-workspace">
         <SheetHeader>
-          <SheetTitle>{doc ? 'Documento' : 'Google Drive'}</SheetTitle>
+          <SheetTitle>{workspaceDocument ? 'Documento' : 'Google Drive'}</SheetTitle>
         </SheetHeader>
         {workspaceContent}
       </SheetContent>
