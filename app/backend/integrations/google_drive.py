@@ -97,7 +97,9 @@ async def about_user_email(access_token: str) -> tuple[str, str]:
     identity material the connection boundary needs.
     """
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        response = await client.get(
+        response = await _read(
+            client,
+            "GET",
             _ABOUT_URL,
             params={"fields": "user(permissionId,emailAddress)"},
             headers=_headers(access_token),
@@ -237,36 +239,50 @@ async def find_file_by_creation_operation(
     if response.status_code != 200:
         raise _error_for_status(response.status_code)
     files = list((response.json() or {}).get("files") or [])
+    if len(files) > 1:
+        raise GoogleDriveError("DRIVE_OPERATION_REUSED", "Drive operation marker is not unique")
     return files[0] if files else None
 
 
 async def download_file(access_token: str, file_id: str) -> bytes:
     """Stream one file body with a 1 MiB hard stop and strict UTF-8 decoding."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        response = await _read(
-            client,
-            "GET",
-            f"{_FILES_URL}/{file_id}",
-            params={"alt": "media"},
-            headers=_headers(access_token),
-        )
-    if response.status_code != 200:
-        raise _error_for_status(response.status_code)
-    chunks: list[bytes] = []
-    total = 0
-    async for chunk in response.aiter_bytes(65536):
-        total += len(chunk)
-        if total > MAX_CONTENT_BYTES:
-            raise GoogleDriveError("DRIVE_FILE_TOO_LARGE", "Drive file exceeds 1 MiB")
-        chunks.append(chunk)
-    content = b"".join(chunks)
+        for attempt in range(_MAX_READ_RETRIES + 1):
+            try:
+                async with client.stream(
+                    "GET",
+                    f"{_FILES_URL}/{file_id}",
+                    params={"alt": "media"},
+                    headers=_headers(access_token),
+                ) as response:
+                    if response.status_code == 429 or response.status_code >= 500:
+                        if attempt >= _MAX_READ_RETRIES:
+                            raise GoogleDriveError("DRIVE_UNAVAILABLE", "Drive unavailable")
+                        await asyncio.sleep(0.5 * (2 ** (attempt + 1)) + random.uniform(0, 0.25))
+                        continue
+                    if response.status_code != 200:
+                        raise _error_for_status(response.status_code)
+                    content = bytearray()
+                    async for chunk in response.aiter_bytes(65536):
+                        if len(content) + len(chunk) > MAX_CONTENT_BYTES:
+                            raise GoogleDriveError(
+                                "DRIVE_FILE_TOO_LARGE", "Drive file exceeds 1 MiB"
+                            )
+                        content.extend(chunk)
+                    break
+            except httpx.HTTPError as exc:
+                if attempt >= _MAX_READ_RETRIES:
+                    raise GoogleDriveError("DRIVE_UNAVAILABLE", "Drive unavailable") from exc
+                await asyncio.sleep(0.5 * (2 ** (attempt + 1)) + random.uniform(0, 0.25))
+        else:
+            raise GoogleDriveError("DRIVE_UNAVAILABLE", "Drive unavailable")
     try:
         content.decode("utf-8")
     except UnicodeDecodeError:
         raise GoogleDriveError(
             "DRIVE_FILE_ENCODING_INVALID", "Drive file is not valid UTF-8"
         ) from None
-    return content
+    return bytes(content)
 
 
 SOURCE_KINDS = {
@@ -360,13 +376,18 @@ async def update_blob(
     access_token: str, file_id: str, content: bytes, mime_type: str
 ) -> dict[str, Any]:
     """One media-only write; preserve all source metadata and never retry."""
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        response = await client.patch(
-            f"{_UPLOAD_FILES_URL}/{file_id}",
-            params={"uploadType": "media", "fields": _SOURCE_FIELDS},
-            headers={**_headers(access_token), "Content-Type": mime_type},
-            content=content,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.patch(
+                f"{_UPLOAD_FILES_URL}/{file_id}",
+                params={"uploadType": "media", "fields": _SOURCE_FIELDS},
+                headers={**_headers(access_token), "Content-Type": mime_type},
+                content=content,
+            )
+    except httpx.HTTPError as exc:
+        raise GoogleDriveError("DRIVE_WRITE_UNKNOWN", "Drive write outcome is unknown") from exc
+    if response.status_code == 429 or response.status_code >= 500:
+        raise GoogleDriveError("DRIVE_WRITE_UNKNOWN", "Drive write outcome is unknown")
     if response.status_code != 200:
         raise _error_for_status(response.status_code)
     return dict(response.json())
@@ -390,14 +411,19 @@ async def _write(
 ) -> dict[str, Any]:
     """One write request — never retried; ambiguous outcomes belong to the route."""
     body, content_type = _upload_body(metadata, content)
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        response = await client.request(
-            method,
-            url,
-            params={"uploadType": "multipart"},
-            headers={**_headers(access_token), "Content-Type": content_type},
-            content=body,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.request(
+                method,
+                url,
+                params={"uploadType": "multipart"},
+                headers={**_headers(access_token), "Content-Type": content_type},
+                content=body,
+            )
+    except httpx.HTTPError as exc:
+        raise GoogleDriveError("DRIVE_WRITE_UNKNOWN", "Drive write outcome is unknown") from exc
+    if response.status_code == 429 or response.status_code >= 500:
+        raise GoogleDriveError("DRIVE_WRITE_UNKNOWN", "Drive write outcome is unknown")
     if response.status_code != 200:
         raise _error_for_status(response.status_code)
     return dict(response.json())
@@ -418,8 +444,15 @@ async def create_folder(access_token: str, *, name: str, operation_id: str) -> d
             "creationOperationId": str(operation_id),
         },
     }
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        response = await client.post(_FILES_URL, json=body, headers=_headers(access_token))
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.post(_FILES_URL, json=body, headers=_headers(access_token))
+    except httpx.HTTPError as exc:
+        raise GoogleDriveError("DRIVE_WRITE_UNKNOWN", "Drive write outcome is unknown") from exc
+    if response.status_code == 429 or response.status_code >= 500:
+        raise GoogleDriveError("DRIVE_WRITE_UNKNOWN", "Drive write outcome is unknown")
+    if response.status_code in (401, 403, 404):
+        raise _error_for_status(response.status_code)
     if response.status_code != 200:
         raise GoogleDriveError("GOOGLE_DRIVE_FOLDER_CREATE_FAILED", "folder create failed")
     return dict(response.json())

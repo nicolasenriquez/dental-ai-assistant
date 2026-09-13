@@ -180,6 +180,16 @@ async def test_download_file_rejects_body_over_one_mib() -> None:
 
 
 @respx.mock
+async def test_download_file_retries_transient_provider_failure() -> None:
+    route = respx.get(_FILES_URL + "/file-1").mock(
+        side_effect=[httpx.Response(503), httpx.Response(200, content=b"texto")]
+    )
+
+    assert await _adapter("download_file")("request-access-token", "file-1") == b"texto"
+    assert route.call_count == 2
+
+
+@respx.mock
 async def test_download_file_rejects_invalid_utf8() -> None:
     respx.get(_FILES_URL + "/file-1").mock(return_value=httpx.Response(200, content=b"\xff"))
 
@@ -247,6 +257,23 @@ async def test_write_transient_failure_is_not_retried_by_adapter() -> None:
             app_properties=_managed_properties(),
         )
 
-    assert getattr(exc_info.value, "code", None) == "DRIVE_UNAVAILABLE"
+    assert getattr(exc_info.value, "code", None) == "DRIVE_WRITE_UNKNOWN"
     assert route.call_count == 1
     assert "provider body" not in str(exc_info.value)
+
+
+@respx.mock
+async def test_write_transport_failure_is_unknown_and_not_retried() -> None:
+    route = respx.post(_UPLOAD_FILES_URL).mock(side_effect=httpx.ConnectError("no route"))
+
+    with pytest.raises(Exception) as exc_info:
+        await _adapter("create_file")(
+            "request-access-token",
+            folder_id="folder-1",
+            name="evolucion.txt",
+            content=b"plain text\n",
+            app_properties=_managed_properties(),
+        )
+
+    assert getattr(exc_info.value, "code", None) == "DRIVE_WRITE_UNKNOWN"
+    assert route.call_count == 1

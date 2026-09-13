@@ -54,5 +54,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    federated_only = op.get_bind().execute(
+        sa.text("SELECT count(*) FROM users WHERE password_hash IS NULL")
+    ).scalar_one()
+    if federated_only:
+        raise RuntimeError("Cannot downgrade auth identities while federated-only users exist")
     op.drop_table("auth_identities")
     op.alter_column("users", "password_hash", existing_type=sa.Text(), nullable=False)

@@ -38,6 +38,7 @@ TurnAlreadyRunningError = repository.TurnAlreadyRunningError
 TurnIdempotencyConflictError = repository.TurnIdempotencyConflictError
 ClinicalRateLimitError = repository.ClinicalRateLimitError
 PendingActionExistsError = repository.PendingActionExistsError
+StaleClinicalTurnError = repository.StaleClinicalTurnError
 ActionExpiredError = repository.ActionExpiredError
 ProposalStaleError = repository.ProposalStaleError
 ClinicalGenerationDisabledError = clinical_evolutions.ClinicalGenerationDisabledError
@@ -151,7 +152,7 @@ async def _draft_evolution(context: ClinicalTurnContext, raw_note: str) -> Clini
 
 
 async def _set_contextual_title(
-    owner: UUID, thread: UUID, patient_id: UUID | None, _content: str
+    owner: UUID, thread: UUID, turn: UUID, patient_id: UUID | None, _content: str
 ) -> None:
     if patient_id is None:
         return
@@ -178,7 +179,7 @@ async def _set_contextual_title(
             f"{patient['first_name']} {patient['last_name']} · "
             f"Evolución · {started.day} {months[started.month - 1]}"
         )
-        await repository.update_title_if_default(owner, thread, title)
+        await repository.update_title_if_default(owner, thread, title, turn_id=turn)
         logger.info("conversation.auto_title.success", extra={"thread_id": str(thread)})
     except Exception:
         logger.warning(
@@ -382,7 +383,7 @@ async def _stream_turn(
     if sanitized.patient_ids:
         detected = sanitized.patient_ids[0]
         if active_patient_id is None:
-            updated = await repository.set_active_patient(owner, thread, detected)
+            updated = await repository.set_active_patient(owner, thread, detected, turn_id=turn)
             if updated is None:
                 await repository.finish_turn(owner, thread, turn, "failed", "THREAD_NOT_FOUND")
                 yield event(
@@ -453,7 +454,7 @@ async def _stream_turn(
         patient_id=UUID(str(active_patient_id)) if active_patient_id is not None else None,
     )
 
-    await _set_contextual_title(owner, thread, context.patient_id, sanitized.display_text)
+    await _set_contextual_title(owner, thread, turn, context.patient_id, sanitized.display_text)
 
     if context.patient_id is None:
         message = (
@@ -566,6 +567,17 @@ async def _stream_turn(
                 "turn_id": str(turn),
                 "item_id": str(uuid4()),
                 "error_code": "CLINICAL_MODEL_UNAVAILABLE",
+            },
+        )
+    except repository.StaleClinicalTurnError:
+        logger.info("clinical_turn_stale turn_id=%s", turn)
+        yield event(
+            "turn.failed",
+            {
+                "thread_id": str(thread),
+                "turn_id": str(turn),
+                "item_id": str(uuid4()),
+                "error_code": "CLINICAL_TURN_STALE",
             },
         )
     except Exception:

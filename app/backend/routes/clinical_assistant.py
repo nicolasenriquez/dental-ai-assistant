@@ -134,6 +134,16 @@ async def start_turn(
                     "error_code": "CLINICAL_RATE_LIMIT_EXCEEDED",
                 },
             )
+        except service.StaleClinicalTurnError:
+            yield event(
+                "turn.failed",
+                {
+                    "thread_id": str(thread_id),
+                    "turn_id": str(request.turn_id),
+                    "item_id": str(request.turn_id),
+                    "error_code": "CLINICAL_TURN_STALE",
+                },
+            )
         except LookupError:
             yield event(
                 "turn.failed",

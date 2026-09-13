@@ -23,6 +23,7 @@ import hashlib
 import os
 import secrets
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -226,6 +227,51 @@ async def test_live_revoked_state_is_durable_and_clears_credentials(db):
 
     again = await google_drive_repo.get_connection(uid)
     assert again == row
+
+
+async def test_live_pending_folder_completion_is_compare_and_clear(db):
+    uid = await _make_user(db)
+    await _make_connection(db, uid)
+    pending = uuid4()
+    await google_drive_repo.set_pending_folder_operation(uid, pending)
+
+    assert (
+        await google_drive_repo.complete_folder_operation(
+            uid,
+            folder_id="wrong-folder",
+            folder_name="Dental AI Assistant",
+            operation_id=uuid4(),
+        )
+        is None
+    )
+    row = await google_drive_repo.get_connection(uid)
+    assert row["pending_folder_operation_id"] == pending
+
+    completed = await google_drive_repo.complete_folder_operation(
+        uid,
+        folder_id="folder-reconciled",
+        folder_name="Dental AI Assistant",
+        operation_id=pending,
+    )
+    assert completed["folder_id"] == "folder-reconciled"
+    assert completed["pending_folder_operation_id"] is None
+
+
+async def test_live_lazy_refresh_rotation_cannot_repopulate_revoked_row(db):
+    uid = await _make_user(db)
+    await _make_connection(db, uid)
+    await google_drive_repo.set_revoked(uid)
+
+    await google_drive_repo.update_refresh_token_ciphertext(
+        uid,
+        SimpleNamespace(ciphertext=b"rotated", nonce=b"0" * 12, key_version="1"),
+    )
+
+    row = await google_drive_repo.get_connection(uid)
+    assert row["status"] == "revoked"
+    assert row["refresh_token_ciphertext"] is None
+    assert row["refresh_token_nonce"] is None
+    assert row["token_key_version"] is None
 
 
 async def test_live_disconnect_clears_credentials_and_retains_identity(db):

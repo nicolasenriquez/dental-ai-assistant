@@ -532,7 +532,9 @@ export interface DriveStatus {
     | 'connected'
     | 'workspace_missing'
     | 'workspace_recovery_pending'
+    | 'unavailable'
     | 'revoked';
+  retryable?: boolean;
   workspace?: { folder_name: string };
 }
 

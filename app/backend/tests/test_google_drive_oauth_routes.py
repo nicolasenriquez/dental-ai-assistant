@@ -160,6 +160,19 @@ def fake_drive_repo(monkeypatch):
         state["calls"].append(("replace_active_connection", str(user_id), dict(kwargs)))
         return dict(row)
 
+    async def complete_folder_operation(user_id, *, folder_id, folder_name, operation_id):
+        row = state["connections"].get(str(user_id))
+        if row is None or str(row.get("pending_folder_operation_id")) != str(operation_id):
+            return None
+        row.update(
+            folder_id=folder_id,
+            folder_name=folder_name,
+            folder_creation_operation_id=operation_id,
+            pending_folder_operation_id=None,
+        )
+        state["calls"].append(("complete_folder_operation", str(operation_id)))
+        return dict(row)
+
     async def _to_terminal(user_id, status: str):
         row = state["connections"].get(str(user_id))
         if row is None:
@@ -202,6 +215,7 @@ def fake_drive_repo(monkeypatch):
         "get_connection": get_connection,
         "create_active_connection": create_active_connection,
         "replace_active_connection": replace_active_connection,
+        "complete_folder_operation": complete_folder_operation,
         "set_disconnected": set_disconnected,
         "set_revoked": set_revoked,
         "create_oauth_transaction": create_oauth_transaction,
@@ -280,6 +294,9 @@ def fake_google_integrations(monkeypatch):
         )
         return {"id": "folder-1", "name": name}
 
+    async def find_folder_by_creation_operation(access_token, operation_id):
+        return []
+
     async def refresh_access_token(refresh_token):
         box["refresh_calls"].append(refresh_token)
         return box["token_result"]
@@ -304,6 +321,7 @@ def fake_google_integrations(monkeypatch):
         "revoke_token": revoke_token,
         "about_user_email": about_user_email,
         "create_folder": create_folder,
+        "find_folder_by_creation_operation": find_folder_by_creation_operation,
         "refresh_access_token": refresh_access_token,
         "get_folder": get_folder,
     }
@@ -425,6 +443,40 @@ async def test_status_connected_reports_workspace(client, fake_drive_repo):
     assert body["status"] == "connected"
     assert body["workspace"] == {"folder_name": "Dental AI Assistant"}
     assert "folder_id" not in str(body)  # folder identity is never public
+
+
+async def test_status_refreshes_once_after_drive_401(
+    client, fake_drive_repo, fake_google_integrations, monkeypatch
+):
+    from backend.integrations import google_drive
+
+    _seed_active_connection(fake_drive_repo)
+    calls = 0
+
+    async def get_folder(access_token, folder_id):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise google_drive.GoogleDriveError("GOOGLE_DRIVE_UNAUTHORIZED", "expired token")
+        return {
+            "id": folder_id,
+            "name": "Dental AI Assistant",
+            "mimeType": "application/vnd.google-apps.folder",
+            "trashed": False,
+            "appProperties": {
+                "managedBy": "dental-ai-assistant",
+                "workspaceSchema": "1",
+                "creationOperationId": "folder-op-old",
+            },
+        }
+
+    monkeypatch.setattr(google_drive, "get_folder", get_folder)
+    response = await client.get("/api/google-drive/status", headers=_auth_headers())
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "connected"
+    assert calls == 2
+    assert len(fake_google_integrations["refresh_calls"]) == 2
 
 
 @pytest.mark.parametrize("status", ["disconnected", "revoked"])
@@ -647,6 +699,21 @@ async def test_callback_wrong_session_fingerprint_returns_400(client, fake_googl
     assert fake_google_integrations["exchange_codes"] == []
 
 
+async def test_callback_expired_dental_session_is_sanitized_and_clears_cookie(
+    client, fake_google_integrations
+):
+    start_r = await _start_oauth(client, _auth_headers())
+    raw_state = _state_from_response(start_r)
+    expired_session = _session_token(USER_ID, offset=-7200.0)
+
+    r = await _callback(client, expired_session, raw_state)
+
+    assert r.status_code == 400
+    assert r.json() == {"error": "GOOGLE_DRIVE_OAUTH_STATE_INVALID"}
+    _assert_state_cookie_cleared(r)
+    assert fake_google_integrations["exchange_codes"] == []
+
+
 async def test_callback_replayed_state_returns_400(
     client, fake_drive_repo, fake_google_integrations
 ):
@@ -717,6 +784,28 @@ async def test_callback_missing_refresh_token_returns_provider_error_without_per
     assert r.headers["location"] == "https://testserver/assistant?result=provider_error"
     assert fake_drive_repo["connections"] == {}
     assert fake_google_integrations["folder_calls"] == []
+
+
+async def test_callback_persists_pending_folder_operation_before_ambiguous_create(
+    client, fake_drive_repo, fake_google_integrations, monkeypatch
+):
+    from backend.integrations import google_drive
+
+    async def ambiguous_create(*_args, **_kwargs):
+        raise google_drive.GoogleDriveError("DRIVE_WRITE_UNKNOWN", "write outcome unknown")
+
+    fake_google_integrations["folder_calls"].clear()
+    # The callback must leave the marker durable even though the browser sees
+    # a provider error; recovery uses that marker on the next request.
+    monkeypatch.setattr(google_drive, "create_folder", ambiguous_create)
+
+    raw_state = await _started_state(client)
+    r = await _callback(client, _session_token(USER_ID), raw_state)
+
+    assert r.status_code == 303
+    assert r.headers["location"] == "https://testserver/assistant?result=provider_error"
+    operation_id = next(iter(fake_drive_repo["transactions"].values()))["folder_operation_id"]
+    assert fake_drive_repo["connections"][USER_ID]["pending_folder_operation_id"] == operation_id
 
 
 async def test_callback_exchange_failure_returns_provider_error_without_persistence(

@@ -23,6 +23,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import * as authApi from '../lib/authApi';
+import * as driveApi from '../lib/api';
 import { Login } from '../pages/Login';
 
 vi.mock('../lib/authApi', () => ({
@@ -82,6 +83,7 @@ const loginWithGoogleMock = authApi.loginWithGoogle as unknown as Mock;
 type HookWithBootstrap = {
   status: unknown;
   loginWithGoogle: (credential: string) => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
 function asBootstrapHook(result: { current: unknown }): HookWithBootstrap {
@@ -160,6 +162,21 @@ describe('useAuth bootstrap state machine', () => {
     });
     await waitFor(() => expect(asBootstrapHook(result).status).toBe('ready'));
     expect(loginWithGoogleMock).toHaveBeenCalledWith('google-token');
+  });
+
+  it('preserves ready-without-drive while refreshing user quota', async () => {
+    getAuthConfigMock.mockResolvedValue({ ...googleConfig, drive_auto_onboard: false });
+    meMock.mockResolvedValue(mePayload);
+    vi.mocked(driveApi.getDriveStatus).mockResolvedValueOnce({
+      configured: true,
+      status: 'revoked',
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(asBootstrapHook(result).status).toBe('ready-without-drive'));
+
+    await act(async () => asBootstrapHook(result).refresh());
+
+    expect(asBootstrapHook(result).status).toBe('ready-without-drive');
   });
 });
 

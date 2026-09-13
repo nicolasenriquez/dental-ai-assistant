@@ -171,6 +171,8 @@ def managed_context(monkeypatch):
         folder_name: str,
         operation_id: UUID | str,
     ):
+        if str(state["connection"].get("pending_folder_operation_id")) != str(operation_id):
+            return None
         state["connection"].update(
             {
                 "folder_id": folder_id,
@@ -381,6 +383,94 @@ async def test_status_reuses_verified_folder_without_creating_duplicate(
     assert response.json()["status"] == "connected"
     assert len(_calls(managed_context, "get_folder")) == 1
     assert not _calls(managed_context, "create_folder")
+
+
+async def test_status_reports_provider_outage_as_retryable_unavailable(
+    managed_client: AsyncClient, managed_context: dict[str, Any], monkeypatch
+) -> None:
+    async def unavailable(_access_token: str, _folder_id: str):
+        raise google_drive.GoogleDriveError("DRIVE_UNAVAILABLE", "provider unavailable")
+
+    monkeypatch.setattr(google_drive, "get_folder", unavailable)
+
+    response = await managed_client.get("/api/google-drive/status", headers=_headers())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "configured": True,
+        "status": "unavailable",
+        "retryable": True,
+    }
+
+
+async def test_managed_read_refreshes_once_after_drive_401(
+    managed_client: AsyncClient, managed_context: dict[str, Any], monkeypatch
+) -> None:
+    original_get_folder = google_drive.get_folder
+    calls = 0
+
+    async def get_folder(access_token: str, folder_id: str):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise google_drive.GoogleDriveError(
+                "GOOGLE_DRIVE_UNAUTHORIZED", "expired access token"
+            )
+        return await original_get_folder(access_token, folder_id)
+
+    monkeypatch.setattr(google_drive, "get_folder", get_folder)
+
+    response = await managed_client.get(
+        f"/api/google-drive/files?patient_id={PATIENT_ID}", headers=_headers()
+    )
+
+    assert response.status_code == 200
+    assert calls == 2
+    assert len(_calls(managed_context, "refresh_access_token")) == 2
+    assert managed_context["connection"]["status"] == "active"
+
+
+async def test_repeated_drive_401_revokes_connection(
+    managed_client: AsyncClient, managed_context: dict[str, Any], monkeypatch
+) -> None:
+    calls = 0
+
+    async def get_folder(_access_token: str, _folder_id: str):
+        nonlocal calls
+        calls += 1
+        raise google_drive.GoogleDriveError("GOOGLE_DRIVE_UNAUTHORIZED", "expired access token")
+
+    monkeypatch.setattr(google_drive, "get_folder", get_folder)
+
+    response = await managed_client.get(
+        f"/api/google-drive/files?patient_id={PATIENT_ID}", headers=_headers()
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"error": "GOOGLE_DRIVE_REVOKED"}
+    assert calls == 2
+    assert managed_context["connection"]["status"] == "revoked"
+    assert not _calls(managed_context, "list_files")
+
+
+async def test_invalid_grant_revokes_connection_without_drive_access(
+    managed_client: AsyncClient, managed_context: dict[str, Any], monkeypatch
+) -> None:
+    async def refresh_access_token(_refresh_token: str):
+        raise google_drive_oauth.GoogleDriveOAuthError(
+            "GOOGLE_DRIVE_INVALID_GRANT", "refresh grant revoked"
+        )
+
+    monkeypatch.setattr(google_drive_oauth, "refresh_access_token", refresh_access_token)
+
+    response = await managed_client.get(
+        f"/api/google-drive/files?patient_id={PATIENT_ID}", headers=_headers()
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"error": "GOOGLE_DRIVE_REVOKED"}
+    assert managed_context["connection"]["status"] == "revoked"
+    assert not _calls(managed_context, "get_folder")
 
 
 async def test_workspace_recovery_requires_possible_orphan_acknowledgement(
@@ -647,6 +737,42 @@ async def test_uncertain_create_reconciles_once_without_blind_retry(
     assert response.status_code == 503
     assert response.json() == {"error": "DRIVE_WRITE_UNKNOWN"}
     assert len(_calls(managed_context, "create_file")) == 1
+
+
+async def test_reconciliation_rejects_operation_reused_for_another_patient(
+    managed_client: AsyncClient, managed_context: dict[str, Any]
+) -> None:
+    operation_id = "11111111-1111-1111-1111-111111111111"
+    managed_context["create_error"] = google_drive.GoogleDriveError(
+        "DRIVE_WRITE_UNKNOWN", "write outcome unknown"
+    )
+    managed_context["reconcile_file"] = {
+        "id": "foreign-file",
+        "mimeType": "text/plain",
+        "parents": ["folder-1"],
+        "trashed": False,
+        "appProperties": {
+            "managedBy": google_drive.MANAGED_BY,
+            "workspaceSchema": google_drive.WORKSPACE_SCHEMA,
+            "patientRef": "foreign-patient",
+            "creationOperationId": operation_id,
+        },
+    }
+
+    response = await managed_client.post(
+        "/api/google-drive/files",
+        headers=_headers(),
+        json={
+            "patient_id": PATIENT_ID,
+            "operation_id": operation_id,
+            "name": "nota",
+            "content": "contenido",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"error": "DRIVE_OPERATION_REUSED"}
+    assert not _calls(managed_context, "update_file")
     assert len(_calls(managed_context, "find_file_by_creation_operation")) == 1
 
 

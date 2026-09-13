@@ -172,11 +172,11 @@ function useAuthState(): UseAuthResult {
     try {
       const u = await me();
       setUser(u);
-      setStatus('ready');
     } catch (e) {
-      setUser(null);
-      setStatus(anonStatusFor(authConfig?.mode));
-      if (e instanceof AuthError && e.status !== 401) {
+      if (e instanceof AuthError && e.status === 401) {
+        setUser(null);
+        setStatus(anonStatusFor(authConfig?.mode));
+      } else if (e instanceof AuthError) {
         setError(e.message);
       }
     }

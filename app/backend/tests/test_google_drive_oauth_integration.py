@@ -214,6 +214,25 @@ async def test_exchange_code_network_error_is_never_retried():
 
 
 # ---------------------------------------------------------------------------
+# Refresh
+# ---------------------------------------------------------------------------
+
+
+@respx.mock
+async def test_refresh_invalid_grant_is_stable_and_never_retried():
+    mod = _oauth_mod()
+    route = respx.post(_TOKEN_URL).mock(
+        return_value=httpx.Response(400, json={"error": "invalid_grant"})
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        await mod.refresh_access_token("refresh-token-xyz")
+
+    assert exc_info.value.code == "GOOGLE_DRIVE_INVALID_GRANT"
+    assert route.call_count == 1
+
+
+# ---------------------------------------------------------------------------
 # Revoke (best-effort, never retried, never raises)
 # ---------------------------------------------------------------------------
 

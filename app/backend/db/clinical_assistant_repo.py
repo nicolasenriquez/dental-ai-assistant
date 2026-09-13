@@ -59,6 +59,10 @@ class PendingActionExistsError(Exception):
     """The thread already has a pending approval."""
 
 
+class StaleClinicalTurnError(Exception):
+    """The turn lost its active-thread write fence."""
+
+
 ACTIVE_TURN_STALE_SECONDS = 10 * 60
 
 
@@ -304,7 +308,22 @@ async def create_artifact(
     artifact_id: UUID | str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    async with get_pg_pool().acquire() as conn:
+    owner = _uuid(owner_user_id)
+    thread = _uuid(thread_id)
+    turn = _uuid(turn_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        thread_state = await conn.fetchrow(
+            """
+            SELECT active_turn_id
+            FROM clinical_threads
+            WHERE id = $1 AND owner_user_id = $2
+            FOR UPDATE
+            """,
+            thread,
+            owner,
+        )
+        if thread_state is None or thread_state["active_turn_id"] != turn:
+            raise StaleClinicalTurnError
         row = await conn.fetchrow(
             """
             INSERT INTO clinical_turn_artifacts (
@@ -394,9 +413,14 @@ async def set_artifact_status(
 
 
 async def set_active_patient(
-    owner_user_id: UUID | str, thread_id: UUID | str, patient_id: UUID | str | None
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    patient_id: UUID | str | None,
+    *,
+    turn_id: UUID | str | None = None,
 ) -> dict[str, Any] | None:
     owner = _uuid(owner_user_id)
+    thread = _uuid(thread_id)
     async with get_pg_pool().acquire() as conn:
         if patient_id is not None:
             patient_exists = await conn.fetchval(
@@ -406,18 +430,35 @@ async def set_active_patient(
             )
             if not patient_exists:
                 return None
-        row = await conn.fetchrow(
-            """
-            UPDATE clinical_threads
-            SET active_patient_id = $1, updated_at = now()
-            WHERE id = $2 AND owner_user_id = $3
-            RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
-                      created_at, updated_at
-            """,
-            _uuid(patient_id) if patient_id is not None else None,
-            _uuid(thread_id),
-            owner,
-        )
+        if turn_id is None:
+            row = await conn.fetchrow(
+                """
+                UPDATE clinical_threads
+                SET active_patient_id = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3
+                RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                          created_at, updated_at
+                """,
+                _uuid(patient_id) if patient_id is not None else None,
+                thread,
+                owner,
+            )
+        else:
+            row = await conn.fetchrow(
+                """
+                UPDATE clinical_threads
+                SET active_patient_id = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3 AND active_turn_id = $4
+                RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                          created_at, updated_at
+                """,
+                _uuid(patient_id) if patient_id is not None else None,
+                thread,
+                owner,
+                _uuid(turn_id),
+            )
+            if row is None:
+                raise StaleClinicalTurnError
     return dict(row) if row else None
 
 
@@ -442,20 +483,38 @@ async def turn_exists(
 
 
 async def update_title_if_default(
-    owner_user_id: UUID | str, thread_id: UUID | str, title: str
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    title: str,
+    *,
+    turn_id: UUID | str | None = None,
 ) -> None:
     """Give the first clinical turn a useful title without replacing custom titles."""
     async with get_pg_pool().acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE clinical_threads
-            SET title = $1, updated_at = now()
-            WHERE id = $2 AND owner_user_id = $3 AND title = 'Asistente clínico'
-            """,
-            title,
-            _uuid(thread_id),
-            _uuid(owner_user_id),
-        )
+        if turn_id is None:
+            await conn.execute(
+                """
+                UPDATE clinical_threads
+                SET title = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3 AND title = 'Asistente clínico'
+                """,
+                title,
+                _uuid(thread_id),
+                _uuid(owner_user_id),
+            )
+        else:
+            await conn.execute(
+                """
+                UPDATE clinical_threads
+                SET title = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3 AND title = 'Asistente clínico'
+                  AND active_turn_id = $4
+                """,
+                title,
+                _uuid(thread_id),
+                _uuid(owner_user_id),
+                _uuid(turn_id),
+            )
 
 
 async def claim_turn(
@@ -465,6 +524,7 @@ async def claim_turn(
     thread = _uuid(thread_id)
     turn = _uuid(turn_id)
     async with get_pg_pool().acquire() as conn, conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))", owner)
         row = await conn.fetchrow(
             """
             SELECT active_patient_id, active_turn_id, updated_at
@@ -504,12 +564,28 @@ async def claim_turn(
                 "turn_status": turn_status,
                 "turn_error_code": user_message["turn_error_code"],
             }
+        stale_turn = (
+            row["active_turn_id"]
+            if row["active_turn_id"] is not None
+            and row["active_turn_id"] != turn
+            and _turn_is_stale(row["updated_at"])
+            else None
+        )
         if (
             row["active_turn_id"] is not None
             and row["active_turn_id"] != turn
             and not _turn_is_stale(row["updated_at"])
         ):
             raise TurnAlreadyRunningError
+        if stale_turn is not None:
+            await conn.execute(
+                """UPDATE clinical_messages
+                   SET turn_status = 'failed', turn_error_code = 'CLINICAL_TURN_STALE'
+                   WHERE thread_id = $1 AND turn_id = $2 AND role = 'user'
+                     AND turn_status = 'running'""",
+                thread,
+                stale_turn,
+            )
         turn_count = await conn.fetchval(
             """
             SELECT count(*)
@@ -554,27 +630,38 @@ async def claim_turn(
 async def append_message(
     owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, role: str, content: str
 ) -> dict[str, Any]:
-    async with get_pg_pool().acquire() as conn:
+    owner = _uuid(owner_user_id)
+    thread = _uuid(thread_id)
+    turn = _uuid(turn_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        thread_state = await conn.fetchrow(
+            """
+            SELECT active_turn_id
+            FROM clinical_threads
+            WHERE id = $1 AND owner_user_id = $2
+            FOR UPDATE
+            """,
+            thread,
+            owner,
+        )
+        if thread_state is None or thread_state["active_turn_id"] != turn:
+            raise StaleClinicalTurnError
         row = await conn.fetchrow(
             """
             INSERT INTO clinical_messages (id, thread_id, turn_id, role, content, created_at)
-            SELECT $1, $2, $3, $4, $5, now()
-            WHERE EXISTS (SELECT 1 FROM clinical_threads WHERE id = $2 AND owner_user_id = $6)
+            VALUES ($1, $2, $3, $4, $5, now())
             RETURNING id, thread_id, turn_id, role, content, created_at
             """,
             uuid4(),
-            _uuid(thread_id),
-            _uuid(turn_id),
+            thread,
+            turn,
             role,
             content,
-            _uuid(owner_user_id),
         )
-        if row is None:
-            raise LookupError("Thread not found")
         await conn.execute(
             "UPDATE clinical_threads SET updated_at = now() WHERE id = $1 AND owner_user_id = $2",
-            _uuid(thread_id),
-            _uuid(owner_user_id),
+            thread,
+            owner,
         )
     return dict(row)
 
@@ -598,6 +685,7 @@ async def finish_turn(
               AND EXISTS (
                 SELECT 1 FROM clinical_threads t
                 WHERE t.id = m.thread_id AND t.owner_user_id = $5
+                  AND t.active_turn_id = $4
               )
             """,
             status,
@@ -630,7 +718,20 @@ async def create_pending_action(
     expires_at = datetime.now(UTC) + timedelta(minutes=30)
     owner = _uuid(owner_user_id)
     thread = _uuid(thread_id)
+    turn = _uuid(turn_id)
     async with get_pg_pool().acquire() as conn, conn.transaction():
+        thread_state = await conn.fetchrow(
+            """
+            SELECT active_turn_id
+            FROM clinical_threads
+            WHERE id = $1 AND owner_user_id = $2
+            FOR UPDATE
+            """,
+            thread,
+            owner,
+        )
+        if thread_state is None or thread_state["active_turn_id"] != turn:
+            raise StaleClinicalTurnError
         await conn.execute(
             """
             UPDATE clinical_turn_artifacts a
@@ -659,7 +760,9 @@ async def create_pending_action(
             INSERT INTO clinical_pending_actions (
                 id, owner_user_id, thread_id, turn_id, artifact_id, patient_id, action_type,
                 proposal_payload, proposal_hash, status, expires_at, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'pending', $10, now())
+            ) SELECT $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'pending', $10, now()
+              FROM clinical_threads
+             WHERE id = $3 AND owner_user_id = $2 AND active_turn_id = $4
             ON CONFLICT (thread_id) WHERE status = 'pending' DO NOTHING
             RETURNING id, thread_id, turn_id, artifact_id, patient_id, action_type, proposal_payload,
                       proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
@@ -667,7 +770,7 @@ async def create_pending_action(
             uuid4(),
             owner,
             thread,
-            _uuid(turn_id),
+            turn,
             _uuid(artifact_id),
             _uuid(patient_id),
             action_type,
@@ -681,11 +784,12 @@ async def create_pending_action(
             """
             UPDATE clinical_turn_artifacts
             SET status = 'pending', updated_at = now()
-            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3 AND turn_id = $4
             """,
             _uuid(artifact_id),
             thread,
             owner,
+            turn,
         )
     return _action_dict(row)
 

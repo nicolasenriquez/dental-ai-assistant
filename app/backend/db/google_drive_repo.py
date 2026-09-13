@@ -56,6 +56,7 @@ async def create_active_connection(
     folder_id: str | None,
     folder_name: str | None,
     folder_creation_operation_id: UUID | str | None,
+    pending_folder_operation_id: UUID | str | None = None,
 ) -> dict[str, Any]:
     """Insert a new active connection. Caller owns the one-connection invariant."""
     pool = get_pg_pool()
@@ -67,9 +68,10 @@ async def create_active_connection(
                 refresh_token_ciphertext, refresh_token_nonce, token_key_version,
                 binding_secret_ciphertext, binding_secret_nonce, binding_key_version,
                 granted_scopes, folder_id, folder_name, folder_creation_operation_id,
+                pending_folder_operation_id,
                 status, status_changed_at, connected_at, created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
                     'active', now(), now(), now(), now())
             RETURNING {_CONNECTION_COLUMNS}
             """,
@@ -85,6 +87,7 @@ async def create_active_connection(
             folder_id,
             folder_name,
             _to_uuid(folder_creation_operation_id) if folder_creation_operation_id else None,
+            _to_uuid(pending_folder_operation_id) if pending_folder_operation_id else None,
         )
     assert row is not None
     return dict(row)
@@ -104,13 +107,14 @@ async def replace_active_connection(
     folder_id: str | None,
     folder_name: str | None,
     folder_creation_operation_id: UUID | str | None,
+    pending_folder_operation_id: UUID | str | None = None,
 ) -> dict[str, Any]:
     """Overwrite an existing row with a fresh active connection.
 
     Reconnect to the same verified account reuses folder/binding identity
     (caller passes preserved values); a different local-mode account passes
-    cleared folder identity and a new binding secret. Clears any pending
-    folder operation.
+    cleared folder identity and a new binding secret. The caller may preserve
+    a pending folder operation for post-persistence reconciliation.
     """
     pool = get_pg_pool()
     async with pool.acquire() as conn:
@@ -125,7 +129,7 @@ async def replace_active_connection(
                 granted_scopes = $9,
                 folder_id = $10, folder_name = $11,
                 folder_creation_operation_id = $12,
-                pending_folder_operation_id = NULL,
+                pending_folder_operation_id = $13,
                 status = 'active',
                 status_changed_at = now(), connected_at = now(), updated_at = now()
             WHERE user_id = $1
@@ -143,6 +147,7 @@ async def replace_active_connection(
             folder_id,
             folder_name,
             _to_uuid(folder_creation_operation_id) if folder_creation_operation_id else None,
+            _to_uuid(pending_folder_operation_id) if pending_folder_operation_id else None,
         )
     assert row is not None
     return dict(row)
@@ -216,7 +221,7 @@ async def complete_folder_operation(
                 folder_creation_operation_id = $4,
                 pending_folder_operation_id = NULL,
                 updated_at = now()
-            WHERE user_id = $1
+            WHERE user_id = $1 AND pending_folder_operation_id = $4
             RETURNING {_CONNECTION_COLUMNS}
             """,
             _to_uuid(user_id),
@@ -232,6 +237,28 @@ async def mark_workspace_recovery_pending(
 ) -> dict[str, Any] | None:
     """Record an ambiguous create so later requests reconcile, never replace."""
     return await set_pending_folder_operation(user_id, operation_id)
+
+
+async def update_refresh_token_ciphertext(user_id: UUID | str, value: Any) -> None:
+    async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            """UPDATE google_drive_connections
+               SET refresh_token_ciphertext = $2, refresh_token_nonce = $3,
+                   token_key_version = $4, updated_at = now()
+               WHERE user_id = $1 AND status = 'active'""",
+            _to_uuid(user_id), value.ciphertext, value.nonce, value.key_version,
+        )
+
+
+async def update_binding_secret_ciphertext(user_id: UUID | str, value: Any) -> None:
+    async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            """UPDATE google_drive_connections
+               SET binding_secret_ciphertext = $2, binding_secret_nonce = $3,
+                   binding_key_version = $4, updated_at = now()
+               WHERE user_id = $1""",
+            _to_uuid(user_id), value.ciphertext, value.nonce, value.key_version,
+        )
 
 
 async def create_oauth_transaction(

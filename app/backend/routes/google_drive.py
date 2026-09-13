@@ -57,6 +57,8 @@ _WRITE_AMBIGUOUS_CODES = {"DRIVE_UNAVAILABLE", "DRIVE_WRITE_UNKNOWN"}
 
 _DRIVE_ERROR_HTTP: dict[str, int] = {
     "DRIVE_UNAVAILABLE": status.HTTP_503_SERVICE_UNAVAILABLE,
+    "DRIVE_WRITE_UNKNOWN": status.HTTP_503_SERVICE_UNAVAILABLE,
+    "DRIVE_OPERATION_REUSED": status.HTTP_409_CONFLICT,
     "DRIVE_PAGE_TOKEN_INVALID": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "DRIVE_FILE_TOO_LARGE": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "DRIVE_FILE_ENCODING_INVALID": status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -182,14 +184,26 @@ async def drive_status(user: dict[str, Any] = Depends(get_current_user)) -> dict
         return {"configured": True, "status": "workspace_recovery_pending"}
 
     try:
-        _, access_token = await _connection_access_token(str(user["id"]))
-        folder = await google_drive.get_folder(access_token, str(row.get("folder_id") or ""))
+        folder = None
+        for auth_attempt in range(2):
+            _, access_token = await _connection_access_token(str(user["id"]))
+            try:
+                folder = await google_drive.get_folder(
+                    access_token, str(row.get("folder_id") or "")
+                )
+                break
+            except google_drive.GoogleDriveError as exc:
+                if exc.code != "GOOGLE_DRIVE_UNAUTHORIZED" or auth_attempt == 1:
+                    if exc.code == "GOOGLE_DRIVE_UNAUTHORIZED":
+                        await google_drive_repo.set_revoked(str(user["id"]))
+                        return {"configured": True, "status": "revoked"}
+                    raise
     except _DriveDomainError as exc:
         if exc.code == "GOOGLE_DRIVE_REVOKED":
             return {"configured": True, "status": "revoked"}
-        return {"configured": True, "status": "workspace_missing"}
+        return {"configured": True, "status": "unavailable", "retryable": True}
     except google_drive.GoogleDriveError:
-        return {"configured": True, "status": "workspace_missing"}
+        return {"configured": True, "status": "unavailable", "retryable": True}
 
     if not _folder_is_authoritative(folder, row.get("folder_creation_operation_id")):
         return {"configured": True, "status": "workspace_missing"}
@@ -295,7 +309,10 @@ async def oauth_callback(
     if not hmac.compare_digest(_session_fingerprint(session_raw), stored_fp):
         return invalid
 
-    user = await _resolve_session_user(session_raw)
+    try:
+        user = await _resolve_session_user(session_raw)
+    except HTTPException:
+        return invalid
     if str(txn.get("user_id")) != str(user["id"]):
         return invalid
 
@@ -347,11 +364,13 @@ async def oauth_callback(
     folder_id = None
     folder_name = None
     folder_creation_operation_id = None
+    pending_folder_operation_id = None
     binding_ct: Ciphertext | None = None
     if existing and existing.get("google_account_id") == account_id:
         folder_id = existing.get("folder_id")
         folder_name = existing.get("folder_name")
         folder_creation_operation_id = existing.get("folder_creation_operation_id")
+        pending_folder_operation_id = existing.get("pending_folder_operation_id")
         if existing.get("binding_secret_ciphertext") is not None:
             binding_ct = Ciphertext(
                 ciphertext=bytes(existing["binding_secret_ciphertext"]),
@@ -364,23 +383,11 @@ async def oauth_callback(
             user_id, token_cipher.PURPOSE_BINDING_SECRET, secrets.token_bytes(32)
         )
 
-    operation_id = txn.get("folder_operation_id")
-    if not folder_id:
-        try:
-            folder = await google_drive.create_folder(
-                token_result.access_token, name=FOLDER_NAME, operation_id=operation_id
-            )
-        except Exception:
-            await _safe_revoke(token_result.access_token)
-            return _redirect_result("provider_error")
-        folder_id = folder.get("id")
-        folder_name = folder.get("name", FOLDER_NAME)
-        folder_creation_operation_id = operation_id
-
     refresh_ct = token_cipher.encrypt(
         user_id, token_cipher.PURPOSE_REFRESH_TOKEN, token_result.refresh_token.encode()
     )
 
+    operation_id = txn.get("folder_operation_id")
     connection_kwargs = dict(
         google_account_id=account_id,
         refresh_token_ciphertext=refresh_ct.ciphertext,
@@ -393,11 +400,37 @@ async def oauth_callback(
         folder_id=folder_id,
         folder_name=folder_name,
         folder_creation_operation_id=folder_creation_operation_id,
+        pending_folder_operation_id=pending_folder_operation_id
+        or (operation_id if not folder_id else None),
     )
     if existing is None:
         await google_drive_repo.create_active_connection(user_id, **connection_kwargs)
     else:
         await google_drive_repo.replace_active_connection(user_id, **connection_kwargs)
+
+    if connection_kwargs["pending_folder_operation_id"]:
+        pending = connection_kwargs["pending_folder_operation_id"]
+        try:
+            matches = await google_drive.find_folder_by_creation_operation(
+                token_result.access_token, str(pending)
+            )
+            folder = matches[0] if len(matches) == 1 else None
+            if len(matches) > 1:
+                return _redirect_result("provider_error")
+            if folder is None:
+                folder = await google_drive.create_folder(
+                    token_result.access_token, name=FOLDER_NAME, operation_id=pending
+                )
+            completed = await google_drive_repo.complete_folder_operation(
+                user_id,
+                folder_id=str(folder["id"]),
+                folder_name=str(folder.get("name") or FOLDER_NAME),
+                operation_id=pending,
+            )
+            if completed is None:
+                return _redirect_result("provider_error")
+        except Exception:
+            return _redirect_result("provider_error")
 
     return _redirect_result("connected")
 
@@ -457,16 +490,19 @@ def _managed_route(handler: Any) -> Any:
     @functools.wraps(handler)
     async def wrapped(*args: Any, **kwargs: Any) -> Any:
         user = kwargs.get("user")
-        try:
-            return await handler(*args, **kwargs)
-        except _DriveDomainError as exc:
-            return _error(exc.code, exc.http_status)
-        except google_drive.GoogleDriveError as exc:
-            if exc.code == "GOOGLE_DRIVE_UNAUTHORIZED" and user:
-                await google_drive_repo.set_revoked(str(user["id"]))
-                return _error("GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN)
-            http_status = _DRIVE_ERROR_HTTP.get(exc.code, status.HTTP_503_SERVICE_UNAVAILABLE)
-            return _error(exc.code, http_status)
+        for auth_attempt in range(2):
+            try:
+                return await handler(*args, **kwargs)
+            except _DriveDomainError as exc:
+                return _error(exc.code, exc.http_status)
+            except google_drive.GoogleDriveError as exc:
+                if exc.code == "GOOGLE_DRIVE_UNAUTHORIZED" and user:
+                    if auth_attempt == 0:
+                        continue
+                    await google_drive_repo.set_revoked(str(user["id"]))
+                    return _error("GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN)
+                http_status = _DRIVE_ERROR_HTTP.get(exc.code, status.HTTP_503_SERVICE_UNAVAILABLE)
+                return _error(exc.code, http_status)
 
     return wrapped
 
@@ -570,14 +606,25 @@ async def _connection_access_token(user_id: str) -> tuple[dict[str, Any], str]:
         raise _DriveDomainError("GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN) from None
     try:
         token_result = await google_drive_oauth.refresh_access_token(decrypted.plaintext.decode())
+    except google_drive_oauth.GoogleDriveOAuthError as exc:
+        if exc.code == "GOOGLE_DRIVE_INVALID_GRANT":
+            await google_drive_repo.set_revoked(user_id)
+            raise _DriveDomainError(
+                "GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN
+            ) from None
+        raise _DriveDomainError(
+            "GOOGLE_DRIVE_REFRESH_FAILED", status.HTTP_503_SERVICE_UNAVAILABLE
+        ) from None
     except Exception:
         raise _DriveDomainError(
             "GOOGLE_DRIVE_REFRESH_FAILED", status.HTTP_503_SERVICE_UNAVAILABLE
         ) from None
+    if decrypted.rotated is not None:
+        await google_drive_repo.update_refresh_token_ciphertext(user_id, decrypted.rotated)
     return row, str(token_result.access_token)
 
 
-def _binding_secret(user_id: str, row: dict[str, Any]) -> bytes:
+async def _binding_secret(user_id: str, row: dict[str, Any]) -> bytes:
     try:
         decrypted: token_cipher.Decrypted = token_cipher.decrypt(
             user_id,
@@ -590,6 +637,8 @@ def _binding_secret(user_id: str, row: dict[str, Any]) -> bytes:
         )
     except ValueError:
         raise _DriveDomainError("GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN) from None
+    if decrypted.rotated is not None:
+        await google_drive_repo.update_binding_secret_ciphertext(user_id, decrypted.rotated)
     return cast(bytes, decrypted.plaintext)
 
 
@@ -693,7 +742,7 @@ async def _create_with_binding(
         if exc.code not in _WRITE_AMBIGUOUS_CODES:
             raise
         created = await _reconcile_created_file(
-            access_token, operation_id, patient_ref, binding_secret, user_id, content
+            access_token, folder_id, operation_id, patient_ref, binding_secret, user_id, content
         )
     file_id = str(created["id"])
     final_properties = _file_properties(
@@ -711,12 +760,13 @@ async def _create_with_binding(
         if exc.code not in _WRITE_AMBIGUOUS_CODES:
             raise
         return await _reconcile_created_file(
-            access_token, operation_id, patient_ref, binding_secret, user_id, content
+            access_token, folder_id, operation_id, patient_ref, binding_secret, user_id, content
         )
 
 
 async def _reconcile_created_file(
     access_token: str,
+    folder_id: str,
     operation_id: str,
     patient_ref: str,
     binding_secret: bytes,
@@ -727,7 +777,27 @@ async def _reconcile_created_file(
     found = await google_drive.find_file_by_creation_operation(access_token, operation_id)
     if found is None:
         raise _DriveDomainError("DRIVE_WRITE_UNKNOWN", status.HTTP_503_SERVICE_UNAVAILABLE)
-    file_id = str(found["id"])
+    found_id = found.get("id")
+    properties = found.get("appProperties") or {}
+    expected_binding_macs = set()
+    if found_id:
+        expected_binding_macs = {
+            _binding_mac(binding_secret, str(found_id), patient_ref, user_id),
+            _binding_mac(binding_secret, operation_id, patient_ref, user_id),
+        }
+    if (
+        not found.get("id")
+        or found.get("trashed")
+        or found.get("mimeType") != "text/plain"
+        or folder_id not in (found.get("parents") or [])
+        or properties.get("managedBy") != google_drive.MANAGED_BY
+        or properties.get("workspaceSchema") != google_drive.WORKSPACE_SCHEMA
+        or properties.get("patientRef") != patient_ref
+        or properties.get("creationOperationId") != operation_id
+        or properties.get("bindingMac") not in expected_binding_macs
+    ):
+        raise _DriveDomainError("DRIVE_OPERATION_REUSED", status.HTTP_409_CONFLICT)
+    file_id = str(found_id)
     properties = _file_properties(
         patient_ref, operation_id, _binding_mac(binding_secret, file_id, patient_ref, user_id)
     )
@@ -766,14 +836,20 @@ async def recreate_workspace(
     pending = row.get("pending_folder_operation_id")
     if pending:
         folders = await google_drive.find_folder_by_creation_operation(access_token, str(pending))
+        if len(folders) > 1:
+            raise _DriveDomainError("DRIVE_OPERATION_REUSED", status.HTTP_409_CONFLICT)
         if folders:
             folder = folders[0]
-            await google_drive_repo.complete_folder_operation(
+            completed = await google_drive_repo.complete_folder_operation(
                 user_id,
                 folder_id=str(folder["id"]),
                 folder_name=str(folder.get("name") or FOLDER_NAME),
                 operation_id=pending,
             )
+            if completed is None:
+                raise _DriveDomainError(
+                    "DRIVE_WORKSPACE_RECOVERY_PENDING", status.HTTP_409_CONFLICT
+                )
             return {"status": "workspace_available"}
         if not body.acknowledge_possible_orphan:
             raise _DriveDomainError("DRIVE_WORKSPACE_RECOVERY_PENDING", status.HTTP_409_CONFLICT)
@@ -791,12 +867,14 @@ async def recreate_workspace(
         raise _DriveDomainError(
             "DRIVE_WORKSPACE_RECOVERY_PENDING", status.HTTP_409_CONFLICT
         ) from None
-    await google_drive_repo.complete_folder_operation(
+    completed = await google_drive_repo.complete_folder_operation(
         user_id,
         folder_id=str(folder["id"]),
         folder_name=str(folder.get("name") or FOLDER_NAME),
         operation_id=operation_id,
     )
+    if completed is None:
+        raise _DriveDomainError("DRIVE_WORKSPACE_RECOVERY_PENDING", status.HTTP_409_CONFLICT)
     return {"status": "workspace_available"}
 
 
@@ -968,7 +1046,7 @@ async def _managed_context(
     await _require_owned_patient(user_id, patient_id)
     row, access_token = await _connection_access_token(user_id)
     folder_id = await _ensure_folder(user_id, row, access_token)
-    secret = _binding_secret(user_id, row)
+    secret = await _binding_secret(user_id, row)
     patient_ref = _patient_ref(secret, user_id, str(patient_id))
     return row, access_token, folder_id, secret, patient_ref
 

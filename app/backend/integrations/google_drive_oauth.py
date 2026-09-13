@@ -127,9 +127,18 @@ async def refresh_access_token(refresh_token: str) -> TokenResponse:
         "refresh_token": refresh_token,
         "grant_type": "refresh_token",
     }
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        response = await client.post(_TOKEN_URL, data=payload)
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.post(_TOKEN_URL, data=payload)
+    except httpx.HTTPError as exc:
+        raise GoogleDriveOAuthError("GOOGLE_DRIVE_PROVIDER_ERROR", "token refresh failed") from exc
     if response.status_code != 200:
+        try:
+            error = response.json().get("error")
+        except (ValueError, AttributeError):
+            error = None
+        if error == "invalid_grant":
+            raise GoogleDriveOAuthError("GOOGLE_DRIVE_INVALID_GRANT", "refresh grant revoked")
         raise GoogleDriveOAuthError("GOOGLE_DRIVE_PROVIDER_ERROR", "token refresh failed")
     body: dict[str, Any] = response.json()
     return TokenResponse(

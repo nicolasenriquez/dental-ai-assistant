@@ -223,22 +223,26 @@ async def test_auto_title_is_private_deterministic_and_non_blocking(monkeypatch)
     async def patient(*_args):
         return {"first_name": "Camila", "last_name": "Rojas", "rut_masked": "12.345.•••-6"}
 
-    async def update(*_args):
+    async def update(*_args, **_kwargs):
         captured.append(_args[-1])
 
     monkeypatch.setattr(service.patients_repo, "get_patient", patient)
     monkeypatch.setattr(service.repository, "update_title_if_default", update)
-    await service._set_contextual_title(UUID(int=1), UUID(int=2), UUID(int=3), "Dolor molar")
+    await service._set_contextual_title(
+        UUID(int=1), UUID(int=2), UUID(int=3), UUID(int=4), "Dolor molar"
+    )
 
     assert captured[0].startswith("Camila Rojas · Evolución · ")
     assert "12.345" not in captured[0]
     assert "Dolor" not in captured[0]
 
-    async def fail(*_args):
+    async def fail(*_args, **_kwargs):
         raise RuntimeError("metadata unavailable")
 
     monkeypatch.setattr(service.repository, "update_title_if_default", fail)
-    await service._set_contextual_title(UUID(int=1), UUID(int=2), UUID(int=3), "Nota privada")
+    await service._set_contextual_title(
+        UUID(int=1), UUID(int=2), UUID(int=3), UUID(int=4), "Nota privada"
+    )
 
 
 async def test_clinical_turn_releases_lock_when_setup_fails(monkeypatch) -> None:
@@ -370,6 +374,28 @@ def test_clinical_turn_outcomes_are_migrated() -> None:
     assert "turn_status" in migration
     assert "turn_error_code" in migration
     assert "'running', 'completed', 'failed'" in migration
+
+
+def test_clinical_write_paths_hold_the_thread_fence() -> None:
+    repository = (Path(__file__).parents[1] / "db" / "clinical_assistant_repo.py").read_text(
+        encoding="utf-8"
+    )
+    assert repository.count("SELECT active_turn_id\n            FROM clinical_threads") >= 3
+    assert repository.count("FOR UPDATE") >= 4
+    assert "class StaleClinicalTurnError" in repository
+    assert "AND t.active_turn_id = $4" in repository
+
+
+def test_auth_downgrade_refuses_federated_users_without_mutating_data() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "alembic"
+        / "versions"
+        / "0012_add_auth_identities.py"
+    ).read_text(encoding="utf-8")
+    assert "password_hash IS NULL" in migration
+    assert "raise RuntimeError" in migration
+    assert "DROP FROM users" not in migration
 
 
 def test_production_compose_starts_whisper_without_a_profile() -> None:
