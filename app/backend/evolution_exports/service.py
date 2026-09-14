@@ -7,12 +7,14 @@ import hmac
 import logging
 import re
 from collections.abc import Iterable, Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
 from asyncpg import Connection, Pool
+from fastapi import BackgroundTasks
 
 from backend import config
 from backend.auth import token_cipher
@@ -28,6 +30,11 @@ JOURNAL_DELIMITER = "=" * 60
 JOURNAL_CONTENT_HASH_MISMATCH = "JOURNAL_CONTENT_HASH_MISMATCH"
 JOURNAL_BLOCK_TOO_LARGE = "JOURNAL_BLOCK_TOO_LARGE"
 JOURNAL_IDENTITY_CONFLICT = "JOURNAL_IDENTITY_CONFLICT"
+
+
+class DriveConnectionRequiredError(RuntimeError):
+    """Recovery cannot start until the owner's Drive connection is usable."""
+
 
 _PERIOD_PATTERNS = {
     "weekly": re.compile(r"^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$"),
@@ -181,6 +188,62 @@ def recovery_mode(previous_status: str) -> str:
     }.get(previous_status, "invalid")
 
 
+def drive_export_state(export: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose durable export state without provider or operation identifiers."""
+    state: dict[str, Any] = {"status": str(export["status"])}
+    error_code = export.get("last_error_code")
+    if error_code:
+        state["error_code"] = str(error_code)
+
+    period_type = export.get("period_type")
+    period_key = export.get("period_key")
+    if period_type is not None and period_key is not None:
+        journal: dict[str, Any] = {
+            "period_type": str(period_type),
+            "period_key": str(period_key),
+        }
+        raw_part = export.get("journal_part")
+        if raw_part is not None:
+            part = int(raw_part)
+            if part >= 1:
+                journal["journal_part"] = part
+                with suppress(ValueError):
+                    journal["display_name"] = journal_identity(
+                        str(period_type), str(period_key), part
+                    ).name
+        state["journal"] = journal
+
+    synced_at = export.get("synced_at")
+    if synced_at is not None:
+        state["synced_at"] = synced_at
+    return state
+
+
+async def request_export_recovery(
+    owner_user_id: UUID | str,
+    evolution_id: UUID | str,
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """Validate and schedule one guarded recovery without doing Drive I/O."""
+    export = await evolution_exports_repo.get_export(owner_user_id, evolution_id)
+    if export is None:
+        raise LookupError("Evolution export not found")
+
+    status = str(export["status"])
+    if status == "synced":
+        return drive_export_state(export)
+    if status == "failed":
+        connection = await google_drive_repo.get_connection(owner_user_id)
+        if connection is None or connection.get("status") != "active":
+            raise DriveConnectionRequiredError
+    if status not in {"pending", "failed", "syncing", "unknown"}:
+        raise ValueError("Unsupported export status")
+
+    # Claiming, stale evaluation, and unknown write prohibition happen in sync_export.
+    schedule_export(background_tasks, owner_user_id, evolution_id, allow_retry=True)
+    return drive_export_state(export)
+
+
 def _journal_properties_match(metadata: Mapping[str, Any], identity: JournalIdentity) -> bool:
     """Accept only the exact five-key journal identity owned by this service."""
     return dict(metadata.get("appProperties") or {}) == identity.app_properties
@@ -285,20 +348,53 @@ async def _reconcile_ambiguous_write(
     access_token: str,
     *,
     folder_id: str,
+    continue_if_absent: bool = False,
 ) -> dict[str, Any] | None:
     """Resolve one ambiguous write by marker presence; never blindly retry."""
-    part = int(export["journal_part"])
-    matches = await google_drive.find_journal_files(
-        access_token,
-        folder_id=folder_id,
-        period_type=str(export["period_type"]),
-        period_key=str(export["period_key"]),
-        journal_part=part,
-    )
-    identity = journal_identity(str(export["period_type"]), str(export["period_key"]), part)
-    exact = [metadata for metadata in matches if _journal_properties_match(metadata, identity)]
-    file = resolve_unique_journal(exact)
+    raw_part = export.get("journal_part")
+    if raw_part is None:
+        file = None
+        part = 0
+    else:
+        part = int(raw_part)
+        try:
+            matches = await google_drive.find_journal_files(
+                access_token,
+                folder_id=folder_id,
+                period_type=str(export["period_type"]),
+                period_key=str(export["period_key"]),
+                journal_part=part,
+            )
+            identity = journal_identity(str(export["period_type"]), str(export["period_key"]), part)
+            exact = [
+                metadata for metadata in matches if _journal_properties_match(metadata, identity)
+            ]
+            file = resolve_unique_journal(exact)
+        except ValueError as exc:
+            return cast(
+                dict[str, Any] | None,
+                await evolution_exports_repo.update_export_status(
+                    conn,
+                    owner_user_id,
+                    export["evolution_id"],
+                    "unknown",
+                    last_error_code=str(exc),
+                ),
+            )
+        except google_drive.GoogleDriveError:
+            return cast(
+                dict[str, Any] | None,
+                await evolution_exports_repo.update_export_status(
+                    conn,
+                    owner_user_id,
+                    export["evolution_id"],
+                    "unknown",
+                    last_error_code="DRIVE_WRITE_UNKNOWN",
+                ),
+            )
     if file is None:
+        if continue_if_absent:
+            return None
         return cast(
             dict[str, Any] | None,
             await evolution_exports_repo.update_export_status(
@@ -309,7 +405,19 @@ async def _reconcile_ambiguous_write(
                 last_error_code="DRIVE_WRITE_UNKNOWN",
             ),
         )
-    content = await google_drive.download_file(access_token, str(file["id"]))
+    try:
+        content = await google_drive.download_file(access_token, str(file["id"]))
+    except google_drive.GoogleDriveError:
+        return cast(
+            dict[str, Any] | None,
+            await evolution_exports_repo.update_export_status(
+                conn,
+                owner_user_id,
+                export["evolution_id"],
+                "unknown",
+                last_error_code="DRIVE_WRITE_UNKNOWN",
+            ),
+        )
     marker = f"Dental AI ID: {export['evolution_id']}\n".encode()
     if marker not in content:
         return cast(
@@ -338,6 +446,37 @@ async def _reconcile_ambiguous_write(
             owner_user_id,
             export["evolution_id"],
             "synced",
+        ),
+    )
+
+
+async def _write_journal(
+    access_token: str,
+    *,
+    folder_id: str,
+    identity: JournalIdentity,
+    existing: Mapping[str, Any] | None,
+    current: bytes,
+    journal_bytes: bytes,
+) -> dict[str, Any]:
+    if existing is None:
+        return cast(
+            dict[str, Any],
+            await google_drive.create_file(
+                access_token,
+                folder_id=folder_id,
+                name=identity.name,
+                content=journal_bytes,
+                app_properties=identity.app_properties,
+            ),
+        )
+    return cast(
+        dict[str, Any],
+        await google_drive.update_file(
+            access_token,
+            file_id=str(existing["id"]),
+            content=current + journal_bytes,
+            app_properties=identity.app_properties,
         ),
     )
 
@@ -386,10 +525,25 @@ async def sync_export(
         )
         if export is None:
             return None
+        mode = recovery_mode(str(claimed["previous_status"]))
         try:
             journal_bytes = verify_persisted_block(
                 str(export["journal_block"]), str(export["content_hash"])
             )
+            if (
+                mode in {"verify_only", "reconcile_then_sync"}
+                and export.get("journal_part") is not None
+            ):
+                reconciled = await _reconcile_ambiguous_write(
+                    lock_conn,
+                    owner_user_id,
+                    export,
+                    access_token,
+                    folder_id=folder_id,
+                    continue_if_absent=mode == "reconcile_then_sync",
+                )
+                if reconciled is not None or mode == "verify_only":
+                    return reconciled
             contents, files = await _journal_parts(
                 access_token,
                 folder_id=folder_id,
@@ -441,7 +595,7 @@ async def sync_export(
                 ),
             )
 
-        if recovery_mode(str(claimed["previous_status"])) == "verify_only":
+        if mode == "verify_only":
             return cast(
                 dict[str, Any] | None,
                 await evolution_exports_repo.update_export_status(
@@ -455,39 +609,48 @@ async def sync_export(
 
         part = select_journal_part(contents, journal_bytes)
         existing = files.get(part)
-        if int(export.get("journal_part") or 0) != part or (
+        target_changed = int(export.get("journal_part") or 0) != part or (
             existing is None and export.get("drive_file_id") is not None
-        ):
-            export = (
-                await evolution_exports_repo.set_remote_target(
-                    lock_conn,
-                    owner_user_id,
-                    evolution_id,
-                    journal_part=part,
-                    drive_file_id=None,
-                    drive_version=None,
-                )
-                or export
+        )
+        if target_changed:
+            updated = await evolution_exports_repo.set_remote_target(
+                lock_conn,
+                owner_user_id,
+                evolution_id,
+                journal_part=part,
+                drive_file_id=None,
+                drive_version=None,
             )
+            if updated is None:
+                return None
+            export = updated
+        elif existing is not None and (
+            export.get("drive_file_id") != existing.get("id")
+            or export.get("drive_version") != existing.get("version")
+        ):
+            updated = await evolution_exports_repo.set_remote_target(
+                lock_conn,
+                owner_user_id,
+                evolution_id,
+                journal_part=part,
+                drive_file_id=str(existing["id"]),
+                drive_version=str(existing.get("version") or "") or None,
+            )
+            if updated is None:
+                return None
+            export = updated
 
         identity = journal_identity(period_type, period_key, part)
         try:
-            if existing is None:
-                remote = await google_drive.create_file(
-                    access_token,
-                    folder_id=folder_id,
-                    name=identity.name,
-                    content=journal_bytes,
-                    app_properties=identity.app_properties,
-                )
-            else:
-                current = next(content for number, content in contents if number == part)
-                remote = await google_drive.update_file(
-                    access_token,
-                    file_id=str(existing["id"]),
-                    content=current + journal_bytes,
-                    app_properties=identity.app_properties,
-                )
+            current = next((content for number, content in contents if number == part), b"")
+            remote = await _write_journal(
+                access_token,
+                folder_id=folder_id,
+                identity=identity,
+                existing=existing,
+                current=current,
+                journal_bytes=journal_bytes,
+            )
         except google_drive.GoogleDriveError as exc:
             if exc.code in {"DRIVE_UNAVAILABLE", "DRIVE_WRITE_UNKNOWN"}:
                 return await _reconcile_ambiguous_write(
@@ -497,16 +660,74 @@ async def sync_export(
                     access_token,
                     folder_id=folder_id,
                 )
-            return cast(
-                dict[str, Any] | None,
-                await evolution_exports_repo.update_export_status(
-                    lock_conn,
-                    owner_user_id,
-                    evolution_id,
-                    "failed",
-                    last_error_code=exc.code,
-                ),
-            )
+            if exc.code == "DRIVE_VERSION_CONFLICT":
+                try:
+                    contents, files = await _journal_parts(
+                        access_token,
+                        folder_id=folder_id,
+                        period_type=period_type,
+                        period_key=period_key,
+                    )
+                    part = select_journal_part(contents, journal_bytes)
+                    existing = files.get(part)
+                    if int(export.get("journal_part") or 0) != part:
+                        updated = await evolution_exports_repo.set_remote_target(
+                            lock_conn,
+                            owner_user_id,
+                            evolution_id,
+                            journal_part=part,
+                            drive_file_id=None,
+                            drive_version=None,
+                        )
+                        if updated is None:
+                            return None
+                        export = updated
+                    identity = journal_identity(period_type, period_key, part)
+                    current = next((content for number, content in contents if number == part), b"")
+                    remote = await _write_journal(
+                        access_token,
+                        folder_id=folder_id,
+                        identity=identity,
+                        existing=existing,
+                        current=current,
+                        journal_bytes=journal_bytes,
+                    )
+                except google_drive.GoogleDriveError as retry_exc:
+                    if retry_exc.code in {"DRIVE_UNAVAILABLE", "DRIVE_WRITE_UNKNOWN"}:
+                        return await _reconcile_ambiguous_write(
+                            lock_conn,
+                            owner_user_id,
+                            export,
+                            access_token,
+                            folder_id=folder_id,
+                        )
+                    exc = retry_exc
+                else:
+                    exc = None
+                if exc is None:
+                    pass
+                else:
+                    return cast(
+                        dict[str, Any] | None,
+                        await evolution_exports_repo.update_export_status(
+                            lock_conn,
+                            owner_user_id,
+                            evolution_id,
+                            "failed",
+                            last_error_code=exc.code,
+                        ),
+                    )
+            else:
+                return cast(
+                    dict[str, Any] | None,
+                    await evolution_exports_repo.update_export_status(
+                        lock_conn,
+                        owner_user_id,
+                        evolution_id,
+                        "failed",
+                        last_error_code=exc.code,
+                    ),
+                )
 
         await evolution_exports_repo.set_remote_target(
             lock_conn,
@@ -522,6 +743,41 @@ async def sync_export(
                 lock_conn, owner_user_id, evolution_id, "synced"
             ),
         )
+
+
+async def _run_background_export(
+    owner_user_id: str, evolution_id: str, *, allow_retry: bool
+) -> None:
+    """Run best-effort export work from stable IDs, never request state."""
+    try:
+        await sync_export(owner_user_id, evolution_id, allow_retry=allow_retry)
+    except Exception:
+        logger.exception(
+            "evolution_export.background_failed",
+            extra={"user_id": owner_user_id, "evolution_id": evolution_id},
+        )
+
+
+async def run_export_background(owner_user_id: str, evolution_id: str) -> None:
+    """Execute a normal pending export after the response has been sent."""
+    await _run_background_export(owner_user_id, evolution_id, allow_retry=False)
+
+
+async def run_export_recovery_background(owner_user_id: str, evolution_id: str) -> None:
+    """Execute an explicitly guarded recovery from stable IDs."""
+    await _run_background_export(owner_user_id, evolution_id, allow_retry=True)
+
+
+def schedule_export(
+    background_tasks: BackgroundTasks,
+    owner_user_id: UUID | str,
+    evolution_id: UUID | str,
+    *,
+    allow_retry: bool = False,
+) -> None:
+    """Schedule one FastAPI background task without retaining request state."""
+    task = run_export_recovery_background if allow_retry else run_export_background
+    background_tasks.add_task(task, str(owner_user_id), str(evolution_id))
 
 
 async def persist_approval_export(

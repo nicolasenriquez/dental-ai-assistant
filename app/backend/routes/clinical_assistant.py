@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from backend import config
 from backend.auth.dependencies import get_current_user
 from backend.clinical_assistant import service
 from backend.clinical_assistant.events import event
@@ -22,12 +23,21 @@ from backend.clinical_assistant.schemas import (
     PrepareSaveRequest,
     RegenerateDraftRequest,
 )
+from backend.evolution_exports import service as evolution_exports_service
 
 router = APIRouter(tags=["clinical-assistant"])
 
 
 def _user_id(user: dict[str, Any]) -> UUID:
     return UUID(str(user["id"]))
+
+
+def _require_same_origin(request: Request) -> None:
+    """Guard recovery mutations against cross-site requests."""
+    origin = request.headers.get("Origin", "")
+    fetch_site = request.headers.get("Sec-Fetch-Site")
+    if origin not in config.APP_ORIGINS or (fetch_site is not None and fetch_site != "same-origin"):
+        raise HTTPException(status_code=403, detail="Invalid origin")
 
 
 async def _response(owner: UUID, thread_id: UUID) -> ClinicalThreadResponse:
@@ -227,6 +237,7 @@ async def regenerate_draft(
 async def resolve_action(
     action_id: UUID,
     request: ActionResolutionRequest,
+    background_tasks: BackgroundTasks,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
@@ -240,6 +251,17 @@ async def resolve_action(
             raise HTTPException(status_code=410, detail={"code": "ACTION_EXPIRED"})
         if result.get("status") == "failed":
             raise HTTPException(status_code=502, detail={"code": "EVOLUTION_SAVE_FAILED"})
+        if result.get("status") == "approved":
+            resource_id = result.get("result_resource_id")
+            saved_result = result.get("result")
+            if resource_id is None and isinstance(saved_result, dict):
+                resource_id = saved_result.get("id")
+            if resource_id is not None:
+                evolution_exports_service.schedule_export(
+                    background_tasks,
+                    _user_id(user),
+                    UUID(str(resource_id)),
+                )
         return result
     except LookupError:
         raise HTTPException(status_code=404, detail="Acción no encontrada") from None
@@ -247,6 +269,26 @@ async def resolve_action(
         raise HTTPException(status_code=410, detail={"code": "ACTION_EXPIRED"}) from None
     except service.ProposalStaleError:
         raise HTTPException(status_code=409, detail={"code": "PROPOSAL_STALE"}) from None
+
+
+@router.post("/clinical/evolutions/{evolution_id}/drive-export/retry")
+async def retry_drive_export(
+    evolution_id: UUID,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Schedule state-aware export recovery after a same-origin request."""
+    _require_same_origin(request)
+    try:
+        state = await evolution_exports_service.request_export_recovery(
+            _user_id(user), evolution_id, background_tasks
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Exportación no encontrada") from None
+    except evolution_exports_service.DriveConnectionRequiredError:
+        raise HTTPException(status_code=409, detail={"code": "DRIVE_CONNECTION_REQUIRED"}) from None
+    return {"drive_export": state}
 
 
 @router.post("/clinical-actions/{action_id}/return-to-editing")

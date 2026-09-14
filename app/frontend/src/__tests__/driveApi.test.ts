@@ -70,6 +70,7 @@ type DriveApiSeam = {
     acknowledgePossibleOrphan: boolean,
   ) => Promise<unknown>;
   disconnectDrive?: () => Promise<unknown>;
+  retryClinicalDriveExport?: (evolutionId: string) => Promise<unknown>;
 };
 
 const seam = api as unknown as DriveApiSeam;
@@ -259,6 +260,27 @@ describe('managed Drive api wrappers', () => {
     const [url, init] = lastFetch();
     expect(url).toBe('/api/google-drive/disconnect');
     expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
+  });
+
+  it('retryClinicalDriveExport POSTs only the evolution identity in the path', async () => {
+    const state = {
+      drive_export: {
+        status: 'unknown',
+        journal: { period_type: 'weekly', period_key: '2026-W37', journal_part: 2 },
+      },
+    };
+    mockJson(state);
+    const result = await call(
+      seam.retryClinicalDriveExport,
+      'retryClinicalDriveExport',
+    )('evolution/1');
+
+    expect(result).toEqual(state);
+    const [url, init] = lastFetch();
+    expect(url).toBe('/api/clinical/evolutions/evolution%2F1/drive-export/retry');
+    expect(init.method).toBe('POST');
+    expect(init.body).toBeUndefined();
     expect(init.credentials).toBe('include');
   });
 });

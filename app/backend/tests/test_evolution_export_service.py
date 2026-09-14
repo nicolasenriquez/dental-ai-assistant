@@ -234,5 +234,61 @@ async def test_sync_export_claims_selects_and_confirms_new_journal(
     assert provider_calls == ["list", "create"]
 
 
+@pytest.mark.asyncio
+async def test_known_conflict_rollover_clears_target_before_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    export = vars(_export(journal_part=1, drive_file_id="journal-1", drive_version="7")).copy()
+    claimed = {**export, "previous_status": "pending"}
+    identity = service.journal_identity("weekly", "2026-W02", 1)
+    targets: list[tuple[int, object, object]] = []
+    selections = iter([1, 2])
+
+    async def claim(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return claimed
+
+    async def get_export(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return export
+
+    async def list_files(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+        return [{"id": "journal-1", "version": "7", "appProperties": identity.app_properties}]
+
+    async def download(*_args: object, **_kwargs: object) -> bytes:
+        return b"existing\n"
+
+    async def update(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise service.google_drive.GoogleDriveError("DRIVE_VERSION_CONFLICT", "conflict")
+
+    async def create(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return {"id": "journal-2", "version": "1"}
+
+    async def set_target(*_args: object, **kwargs: object) -> dict[str, object]:
+        targets.append(
+            (int(str(kwargs["journal_part"])), kwargs["drive_file_id"], kwargs["drive_version"])
+        )
+        export.update(kwargs)
+        return export
+
+    async def set_status(*args: object, **_kwargs: object) -> dict[str, object]:
+        return {**export, "status": str(args[3])}
+
+    monkeypatch.setattr(service.evolution_exports_repo, "claim_export", claim)
+    monkeypatch.setattr(service.evolution_exports_repo, "get_export_with_connection", get_export)
+    monkeypatch.setattr(service.evolution_exports_repo, "set_remote_target", set_target)
+    monkeypatch.setattr(service.evolution_exports_repo, "update_export_status", set_status)
+    monkeypatch.setattr(service.evolution_exports_repo, "period_lock", lambda *_args: _PeriodLock())
+    monkeypatch.setattr(service, "_connection_access_token", lambda *_args: _active_connection())
+    monkeypatch.setattr(service, "select_journal_part", lambda *_args, **_kwargs: next(selections))
+    monkeypatch.setattr(service.google_drive, "list_journal_files", list_files)
+    monkeypatch.setattr(service.google_drive, "download_file", download)
+    monkeypatch.setattr(service.google_drive, "update_file", update)
+    monkeypatch.setattr(service.google_drive, "create_file", create)
+
+    result = await service.sync_export(OWNER_ID, EVOLUTION_ID, pool=_Pool())
+
+    assert result is not None and result["status"] == "synced"
+    assert targets == [(2, None, None), (2, "journal-2", "1")]
+
+
 async def _active_connection() -> tuple[dict[str, str], str]:
     return ({"status": "active", "folder_id": "folder-1"}, "access-token")

@@ -425,6 +425,27 @@ export const returnClinicalActionToEditing = (actionId: string) =>
     `/clinical-actions/${actionId}/return-to-editing`,
     { method: 'POST', body: '{}' },
   );
+
+export type DriveExportStatus = 'pending' | 'syncing' | 'synced' | 'failed' | 'unknown';
+
+export interface DriveExportState {
+  status: DriveExportStatus;
+  error_code?: string;
+  journal?: {
+    period_type: 'weekly' | 'daily';
+    period_key: string;
+    journal_part?: number;
+    display_name?: string;
+  };
+  synced_at?: string;
+}
+
+export const retryClinicalDriveExport = (evolutionId: string) =>
+  request<{ drive_export: DriveExportState }>(
+    `/clinical/evolutions/${encodeURIComponent(evolutionId)}/drive-export/retry`,
+    { method: 'POST' },
+  );
+
 export const transcribeAudio = async (
   audio: Blob,
   signal?: AbortSignal,

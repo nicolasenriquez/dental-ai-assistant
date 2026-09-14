@@ -105,6 +105,18 @@ async def test_only_five_minute_stale_syncing_is_reclaimable(
         assert row["previous_status"] == "syncing"
 
 
+@pytest.mark.parametrize("status", ["failed", "unknown"])
+async def test_retry_claim_returns_previous_status(db, status: str) -> None:
+    owner, evolution = await _make_export(db, status=status)
+    async with db.acquire() as conn:
+        row = await evolution_exports_repo.claim_export(
+            conn, owner, evolution, allow_retry=True, stale_after_seconds=300
+        )
+
+    assert row is not None
+    assert row["previous_status"] == status
+
+
 async def test_period_lock_serializes_six_workers_without_transaction_or_deadlock(db) -> None:
     period_lock = getattr(evolution_exports_repo, "period_lock", None)
     assert callable(period_lock), "task 6.3 must implement evolution_exports_repo.period_lock"
