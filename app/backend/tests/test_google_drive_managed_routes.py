@@ -107,6 +107,7 @@ def managed_context(monkeypatch):
         },
         "file": {
             "id": file_id,
+            "_revision": '"revision-7"',
             "name": "evolucion.txt",
             "mimeType": "text/plain",
             "modifiedTime": "2026-09-11T12:00:00Z",
@@ -124,6 +125,7 @@ def managed_context(monkeypatch):
         },
         "source_file": {
             "id": "source-1",
+            "_revision": '"source-revision-1"',
             "name": "fuente.md",
             "mimeType": "text/markdown",
             "size": "20",
@@ -306,11 +308,17 @@ def managed_context(monkeypatch):
         file_id: str,
         content: bytes,
         app_properties: dict[str, str],
+        revision: str | None = None,
     ):
         state["calls"].append(
             (
                 "update_file",
-                {"file_id": file_id, "content": content, "app_properties": dict(app_properties)},
+                {
+                    "file_id": file_id,
+                    "content": content,
+                    "app_properties": dict(app_properties),
+                    "revision": revision,
+                },
             )
         )
         if state["update_error"] is not None:
@@ -772,6 +780,24 @@ async def test_update_version_conflict_does_not_write(
     assert not _calls(managed_context, "update_file")
 
 
+async def test_update_binds_write_to_provider_revision(
+    managed_client: AsyncClient, managed_context: dict[str, Any]
+) -> None:
+    response = await managed_client.put(
+        "/api/google-drive/files/file-1",
+        headers={**_headers(), "Content-Type": "application/json"},
+        json={
+            "patient_id": PATIENT_ID,
+            "operation_id": str(uuid4()),
+            "content": "cambio\n",
+            "expected_version": "7",
+        },
+    )
+
+    assert response.status_code == 200
+    assert _calls(managed_context, "update_file")[0][1]["revision"] == '"revision-7"'
+
+
 async def test_uncertain_create_reconciles_once_without_blind_retry(
     managed_client: AsyncClient, managed_context: dict[str, Any]
 ) -> None:
@@ -1084,6 +1110,50 @@ async def test_drive_request_body_limit_runs_before_json_parsing(
     assert response.status_code == 413
     assert not _calls(managed_context, "refresh_access_token")
     assert not _calls(managed_context, "create_file")
+
+
+async def test_drive_request_body_limit_stops_receiving_chunked_body() -> None:
+    from starlette.requests import Request
+
+    from backend.main import drive_request_body_limit
+
+    messages = [
+        {"type": "http.request", "body": b"x" * (MAX_REQUEST_BYTES // 2), "more_body": True},
+        {
+            "type": "http.request",
+            "body": b"x" * (MAX_REQUEST_BYTES // 2 + 1),
+            "more_body": True,
+        },
+        {"type": "http.request", "body": b"never-read", "more_body": False},
+    ]
+
+    async def receive() -> dict[str, Any]:
+        return messages.pop(0)
+
+    async def unexpected_call_next(_request: Request) -> None:
+        raise AssertionError("oversized request reached downstream")
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/google-drive/files",
+            "raw_path": b"/api/google-drive/files",
+            "query_string": b"",
+            "headers": [],
+            "scheme": "https",
+            "server": ("testserver", 443),
+            "client": ("testclient", 1),
+            "root_path": "",
+            "http_version": "1.1",
+        },
+        receive,
+    )
+
+    response = await drive_request_body_limit(request, unexpected_call_next)
+
+    assert response.status_code == 413
+    assert len(messages) == 1
 
 
 async def test_validation_error_does_not_echo_sensitive_input(

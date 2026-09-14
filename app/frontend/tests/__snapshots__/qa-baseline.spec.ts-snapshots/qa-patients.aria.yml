@@ -1,0 +1,26 @@
+- complementary:
+  - text: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]
+  - navigation "Navegación principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Asistente":
+      - /url: /assistant
+    - link "Chat":
+      - /url: /chat
+  - button "Abrir menú de usuario para qa@example.com"
+  - text: Dental AI Assistant
+- main:
+  - heading "Pacientes" [level=1]
+  - paragraph: Gestiona pacientes y sus evoluciones dentales.
+  - button "+ Nuevo paciente"
+  - text: Buscar por nombre o RUT
+  - textbox "Buscar por nombre o RUT":
+    - /placeholder: Buscar por nombre o RUT...
+  - status
+  - heading "PACIENTES" [level=2]
+  - link /Ana Pérez \d+ años RUT \d+\.\d+\.•••-6 Última evolución \d+ sep \d+ · \d+:\d+/:
+    - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
+    - strong: Ana Pérez
+    - text: ""
+    - time: /\d+ sep \d+ · \d+:\d+/

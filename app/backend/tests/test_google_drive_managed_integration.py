@@ -239,6 +239,7 @@ async def test_create_file_sends_backend_owned_txt_metadata_and_markers() -> Non
     assert result["id"] == "file-1"
     request = route.calls.last.request
     assert request.url.params["uploadType"] == "multipart"
+    assert request.url.params["fields"] == google_drive._FILE_FIELDS
     assert request.headers["content-type"].startswith("multipart/related")
     body = request.content
     assert b"text/plain" in body
@@ -263,6 +264,7 @@ async def test_update_file_sends_last_operation_marker_and_one_request() -> None
 
     assert result["version"] == "8"
     assert route.call_count == 1
+    assert route.calls.last.request.url.params["fields"] == google_drive._FILE_FIELDS
     assert route.calls.last.request.headers["if-match"] == '"revision-7"'
     assert b"lastOperationId" in route.calls.last.request.content
 

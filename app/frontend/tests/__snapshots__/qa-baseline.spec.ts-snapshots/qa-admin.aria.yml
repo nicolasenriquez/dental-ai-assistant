@@ -1,0 +1,29 @@
+- banner:
+  - heading "Administración de biblioteca" [level=1]
+  - paragraph: Agrega, resincroniza o elimina videos del corpus RAG.
+  - link "← Volver al chat":
+    - /url: /chat
+- button "+ Agregar video por URL"
+- button "Sincronizar canal"
+- button "Actualizar"
+- text: Buscar videos
+- textbox "Buscar videos":
+  - /placeholder: Buscar videos...
+- table "Videos disponibles en la biblioteca":
+  - caption: Videos disponibles en la biblioteca
+  - rowgroup:
+    - row "Título Fragmentos Agregado Acciones":
+      - columnheader "Título"
+      - columnheader "Fragmentos"
+      - columnheader "Agregado"
+      - columnheader "Acciones"
+  - rowgroup:
+    - row /Building Production RAG Pipelines 3 \d+-\d+-\d+ Sincronizar Eliminar/:
+      - cell "Building Production RAG Pipelines":
+        - link "Building Production RAG Pipelines":
+          - /url: https://www.youtube.com/watch?v=ProdRagPip1
+      - cell "3"
+      - cell /\d+-\d+-\d+/
+      - cell "Sincronizar Eliminar":
+        - button "Sincronizar"
+        - button "Eliminar"

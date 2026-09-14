@@ -171,7 +171,9 @@ async def get_file_metadata(access_token: str, file_id: str) -> dict[str, Any]:
         )
     if response.status_code != 200:
         raise _error_for_status(response.status_code)
-    return dict(response.json())
+    metadata = dict(response.json())
+    metadata["_revision"] = response.headers.get("ETag")
+    return metadata
 
 
 def _scoped_files_query(
@@ -344,7 +346,9 @@ async def get_source_metadata(access_token: str, file_id: str) -> dict[str, Any]
         )
     if response.status_code != 200:
         raise _error_for_status(response.status_code)
-    return dict(response.json())
+    metadata = dict(response.json())
+    metadata["_revision"] = response.headers.get("ETag")
+    return metadata
 
 
 async def download_blob(access_token: str, file_id: str) -> bytes:
@@ -390,7 +394,12 @@ async def export_workspace_document(access_token: str, file_id: str) -> bytes:
 
 
 async def update_blob(
-    access_token: str, file_id: str, content: bytes, mime_type: str
+    access_token: str,
+    file_id: str,
+    content: bytes,
+    mime_type: str,
+    *,
+    revision: str,
 ) -> dict[str, Any]:
     """One media-only write; preserve all source metadata and never retry."""
     try:
@@ -398,7 +407,11 @@ async def update_blob(
             response = await client.patch(
                 f"{_UPLOAD_FILES_URL}/{file_id}",
                 params={"uploadType": "media", "fields": _SOURCE_FIELDS},
-                headers={**_headers(access_token), "Content-Type": mime_type},
+                headers={
+                    **_headers(access_token),
+                    "Content-Type": mime_type,
+                    "If-Match": revision,
+                },
                 content=content,
             )
     except httpx.HTTPError as exc:
@@ -439,7 +452,7 @@ async def _write(
             response = await client.request(
                 method,
                 url,
-                params={"uploadType": "multipart"},
+                params={"uploadType": "multipart", "fields": _FILE_FIELDS},
                 headers={
                     **_headers(access_token),
                     "Content-Type": content_type,

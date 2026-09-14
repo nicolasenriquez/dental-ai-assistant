@@ -44,7 +44,34 @@ def _duration(path: str) -> float:
         text=True,
         check=True,
     )
-    return float(result.stdout.strip())
+    value = result.stdout.strip()
+    if value and value != "N/A":
+        return float(value)
+
+    packets = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "packet=pts_time,duration_time",
+            "-of",
+            "csv=p=0",
+            path,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    duration = 0.0
+    for line in packets.stdout.splitlines():
+        pts, _, packet_duration = line.partition(",")
+        if pts and pts != "N/A":
+            duration = max(
+                duration,
+                float(pts) + (float(packet_duration) if packet_duration != "N/A" else 0.0),
+            )
+    return duration
 
 
 def _finish_timed_out_inference(task: asyncio.Task[Any], path: str) -> None:

@@ -1255,6 +1255,9 @@ async def put_source_content(
         raise _DriveDomainError("GOOGLE_DRIVE_ACCESS_DENIED", 403)
     if not body.expectedVersion or str(metadata.get("version", "")) != body.expectedVersion:
         raise _DriveDomainError("DRIVE_VERSION_CONFLICT", 409)
+    revision = metadata.get("_revision")
+    if not revision:
+        raise _DriveDomainError("DRIVE_VERSION_CONFLICT", 409)
     try:
         raw = body.content.encode("utf-8")
     except UnicodeEncodeError:
@@ -1262,7 +1265,9 @@ async def put_source_content(
     if len(raw) > MAX_CONTENT_BYTES:
         raise _DriveDomainError("DRIVE_FILE_TOO_LARGE", 422)
     try:
-        updated = await google_drive.update_blob(token, file_id, raw, metadata["mimeType"])
+        updated = await google_drive.update_blob(
+            token, file_id, raw, metadata["mimeType"], revision=str(revision)
+        )
     except httpx.HTTPError:
         raise _DriveDomainError("DRIVE_WRITE_UNKNOWN", 503) from None
     return {**_source_body(updated), "content": body.content}
@@ -1433,6 +1438,9 @@ async def update_managed_file(
         raise _DriveDomainError("DRIVE_FILE_NOT_MANAGED", status.HTTP_404_NOT_FOUND)
     if str(metadata.get("version") or "") != body.expected_version:
         raise _DriveDomainError("DRIVE_FILE_CHANGED", status.HTTP_409_CONFLICT)
+    revision = metadata.get("_revision")
+    if not revision:
+        raise _DriveDomainError("DRIVE_FILE_CHANGED", status.HTTP_409_CONFLICT)
 
     operation_id = str(body.operation_id)
     existing_properties = metadata.get("appProperties") or {}
@@ -1447,6 +1455,7 @@ async def update_managed_file(
             file_id=file_id,
             content=content,
             app_properties=properties,
+            revision=str(revision),
         )
     except google_drive.GoogleDriveError as exc:
         if exc.code not in _WRITE_AMBIGUOUS_CODES:

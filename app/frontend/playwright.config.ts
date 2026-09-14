@@ -57,6 +57,10 @@ export default defineConfig({
       use: { storageState: authStatePath },
     },
     {
+      name: 'qa-baseline',
+      testMatch: /qa-baseline\.spec\.ts/,
+    },
+    {
       name: 'drive-bootstrap',
       testMatch: /drive-bootstrap\.spec\.ts/,
     },

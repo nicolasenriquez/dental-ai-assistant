@@ -721,17 +721,21 @@ async def create_pending_action(
     thread = _uuid(thread_id)
     turn = _uuid(turn_id)
     async with get_pg_pool().acquire() as conn, conn.transaction():
-        thread_state = await conn.fetchrow(
+        artifact_state = await conn.fetchrow(
             """
-            SELECT active_turn_id
-            FROM clinical_threads
-            WHERE id = $1 AND owner_user_id = $2
+            SELECT id
+            FROM clinical_turn_artifacts
+            WHERE id = $1 AND owner_user_id = $2 AND thread_id = $3
+              AND turn_id = $4 AND patient_id = $5 AND status = 'draft'
             FOR UPDATE
             """,
-            thread,
+            _uuid(artifact_id),
             owner,
+            thread,
+            turn,
+            _uuid(patient_id),
         )
-        if thread_state is None or thread_state["active_turn_id"] != turn:
+        if artifact_state is None:
             raise StaleClinicalTurnError
         await conn.execute(
             """
@@ -762,8 +766,9 @@ async def create_pending_action(
                 id, owner_user_id, thread_id, turn_id, artifact_id, patient_id, action_type,
                 proposal_payload, proposal_hash, status, expires_at, created_at
             ) SELECT $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'pending', $10, now()
-              FROM clinical_threads
-             WHERE id = $3 AND owner_user_id = $2 AND active_turn_id = $4
+             FROM clinical_turn_artifacts
+             WHERE id = $5 AND owner_user_id = $2 AND thread_id = $3
+               AND turn_id = $4 AND patient_id = $6 AND status = 'draft'
             ON CONFLICT (thread_id) WHERE status = 'pending' DO NOTHING
             RETURNING id, thread_id, turn_id, artifact_id, patient_id, action_type, proposal_payload,
                       proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id

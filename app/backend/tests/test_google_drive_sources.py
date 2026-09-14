@@ -18,6 +18,7 @@ _UPLOAD_FILES_URL = "https://www.googleapis.com/upload/drive/v3/files"
 def source_context(monkeypatch):
     metadata = {
         "id": "source-1",
+        "_revision": '"revision-3"',
         "name": "notas.md",
         "mimeType": "text/markdown",
         "modifiedTime": "2026-09-12T12:00:00Z",
@@ -58,7 +59,11 @@ async def test_source_read_and_save_have_no_patient_binding(source_context):
         assert saved.status_code == 200
         assert saved.json()["version"] == "4"
         google_drive.update_blob.assert_awaited_once_with(
-            "private-token", "source-1", b"# unchanged markdown\n", "text/markdown"
+            "private-token",
+            "source-1",
+            b"# unchanged markdown\n",
+            "text/markdown",
+            revision='"revision-3"',
         )
         token.assert_awaited_with("user-1")
 
@@ -167,11 +172,16 @@ async def test_source_adapter_updates_original_without_managed_properties() -> N
         return_value=httpx.Response(200, json={"id": "source-1", "version": "4"})
     )
     result = await google_drive.update_blob(
-        "request-token", "source-1", b"clinical notes", "text/plain"
+        "request-token",
+        "source-1",
+        b"clinical notes",
+        "text/plain",
+        revision='"revision-3"',
     )
     sent = request.calls.last.request
     assert result["version"] == "4"
     assert sent.url.params["uploadType"] == "media"
     assert sent.headers["Content-Type"] == "text/plain"
+    assert sent.headers["If-Match"] == '"revision-3"'
     assert sent.content == b"clinical notes"
     assert b"managedBy" not in sent.content

@@ -1,0 +1,33 @@
+- complementary:
+  - text: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]
+  - navigation "Navegación principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Asistente":
+      - /url: /assistant
+    - link "Chat":
+      - /url: /chat
+  - button "Abrir menú de usuario para qa@example.com"
+  - text: Dental AI Assistant
+- main:
+  - link "‹ Volver a Ana Pérez":
+    - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
+  - heading "Nueva evolución dental" [level=1]
+  - strong: Ana Pérez
+  - text: /\d+ años Nacimiento \d+\/\d+\/\d+ RUT \d+\.\d+\.•••-6 \d+ ene \d+ · \d+:\d+/
+  - button "Cambiar fecha y hora"
+  - list "Progreso de la evolución":
+    - listitem: 1. Capturar
+    - listitem: 2. Revisar
+    - listitem: 3. Confirmar
+  - complementary "Referencia de la última evolución":
+    - heading "Última atención" [level=2]
+    - time: /\d+ sep \d+ · \d+:\d+/
+    - paragraph: "Motivo / contexto: Control preventivo. Hallazgos: Sin hallazgos nuevos."
+    - link "Ver evolución completa":
+      - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/be3e2c0e-3158-48e9-b91f-7801e7d7b1e4
+  - heading "REGISTRO CLÍNICO INICIAL" [level=2]
+  - paragraph: Escribe la nota. La IA crea un borrador para revisar.
+  - textbox "Nota clínica"
+  - button "Generar borrador con IA" [disabled]

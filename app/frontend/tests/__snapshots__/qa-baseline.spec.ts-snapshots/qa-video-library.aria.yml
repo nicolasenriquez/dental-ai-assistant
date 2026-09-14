@@ -1,0 +1,51 @@
+- complementary:
+  - text: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]
+  - navigation "Navegación principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Asistente":
+      - /url: /assistant
+    - link "Chat":
+      - /url: /chat
+    - button "Nuevo chat"
+  - button "Buscar conversaciones": Buscar Ctrl K
+  - region "Conversaciones":
+    - text: ""
+    - region "Hoy":
+      - button "Hoy 1" [expanded]
+      - button "Conversación QA"
+      - button "Acciones para Conversación QA"
+  - status /1 de \d+ mensajes usados hoy/:
+    - strong: "1"
+    - text: /\/ \d+ mensajes hoy/
+    - progressbar "Cuota de mensajes diaria"
+  - button "Biblioteca"
+  - button "Abrir menú de usuario para qa@example.com"
+  - text: Dental AI Assistant
+- dialog "Biblioteca de videos":
+  - heading "Biblioteca de videos" [level=2]
+  - paragraph: 1 videos en la base de conocimiento
+  - button "Cerrar biblioteca de videos":
+    - img
+  - button "+ Agregar video"
+  - searchbox "Buscar videos"
+  - paragraph: Building Production RAG Pipelines
+  - link "Ver Building Production RAG Pipelines en YouTube":
+    - /url: https://www.youtube.com/watch?v=ProdRagPip1
+    - img
+    - text: Ver en YouTube
+- banner:
+  - strong: Conversación QA
+  - text: Biblioteca de videos
+  - button "Exportar"
+- article "Asistente":
+  - paragraph: Respuesta hidratada de QA.
+- article "Tú": Pregunta de streaming QA
+- article "Asistente":
+  - paragraph: Respuesta de streaming QA
+- textbox "Pregunta sobre la biblioteca de videos":
+  - /placeholder: Pregunta sobre la biblioteca de videos…
+- status:
+  - button "Iniciar dictado": Dictar
+- button "Enviar mensaje" [disabled]

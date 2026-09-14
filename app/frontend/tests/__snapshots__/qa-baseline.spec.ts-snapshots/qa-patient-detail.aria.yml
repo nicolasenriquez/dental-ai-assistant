@@ -1,0 +1,41 @@
+- complementary:
+  - text: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]
+  - navigation "Navegación principal":
+    - link "Pacientes":
+      - /url: /patients
+    - link "Asistente":
+      - /url: /assistant
+    - link "Chat":
+      - /url: /chat
+  - button "Abrir menú de usuario para qa@example.com"
+  - text: Dental AI Assistant
+- main:
+  - link "‹ Pacientes":
+    - /url: /patients
+  - heading "Ana Pérez" [level=1]
+  - text: /\d+ años Nacimiento \d+\/\d+\/\d+ RUT \d+\.\d+\.•••-6/
+  - button "Editar paciente"
+  - link "+ Nueva evolución":
+    - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/new
+  - region "Historial de evoluciones":
+    - heading "Historial de evoluciones" [level=2]
+    - paragraph: Registro cronológico de las atenciones clínicas.
+    - text: "1"
+    - list:
+      - listitem:
+        - link /Ver evolución del \d+ sep \d+ a las \d+:\d+/:
+          - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12/evolutions/be3e2c0e-3158-48e9-b91f-7801e7d7b1e4
+          - time: /\d+ sep \d+/
+          - time: /\d+:\d+/
+          - text: "Motivo / contexto: Control preventivo. Hallazgos: Sin hallazgos nuevos."
+  - complementary "Detalle de la evolución":
+    - article:
+      - heading "Evolución dental" [level=2]
+      - paragraph:
+        - text: "Fecha de atención:"
+        - time: /8 de septiembre de \d+ · \d+:\d+/
+      - heading "Motivo / contexto" [level=3]
+      - paragraph: Control preventivo.
+      - heading "Hallazgos" [level=3]
+      - paragraph: Sin hallazgos nuevos.

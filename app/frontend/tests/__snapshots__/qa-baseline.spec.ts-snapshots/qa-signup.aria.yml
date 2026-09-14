@@ -1,0 +1,10 @@
+- text: Dental AI Assistant Pregúntale cualquier cosa a la biblioteca de YouTube de Cole Medin
+- heading "Crear cuenta" [level=1]
+- text: Correo electrónico
+- textbox "Correo electrónico": new@example.com
+- text: Contraseña (8+ caracteres)
+- textbox "Contraseña (8+ caracteres)": corta
+- button "Registrarse"
+- text: ¿Ya tienes una cuenta?
+- link "Iniciar sesión":
+  - /url: /login

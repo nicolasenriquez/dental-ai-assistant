@@ -98,8 +98,7 @@ async def test_live_advisory_lock_serializes_quota_count_and_insert(db):
     assert sum(not isinstance(result, Exception) for result in results) == 1
     assert (
         sum(
-            isinstance(result, clinical_assistant_repo.ClinicalRateLimitError)
-            for result in results
+            isinstance(result, clinical_assistant_repo.ClinicalRateLimitError) for result in results
         )
         == 1
     )
@@ -123,9 +122,7 @@ async def test_live_stale_turn_cannot_write_message_artifact_or_action(db):
     with pytest.raises(clinical_assistant_repo.StaleClinicalTurnError):
         await clinical_assistant_repo.append_message(owner, thread, old_turn, "assistant", "late")
     with pytest.raises(clinical_assistant_repo.StaleClinicalTurnError):
-        await clinical_assistant_repo.set_active_patient(
-            owner, thread, patient, turn_id=old_turn
-        )
+        await clinical_assistant_repo.set_active_patient(owner, thread, patient, turn_id=old_turn)
     with pytest.raises(clinical_assistant_repo.StaleClinicalTurnError):
         await clinical_assistant_repo.create_artifact(
             owner, thread, old_turn, patient, uuid4(), {"draft": "late"}
@@ -156,3 +153,29 @@ async def test_live_stale_turn_cannot_write_message_artifact_or_action(db):
     assert assistant_messages == 0
     assert artifacts == 0
     assert actions == 0
+
+
+async def test_live_completed_turn_draft_can_create_pending_action(db):
+    owner = await _make_user(db)
+    thread = await _make_thread(db, owner)
+    patient = await _make_patient(db, owner)
+    turn = uuid4()
+    artifact = uuid4()
+    await clinical_assistant_repo.claim_turn(owner, thread, turn, "completed turn")
+    await clinical_assistant_repo.create_artifact(
+        owner, thread, turn, patient, artifact, {"draft": "ready"}
+    )
+    await clinical_assistant_repo.finish_turn(owner, thread, turn, "completed")
+
+    action = await clinical_assistant_repo.create_pending_action(
+        owner,
+        thread,
+        turn,
+        artifact,
+        patient,
+        "save_evolution",
+        {"draft": "ready"},
+        "hash-ready",
+    )
+
+    assert action["artifact_id"] == artifact

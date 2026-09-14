@@ -380,7 +380,8 @@ def test_clinical_write_paths_hold_the_thread_fence() -> None:
     repository = (Path(__file__).parents[1] / "db" / "clinical_assistant_repo.py").read_text(
         encoding="utf-8"
     )
-    assert repository.count("SELECT active_turn_id\n            FROM clinical_threads") >= 3
+    assert repository.count("SELECT active_turn_id\n            FROM clinical_threads") >= 2
+    assert "AND turn_id = $4 AND patient_id = $5 AND status = 'draft'" in repository
     assert repository.count("FOR UPDATE") >= 4
     assert "class StaleClinicalTurnError" in repository
     assert "AND t.active_turn_id = $4" in repository
@@ -388,10 +389,7 @@ def test_clinical_write_paths_hold_the_thread_fence() -> None:
 
 def test_auth_downgrade_refuses_federated_users_without_mutating_data() -> None:
     migration = (
-        Path(__file__).parents[1]
-        / "alembic"
-        / "versions"
-        / "0012_add_auth_identities.py"
+        Path(__file__).parents[1] / "alembic" / "versions" / "0012_add_auth_identities.py"
     ).read_text(encoding="utf-8")
     assert "password_hash IS NULL" in migration
     assert "raise RuntimeError" in migration

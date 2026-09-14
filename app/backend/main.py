@@ -163,9 +163,12 @@ async def drive_request_body_limit(
         content_length = request.headers.get("content-length", "")
         if content_length.isdigit() and int(content_length) > DRIVE_REQUEST_BODY_LIMIT:
             return JSONResponse(status_code=413, content={"error": "DRIVE_REQUEST_TOO_LARGE"})
-        body = await request.body()
-        if len(body) > DRIVE_REQUEST_BODY_LIMIT:
-            return JSONResponse(status_code=413, content={"error": "DRIVE_REQUEST_TOO_LARGE"})
+        body = bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body) > DRIVE_REQUEST_BODY_LIMIT:
+                return JSONResponse(status_code=413, content={"error": "DRIVE_REQUEST_TOO_LARGE"})
+        request._body = bytes(body)
     return await call_next(request)
 
 
