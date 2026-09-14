@@ -21,6 +21,7 @@ export function ApprovalRequestItem({
   embedded = false,
 }: ApprovalRequestItemProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const payload = item.action.proposal_payload;
   const evolutionAt = typeof payload?.evolution_at === 'string' ? payload.evolution_at : null;
   const committing = item.status === 'running';
@@ -34,13 +35,48 @@ export function ApprovalRequestItem({
     failed: 'No disponible',
   }[item.status];
 
+  const openDialog = () => {
+    if (dialogRef.current?.open) return;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.showModal();
+  };
+
+  const closeDialog = () => {
+    if (dialogRef.current?.open) dialogRef.current.close();
+    if (previousFocusRef.current?.isConnected) previousFocusRef.current.focus();
+    previousFocusRef.current = null;
+  };
+
   useEffect(() => {
-    if ((!pending || (embedded && committing)) && dialogRef.current?.open)
-      dialogRef.current.close();
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Tab' || !dialogRef.current?.open) return;
+
+      const items = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (!items.length) return;
+
+      const index = items.indexOf(document.activeElement as HTMLElement);
+      const atStart = index === 0;
+      const atEnd = index === items.length - 1;
+      if ((!event.shiftKey && !atEnd) || (event.shiftKey && !atStart)) return;
+
+      event.preventDefault();
+      (event.shiftKey ? items[items.length - 1] : items[0])?.focus();
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
+
+  useEffect(() => {
+    if ((!pending || (embedded && committing)) && dialogRef.current?.open) closeDialog();
   }, [committing, embedded, pending]);
   useEffect(() => {
-    if (autoOpen && item.status === 'pending' && !dialogRef.current?.open)
-      dialogRef.current?.showModal();
+    if (autoOpen && item.status === 'pending' && !dialogRef.current?.open) openDialog();
   }, [autoOpen, item.status]);
 
   if (saved) {
@@ -111,11 +147,7 @@ export function ApprovalRequestItem({
           </span>
           {embedded ? (
             <div className="clinical-evolution-approval-actions">
-              <button
-                type="button"
-                className="clinical-primary-button"
-                onClick={() => dialogRef.current?.showModal()}
-              >
+              <button type="button" className="clinical-primary-button" onClick={openDialog}>
                 Confirmar guardado
               </button>
               <button type="button" className="clinical-secondary-button" onClick={onBackToEdit}>
@@ -123,11 +155,7 @@ export function ApprovalRequestItem({
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              className="clinical-primary-button"
-              onClick={() => dialogRef.current?.showModal()}
-            >
+            <button type="button" className="clinical-primary-button" onClick={openDialog}>
               Continuar
             </button>
           )}
@@ -137,7 +165,10 @@ export function ApprovalRequestItem({
         ref={dialogRef}
         className="clinical-approval-dialog"
         aria-labelledby={`approval-${item.id}`}
-        onCancel={(event) => committing && event.preventDefault()}
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!committing) closeDialog();
+        }}
       >
         <div className="clinical-approval-dialog__body">
           <h2 id={`approval-${item.id}`}>Guardar evolución</h2>
@@ -160,7 +191,7 @@ export function ApprovalRequestItem({
             disabled={committing}
             autoFocus
             onClick={() => {
-              dialogRef.current?.close();
+              closeDialog();
               onBackToEdit();
             }}
           >

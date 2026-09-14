@@ -69,9 +69,22 @@ interactivos con datos deterministas en la frontera HTTP.
 3. Abrir el menú de conversación y elegir eliminar.
    - expect: El diálogo destructivo se puede cancelar.
 4. Abrir la biblioteca y el diálogo de agregar video.
-   - expect: Ambos diálogos tienen controles accesibles y cierre explícito.
+   - expect: Ambos diálogos tienen controles accesibles, cierre por Escape/cancelar y restauración de foco.
 5. Cambiar a `390x844` y abrir/cerrar navegación.
    - expect: No existe overflow horizontal.
+
+#### 3.2. chat-retry-and-queue-edge-cases
+
+**File:** `tests/qa-baseline.spec.ts`
+
+**Steps:**
+
+1. Hacer fallar una vez la hidratación de una conversación.
+   - expect: Se muestra el estado de error y `Reintentar` recupera el historial.
+2. Hacer fallar una vez el envío SSE.
+   - expect: Se muestra el error, el mensaje permanece en el compositor y el reintento produce respuesta.
+3. Mantener un stream activo y enviar un segundo mensaje.
+   - expect: El segundo mensaje queda en cola con editar/eliminar y se drena al completar el primero.
 
 ### 4. Asistente clínico y Drive
 
@@ -119,13 +132,32 @@ interactivos con datos deterministas en la frontera HTTP.
 
 1. Recorrer `/patients`, `/patients/:patientId`, `/patients/:patientId/evolutions/:evolutionId`,
    `/patients/:patientId/evolutions/new`, `/chat`, `/c/:conversationId`, `/assistant`,
-   `/a/:threadId`, `/admin` y una ruta 404 en `1440x1000`, `1280x800`, `1024x768` y `390x844`.
+   `/a/:threadId`, `/admin`, `/` y una ruta 404 en `1440x1000`, `1280x800`, `1024x768` y `390x844`.
    - expect: Cada ruta muestra un elemento principal visible.
    - expect: El documento no presenta overflow horizontal.
 
+### 7. Edge cases de foco
+
+#### 7.1. dialog-focus-containment-and-restoration
+
+**File:** `tests/qa-baseline.spec.ts`
+
+La suite debe verificar como regresión los tres contratos de foco corregidos:
+
+- `AddVideoModal`: `Tab` y `Shift+Tab` mantienen el foco dentro del diálogo y
+  Escape lo cierra restaurando el foco al disparador.
+- Aprobación clínica nativa: el foco queda contenido en `<dialog>`, Escape y
+  las acciones de salida lo cierran restaurando el foco al disparador.
+- Eliminación de conversación: al cancelar, el foco vuelve al disparador del
+  menú.
+
+El resultado esperado tras la corrección es `PASS`: `Tab` y `Shift+Tab` quedan
+contenidos, Escape/cancelar cierran sin perder contexto y el foco vuelve al
+disparador.
+
 ## Evidence policy
 
-- `PASS`: assertions observables, snapshot cuando corresponda y ausencia de errores de runtime.
+- `PASS`: assertions observables, snapshot cuando corresponda y ausencia de errores de runtime o requests API no declarados.
 - `BLOCKED`: dependencia externa o credencial no disponible; no se interpreta como fallo de UI.
 - `NOT RUN`: cobertura opt-in, como Google Provider Smoke, no ejecutada en el baseline determinista.
 

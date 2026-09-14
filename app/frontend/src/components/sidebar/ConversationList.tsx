@@ -329,8 +329,10 @@ export function ConversationRow({
                 type="button"
                 className="sidebar-menu-item sidebar-menu-item--danger"
                 role="menuitem"
-                onClick={() => {
+                onClick={(event) => {
+                  event.preventDefault();
                   setMenuOpen(false);
+                  triggerRef.current?.focus();
                   onDeleteRequest();
                 }}
               >

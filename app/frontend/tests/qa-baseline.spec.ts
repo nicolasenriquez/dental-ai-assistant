@@ -91,6 +91,30 @@ interface QaRouteOptions {
   authenticated?: boolean;
   admin?: boolean;
   driveEnabled?: boolean;
+  conversationLoadFailures?: number;
+  streamFailuresBeforeSuccess?: number;
+  holdFirstStream?: boolean;
+}
+
+interface QaRouteControls {
+  releaseHeldStream: () => void;
+}
+
+interface QaRuntimeDiagnostics {
+  errors: string[];
+  unexpectedApiRequests: string[];
+  expectedResourceFailures: number[];
+  expectedConsoleErrors: string[];
+}
+
+const qaRuntimeDiagnostics = new WeakMap<Page, QaRuntimeDiagnostics>();
+
+function allowExpectedResourceFailure(page: Page, status: number): void {
+  qaRuntimeDiagnostics.get(page)?.expectedResourceFailures.push(status);
+}
+
+function allowExpectedConsoleError(page: Page, fragment: string): void {
+  qaRuntimeDiagnostics.get(page)?.expectedConsoleErrors.push(fragment);
 }
 
 function json(body: unknown, status = 200): Parameters<Route['fulfill']>[0] {
@@ -123,10 +147,13 @@ function clinicalEvent(
   })}\n\n`;
 }
 
-async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promise<void> {
+async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promise<QaRouteControls> {
   let authenticated = options.authenticated ?? true;
   const admin = options.admin ?? true;
   let loginAttempts = 0;
+  let conversationLoadAttempts = 0;
+  let streamAttempts = 0;
+  let releaseHeldStream: (() => void) | null = null;
   let currentClinicalThread: Record<string, unknown> = {
     ...clinicalThread,
     messages: [],
@@ -152,6 +179,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
     if (path === '/api/auth/me') {
+      if (!authenticated) allowExpectedResourceFailure(page, 401);
       await route.fulfill(
         authenticated ? json({ ...user, is_admin: admin }) : json({ detail: 'Unauthorized' }, 401),
       );
@@ -160,6 +188,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
     if (path === '/api/auth/login' && method === 'POST') {
       loginAttempts += 1;
       if (loginAttempts === 1) {
+        allowExpectedResourceFailure(page, 401);
         await route.fulfill(json({ detail: 'Credenciales inválidas' }, 401));
       } else {
         authenticated = true;
@@ -200,7 +229,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
     if (path === '/api/patients' && method === 'POST') {
-      await route.fulfill(json({ ...patient, id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }, 201));
+      await route.fulfill(json({ ...patient, id: patientId }, 201));
       return;
     }
     if (path === `/api/patients/${patientId}` && method === 'GET') {
@@ -217,7 +246,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
     if (path === `/api/patients/${patientId}/evolutions` && method === 'POST') {
-      await route.fulfill(json({ ...evolution, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }, 201));
+      await route.fulfill(json({ ...evolution, id: evolutionId }, 201));
       return;
     }
     if (path === `/api/evolutions/${evolutionId}` && method === 'GET') {
@@ -242,6 +271,12 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
     if (path === `/api/conversations/${conversationId}` && method === 'GET') {
+      conversationLoadAttempts += 1;
+      if (conversationLoadAttempts <= (options.conversationLoadFailures ?? 0)) {
+        allowExpectedResourceFailure(page, 500);
+        await route.fulfill(json({ detail: 'Error temporal de carga QA' }, 500));
+        return;
+      }
       await route.fulfill(json(conversation));
       return;
     }
@@ -255,6 +290,18 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
     if (path === `/api/conversations/${conversationId}/messages` && method === 'POST') {
+      streamAttempts += 1;
+      if (streamAttempts <= (options.streamFailuresBeforeSuccess ?? 0)) {
+        allowExpectedResourceFailure(page, 500);
+        allowExpectedConsoleError(page, '[ChatArea] Failed to send message');
+        await route.fulfill(json({ detail: 'Error temporal de streaming QA' }, 500));
+        return;
+      }
+      if (options.holdFirstStream && streamAttempts === 1) {
+        await new Promise<void>((resolve) => {
+          releaseHeldStream = resolve;
+        });
+      }
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
@@ -413,12 +460,35 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
       return;
     }
+    if (path === `/api/clinical-threads/${threadId}/artifacts/draft-qa` && method === 'PATCH') {
+      const body = request.postDataJSON() as {
+        draft?: Record<string, unknown>;
+        source_note?: string;
+        evolution_at?: string;
+      };
+      const artifacts = currentClinicalThread.artifacts as Array<Record<string, unknown>>;
+      const updatedArtifact = {
+        ...artifacts.find((artifact) => artifact.id === 'draft-qa'),
+        ...(body.draft ? { draft: body.draft, generated_draft: body.draft } : {}),
+        ...(body.source_note ? { source_note: body.source_note } : {}),
+        ...(body.evolution_at ? { evolution_at: body.evolution_at } : {}),
+      };
+      currentClinicalThread = {
+        ...currentClinicalThread,
+        artifacts: artifacts.map((artifact) =>
+          artifact.id === 'draft-qa' ? updatedArtifact : artifact,
+        ),
+      };
+      await route.fulfill(json(updatedArtifact));
+      return;
+    }
     if (path === `/api/clinical-threads/${threadId}/prepare-save` && method === 'POST') {
+      const body = request.postDataJSON() as { turn_id?: string; artifact_id?: string };
       const action = {
         id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
         thread_id: threadId,
-        turn_id: 'turn-qa',
-        artifact_id: 'draft-qa',
+        turn_id: body.turn_id ?? 'turn-qa',
+        artifact_id: body.artifact_id ?? 'draft-qa',
         patient_id: patientId,
         action_type: 'save_evolution',
         proposal_payload: {
@@ -463,6 +533,28 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       await route.fulfill(json(resolvedAction));
       return;
     }
+    if (
+      path === '/api/clinical-actions/dddddddd-dddd-4ddd-8ddd-dddddddddddd/return-to-editing' &&
+      method === 'POST'
+    ) {
+      currentClinicalThread = {
+        ...currentClinicalThread,
+        pending_action: null,
+        actions: (currentClinicalThread.actions as Array<Record<string, unknown>>).map((action) =>
+          action.id === 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+            ? { ...action, status: 'declined' }
+            : action,
+        ),
+      };
+      await route.fulfill(
+        json({
+          id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          thread_id: threadId,
+          artifact_id: 'draft-qa',
+        }),
+      );
+      return;
+    }
     if (path === `/api/clinical-threads/${threadId}/drafts` && method === 'POST') {
       await route.fulfill(json(draft));
       return;
@@ -489,8 +581,13 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
 
-    await route.fulfill(json({}));
+    qaRuntimeDiagnostics.get(page)?.unexpectedApiRequests.push(`${method} ${path}`);
+    await route.fulfill(json({ detail: `Unexpected QA API request: ${method} ${path}` }, 500));
   });
+
+  return {
+    releaseHeldStream: () => releaseHeldStream?.(),
+  };
 }
 
 async function captureView(
@@ -516,7 +613,15 @@ async function captureView(
   });
 }
 
-async function auditDialog(page: Page, name: string): Promise<void> {
+interface DialogAuditOptions {
+  requireDescription?: boolean;
+}
+
+async function auditDialog(
+  page: Page,
+  name: string,
+  options: DialogAuditOptions = {},
+): Promise<void> {
   const dialog = page.getByRole('dialog', { name });
   await expect(dialog).toBeVisible();
   const isNativeModal = await dialog.evaluate((element) => element.tagName === 'DIALOG');
@@ -526,12 +631,60 @@ async function auditDialog(page: Page, name: string): Promise<void> {
     await expect(dialog).toHaveAttribute('aria-modal', 'true');
   }
   await expect(dialog.getByRole('heading').first()).toBeVisible();
+  const description = await dialog.evaluate((element) => {
+    const descriptionId = element.getAttribute('aria-describedby');
+    return descriptionId ? document.getElementById(descriptionId)?.textContent?.trim() : null;
+  });
+  if (options.requireDescription) expect(description).not.toBeNull();
+  if (description !== null) expect(description).not.toBe('');
   await expect
     .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
     .toBe(true);
   const controls = dialog.locator('button, input, textarea, select, [role="button"]');
   for (let index = 0; index < (await controls.count()); index += 1) {
-    await expect(controls.nth(index)).toBeVisible();
+    const control = controls.nth(index);
+    await expect(control).toBeVisible();
+    if (await control.isEnabled()) await expect(control).toBeEnabled();
+    expect(
+      await control.evaluate((element) => {
+        const labelledBy = element.getAttribute('aria-labelledby');
+        const labelledByText = labelledBy
+          ? labelledBy
+              .split(/\s+/)
+              .map((id) => document.getElementById(id)?.textContent ?? '')
+              .join(' ')
+          : '';
+        const labels =
+          'labels' in element
+            ? Array.from((element as HTMLInputElement).labels ?? [])
+                .map((label) => label.textContent ?? '')
+                .join(' ')
+            : '';
+        return Boolean(
+          [
+            element.getAttribute('aria-label'),
+            labelledByText,
+            labels,
+            element.textContent,
+            element.getAttribute('placeholder'),
+            element.getAttribute('title'),
+          ]
+            .map((value) => value?.trim())
+            .some(Boolean),
+        );
+      }),
+    ).toBe(true);
+  }
+  const focusable = dialog.locator(
+    'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+  );
+  const focusableCount = await focusable.count();
+  expect(focusableCount).toBeGreaterThan(0);
+  for (let index = 0; index < Math.min(focusableCount + 1, 6); index += 1) {
+    await page.keyboard.press('Tab');
+    await expect
+      .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true);
   }
 }
 
@@ -543,31 +696,60 @@ async function assertNoHorizontalOverflow(page: Page): Promise<void> {
   ).toBe(true);
 }
 
-const runtimeErrors = new WeakMap<Page, string[]>();
-
 test.beforeEach(async ({ page }) => {
-  runtimeErrors.set(page, []);
-  page.on('pageerror', (error) => runtimeErrors.get(page)?.push(`pageerror: ${error.message}`));
+  qaRuntimeDiagnostics.set(page, {
+    errors: [],
+    unexpectedApiRequests: [],
+    expectedResourceFailures: [],
+    expectedConsoleErrors: [],
+  });
+  page.on('pageerror', (error) =>
+    qaRuntimeDiagnostics.get(page)?.errors.push(`pageerror: ${error.message}`),
+  );
   page.on('console', (message) => {
-    if (message.type() === 'error' && !/status of 401 \(Unauthorized\)/i.test(message.text())) {
-      runtimeErrors.get(page)?.push(`console: ${message.text()}`);
+    if (message.type() !== 'error') return;
+    const diagnostics = qaRuntimeDiagnostics.get(page);
+    const expectedConsoleIndex =
+      diagnostics?.expectedConsoleErrors.findIndex((fragment) =>
+        message.text().includes(fragment),
+      ) ?? -1;
+    if (expectedConsoleIndex >= 0) {
+      diagnostics?.expectedConsoleErrors.splice(expectedConsoleIndex, 1);
+      return;
     }
+    const status = Number(message.text().match(/status of (\d+)/i)?.[1]);
+    const expectedIndex = Number.isNaN(status)
+      ? -1
+      : (diagnostics?.expectedResourceFailures.indexOf(status) ?? -1);
+    if (expectedIndex >= 0) {
+      diagnostics?.expectedResourceFailures.splice(expectedIndex, 1);
+      return;
+    }
+    diagnostics?.errors.push(`console: ${message.text()}`);
   });
   page.on('requestfailed', (request) => {
-    runtimeErrors.get(page)?.push(`requestfailed: ${request.method()} ${request.url()}`);
+    qaRuntimeDiagnostics
+      .get(page)
+      ?.errors.push(`requestfailed: ${request.method()} ${request.url()}`);
   });
   await page.clock.install({ time: '2026-01-15T12:00:00Z' });
 });
 
 test.afterEach(async ({ page }, testInfo) => {
-  const errors = runtimeErrors.get(page) ?? [];
-  if (errors.length > 0) {
-    await testInfo.attach('runtime-errors.json', {
-      body: JSON.stringify(errors, null, 2),
+  const diagnostics = qaRuntimeDiagnostics.get(page) ?? {
+    errors: [],
+    unexpectedApiRequests: [],
+    expectedResourceFailures: [],
+    expectedConsoleErrors: [],
+  };
+  if (diagnostics.errors.length > 0 || diagnostics.unexpectedApiRequests.length > 0) {
+    await testInfo.attach('qa-runtime-diagnostics.json', {
+      body: JSON.stringify(diagnostics, null, 2),
       contentType: 'application/json',
     });
   }
-  expect(errors).toEqual([]);
+  expect(diagnostics.errors).toEqual([]);
+  expect(diagnostics.unexpectedApiRequests).toEqual([]);
 });
 
 test('public auth and not-found views expose their controls and outcomes', async ({ page }) => {
@@ -600,6 +782,9 @@ test('public auth and not-found views expose their controls and outcomes', async
   ).toBe(false);
   await page.getByRole('button', { name: 'Registrarse' }).click();
   await captureView(page, 'qa-signup');
+  await page.getByLabel('Contraseña (8+ caracteres)').fill('correcta123');
+  await page.getByRole('button', { name: 'Registrarse' }).click();
+  await expect(page).toHaveURL(/\/patients\/?$/);
 
   await page.goto('/ruta-qa-inexistente');
   await expect(page.getByText('Página no encontrada')).toBeVisible();
@@ -619,7 +804,8 @@ test('patients, patient detail, and new evolution preserve dialog contracts', as
   await page.getByRole('button', { name: 'Limpiar búsqueda' }).click();
   await expect(page.getByRole('link', { name: /Ana Pérez/ })).toBeVisible();
 
-  await page.getByRole('button', { name: '+ Nuevo paciente' }).click();
+  const newPatientOpener = page.getByRole('button', { name: '+ Nuevo paciente' });
+  await newPatientOpener.click();
   await auditDialog(page, 'Nuevo paciente');
   const createDialog = page.getByRole('dialog', { name: 'Nuevo paciente' });
   await createDialog.getByLabel('Nombres').fill('QA');
@@ -633,29 +819,54 @@ test('patients, patient detail, and new evolution preserve dialog contracts', as
   );
   await expect(createDialog.getByText('Ingresa una fecha válida')).toBeVisible();
   await createDialog.getByRole('button', { name: 'Cancelar' }).click();
-  await auditDialog(page, '¿Salir sin guardar?');
+  await auditDialog(page, '¿Salir sin guardar?', { requireDescription: true });
   await page.getByRole('button', { name: 'Continuar editando' }).click();
   await createDialog.getByRole('button', { name: 'Cancelar' }).click();
   await page.getByRole('button', { name: 'Salir sin guardar' }).click();
   await expect(createDialog).toBeHidden();
+  await expect(newPatientOpener).toBeFocused();
+
+  await newPatientOpener.click();
+  await createDialog.getByLabel('Nombres').fill('Paciente creado');
+  await createDialog.getByLabel('Apellidos').fill('QA');
+  await createDialog.getByLabel('RUT').fill('12.345.678-5');
+  await createDialog.getByLabel('Fecha de nacimiento').fill('15/01/1990');
+  await createDialog.getByRole('button', { name: 'Crear paciente' }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/patients/${patientId}(?:/evolutions/${evolutionId})?$`),
+  );
 
   await page.goto(`/patients/${patientId}/evolutions/${evolutionId}`);
   await expect(page.getByRole('heading', { name: 'Evolución dental' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Historial de evoluciones' })).toBeVisible();
   await captureView(page, 'qa-patient-detail');
 
-  await page.getByRole('button', { name: 'Editar paciente' }).click();
+  const editPatientOpener = page.getByRole('button', { name: 'Editar paciente' });
+  await editPatientOpener.click();
   await auditDialog(page, 'Editar paciente');
   const editDialog = page.getByRole('dialog', { name: 'Editar paciente' });
   await editDialog.getByLabel('Nombres').fill('Ana QA');
   await editDialog.getByRole('button', { name: 'Cancelar' }).click();
-  await auditDialog(page, '¿Salir sin guardar?');
+  await auditDialog(page, '¿Salir sin guardar?', { requireDescription: true });
   await page.getByRole('button', { name: 'Salir sin guardar' }).click();
+  await expect(editPatientOpener).toBeFocused();
+
+  await editPatientOpener.click();
+  await expect(editDialog.getByLabel('Nombres')).toHaveValue('Ana');
+  await editDialog.getByLabel('Nombres').fill('Ana QA');
+  await editDialog.getByRole('button', { name: 'Guardar cambios' }).click();
+  await expect(editDialog).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Ana QA Pérez' })).toBeVisible();
 
   await page.goto(`/patients/${patientId}/evolutions/new`);
   await expect(page.getByRole('heading', { name: 'Nueva evolución dental' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Generar borrador con IA' })).toBeDisabled();
   await captureView(page, 'qa-new-evolution-empty');
+  await page.getByLabel('Nota clínica').fill('Nota que no debe perderse QA.');
+  await page.getByRole('link', { name: /Volver a Ana Pérez/ }).click();
+  await auditDialog(page, '¿Salir sin guardar?', { requireDescription: true });
+  await page.getByRole('button', { name: 'Continuar editando' }).click();
+  await expect(page).toHaveURL(new RegExp(`/patients/${patientId}/evolutions/new$`));
   await page.getByRole('button', { name: 'Cambiar fecha y hora' }).click();
   await expect(page.getByLabel('Fecha de evolución')).toBeVisible();
   await page.getByLabel('Nota clínica').fill('Control preventivo QA.');
@@ -669,16 +880,31 @@ test('patients, patient detail, and new evolution preserve dialog contracts', as
   await page.getByRole('textbox', { name: 'Hallazgos' }).fill('Hallazgo QA editado.');
   await review.getByRole('button', { name: 'Aplicar', exact: true }).click();
   await page.getByRole('button', { name: 'Corregir nota y regenerar' }).click();
-  await page.getByRole('button', { name: 'Regenerar borrador', exact: true }).click();
-  await auditDialog(page, 'Regenerar evolución');
+  const regenerateRequestButton = page.getByRole('button', {
+    name: 'Regenerar borrador',
+    exact: true,
+  });
+  await regenerateRequestButton.click();
+  await auditDialog(page, 'Regenerar evolución', { requireDescription: true });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Regenerar evolución' })).toBeHidden();
+  await expect(regenerateRequestButton).toBeFocused();
+  await regenerateRequestButton.click();
+  await auditDialog(page, 'Regenerar evolución', { requireDescription: true });
   await page.getByRole('button', { name: 'Cancelar' }).click();
-  await page.getByRole('button', { name: 'Regenerar borrador', exact: true }).click();
+  await regenerateRequestButton.click();
   await page.getByRole('button', { name: 'Regenerar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Borrador generado' })).toBeVisible();
-  await page.getByRole('button', { name: 'Guardar evolución' }).click();
-  await auditDialog(page, 'Confirmar evolución');
+  const saveEvolutionButton = page.getByRole('button', { name: 'Guardar evolución' });
+  await saveEvolutionButton.click();
+  await auditDialog(page, 'Confirmar evolución', { requireDescription: true });
   await page.getByRole('button', { name: 'Volver a revisar' }).click();
   await expect(page.getByRole('dialog', { name: 'Confirmar evolución' })).toBeHidden();
+  await expect(saveEvolutionButton).toBeFocused();
+  await saveEvolutionButton.click();
+  await auditDialog(page, 'Confirmar evolución', { requireDescription: true });
+  await page.getByRole('button', { name: 'Confirmar y guardar' }).click();
+  await expect(page).toHaveURL(new RegExp(`/patients/${patientId}/evolutions/${evolutionId}$`));
 });
 
 test('chat, conversation menus, library dialogs, and mobile navigation work together', async ({
@@ -705,22 +931,36 @@ test('chat, conversation menus, library dialogs, and mobile navigation work toge
 
   const conversationRow = page.locator('#app-sidebar .conversation-item').first();
   await conversationRow.hover();
-  await conversationRow.getByRole('button', { name: /acciones para conversación qa/i }).click();
+  const conversationActionsOpener = conversationRow.getByRole('button', {
+    name: /acciones para conversación qa/i,
+  });
+  await conversationActionsOpener.click();
   await expect(page.getByRole('menu')).toBeVisible();
   await page.getByRole('menuitem', { name: 'Eliminar' }).click();
-  await auditDialog(page, '¿Eliminar conversación?');
+  await auditDialog(page, '¿Eliminar conversación?', { requireDescription: true });
   await page.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(conversationActionsOpener).toBeFocused();
 
-  await page.getByRole('button', { name: 'Biblioteca' }).click();
+  const libraryOpener = page.getByRole('button', { name: 'Biblioteca' });
+  await libraryOpener.click();
   await auditDialog(page, 'Biblioteca de videos');
   const library = page.getByRole('dialog', { name: 'Biblioteca de videos' });
   await expect(library.getByRole('heading', { name: 'Biblioteca de videos' })).toBeVisible();
   await captureView(page, 'qa-video-library', true, library);
   await library.getByRole('searchbox', { name: 'Buscar videos' }).fill('RAG');
-  await library.getByRole('button', { name: /Agregar video/ }).click();
+  const addVideoOpener = library.getByRole('button', { name: /Agregar video/ });
+  await addVideoOpener.click();
+  await auditDialog(page, 'Agregar video');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Agregar video' })).toBeHidden();
+  await expect(addVideoOpener).toBeFocused();
+  await addVideoOpener.click();
   await auditDialog(page, 'Agregar video');
   await page.getByRole('button', { name: 'Cancelar' }).click();
-  await page.getByRole('button', { name: 'Cerrar biblioteca de videos' }).click();
+  await expect(page.getByRole('dialog', { name: 'Agregar video' })).toBeHidden();
+  await library.getByRole('button', { name: 'Cerrar biblioteca de videos' }).click();
+  await expect(library).toBeHidden();
+  await expect(libraryOpener).toBeFocused();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await assertNoHorizontalOverflow(page);
@@ -728,6 +968,58 @@ test('chat, conversation menus, library dialogs, and mobile navigation work toge
   await expect(page.getByRole('button', { name: 'Cerrar navegación' })).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar navegación' }).click();
   await expect(page.getByRole('button', { name: 'Abrir navegación' })).toBeVisible();
+});
+
+test('chat recovers from hydration and streaming failures through retry', async ({ page }) => {
+  await installQaRoutes(page, {
+    // React StrictMode starts the initial effect twice in the dev bundle.
+    conversationLoadFailures: 2,
+    streamFailuresBeforeSuccess: 1,
+  });
+  await page.goto(`/c/${conversationId}`);
+
+  const hydrationError = page.getByText('No pudimos cargar los mensajes. Intenta nuevamente.');
+  const hydratedMessage = page.getByText('Respuesta hidratada de QA.');
+  for (let retry = 0; retry < 2; retry += 1) {
+    await expect(hydrationError.or(hydratedMessage)).toBeVisible();
+    if (await hydratedMessage.isVisible()) break;
+    await page.getByRole('button', { name: 'Reintentar' }).click();
+  }
+  await expect(hydratedMessage).toBeVisible();
+
+  const input = page.getByLabel('Pregunta sobre la biblioteca de videos');
+  await input.fill('Pregunta que falla una vez');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await expect(page.getByText('No pudimos enviar el mensaje. Intenta nuevamente.')).toBeVisible();
+  await expect(input).toHaveValue('Pregunta que falla una vez');
+  await page.getByRole('button', { name: 'Reintentar' }).click();
+  await expect(page.getByText('Respuesta de streaming QA')).toBeVisible();
+});
+
+test('chat queues a second message and drains it after the active stream', async ({ page }) => {
+  const controls = await installQaRoutes(page, { holdFirstStream: true });
+  try {
+    await page.goto(`/c/${conversationId}`);
+    await expect(page.getByText('Respuesta hidratada de QA.')).toBeVisible();
+
+    const input = page.getByLabel('Pregunta sobre la biblioteca de videos');
+    await input.fill('Primera pregunta QA');
+    await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+    await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
+
+    await input.fill('Segunda pregunta en cola');
+    await page.getByRole('button', { name: 'Poner mensaje en cola' }).click();
+    const queued = page.getByLabel('Mensaje en cola', { exact: true });
+    await expect(queued).toContainText('Segunda pregunta en cola');
+    await expect(queued.getByRole('button', { name: 'Editar mensaje en cola' })).toBeVisible();
+    await expect(queued.getByRole('button', { name: 'Eliminar mensaje en cola' })).toBeVisible();
+
+    controls.releaseHeldStream();
+    await expect(page.getByText('Respuesta de streaming QA')).toHaveCount(2);
+    await expect(queued).toBeHidden();
+  } finally {
+    controls.releaseHeldStream();
+  }
 });
 
 test('clinical assistant exposes the review lifecycle and Drive surface', async ({ page }) => {
@@ -751,7 +1043,20 @@ test('clinical assistant exposes the review lifecycle and Drive surface', async 
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await expect(page.getByText('Preparé un borrador para revisión.')).toBeVisible();
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Revisar y guardar' }).click();
+  const reviewOpener = page.getByRole('button', { name: 'Revisar y guardar' });
+  await reviewOpener.click();
+  await auditDialog(page, 'Guardar evolución');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeHidden();
+
+  await page.goto(`/a/${threadId}`);
+  const approvalOpener = page.getByRole('button', { name: 'Confirmar guardado' });
+  await approvalOpener.click();
+  await auditDialog(page, 'Guardar evolución');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeHidden();
+  await expect(approvalOpener).toBeFocused();
+  await approvalOpener.click();
   await auditDialog(page, 'Guardar evolución');
   await page.getByRole('button', { name: 'Volver a editar' }).click();
   await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeHidden();
@@ -775,13 +1080,15 @@ test('admin view validates video actions and native confirmation', async ({ page
   await page.getByPlaceholder('Buscar videos...').fill('RAG');
   await expect(page.locator('tbody tr')).toHaveCount(1);
 
-  await page.getByRole('button', { name: '+ Agregar video por URL' }).click();
+  const addModalOpener = page.getByRole('button', { name: '+ Agregar video por URL' });
+  await addModalOpener.click();
   await auditDialog(page, 'Agregar video por URL');
   const addDialog = page.getByRole('dialog', { name: 'Agregar video por URL' });
   await expect(addDialog.getByRole('button', { name: 'Agregar video' })).toBeDisabled();
   await addDialog.getByLabel('URL de YouTube').fill('https://www.youtube.com/watch?v=qa');
   await addDialog.getByRole('button', { name: 'Agregar video' }).click();
   await expect(page.getByRole('dialog', { name: 'Agregar video por URL' })).toBeHidden();
+  await expect(addModalOpener).toBeFocused();
 
   await page.getByRole('button', { name: 'Sincronizar canal' }).click();
   await expect(page.getByText(/Sincronización del canal completed/)).toBeVisible();
@@ -810,6 +1117,7 @@ test('canonical protected views remain usable at every baseline viewport', async
     { width: 390, height: 844 },
   ];
   const routes = [
+    '/',
     '/patients',
     `/patients/${patientId}`,
     `/patients/${patientId}/evolutions/${evolutionId}`,
@@ -826,7 +1134,10 @@ test('canonical protected views remain usable at every baseline viewport', async
     await page.setViewportSize(viewport);
     for (const route of routes) {
       await page.goto(route);
-      if (route === '/ruta-qa-inexistente') {
+      if (route === '/') {
+        await expect(page).toHaveURL(/\/patients\/?$/);
+        await expect(page.getByRole('heading', { name: 'Pacientes', exact: true })).toBeVisible();
+      } else if (route === '/ruta-qa-inexistente') {
         await expect(page.getByRole('heading', { name: 'Página no encontrada' })).toBeVisible();
       } else if (route === '/admin') {
         await expect(

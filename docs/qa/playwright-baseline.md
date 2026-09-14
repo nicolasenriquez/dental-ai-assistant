@@ -11,7 +11,7 @@ Registro operativo de la revisión QA por vista. La suite determinista es
 | Configuración | `app/frontend/playwright.config.ts` |
 | Viewports | `1440x1000`, `1280x800`, `1024x768`, `390x844` |
 | Fecha de implementación | 2026-09-14 |
-| Commit de referencia | `cc35198e77d4351a5f05e97b51a97027ecea8484` |
+| Commit de referencia | `3906950d5ef48b883f57059146a86ed950d98f3f` |
 | Datos | APIs mockeadas en la frontera HTTP |
 
 ## Matriz de evidencia
@@ -25,10 +25,16 @@ Registro operativo de la revisión QA por vista. La suite determinista es
 | QA-5 | Asistente clínico y Drive | [ARIA clínico](../../app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/qa-clinical-empty.aria.yml), screenshot y lifecycle de revisión/Drive | PASS |
 | QA-6 | Administración | [ARIA](../../app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/qa-admin.aria.yml), screenshot y acciones con confirmación nativa | PASS |
 | QA-7 | Responsive transversal | Visibilidad, navegación móvil y ausencia de overflow en cuatro tamaños; [implementación](../../app/frontend/tests/qa-baseline.spec.ts) | PASS |
+| QA-8 | Chat: retry, recuperación y cola | Fallo determinista de hidratación/SSE, reintentos, restauración del input y drenaje de cola; [implementación](../../app/frontend/tests/qa-baseline.spec.ts) | PASS |
+| QA-9 | Edge cases de foco y diálogos | Foco contenido y restaurado en modal administrativo, aprobación clínica y eliminación de conversación; [regresión](../../app/frontend/tests/qa-baseline.spec.ts) | PASS |
 
-La ejecución final de `qa-baseline` fue `6/6 PASS` en 19.6 s. El helper de
-runtime no registró `pageerror`, errores de consola inesperados ni requests
-fallidos inesperados. Los screenshots y snapshots generados se almacenan bajo
+La ejecución posterior a la corrección fue `8 passed`, sin tests esperados
+fallidos ni bloqueos declarados en la lane determinista. Para validar el
+bundle fuente se usó temporalmente `E2E_BASE_URL=http://127.0.0.1:5173`, ya que
+`http://localhost:8000` mantenía un bundle estático anterior; las APIs
+continuaron mockeadas en Playwright.
+El helper de runtime no registra `pageerror`, errores de consola inesperados ni
+requests API no declarados. Los screenshots y snapshots generados se almacenan bajo
 `app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/`; los traces y
 screenshots de fallo se conservan en la salida temporal configurada por
 Playwright cuando una ejecución falla.
@@ -48,7 +54,7 @@ Resultados de aceptación del 2026-09-14:
 
 | Comando | Resultado |
 | --- | --- |
-| `bun x playwright test --project=qa-baseline --no-deps` | PASS — 6/6 |
+| `$env:E2E_BASE_URL='http://127.0.0.1:5173'; bun x playwright test --project=qa-baseline --no-deps` | PASS — 8/8 |
 | `bun x playwright test --project=drive-bootstrap --no-deps` | PASS — 9/9 |
 | `bun run type-check` | PASS |
 | `bun run build` | PASS — warning no bloqueante de chunks grandes y warning CJS de Vite |
