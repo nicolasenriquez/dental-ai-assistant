@@ -107,6 +107,7 @@ except (ValueError, ZoneInfoNotFoundError) as exc:
     raise RuntimeError(
         f"CLINICAL_TIMEZONE must be a valid IANA timezone, got {CLINICAL_TIMEZONE!r}"
     ) from exc
+EXPORT_SYNC_STALE_AFTER_SECONDS: int = 300
 
 VOICE_TRANSCRIPTION_ENABLED: bool = os.environ.get(
     "VOICE_TRANSCRIPTION_ENABLED", "false"

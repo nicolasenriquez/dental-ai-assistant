@@ -63,6 +63,8 @@ def _error_for_status(status_code: int) -> GoogleDriveError:
         return GoogleDriveError("GOOGLE_DRIVE_ACCESS_DENIED", "Drive access denied")
     if status_code == 404:
         return GoogleDriveError("GOOGLE_DRIVE_NOT_FOUND", "Drive resource not found")
+    if status_code == 409:
+        return GoogleDriveError("DRIVE_VERSION_CONFLICT", "Drive version conflict")
     return GoogleDriveError("DRIVE_UNAVAILABLE", "Drive unavailable")
 
 
@@ -489,6 +491,74 @@ async def update_file(
         f"{_UPLOAD_FILES_URL}/{file_id}",
         _multipart_upload_meta(app_properties),
         content,
+    )
+
+
+def _journal_query(
+    folder_id: str,
+    period_type: str,
+    period_key: str,
+    journal_part: int | None = None,
+) -> str:
+    parts = [
+        f"'{_escape_query(folder_id)}' in parents",
+        "trashed = false",
+        "mimeType = 'text/plain'",
+        f"appProperties has {{ key='managedBy' and value='{MANAGED_BY}' }}",
+        "appProperties has { key='artifactType' and value='evolution-journal' }",
+        f"appProperties has {{ key='periodType' and value='{_escape_query(period_type)}' }}",
+        f"appProperties has {{ key='periodKey' and value='{_escape_query(period_key)}' }}",
+    ]
+    if journal_part is not None:
+        parts.append(
+            "appProperties has { key='journalPart' and value="
+            f"'{_escape_query(str(journal_part))}' }}"
+        )
+    return " and ".join(parts)
+
+
+async def list_journal_files(
+    access_token: str,
+    *,
+    folder_id: str,
+    period_type: str,
+    period_key: str,
+    journal_part: int | None = None,
+) -> list[dict[str, Any]]:
+    """List exact server-owned journal identities, never patient-scoped."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        response = await _read(
+            client,
+            "GET",
+            _FILES_URL,
+            params={
+                "q": _journal_query(folder_id, period_type, period_key, journal_part),
+                "pageSize": "100",
+                "orderBy": "name",
+                "fields": f"files({_FILE_FIELDS})",
+            },
+            headers=_headers(access_token),
+        )
+    if response.status_code != 200:
+        raise _error_for_status(response.status_code)
+    return list((response.json() or {}).get("files") or [])
+
+
+async def find_journal_files(
+    access_token: str,
+    *,
+    folder_id: str,
+    period_type: str,
+    period_key: str,
+    journal_part: int,
+) -> list[dict[str, Any]]:
+    """Find all exact matches for one journal part; caller fails closed on duplicates."""
+    return await list_journal_files(
+        access_token,
+        folder_id=folder_id,
+        period_type=period_type,
+        period_key=period_key,
+        journal_part=journal_part,
     )
 
 
