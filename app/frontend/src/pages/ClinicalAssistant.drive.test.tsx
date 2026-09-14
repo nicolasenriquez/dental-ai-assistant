@@ -171,6 +171,7 @@ vi.mock('../lib/api', async (importOriginal) => {
     getDriveStatus: vi.fn(),
     startDriveOAuth: vi.fn(),
     listDriveFiles: vi.fn(),
+    listDriveSources: vi.fn(),
     searchDriveFiles: vi.fn(),
     getDriveFile: vi.fn(),
     createDriveFile: vi.fn(),
@@ -179,6 +180,10 @@ vi.mock('../lib/api', async (importOriginal) => {
     recreateDriveWorkspace: vi.fn(),
     disconnectDrive: vi.fn(),
     getDrivePickerToken: vi.fn(),
+    listDriveJournals: vi.fn(),
+    getDriveJournalDetail: vi.fn(),
+    getDriveJournalPreferences: vi.fn(),
+    updateDriveJournalPreferences: vi.fn(),
   };
 });
 
@@ -186,8 +191,13 @@ const apiSeam = api as unknown as {
   getPatients: ReturnType<typeof vi.fn>;
   getDriveStatus: ReturnType<typeof vi.fn>;
   listDriveFiles: ReturnType<typeof vi.fn>;
+  listDriveSources: ReturnType<typeof vi.fn>;
   createDriveFile: ReturnType<typeof vi.fn>;
   updateDriveFile: ReturnType<typeof vi.fn>;
+  listDriveJournals: ReturnType<typeof vi.fn>;
+  getDriveJournalDetail: ReturnType<typeof vi.fn>;
+  getDriveJournalPreferences: ReturnType<typeof vi.fn>;
+  updateDriveJournalPreferences: ReturnType<typeof vi.fn>;
 };
 
 const connectedStatus = {
@@ -229,6 +239,28 @@ beforeEach(() => {
   ]);
   apiSeam.getDriveStatus.mockResolvedValue(connectedStatus);
   apiSeam.listDriveFiles.mockResolvedValue({ files: [], next_page_token: null });
+  apiSeam.listDriveSources.mockResolvedValue({ files: [], next_page_token: null });
+  apiSeam.listDriveJournals.mockResolvedValue({ journals: [] });
+  apiSeam.getDriveJournalPreferences.mockResolvedValue({ frequency: 'weekly' });
+  apiSeam.updateDriveJournalPreferences.mockResolvedValue({ frequency: 'weekly' });
+  apiSeam.getDriveJournalDetail.mockResolvedValue({
+    journal: {
+      period_type: 'weekly',
+      period_key: '2026-W37',
+      journal_part: 2,
+      display_name: 'Evoluciones — 2026-W37 — 2.txt',
+      updated_at: '2026-09-13T12:00:00Z',
+      entries: [
+        {
+          evolution_id: 'evolution-1',
+          occurred_at: '2026-09-13T10:00:00Z',
+          patient_display_name: 'Ana Pérez',
+          patient_rut_masked: '12.345.•••-6',
+          content: 'Contenido remoto del diario',
+        },
+      ],
+    },
+  });
   apiSeam.createDriveFile.mockResolvedValue({
     id: 'f2',
     name: 'borrador.txt',
@@ -431,5 +463,47 @@ describe('Clinical Assistant Drive transfer', () => {
     await screen.findByText('Guardado');
 
     expect(dispatchBeforeUnload().defaultPrevented).toBe(false);
+  });
+
+  it('carries the exact artifact journal target through the page into the reader', async () => {
+    const baselineLength = mocks.items.length;
+    mocks.items.push({
+      id: 'approval-1',
+      turnId: 'turn-1',
+      status: 'completed',
+      createdAt: '2026-09-10T12:00:02Z',
+      type: 'approval',
+      action: {
+        id: 'approval-1',
+        thread_id: 't1',
+        turn_id: 'turn-1',
+        artifact_id: 'd1',
+        patient_id: 'p1',
+        action_type: 'save_evolution',
+        proposal_payload: null,
+        proposal_hash: 'a'.repeat(64),
+        status: 'approved',
+        expires_at: '2026-09-10T13:00:00Z',
+        created_at: '2026-09-10T12:00:02Z',
+        resolved_at: '2026-09-10T12:00:03Z',
+        result_resource_id: 'evolution-1',
+        drive_export: {
+          status: 'synced',
+          journal: { period_type: 'weekly', period_key: '2026-W37', journal_part: 2 },
+        },
+      },
+      patient: mocks.thread.active_patient,
+    } as never);
+
+    try {
+      renderAssistant();
+      fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+
+      expect(await screen.findByText('Contenido remoto del diario')).toBeInTheDocument();
+      expect(apiSeam.getDriveJournalDetail).toHaveBeenCalledWith('weekly', '2026-W37', 2);
+      await waitFor(() => expect(screen.getByRole('article', { name: 'Ana Pérez' })).toHaveFocus());
+    } finally {
+      mocks.items.splice(baselineLength);
+    }
   });
 });

@@ -23,7 +23,7 @@ _CONNECTION_COLUMNS = """
     binding_secret_ciphertext, binding_secret_nonce, binding_key_version,
     granted_scopes, folder_id, folder_name,
     folder_creation_operation_id, pending_folder_operation_id,
-    status, status_changed_at, connected_at
+    evolution_export_frequency, status, status_changed_at, connected_at
 """
 
 
@@ -40,6 +40,30 @@ async def get_connection(user_id: UUID | str) -> dict[str, Any] | None:
             _to_uuid(user_id),
         )
     return dict(row) if row else None
+
+
+async def get_evolution_export_frequency(user_id: UUID | str) -> str | None:
+    async with get_pg_pool().acquire() as conn:
+        value = await conn.fetchval(
+            "SELECT evolution_export_frequency FROM google_drive_connections WHERE user_id = $1",
+            _to_uuid(user_id),
+        )
+    return str(value) if value is not None else None
+
+
+async def update_evolution_export_frequency(user_id: UUID | str, frequency: str) -> str | None:
+    async with get_pg_pool().acquire() as conn:
+        value = await conn.fetchval(
+            """
+            UPDATE google_drive_connections
+            SET evolution_export_frequency = $2, updated_at = now()
+            WHERE user_id = $1
+            RETURNING evolution_export_frequency
+            """,
+            _to_uuid(user_id),
+            frequency,
+        )
+    return str(value) if value is not None else None
 
 
 async def create_active_connection(
@@ -246,7 +270,10 @@ async def update_refresh_token_ciphertext(user_id: UUID | str, value: Any) -> No
                SET refresh_token_ciphertext = $2, refresh_token_nonce = $3,
                    token_key_version = $4, updated_at = now()
                WHERE user_id = $1 AND status = 'active'""",
-            _to_uuid(user_id), value.ciphertext, value.nonce, value.key_version,
+            _to_uuid(user_id),
+            value.ciphertext,
+            value.nonce,
+            value.key_version,
         )
 
 
@@ -257,7 +284,10 @@ async def update_binding_secret_ciphertext(user_id: UUID | str, value: Any) -> N
                SET binding_secret_ciphertext = $2, binding_secret_nonce = $3,
                    binding_key_version = $4, updated_at = now()
                WHERE user_id = $1""",
-            _to_uuid(user_id), value.ciphertext, value.nonce, value.key_version,
+            _to_uuid(user_id),
+            value.ciphertext,
+            value.nonce,
+            value.key_version,
         )
 
 

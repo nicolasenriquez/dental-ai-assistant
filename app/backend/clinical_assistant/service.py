@@ -11,7 +11,8 @@ from typing import Any, cast
 from uuid import UUID, uuid4
 
 from backend.db import clinical_assistant_repo as repository
-from backend.db import patients_repo
+from backend.db import evolution_exports_repo, patients_repo
+from backend.evolution_exports.service import drive_export_state
 from backend.services import clinical_evolutions
 
 from .events import event
@@ -97,6 +98,10 @@ async def get_thread_response(owner: UUID, thread: UUID) -> ClinicalThreadRespon
     for action in stored.get("actions", []):
         action_patient = await patients_repo.get_patient(owner, action["patient_id"])
         action["patient"] = safe_patient(action_patient) if action_patient else None
+        resource_id = action.get("result_resource_id")
+        if action.get("status") == "approved" and resource_id:
+            export = await evolution_exports_repo.get_export(owner, resource_id)
+            action["drive_export"] = drive_export_state(export) if export else None
     for artifact in stored.get("artifacts", []):
         artifact_patient = await patients_repo.get_patient(owner, artifact["patient_id"])
         artifact["patient"] = safe_patient(artifact_patient) if artifact_patient else None
@@ -115,9 +120,14 @@ async def set_active_patient(
 async def resolve_action(
     owner: UUID, action_id: UUID, decision: str, proposal_hash: str
 ) -> dict[str, Any]:
-    return cast(
+    result = cast(
         dict[str, Any], await repository.resolve_action(owner, action_id, decision, proposal_hash)
     )
+    resource_id = result.get("result_resource_id")
+    if result.get("status") == "approved" and resource_id:
+        export = await evolution_exports_repo.get_export(owner, resource_id)
+        result["drive_export"] = drive_export_state(export) if export else None
+    return result
 
 
 async def return_to_editing(owner: UUID, action_id: UUID) -> dict[str, Any]:

@@ -526,22 +526,32 @@ async def list_journal_files(
     journal_part: int | None = None,
 ) -> list[dict[str, Any]]:
     """List exact server-owned journal identities, never patient-scoped."""
+    files: list[dict[str, Any]] = []
+    page_token: str | None = None
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        response = await _read(
-            client,
-            "GET",
-            _FILES_URL,
-            params={
+        while True:
+            params = {
                 "q": _journal_query(folder_id, period_type, period_key, journal_part),
                 "pageSize": "100",
                 "orderBy": "name",
-                "fields": f"files({_FILE_FIELDS})",
-            },
-            headers=_headers(access_token),
-        )
-    if response.status_code != 200:
-        raise _error_for_status(response.status_code)
-    return list((response.json() or {}).get("files") or [])
+                "fields": f"nextPageToken,files({_FILE_FIELDS})",
+            }
+            if page_token:
+                params["pageToken"] = page_token
+            response = await _read(
+                client,
+                "GET",
+                _FILES_URL,
+                params=params,
+                headers=_headers(access_token),
+            )
+            if response.status_code != 200:
+                raise _error_for_status(response.status_code)
+            payload = response.json() or {}
+            files.extend(payload.get("files") or [])
+            page_token = payload.get("nextPageToken")
+            if not page_token:
+                return files
 
 
 async def find_journal_files(

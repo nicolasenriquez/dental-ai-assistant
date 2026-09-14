@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
 import { TransitionGuardProvider, useTransitionGuard } from '../hooks/useTransitionGuard';
-import type { ClinicalPatient } from '../lib/api';
+import type { ClinicalPatient, DriveJournalTarget } from '../lib/api';
 import { acquireClinicalThread } from '../lib/api';
 
 export function ClinicalAssistant() {
@@ -49,6 +49,8 @@ function ClinicalAssistantContent() {
     );
   }, []);
   const [driveOpen, setDriveOpen] = useState(false);
+  const [driveInitialSection, setDriveInitialSection] = useState<'notes' | 'journals'>('notes');
+  const [driveJournalTarget, setDriveJournalTarget] = useState<DriveJournalTarget | null>(null);
   const [driveDraftSeed, setDriveDraftSeed] = useState<{ name: string; content: string } | null>(
     null,
   );
@@ -164,6 +166,9 @@ function ClinicalAssistantContent() {
             onDirtyStateChange={setDriveDirty}
             open={driveOpen}
             onClose={() => requestDriveVisibility(false)}
+            initialSection={driveInitialSection}
+            initialJournalTarget={driveJournalTarget}
+            onJournalTargetConsumed={() => setDriveJournalTarget(null)}
           />
         ) : null
       }
@@ -182,6 +187,11 @@ function ClinicalAssistantContent() {
           }}
           driveOpen={driveOpen}
           onToggleDrive={() => requestDriveVisibility(!driveOpen)}
+          onOpenDriveJournal={(target) => {
+            setDriveJournalTarget(target);
+            setDriveInitialSection('journals');
+            setDriveVisibility(true);
+          }}
           onSaveToDrive={(seed) =>
             transitionGuard.guardTransition(() => {
               setDriveDraftSeed(seed);

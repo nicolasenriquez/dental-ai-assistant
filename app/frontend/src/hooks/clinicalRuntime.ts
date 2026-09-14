@@ -229,7 +229,17 @@ export type ClinicalReducerAction =
   | { type: 'updateDate'; itemId: string; evolutionAt: string }
   | { type: 'replaceDraft'; itemId: string; draft: ClinicalDraft }
   | { type: 'upsertApproval'; item: ClinicalApprovalItem }
-  | { type: 'resolveApproval'; itemId: string; status: ClinicalItemStatus }
+  | {
+      type: 'resolveApproval';
+      itemId: string;
+      status: ClinicalItemStatus;
+      action?: ClinicalPendingAction;
+    }
+  | {
+      type: 'updateDriveExport';
+      evolutionId: string;
+      driveExport: NonNullable<ClinicalPendingAction['drive_export']>;
+    }
   | { type: 'returnToEditing'; approvalId: string; artifactId: string | null };
 
 export function createClinicalReducerState(
@@ -350,7 +360,17 @@ export function clinicalReducer(
       ...state,
       items: state.items.map((item) =>
         item.id === action.itemId && item.type === 'approval' && !terminalStatuses.has(item.status)
-          ? { ...item, status: action.status }
+          ? { ...item, status: action.status, action: action.action ?? item.action }
+          : item,
+      ),
+    };
+  }
+  if (action.type === 'updateDriveExport') {
+    return {
+      ...state,
+      items: state.items.map((item) =>
+        item.type === 'approval' && item.action.result_resource_id === action.evolutionId
+          ? { ...item, action: { ...item.action, drive_export: action.driveExport } }
           : item,
       ),
     };

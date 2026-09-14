@@ -11,6 +11,7 @@ import {
   type DriveFile,
   type DriveFileContent,
   type DriveJournalSummary,
+  type DriveJournalTarget,
   type DriveSourceFile,
   type DriveStatus,
   createDriveFile,
@@ -47,12 +48,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { DriveDocumentView, type DriveDocumentViewModel } from './DriveDocumentView';
 import { DriveDocumentWorkspace } from './DriveDocumentWorkspace';
 import { DriveFileBrowser } from './DriveFileBrowser';
+import { DriveJournalPanel } from './DriveJournalPanel';
 import { DriveWorkspaceHeader } from './DriveWorkspaceHeader';
 import { DriveWorkspaceHome } from './DriveWorkspaceHome';
 import type { DrivePatientContext, WorkspaceDocument } from './editors/types';
 
 type OpenDoc = DriveDocumentViewModel;
-type DriveSection = 'notes' | 'documents' | 'journals';
+export type DriveSection = 'notes' | 'documents' | 'journals';
 
 export interface DriveWorkspaceHandle {
   save: () => Promise<boolean>;
@@ -71,6 +73,9 @@ export interface DriveWorkspaceProps {
   handleRef?: MutableRefObject<DriveWorkspaceHandle | null>;
   open?: boolean;
   onClose?: () => void;
+  initialSection?: DriveSection;
+  initialJournalTarget?: DriveJournalTarget | null;
+  onJournalTargetConsumed?: () => void;
 }
 
 function newOperationId(): string {
@@ -118,6 +123,9 @@ export function DriveWorkspace({
   handleRef,
   open = true,
   onClose,
+  initialSection = 'notes',
+  initialJournalTarget = null,
+  onJournalTargetConsumed,
 }: DriveWorkspaceProps) {
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -139,7 +147,7 @@ export function DriveWorkspace({
   const [sources, setSources] = useState<DriveSourceFile[]>([]);
   const [sourcePage, setSourcePage] = useState<string | null>(null);
   const [sourcesLoading, setSourcesLoading] = useState(false);
-  const [section, setSection] = useState<DriveSection>('notes');
+  const [section, setSection] = useState<DriveSection>(initialSection);
   const [journals, setJournals] = useState<DriveJournalSummary[]>([]);
   const [journalsLoading, setJournalsLoading] = useState(false);
   const [journalsLoaded, setJournalsLoaded] = useState(false);
@@ -163,6 +171,10 @@ export function DriveWorkspace({
   const [isSheet, setIsSheet] = useState(
     () => window.matchMedia?.('(max-width: 1024px)')?.matches ?? false,
   );
+
+  useEffect(() => {
+    setSection(initialJournalTarget ? 'journals' : initialSection);
+  }, [initialJournalTarget, initialSection]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia?.('(max-width: 1024px)');
@@ -310,6 +322,24 @@ export function DriveWorkspace({
     setInsertionFeedback(null);
     setSelectedText('');
   }, [draftSeed]);
+
+  useEffect(() => {
+    if (!initialJournalTarget || !workspaceDocument) return;
+    const openJournal = () => {
+      closeDocNow();
+      setSection('journals');
+    };
+    if (dirty && guardTransition) guardTransition(openJournal);
+    else openJournal();
+  }, [
+    initialJournalTarget?.evolutionId,
+    initialJournalTarget?.journal.period_key,
+    initialJournalTarget?.journal.period_type,
+    initialJournalTarget?.journal.journal_part,
+    Boolean(workspaceDocument),
+    dirty,
+    guardTransition,
+  ]);
 
   useEffect(() => {
     if (!patientId || driveStatus?.status !== 'connected') return;
@@ -728,31 +758,12 @@ export function DriveWorkspace({
   );
 
   const journalContent = (
-    <section className="drive-journals" aria-label="Diarios de evoluciones">
-      {journalsLoading && <p className="drive-list-status">Cargando diarios…</p>}
-      {!journalsLoading && journals.length === 0 && (
-        <p className="drive-empty-state" aria-live="polite">
-          Aún no hay diarios.
-        </p>
-      )}
-      {!journalsLoading && journals.length > 0 && (
-        <ul className="drive-file-list">
-          {journals.map((journal) => (
-            <li key={`${journal.period_type}-${journal.period_key}-${journal.journal_part}`}>
-              <button type="button" className="drive-file-row">
-                <span className="drive-file-main">
-                  <strong>{journal.display_name}</strong>
-                  <span>{journal.period_type === 'weekly' ? 'Semanal' : 'Diario'}</span>
-                </span>
-                <time dateTime={journal.updated_at}>
-                  {new Date(journal.updated_at).toLocaleDateString('es-CL')}
-                </time>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    <DriveJournalPanel
+      journals={journals}
+      loading={journalsLoading}
+      initialTarget={initialJournalTarget}
+      onInitialTargetConsumed={onJournalTargetConsumed}
+    />
   );
 
   let connectionContent: ReactNode;

@@ -86,6 +86,20 @@ class SafePatient(BaseModel):
     rut_masked: str
 
 
+class DriveJournalIdentity(BaseModel):
+    period_type: Literal["weekly", "daily"]
+    period_key: str
+    journal_part: int | None = None
+    display_name: str | None = None
+
+
+class DriveExportState(BaseModel):
+    status: Literal["pending", "syncing", "synced", "failed", "unknown"]
+    error_code: str | None = None
+    journal: DriveJournalIdentity | None = None
+    synced_at: datetime | None = None
+
+
 class ClinicalPendingAction(BaseModel):
     id: UUID
     thread_id: UUID
@@ -101,6 +115,7 @@ class ClinicalPendingAction(BaseModel):
     resolved_at: datetime | None = None
     result_resource_id: UUID | None = None
     patient: SafePatient | None = None
+    drive_export: DriveExportState | None = None
 
 
 class ClinicalTurnArtifact(BaseModel):

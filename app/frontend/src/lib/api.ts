@@ -174,6 +174,7 @@ export interface ClinicalPendingAction {
   resolved_at?: string | null;
   result_resource_id?: string | null;
   patient?: ClinicalPatient | null;
+  drive_export?: DriveExportState | null;
 }
 
 export interface ClinicalTurnArtifact {
@@ -440,6 +441,19 @@ export interface DriveExportState {
   synced_at?: string;
 }
 
+export interface DriveJournalPreferences {
+  frequency: 'weekly' | 'daily';
+}
+
+export const getDriveJournalPreferences = () =>
+  request<DriveJournalPreferences>('/google-drive/evolution-journals/preferences');
+
+export const updateDriveJournalPreferences = (frequency: DriveJournalPreferences['frequency']) =>
+  request<DriveJournalPreferences>('/google-drive/evolution-journals/preferences', {
+    method: 'PUT',
+    body: JSON.stringify({ frequency }),
+  });
+
 export const retryClinicalDriveExport = (evolutionId: string) =>
   request<{ drive_export: DriveExportState }>(
     `/clinical/evolutions/${encodeURIComponent(evolutionId)}/drive-export/retry`,
@@ -649,8 +663,70 @@ export interface DriveJournalPage {
   journals: DriveJournalSummary[];
 }
 
+export interface DriveJournalEntry {
+  evolution_id: string;
+  occurred_at: string;
+  patient_display_name: string;
+  patient_rut_masked: string;
+  content: string;
+}
+
+export interface DriveJournalDetail extends DriveJournalSummary {
+  entries: DriveJournalEntry[];
+}
+
+export interface DriveJournalDetailResponse {
+  journal: DriveJournalDetail;
+}
+
+export interface DriveJournalTarget {
+  evolutionId: string;
+  journal: {
+    period_type: 'weekly' | 'daily';
+    period_key: string;
+    journal_part: number;
+    display_name?: string;
+  };
+}
+
 export const listDriveJournals = () =>
   request<DriveJournalPage>('/google-drive/evolution-journals');
+
+function validateJournalPath(
+  periodType: DriveJournalSummary['period_type'],
+  periodKey: string,
+  journalPart: number,
+): void {
+  if (periodType !== 'weekly' && periodType !== 'daily')
+    throw new TypeError('Invalid journal period type');
+  const dailyMatch = periodKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const dailyDate = dailyMatch
+    ? new Date(Date.UTC(Number(dailyMatch[1]), Number(dailyMatch[2]) - 1, Number(dailyMatch[3])))
+    : null;
+  const validDailyDate = Boolean(
+    dailyMatch &&
+      dailyDate &&
+      dailyDate.getUTCFullYear() === Number(dailyMatch[1]) &&
+      dailyDate.getUTCMonth() === Number(dailyMatch[2]) - 1 &&
+      dailyDate.getUTCDate() === Number(dailyMatch[3]),
+  );
+  const validPeriodKey =
+    periodType === 'weekly' ? /^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/.test(periodKey) : validDailyDate;
+  if (!validPeriodKey) throw new TypeError('Invalid journal period key');
+  if (!Number.isInteger(journalPart) || journalPart < 1)
+    throw new TypeError('Journal part must be positive');
+}
+
+export const getDriveJournalDetail = (
+  periodType: DriveJournalSummary['period_type'],
+  periodKey: string,
+  journalPart: number,
+) => {
+  validateJournalPath(periodType, periodKey, journalPart);
+  return request<DriveJournalDetailResponse>(
+    `/google-drive/evolution-journals/${encodeURIComponent(periodType)}/${encodeURIComponent(periodKey)}/parts/${journalPart}`,
+  );
+};
 
 export const listDriveFiles = (patientId: string, pageToken?: string) => {
   const query = pageToken

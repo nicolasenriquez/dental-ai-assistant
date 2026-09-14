@@ -9,7 +9,7 @@ import type {
   ClinicalDraftItem as DraftItemData,
 } from '../../hooks/useClinicalAssistant';
 import { useConversationViewportCache } from '../../hooks/useConversationViewportCache';
-import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
+import type { ClinicalDraft, ClinicalPatient, DriveJournalTarget } from '../../lib/api';
 import { Message } from '../Message';
 import { Spinner } from '../Spinner';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
@@ -59,6 +59,9 @@ interface ClinicalTranscriptProps {
   driveTransferDisabled?: boolean;
   activePatientId?: string | null;
   activePatient?: ClinicalPatient | null;
+  onRecoverDriveExport?: (evolutionId: string) => void;
+  onReconnectDrive?: () => void;
+  onOpenDriveJournal?: (target: DriveJournalTarget) => void;
 }
 
 function ProcessingStatus({ items }: { items: ClinicalTranscriptItem[] }) {
@@ -122,6 +125,9 @@ export function ClinicalTranscript({
   driveTransferDisabled = false,
   activePatientId = null,
   activePatient = null,
+  onRecoverDriveExport,
+  onReconnectDrive,
+  onOpenDriveJournal,
 }: ClinicalTranscriptProps) {
   const follow = useChatAutoFollow();
   const viewport = useConversationViewportCache({
@@ -247,6 +253,9 @@ export function ClinicalTranscript({
                       saveToDriveDisabled={
                         driveTransferDisabled || item.patientId !== activePatientId
                       }
+                      onRecoverDriveExport={onRecoverDriveExport}
+                      onReconnectDrive={onReconnectDrive}
+                      onOpenDriveJournal={onOpenDriveJournal}
                     />
                   );
                 }

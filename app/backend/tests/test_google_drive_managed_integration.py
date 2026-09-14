@@ -135,6 +135,29 @@ async def test_list_files_scopes_patient_before_pagination() -> None:
 
 
 @respx.mock
+async def test_list_journal_files_reads_every_page_for_duplicate_detection() -> None:
+    route = respx.get(_FILES_URL).mock(
+        side_effect=[
+            httpx.Response(200, json={"files": [{"id": "journal-1"}], "nextPageToken": "next"}),
+            httpx.Response(200, json={"files": [{"id": "journal-2"}]}),
+        ]
+    )
+
+    files = await _adapter("list_journal_files")(
+        "request-access-token",
+        folder_id="folder-1",
+        period_type="weekly",
+        period_key="2026-W37",
+    )
+
+    assert [file["id"] for file in files] == ["journal-1", "journal-2"]
+    assert route.call_count == 2
+    assert route.calls[0].request.url.params.get("pageToken") is None
+    assert route.calls[1].request.url.params["pageToken"] == "next"
+    assert route.calls[0].request.url.params["fields"].startswith("nextPageToken,files(")
+
+
+@respx.mock
 async def test_search_escapes_drive_literal_without_changing_endpoint_shape() -> None:
     route = respx.get(_FILES_URL).mock(return_value=httpx.Response(200, json={"files": []}))
 

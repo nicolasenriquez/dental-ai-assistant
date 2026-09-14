@@ -4,7 +4,7 @@ import type {
   ClinicalApprovalItem,
   ClinicalDraftItem as DraftItemData,
 } from '../../hooks/useClinicalAssistant';
-import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
+import type { ClinicalDraft, ClinicalPatient, DriveJournalTarget } from '../../lib/api';
 import { clinicalTrace } from '../../lib/clinicalTelemetry';
 import { ClinicalEvolutionArtifact } from './ClinicalEvolutionArtifact';
 
@@ -26,6 +26,9 @@ interface ClinicalDraftItemProps {
   onResolve?: (item: ClinicalApprovalItem, decision: 'approve' | 'decline') => void;
   onBackToEdit?: (item: ClinicalApprovalItem) => void;
   autoOpenApproval?: boolean;
+  onRecoverDriveExport?: (evolutionId: string) => void;
+  onReconnectDrive?: () => void;
+  onOpenDriveJournal?: (target: DriveJournalTarget) => void;
 }
 
 export function ClinicalDraftItem({
@@ -46,6 +49,9 @@ export function ClinicalDraftItem({
   onResolve,
   onBackToEdit,
   autoOpenApproval = false,
+  onRecoverDriveExport,
+  onReconnectDrive,
+  onOpenDriveJournal,
 }: ClinicalDraftItemProps) {
   useEffect(() => {
     clinicalTrace('clinical.artifact.rendered', {
@@ -75,6 +81,9 @@ export function ClinicalDraftItem({
       onSaveToDrive={onSaveToDrive}
       saveToDriveDisabled={saveToDriveDisabled}
       autoOpenApproval={autoOpenApproval}
+      onRecoverDriveExport={onRecoverDriveExport}
+      onReconnectDrive={onReconnectDrive}
+      onOpenDriveJournal={onOpenDriveJournal}
     />
   );
 }

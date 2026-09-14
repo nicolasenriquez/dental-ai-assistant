@@ -114,6 +114,41 @@ async def get_export(owner_user_id: UUID | str, evolution_id: UUID | str) -> dic
         return await get_export_with_connection(conn, owner_user_id, evolution_id)
 
 
+async def list_journal_periods(owner_user_id: UUID | str) -> list[dict[str, Any]]:
+    """List distinct journal periods belonging to one authenticated owner."""
+    async with get_pg_pool().acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT period_type, period_key
+            FROM google_drive_evolution_exports
+            WHERE user_id = $1
+            GROUP BY period_type, period_key
+            ORDER BY period_key DESC, period_type
+            """,
+            _uuid(owner_user_id),
+        )
+    return [dict(row) for row in rows]
+
+
+async def list_period_lineage(
+    owner_user_id: UUID | str, period_type: str, period_key: str
+) -> list[dict[str, Any]]:
+    """Return owner-scoped evolution IDs assigned to one frozen period."""
+    async with get_pg_pool().acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT evolution_id, period_type, period_key
+            FROM google_drive_evolution_exports
+            WHERE user_id = $1 AND period_type = $2 AND period_key = $3
+            ORDER BY evolution_id
+            """,
+            _uuid(owner_user_id),
+            period_type,
+            period_key,
+        )
+    return [dict(row) for row in rows]
+
+
 async def claim_export(
     conn: Connection,
     owner_user_id: UUID | str,

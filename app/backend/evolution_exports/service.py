@@ -9,7 +9,7 @@ import re
 from collections.abc import Iterable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -30,16 +30,29 @@ JOURNAL_DELIMITER = "=" * 60
 JOURNAL_CONTENT_HASH_MISMATCH = "JOURNAL_CONTENT_HASH_MISMATCH"
 JOURNAL_BLOCK_TOO_LARGE = "JOURNAL_BLOCK_TOO_LARGE"
 JOURNAL_IDENTITY_CONFLICT = "JOURNAL_IDENTITY_CONFLICT"
+JOURNAL_PARSE_INVALID = "JOURNAL_PARSE_INVALID"
 
 
 class DriveConnectionRequiredError(RuntimeError):
     """Recovery cannot start until the owner's Drive connection is usable."""
 
 
+class JournalParseError(ValueError):
+    """Raised when remote content is not a valid Journal V1 document."""
+
+    def __init__(self) -> None:
+        super().__init__(JOURNAL_PARSE_INVALID)
+
+
 _PERIOD_PATTERNS = {
     "weekly": re.compile(r"^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$"),
     "daily": re.compile(r"^\d{4}-\d{2}-\d{2}$"),
 }
+_JOURNAL_TIMESTAMP = re.compile(r"^EVOLUCIÓN · (\d{2})-(\d{2})-(\d{4}) · (\d{2}):(\d{2})$")
+_JOURNAL_UUID = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+_MASKED_RUT = re.compile(r"^[•Xx*\d.\s]+-[0-9Kk]$")
 
 
 @dataclass(frozen=True)
@@ -66,6 +79,39 @@ def derive_period_key(approval_at: datetime, period_type: str) -> str:
         iso = local.isocalendar()
         return f"{iso.year}-W{iso.week:02d}"
     raise ValueError("period_type must be 'weekly' or 'daily'")
+
+
+def validate_journal_period(period_type: str, period_key: str) -> str:
+    """Validate period enum and its complete calendar grammar."""
+    pattern = _PERIOD_PATTERNS.get(period_type)
+    if pattern is None or not pattern.fullmatch(period_key):
+        raise ValueError("Invalid journal period")
+    try:
+        if period_type == "daily":
+            parsed = date.fromisoformat(period_key)
+            if parsed.isoformat() != period_key:
+                raise ValueError
+        else:
+            year_text, week_text = period_key.split("-W", 1)
+            date.fromisocalendar(int(year_text), int(week_text), 1)
+    except ValueError as exc:
+        raise ValueError("Invalid journal period") from exc
+    return period_key
+
+
+def validate_journal_part(value: str | int) -> int:
+    """Validate a positive, canonical decimal journal part."""
+    if isinstance(value, bool) or not isinstance(value, str | int):
+        raise ValueError("Invalid journal part")
+    if isinstance(value, str) and not re.fullmatch(r"[1-9]\d*", value):
+        raise ValueError("Invalid journal part")
+    try:
+        part = int(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Invalid journal part") from exc
+    if part < 1:
+        raise ValueError("Invalid journal part")
+    return part
 
 
 def format_journal_v1_header(evolution_at: datetime) -> str:
@@ -111,12 +157,9 @@ def verify_persisted_block(journal_block: str, content_hash: str) -> bytes:
 
 def journal_identity(period_type: str, period_key: str, journal_part: int) -> JournalIdentity:
     """Build deterministic journal filename and the complete managed identity."""
-    pattern = _PERIOD_PATTERNS.get(period_type)
-    if pattern is None or not pattern.fullmatch(period_key):
-        raise ValueError("Invalid journal period")
-    if journal_part < 1:
-        raise ValueError("journal_part must be positive")
-    suffix = "" if journal_part == 1 else f" — {journal_part}"
+    validate_journal_period(period_type, period_key)
+    part = validate_journal_part(journal_part)
+    suffix = "" if part == 1 else f" — {part}"
     period = f"{period_key}{suffix}"
     return JournalIdentity(
         name=f"Evoluciones — {period}.txt",
@@ -125,9 +168,142 @@ def journal_identity(period_type: str, period_key: str, journal_part: int) -> Jo
             "artifactType": "evolution-journal",
             "periodType": period_type,
             "periodKey": period_key,
-            "journalPart": str(journal_part),
+            "journalPart": str(part),
         },
     )
+
+
+@dataclass(frozen=True)
+class _ParsedJournalHeader:
+    evolution_id: UUID
+    occurred_at: datetime
+    patient_display_name: str
+    patient_rut_masked: str
+    body_start: int
+
+
+def _lineage_ids(lineage: Iterable[object]) -> set[str]:
+    ids: set[str] = set()
+    for item in lineage:
+        raw_id = item.get("evolution_id") if isinstance(item, Mapping) else item
+        try:
+            ids.add(str(UUID(str(raw_id))))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return ids
+
+
+def _parse_journal_header(
+    lines: list[str], start: int, lineage_ids: set[str]
+) -> _ParsedJournalHeader | None:
+    """Parse one complete header; foreign IDs are not entry boundaries."""
+    if start + 6 >= len(lines) or lines[start] != JOURNAL_DELIMITER:
+        return None
+    timestamp = _JOURNAL_TIMESTAMP.fullmatch(lines[start + 1])
+    patient_line = lines[start + 2]
+    rut_line = lines[start + 3]
+    evolution_line = lines[start + 4]
+    if timestamp is None or not patient_line.startswith("Paciente: "):
+        return None
+    if not rut_line.startswith("RUT: ") or not evolution_line.startswith("Dental AI ID: "):
+        return None
+    patient_display_name = patient_line.removeprefix("Paciente: ")
+    patient_rut_masked = rut_line.removeprefix("RUT: ")
+    raw_evolution_id = evolution_line.removeprefix("Dental AI ID: ")
+    if (
+        not patient_display_name
+        or not _MASKED_RUT.fullmatch(patient_rut_masked)
+        or not any(char in patient_rut_masked for char in "•Xx*")
+        or not _JOURNAL_UUID.fullmatch(raw_evolution_id)
+        or lines[start + 5] != JOURNAL_DELIMITER
+        or lines[start + 6] != ""
+    ):
+        return None
+    try:
+        evolution_id = UUID(raw_evolution_id)
+        occurred_at = datetime(
+            int(timestamp.group(3)),
+            int(timestamp.group(2)),
+            int(timestamp.group(1)),
+            int(timestamp.group(4)),
+            int(timestamp.group(5)),
+            tzinfo=config.CLINICAL_TIMEZONE_INFO,
+        )
+    except ValueError:
+        return None
+    if str(evolution_id) not in lineage_ids:
+        return None
+    return _ParsedJournalHeader(
+        evolution_id=evolution_id,
+        occurred_at=occurred_at,
+        patient_display_name=patient_display_name,
+        patient_rut_masked=patient_rut_masked,
+        body_start=start + 7,
+    )
+
+
+def parse_journal_v1(content: bytes | str, lineage: Iterable[object]) -> list[dict[str, Any]]:
+    """Parse remote Journal V1 using complete framing and owner-period lineage.
+
+    The caller supplies lineage loaded with an owner-scoped repository query.
+    No PostgreSQL clinical content is used to fill or repair returned entries.
+    """
+    if isinstance(content, bytes):
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise JournalParseError from exc
+    elif isinstance(content, str):
+        text = content
+    else:
+        raise JournalParseError
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise JournalParseError from exc
+    if not text or text.startswith("\ufeff") or "\r" in text or not text.endswith("\n"):
+        raise JournalParseError
+
+    lines = text[:-1].split("\n")
+    lineage_ids = _lineage_ids(lineage)
+    entries: list[dict[str, Any]] = []
+    position = 0
+    while position < len(lines):
+        header = _parse_journal_header(lines, position, lineage_ids)
+        if header is None:
+            raise JournalParseError
+
+        closing_delimiter: int | None = None
+        next_header: _ParsedJournalHeader | None = None
+        cursor = header.body_start
+        while cursor < len(lines):
+            if lines[cursor] == JOURNAL_DELIMITER:
+                if cursor == len(lines) - 1:
+                    closing_delimiter = cursor
+                    break
+                candidate = _parse_journal_header(lines, cursor + 1, lineage_ids)
+                if candidate is not None:
+                    closing_delimiter = cursor
+                    next_header = candidate
+                    break
+            cursor += 1
+        if closing_delimiter is None:
+            raise JournalParseError
+
+        body = "\n".join(lines[header.body_start : closing_delimiter])
+        entries.append(
+            {
+                "evolution_id": header.evolution_id,
+                "occurred_at": header.occurred_at,
+                "patient_display_name": header.patient_display_name,
+                "patient_rut_masked": header.patient_rut_masked,
+                "content": body,
+            }
+        )
+        if next_header is None:
+            return entries
+        position = closing_delimiter + 1
+    raise JournalParseError
 
 
 def _part_values(part: object) -> tuple[int, bytes]:

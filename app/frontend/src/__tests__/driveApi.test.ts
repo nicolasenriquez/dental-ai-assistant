@@ -71,6 +71,8 @@ type DriveApiSeam = {
   ) => Promise<unknown>;
   disconnectDrive?: () => Promise<unknown>;
   retryClinicalDriveExport?: (evolutionId: string) => Promise<unknown>;
+  getDriveJournalPreferences?: () => Promise<unknown>;
+  updateDriveJournalPreferences?: (frequency: 'weekly' | 'daily') => Promise<unknown>;
 };
 
 const seam = api as unknown as DriveApiSeam;
@@ -282,5 +284,22 @@ describe('managed Drive api wrappers', () => {
     expect(init.method).toBe('POST');
     expect(init.body).toBeUndefined();
     expect(init.credentials).toBe('include');
+  });
+
+  it('loads and updates typed journal preferences', async () => {
+    mockJson({ frequency: 'weekly' });
+    expect(await call(seam.getDriveJournalPreferences, 'getDriveJournalPreferences')()).toEqual({
+      frequency: 'weekly',
+    });
+    expect(lastFetch()[0]).toBe('/api/google-drive/evolution-journals/preferences');
+
+    mockJson({ frequency: 'daily' });
+    expect(
+      await call(seam.updateDriveJournalPreferences, 'updateDriveJournalPreferences')('daily'),
+    ).toEqual({ frequency: 'daily' });
+    const [url, init] = lastFetch();
+    expect(url).toBe('/api/google-drive/evolution-journals/preferences');
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body as string)).toEqual({ frequency: 'daily' });
   });
 });

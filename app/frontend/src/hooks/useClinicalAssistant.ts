@@ -8,6 +8,7 @@ import {
   prepareClinicalSave,
   regenerateClinicalDraft,
   resolveClinicalAction,
+  retryClinicalDriveExport,
   returnClinicalActionToEditing,
   setClinicalActivePatient,
   streamClinicalTurn,
@@ -135,6 +136,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const loadSeqRef = useRef(0);
   const turnInputRef = useRef<Record<string, string>>({});
   const artifactTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const recoveredExportsRef = useRef(new Set<string>());
 
   const load = useCallback(async (): Promise<ClinicalThread | null> => {
     if (!threadId) return null;
@@ -148,6 +150,24 @@ export function useClinicalAssistant(threadId: string | undefined) {
     setRuntime(
       actions.some((action) => action.status === 'pending') ? 'awaiting_approval' : 'idle',
     );
+    for (const action of actions) {
+      const exportState = action.drive_export;
+      const evolutionId = action.result_resource_id;
+      if (
+        !evolutionId ||
+        !exportState ||
+        !['pending', 'syncing', 'unknown'].includes(exportState.status)
+      )
+        continue;
+      const recoveryKey = `${loaded.id}:${evolutionId}`;
+      if (recoveredExportsRef.current.has(recoveryKey)) continue;
+      recoveredExportsRef.current.add(recoveryKey);
+      void retryClinicalDriveExport(evolutionId)
+        .then(({ drive_export }) => {
+          dispatch({ type: 'updateDriveExport', evolutionId, driveExport: drive_export });
+        })
+        .catch(() => undefined);
+    }
     return loaded;
   }, [threadId]);
 
@@ -505,6 +525,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           type: 'resolveApproval',
           itemId: item.id,
           status: resolvedStatus,
+          action: result,
         });
         setRuntime('idle');
         setThread((current) => (current ? { ...current, pending_action: null } : current));
@@ -522,6 +543,15 @@ export function useClinicalAssistant(threadId: string | undefined) {
     },
     [],
   );
+
+  const retryDriveExport = useCallback(async (evolutionId: string) => {
+    try {
+      const { drive_export } = await retryClinicalDriveExport(evolutionId);
+      dispatch({ type: 'updateDriveExport', evolutionId, driveExport: drive_export });
+    } catch (caught) {
+      setError(safeError(apiErrorCode(caught) ?? 'DRIVE_EXPORT_RECOVERY_FAILED'));
+    }
+  }, []);
 
   const backToEdit = useCallback(async (item: ClinicalApprovalItem): Promise<boolean> => {
     try {
@@ -597,6 +627,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     confirmPatientSwitch,
     reload: load,
     retryTurn,
+    retryDriveExport,
     artifactSyncState,
     retryArtifactSync: (item: ClinicalDraftItem) =>
       scheduleArtifactSync(item.id, {

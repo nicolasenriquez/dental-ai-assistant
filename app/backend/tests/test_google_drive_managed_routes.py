@@ -374,6 +374,64 @@ async def test_status_reports_missing_or_pending_authoritative_workspace(
     assert pending.json()["status"] == "workspace_recovery_pending"
 
 
+async def test_journal_preferences_round_trip_is_owner_scoped(
+    managed_client: AsyncClient, managed_context: dict[str, Any], monkeypatch
+) -> None:
+    from backend.db import google_drive_repo
+
+    calls: list[tuple[str, str]] = []
+
+    async def get_frequency(user_id: str) -> str:
+        calls.append(("get", str(user_id)))
+        return "weekly"
+
+    async def update_frequency(user_id: str, frequency: str) -> str:
+        calls.append((frequency, str(user_id)))
+        return frequency
+
+    monkeypatch.setattr(google_drive_repo, "get_evolution_export_frequency", get_frequency)
+    monkeypatch.setattr(google_drive_repo, "update_evolution_export_frequency", update_frequency)
+
+    loaded = await managed_client.get(
+        "/api/google-drive/evolution-journals/preferences", headers=_headers()
+    )
+    updated = await managed_client.put(
+        "/api/google-drive/evolution-journals/preferences",
+        headers=_headers(),
+        json={"frequency": "daily"},
+    )
+
+    assert loaded.json() == {"frequency": "weekly"}
+    assert updated.json() == {"frequency": "daily"}
+    assert calls == [("get", USER_ID), ("daily", USER_ID)]
+    assert not managed_context["calls"]
+
+
+async def test_journal_preference_rejects_invalid_update_without_mutation(
+    managed_client: AsyncClient, managed_context: dict[str, Any], monkeypatch
+) -> None:
+    from backend.db import google_drive_repo
+
+    update_called = False
+
+    async def update_frequency(_user_id: str, _frequency: str) -> str:
+        nonlocal update_called
+        update_called = True
+        return "weekly"
+
+    monkeypatch.setattr(google_drive_repo, "update_evolution_export_frequency", update_frequency)
+
+    response = await managed_client.put(
+        "/api/google-drive/evolution-journals/preferences",
+        headers=_headers(),
+        json={"frequency": "monthly"},
+    )
+
+    assert response.status_code == 422
+    assert not update_called
+    assert not managed_context["calls"]
+
+
 async def test_status_reuses_verified_folder_without_creating_duplicate(
     managed_client: AsyncClient, managed_context: dict[str, Any]
 ) -> None:
@@ -413,9 +471,7 @@ async def test_managed_read_refreshes_once_after_drive_401(
         nonlocal calls
         calls += 1
         if calls == 1:
-            raise google_drive.GoogleDriveError(
-                "GOOGLE_DRIVE_UNAUTHORIZED", "expired access token"
-            )
+            raise google_drive.GoogleDriveError("GOOGLE_DRIVE_UNAUTHORIZED", "expired access token")
         return await original_get_folder(access_token, folder_id)
 
     monkeypatch.setattr(google_drive, "get_folder", get_folder)

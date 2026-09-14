@@ -2,7 +2,13 @@ import { HardDrive, Stethoscope } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
 import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
-import { type ClinicalDraft, type ClinicalPatient, type Patient, getPatients } from '../../lib/api';
+import {
+  type ClinicalDraft,
+  type ClinicalPatient,
+  type DriveJournalTarget,
+  type Patient,
+  getPatients,
+} from '../../lib/api';
 import {
   type ComposerSelection,
   captureComposerSelection,
@@ -23,6 +29,7 @@ interface ClinicalAssistantAreaProps {
   onSaveToDrive?: (seed: { name: string; content: string }) => void;
   driveOpen?: boolean;
   onToggleDrive?: () => void;
+  onOpenDriveJournal?: (target: DriveJournalTarget) => void;
 }
 
 type QueuedEntry = { id: string; content: string; patientId: string | null; patientName: string };
@@ -42,6 +49,7 @@ export function ClinicalAssistantArea({
   onSaveToDrive,
   driveOpen = false,
   onToggleDrive,
+  onOpenDriveJournal,
 }: ClinicalAssistantAreaProps) {
   const assistant = useClinicalAssistant(threadId);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -268,6 +276,11 @@ export function ClinicalAssistantArea({
         driveTransferDisabled={!activePatient}
         activePatientId={activePatient?.id}
         activePatient={activePatient}
+        onRecoverDriveExport={(evolutionId) => void assistant.retryDriveExport(evolutionId)}
+        onReconnectDrive={() => {
+          if (!driveOpen) onToggleDrive?.();
+        }}
+        onOpenDriveJournal={onOpenDriveJournal}
         onPrepare={(item) => {
           setPreparingDraftId(item.id);
           void assistant.prepareDraft(item).then((approval) => {

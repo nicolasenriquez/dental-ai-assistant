@@ -23,7 +23,7 @@ import inspect
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 import httpx
@@ -36,7 +36,8 @@ from backend.auth import token_cipher
 from backend.auth.dependencies import COOKIE_NAME, get_current_user
 from backend.auth.token_cipher import Ciphertext
 from backend.auth.tokens import TokenError, decode_token
-from backend.db import google_drive_repo, patients_repo, users_repo
+from backend.db import evolution_exports_repo, google_drive_repo, patients_repo, users_repo
+from backend.evolution_exports import service as evolution_exports_service
 from backend.integrations import google_drive, google_drive_oauth
 
 logger = logging.getLogger(__name__)
@@ -520,6 +521,237 @@ async def _same_origin_dependency(request: Request) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid origin")
 
 
+class _JournalPreferenceBody(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    frequency: Literal["weekly", "daily"]
+
+
+class JournalSummary(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    period_type: Literal["weekly", "daily"]
+    period_key: str
+    journal_part: int
+    display_name: str
+    updated_at: str
+
+
+class JournalEntry(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    evolution_id: UUID
+    occurred_at: datetime
+    patient_display_name: str
+    patient_rut_masked: str
+    content: str
+
+
+class JournalDetail(JournalSummary):
+    entries: list[JournalEntry]
+
+
+class JournalPage(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    journals: list[JournalSummary]
+
+
+class JournalReadResponse(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    journal: JournalDetail
+
+
+@router.get("/evolution-journals/preferences")
+async def get_journal_preferences(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    frequency = await google_drive_repo.get_evolution_export_frequency(user["id"])
+    if frequency is None:
+        raise HTTPException(status_code=404, detail={"code": "DRIVE_CONNECTION_NOT_FOUND"})
+    return {"frequency": frequency}
+
+
+@router.put("/evolution-journals/preferences", dependencies=[Depends(_same_origin_dependency)])
+async def update_journal_preferences(
+    body: _JournalPreferenceBody,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    frequency = await google_drive_repo.update_evolution_export_frequency(
+        user["id"], body.frequency
+    )
+    if frequency is None:
+        raise HTTPException(status_code=404, detail={"code": "DRIVE_CONNECTION_NOT_FOUND"})
+    return {"frequency": frequency}
+
+
+def _journal_part_value(metadata: dict[str, Any]) -> int | None:
+    raw_part = (metadata.get("appProperties") or {}).get("journalPart")
+    if not isinstance(raw_part, str):
+        return None
+    try:
+        return cast(int, evolution_exports_service.validate_journal_part(raw_part))
+    except ValueError:
+        return None
+
+
+def _exact_journal_metadata(
+    metadata: dict[str, Any], period_type: str, period_key: str
+) -> tuple[int, dict[str, Any]] | None:
+    if metadata.get("trashed") or metadata.get("mimeType") != "text/plain":
+        return None
+    part = _journal_part_value(metadata)
+    if part is None:
+        return None
+    identity = evolution_exports_service.journal_identity(period_type, period_key, part)
+    if dict(metadata.get("appProperties") or {}) != identity.app_properties:
+        return None
+    return part, metadata
+
+
+def _journal_summary(metadata: dict[str, Any], period_type: str, period_key: str) -> JournalSummary:
+    candidate = _exact_journal_metadata(metadata, period_type, period_key)
+    if candidate is None or not isinstance(metadata.get("modifiedTime"), str):
+        raise _DriveDomainError("JOURNAL_PARSE_INVALID", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    part, _ = candidate
+    return JournalSummary(
+        period_type=cast(Literal["weekly", "daily"], period_type),
+        period_key=period_key,
+        journal_part=part,
+        display_name=evolution_exports_service.journal_identity(period_type, period_key, part).name,
+        updated_at=metadata["modifiedTime"],
+    )
+
+
+def _validated_journal_path(period_type: str, period_key: str, journal_part: str) -> int:
+    try:
+        evolution_exports_service.validate_journal_period(period_type, period_key)
+    except ValueError:
+        raise _DriveDomainError(
+            "JOURNAL_PERIOD_INVALID", status.HTTP_422_UNPROCESSABLE_ENTITY
+        ) from None
+    try:
+        return cast(int, evolution_exports_service.validate_journal_part(journal_part))
+    except ValueError:
+        raise _DriveDomainError(
+            "JOURNAL_PART_INVALID", status.HTTP_422_UNPROCESSABLE_ENTITY
+        ) from None
+
+
+@router.get("/evolution-journals", response_model=JournalPage)
+@_managed_route
+async def list_journals(user: dict[str, Any] = Depends(get_current_user)) -> JournalPage:
+    """List remote journals through owner-persisted period lineage."""
+    if not config.GOOGLE_DRIVE_CONFIGURED:
+        raise _DriveDomainError("GOOGLE_DRIVE_NOT_CONFIGURED", status.HTTP_503_SERVICE_UNAVAILABLE)
+    periods = await evolution_exports_repo.list_journal_periods(user["id"])
+    normalized_periods: list[tuple[str, str]] = []
+    for row in periods:
+        period_type = str(row.get("period_type") or "")
+        period_key = str(row.get("period_key") or "")
+        try:
+            evolution_exports_service.validate_journal_period(period_type, period_key)
+        except ValueError:
+            raise _DriveDomainError(
+                "JOURNAL_PERIOD_INVALID", status.HTTP_422_UNPROCESSABLE_ENTITY
+            ) from None
+        normalized_periods.append((period_type, period_key))
+    if not normalized_periods:
+        return JournalPage(journals=[])
+
+    connection, access_token = await _connection_access_token(str(user["id"]))
+    folder_id = await _ensure_folder(str(user["id"]), connection, access_token)
+
+    journals: list[JournalSummary] = []
+    for period_type, period_key in normalized_periods:
+        files = await google_drive.list_journal_files(
+            access_token,
+            folder_id=folder_id,
+            period_type=period_type,
+            period_key=period_key,
+        )
+        grouped: dict[int, list[dict[str, Any]]] = {}
+        for metadata in files:
+            candidate = _exact_journal_metadata(metadata, period_type, period_key)
+            if candidate is not None:
+                part, _ = candidate
+                grouped.setdefault(part, []).append(metadata)
+        for part in sorted(grouped):
+            matches = grouped[part]
+            try:
+                metadata = evolution_exports_service.resolve_unique_journal(matches)
+            except ValueError as exc:
+                if str(exc) == evolution_exports_service.JOURNAL_IDENTITY_CONFLICT:
+                    raise _DriveDomainError(
+                        evolution_exports_service.JOURNAL_IDENTITY_CONFLICT,
+                        status.HTTP_409_CONFLICT,
+                    ) from None
+                raise
+            if metadata is not None:
+                journals.append(_journal_summary(metadata, period_type, period_key))
+    return JournalPage(journals=journals)
+
+
+@router.get(
+    "/evolution-journals/{period_type}/{period_key}/parts/{journal_part}",
+    response_model=JournalReadResponse,
+)
+@_managed_route
+async def read_journal(
+    period_type: str,
+    period_key: str,
+    journal_part: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> JournalReadResponse:
+    """Read and parse one owner-scoped remote Journal V1 part."""
+    part = _validated_journal_path(period_type, period_key, journal_part)
+    if not config.GOOGLE_DRIVE_CONFIGURED:
+        raise _DriveDomainError("GOOGLE_DRIVE_NOT_CONFIGURED", status.HTTP_503_SERVICE_UNAVAILABLE)
+    lineage = await evolution_exports_repo.list_period_lineage(user["id"], period_type, period_key)
+    if not lineage:
+        raise _DriveDomainError("GOOGLE_DRIVE_NOT_FOUND", status.HTTP_404_NOT_FOUND)
+
+    connection, access_token = await _connection_access_token(str(user["id"]))
+    folder_id = await _ensure_folder(str(user["id"]), connection, access_token)
+    files = await google_drive.find_journal_files(
+        access_token,
+        folder_id=folder_id,
+        period_type=period_type,
+        period_key=period_key,
+        journal_part=part,
+    )
+    exact = [
+        metadata
+        for metadata in files
+        if (
+            (candidate := _exact_journal_metadata(metadata, period_type, period_key)) is not None
+            and candidate[0] == part
+        )
+    ]
+    try:
+        metadata = evolution_exports_service.resolve_unique_journal(exact)
+    except ValueError as exc:
+        if str(exc) == evolution_exports_service.JOURNAL_IDENTITY_CONFLICT:
+            raise _DriveDomainError(
+                evolution_exports_service.JOURNAL_IDENTITY_CONFLICT, status.HTTP_409_CONFLICT
+            ) from None
+        raise
+    if metadata is None or not metadata.get("id"):
+        raise _DriveDomainError("GOOGLE_DRIVE_NOT_FOUND", status.HTTP_404_NOT_FOUND)
+
+    raw = await google_drive.download_file(access_token, str(metadata["id"]))
+    try:
+        entries = evolution_exports_service.parse_journal_v1(raw, lineage)
+    except evolution_exports_service.JournalParseError:
+        raise _DriveDomainError(
+            evolution_exports_service.JOURNAL_PARSE_INVALID,
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+        ) from None
+    summary = _journal_summary(metadata, period_type, period_key)
+    return JournalReadResponse(journal=JournalDetail(**summary.model_dump(), entries=entries))
+
+
 def _validate_opaque(value: str | None) -> bool:
     """Opaque Drive values: 1..2048 chars, no control characters."""
     if value is None:
@@ -609,9 +841,7 @@ async def _connection_access_token(user_id: str) -> tuple[dict[str, Any], str]:
     except google_drive_oauth.GoogleDriveOAuthError as exc:
         if exc.code == "GOOGLE_DRIVE_INVALID_GRANT":
             await google_drive_repo.set_revoked(user_id)
-            raise _DriveDomainError(
-                "GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN
-            ) from None
+            raise _DriveDomainError("GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN) from None
         raise _DriveDomainError(
             "GOOGLE_DRIVE_REFRESH_FAILED", status.HTTP_503_SERVICE_UNAVAILABLE
         ) from None

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
 import type { ClinicalApprovalItem, ClinicalDraftItem } from '../../hooks/useClinicalAssistant';
-import type { ClinicalPatient } from '../../lib/api';
+import type { ClinicalPatient, DriveExportState, DriveJournalTarget } from '../../lib/api';
 import {
   type ClinicalArtifactStage,
   EvolutionReviewArtifact,
@@ -29,6 +29,86 @@ interface ClinicalEvolutionArtifactProps {
   onSaveToDrive?: () => void;
   saveToDriveDisabled?: boolean;
   autoOpenApproval?: boolean;
+  onRecoverDriveExport?: (evolutionId: string) => void;
+  onReconnectDrive?: () => void;
+  onOpenDriveJournal?: (target: DriveJournalTarget) => void;
+}
+
+function DriveExportRow({
+  state,
+  evolutionId,
+  onRecover,
+  onReconnect,
+  onOpen,
+}: {
+  state: DriveExportState;
+  evolutionId: string | null;
+  onRecover?: (evolutionId: string) => void;
+  onReconnect?: () => void;
+  onOpen?: (target: DriveJournalTarget) => void;
+}) {
+  const connectionRequired =
+    state.status === 'failed' && state.error_code === 'DRIVE_CONNECTION_REQUIRED';
+  const copy = connectionRequired
+    ? 'Drive necesita reconexión'
+    : {
+        pending: 'Pendiente de sincronización',
+        syncing: 'Sincronizando con Drive…',
+        synced: 'Guardado en Drive',
+        failed: 'No se pudo guardar en Drive',
+        unknown: 'No pudimos confirmar el resultado',
+      }[state.status];
+  const journal = state.journal;
+  const navigable =
+    state.status === 'synced' && evolutionId && journal?.journal_part !== undefined && onOpen
+      ? {
+          evolutionId,
+          journal: { ...journal, journal_part: journal.journal_part },
+        }
+      : null;
+
+  return (
+    <div
+      className="clinical-drive-row"
+      data-drive-export={state.status}
+      role="status"
+      aria-live="polite"
+    >
+      <span>{copy}</span>
+      {navigable && onOpen && (
+        <button
+          type="button"
+          className="clinical-secondary-button"
+          onClick={() => onOpen(navigable)}
+        >
+          Abrir
+        </button>
+      )}
+      {connectionRequired && onReconnect && (
+        <button type="button" className="clinical-secondary-button" onClick={onReconnect}>
+          Reconectar
+        </button>
+      )}
+      {state.status === 'failed' && !connectionRequired && evolutionId && onRecover && (
+        <button
+          type="button"
+          className="clinical-secondary-button"
+          onClick={() => onRecover(evolutionId)}
+        >
+          Reintentar
+        </button>
+      )}
+      {state.status === 'unknown' && evolutionId && onRecover && (
+        <button
+          type="button"
+          className="clinical-secondary-button"
+          onClick={() => onRecover(evolutionId)}
+        >
+          Verificar
+        </button>
+      )}
+    </div>
+  );
 }
 
 function artifactStage(
@@ -116,6 +196,9 @@ export function ClinicalEvolutionArtifact({
   onSaveToDrive,
   saveToDriveDisabled = false,
   autoOpenApproval = false,
+  onRecoverDriveExport,
+  onReconnectDrive,
+  onOpenDriveJournal,
 }: ClinicalEvolutionArtifactProps) {
   const locked = isLocked(item, approval);
   const stage = artifactStage(item, approval, result);
@@ -124,6 +207,7 @@ export function ClinicalEvolutionArtifact({
   const terminalApproval = approval?.status === 'declined' || approval?.status === 'failed';
   const clinicalContent = composeClinicalDraft(item.draft);
   const showOverflow = stage !== 'saving';
+  const driveExport = approval?.action.drive_export ?? null;
 
   return (
     <article
@@ -194,7 +278,15 @@ export function ClinicalEvolutionArtifact({
 
       {stage === 'saved' && (
         <>
-          {onSaveToDrive && (
+          {driveExport ? (
+            <DriveExportRow
+              state={driveExport}
+              evolutionId={resourceId}
+              onRecover={onRecoverDriveExport}
+              onReconnect={onReconnectDrive}
+              onOpen={onOpenDriveJournal}
+            />
+          ) : onSaveToDrive ? (
             <div className="clinical-drive-row" data-drive-export="manual" role="status">
               <span>Drive</span>
               <button
@@ -206,7 +298,7 @@ export function ClinicalEvolutionArtifact({
                 Guardar en Drive
               </button>
             </div>
-          )}
+          ) : null}
           <div className="clinical-artifact-terminal-actions">
             {resourceId && resourcePatientId && (
               <Link

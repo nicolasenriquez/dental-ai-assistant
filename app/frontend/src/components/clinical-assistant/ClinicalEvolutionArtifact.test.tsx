@@ -2,7 +2,12 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ClinicalApprovalItem, ClinicalDraftItem } from '../../hooks/useClinicalAssistant';
-import type { ClinicalDraft, ClinicalPatient, ClinicalPendingAction } from '../../lib/api';
+import type {
+  ClinicalDraft,
+  ClinicalPatient,
+  ClinicalPendingAction,
+  DriveExportState,
+} from '../../lib/api';
 import { ClinicalEvolutionArtifact } from './ClinicalEvolutionArtifact';
 
 const patient: ClinicalPatient = {
@@ -89,6 +94,14 @@ function renderArtifact(
   onPrepare = vi.fn(),
   onSaveToDrive?: () => void,
   patient?: ClinicalPatient | null,
+  driveCallbacks: {
+    recover?: (evolutionId: string) => void;
+    reconnect?: () => void;
+    open?: (target: {
+      evolutionId: string;
+      journal: NonNullable<DriveExportState['journal']>;
+    }) => void;
+  } = {},
 ) {
   return render(
     <MemoryRouter>
@@ -104,6 +117,9 @@ function renderArtifact(
         onResolve={vi.fn()}
         onBackToEdit={vi.fn()}
         onSaveToDrive={onSaveToDrive}
+        onRecoverDriveExport={driveCallbacks.recover}
+        onReconnectDrive={driveCallbacks.reconnect}
+        onOpenDriveJournal={driveCallbacks.open}
       />
     </MemoryRouter>,
   );
@@ -195,5 +211,79 @@ describe('ClinicalEvolutionArtifact', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar en Drive' }));
     expect(onSaveToDrive).toHaveBeenCalledOnce();
     expect(screen.queryByText('Evolución guardada')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['pending', undefined, 'Pendiente de sincronización', null],
+    ['syncing', undefined, 'Sincronizando con Drive…', null],
+    ['failed', 'DRIVE_WRITE_FAILED', 'No se pudo guardar en Drive', 'Reintentar'],
+    ['unknown', undefined, 'No pudimos confirmar el resultado', 'Verificar'],
+  ] as const)('renders %s Drive state with its safe action', (status, errorCode, copy, action) => {
+    const recover = vi.fn();
+    const approval = approvalItem('completed', 'evolution-1');
+    approval.action.drive_export = { status, error_code: errorCode };
+
+    renderArtifact(
+      draftItem({ artifactStatus: 'approved' }),
+      approval,
+      undefined,
+      undefined,
+      patient,
+      { recover },
+    );
+
+    expect(screen.getByText(copy)).toBeVisible();
+    if (action) {
+      fireEvent.click(screen.getByRole('button', { name: action }));
+      expect(recover).toHaveBeenCalledWith('evolution-1');
+    }
+  });
+
+  it('derives reconnect only from failed plus DRIVE_CONNECTION_REQUIRED', () => {
+    const reconnect = vi.fn();
+    const approval = approvalItem('completed', 'evolution-1');
+    approval.action.drive_export = {
+      status: 'failed',
+      error_code: 'DRIVE_CONNECTION_REQUIRED',
+    };
+
+    renderArtifact(
+      draftItem({ artifactStatus: 'approved' }),
+      approval,
+      undefined,
+      undefined,
+      patient,
+      { reconnect },
+    );
+
+    expect(screen.getByText('Drive necesita reconexión')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Reconectar' }));
+    expect(reconnect).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+  });
+
+  it('opens a synced journal only when exact lineage is navigable', () => {
+    const open = vi.fn();
+    const approval = approvalItem('completed', 'evolution-1');
+    approval.action.drive_export = {
+      status: 'synced',
+      journal: { period_type: 'weekly', period_key: '2026-W37', journal_part: 2 },
+    };
+
+    renderArtifact(
+      draftItem({ artifactStatus: 'approved' }),
+      approval,
+      undefined,
+      undefined,
+      patient,
+      { open },
+    );
+
+    expect(screen.getByText('Guardado en Drive')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+    expect(open).toHaveBeenCalledWith({
+      evolutionId: 'evolution-1',
+      journal: { period_type: 'weekly', period_key: '2026-W37', journal_part: 2 },
+    });
   });
 });

@@ -168,6 +168,36 @@ describe('clinical runtime', () => {
     expect(state.items.find((item) => item.id === 'action-a')?.status).toBe('completed');
   });
 
+  it('merges live and recovered Drive state into the same approval item', () => {
+    const approval = action('action-a', 'turn-1', 'pending');
+    approval.action.result_resource_id = 'evolution-1';
+    let state = createClinicalReducerState([approval]);
+    const resolvedAction = {
+      ...approval.action,
+      status: 'approved' as const,
+      drive_export: { status: 'pending' as const },
+    };
+
+    state = clinicalReducer(state, {
+      type: 'resolveApproval',
+      itemId: approval.id,
+      status: 'completed',
+      action: resolvedAction,
+    });
+    state = clinicalReducer(state, {
+      type: 'updateDriveExport',
+      evolutionId: 'evolution-1',
+      driveExport: { status: 'synced', synced_at: '2026-09-08T12:01:00Z' },
+    });
+
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toMatchObject({
+      id: 'action-a',
+      status: 'completed',
+      action: { drive_export: { status: 'synced' } },
+    });
+  });
+
   it('drops duplicate and out-of-order events for the active turn', () => {
     const first = decodeClinicalEvent('item.completed', event(), {
       threadId: 'thread-1',
