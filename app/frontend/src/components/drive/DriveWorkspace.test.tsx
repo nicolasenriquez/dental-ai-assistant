@@ -219,6 +219,14 @@ describe('connection presentation', () => {
     expect(screen.getByRole('button', { name: 'Importar copia desde Drive' })).toBeInTheDocument();
   });
 
+  it('uses one sheet header on mobile', async () => {
+    stubMobile();
+    renderWorkspace();
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findAllByRole('heading', { name: 'Google Drive' })).toHaveLength(1);
+  });
+
   it('shows the exact revoked Alert and preserves the Dental session', async () => {
     getDriveStatusMock.mockResolvedValue({ configured: true, status: 'revoked' });
     renderWorkspace();

@@ -954,7 +954,9 @@ export function DriveWorkspace({
       role="region"
       aria-label="Espacio de documentos de Google Drive"
     >
-      {!sourceDoc && <DriveWorkspaceHeader status={driveStatus} onClose={requestCloseWorkspace} />}
+      {!sourceDoc && !isSheet && (
+        <DriveWorkspaceHeader status={driveStatus} onClose={requestCloseWorkspace} />
+      )}
       {errorMessage && (
         <Alert>
           <AlertTitle>No se pudo completar la acción</AlertTitle>

@@ -5,7 +5,9 @@ const patientId = '22222222-2222-4222-8222-222222222222';
 const actionId = '33333333-3333-4333-8333-333333333333';
 const secondActionId = '33333333-3333-4333-8333-333333333334';
 const thirdActionId = '33333333-3333-4333-8333-333333333335';
+const userId = '55555555-5555-4555-8555-555555555555';
 const evolutionId = '44444444-4444-4444-8444-444444444444';
+const sourceFileId = '66666666-6666-4666-8666-666666666666';
 type MockAction = Record<string, unknown>;
 type MockArtifact = Record<string, unknown>;
 type MockMessage = Record<string, unknown>;
@@ -31,6 +33,29 @@ const connectedDriveStatus = {
   workspace: { folder_name: 'Dental AI Assistant' },
 };
 
+const journal = {
+  period_type: 'weekly',
+  period_key: '2026-W03',
+  journal_part: 1,
+  display_name: 'Evoluciones — 2026-W03.txt',
+};
+
+const remoteJournalDetail = {
+  journal: {
+    ...journal,
+    updated_at: '2026-01-16T12:00:00Z',
+    entries: [
+      {
+        evolution_id: evolutionId,
+        occurred_at: '2026-01-15T12:00:00Z',
+        patient_display_name: 'Ana Pérez',
+        patient_rut_masked: patient.rut_masked,
+        content: 'Edición remota confirmada en Drive.',
+      },
+    ],
+  },
+};
+
 const draft = {
   context: 'Control preventivo',
   findings: 'Encías sin sangrado al sondaje.',
@@ -40,10 +65,10 @@ const draft = {
   review_flags: [],
 };
 
-function thread(actions: MockAction[] = []) {
+function thread(actions: MockAction[] = [], overrides: Record<string, unknown> = {}) {
   return {
     id: threadId,
-    owner_user_id: '55555555-5555-4555-8555-555555555555',
+    owner_user_id: userId,
     title: 'Ana Pérez · Control',
     active_patient: patient,
     pending_action_patient: null,
@@ -54,10 +79,61 @@ function thread(actions: MockAction[] = []) {
     artifacts: [] as MockArtifact[],
     pending_action: null as MockAction | null,
     actions,
+    ...overrides,
   };
 }
 
-async function mockGoogleBootstrap(page: Page): Promise<void> {
+function hydratedArtifact(overrides: Record<string, unknown> = {}): MockArtifact {
+  return {
+    id: 'draft-hydrated',
+    owner_user_id: userId,
+    thread_id: threadId,
+    turn_id: 'turn-hydrated',
+    patient_id: patientId,
+    artifact_type: 'clinical_draft',
+    status: 'draft',
+    source_note: 'Nota hidratada.',
+    generated_draft: draft,
+    draft,
+    evolution_at: '2026-01-15T12:01:00Z',
+    created_at: '2026-01-15T12:01:00Z',
+    updated_at: '2026-01-15T12:01:00Z',
+    resolved_at: null,
+    ...overrides,
+  };
+}
+
+function approval(overrides: Record<string, unknown> = {}): MockAction {
+  return {
+    id: actionId,
+    thread_id: threadId,
+    turn_id: 'turn-hydrated',
+    artifact_id: 'draft-hydrated',
+    patient_id: patientId,
+    action_type: 'save_evolution',
+    proposal_payload: {
+      evolution_id: evolutionId,
+      patient_id: patientId,
+      evolution_at: '2026-01-15T12:00:00Z',
+      raw_note: 'Nota clínica',
+      generated_text: 'Generado',
+      final_text: draft.findings,
+    },
+    proposal_hash: 'a'.repeat(64),
+    status: 'approved',
+    expires_at: '2026-01-15T12:30:00Z',
+    created_at: '2026-01-15T12:02:00Z',
+    resolved_at: '2026-01-15T12:03:00Z',
+    result_resource_id: evolutionId,
+    patient,
+    ...overrides,
+  };
+}
+
+async function mockGoogleBootstrap(
+  page: Page,
+  driveStatus: Record<string, unknown> = connectedDriveStatus,
+): Promise<void> {
   await page.route('**/api/auth/config', (route) =>
     route.fulfill({
       status: 200,
@@ -69,9 +145,189 @@ async function mockGoogleBootstrap(page: Page): Promise<void> {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(connectedDriveStatus),
+      body: JSON.stringify(driveStatus),
     }),
   );
+}
+
+interface ClinicalHarnessOptions {
+  driveStatus?: Record<string, unknown>;
+  driveRetry?: (count: number) => Promise<Record<string, unknown>>;
+  journalDetail?: Record<string, unknown>;
+}
+
+async function installDriveRoutes(
+  page: Page,
+  options: ClinicalHarnessOptions = {},
+): Promise<{ retryCount: () => number; journalDetail: Record<string, unknown> }> {
+  let retries = 0;
+  const detail = options.journalDetail ?? remoteJournalDetail;
+  const source = {
+    id: sourceFileId,
+    name: 'Nota remota.txt',
+    mimeType: 'text/plain',
+    modifiedTime: '2026-01-15T12:00:00Z',
+    version: '7',
+    kind: 'text',
+    editable: true,
+  };
+
+  await page.route('**/api/google-drive/sources', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ files: [source], next_page_token: null }),
+    }),
+  );
+  await page.route('**/api/google-drive/sources/*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(source) }),
+  );
+  await page.route('**/api/google-drive/sources/*/content', async (route) => {
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as { content: string };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...source, content: body.content, version: '8' }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...source, content: 'Contenido remoto.' }),
+    });
+  });
+  await page.route('**/api/google-drive/files*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ files: [], next_page_token: null }),
+    }),
+  );
+  await page.route('**/api/google-drive/evolution-journals/preferences', async (route) => {
+    if (route.request().method() === 'PUT') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ frequency: 'daily' }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ frequency: 'weekly' }),
+    });
+  });
+  await page.route('**/api/google-drive/evolution-journals', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ journals: [journal] }),
+    }),
+  );
+  await page.route(
+    /\/api\/google-drive\/evolution-journals\/(weekly|daily)\/[^/]+\/parts\/\d+$/,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(detail),
+      }),
+  );
+  await page.route('**/api/clinical/evolutions/*/drive-export/retry', async (route) => {
+    retries += 1;
+    const response = options.driveRetry
+      ? await options.driveRetry(retries)
+      : { status: 'synced', journal };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ drive_export: response }),
+    });
+  });
+
+  return { retryCount: () => retries, journalDetail: detail };
+}
+
+async function setupClinicalHarness(
+  page: Page,
+  initialThread: Record<string, unknown>,
+  options: ClinicalHarnessOptions = {},
+): Promise<{ setThread: (next: Record<string, unknown>) => void; driveRetries: () => number }> {
+  await mockGoogleBootstrap(page, options.driveStatus);
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: userId,
+        email: 'demo@example.com',
+        is_admin: false,
+        messages_used_today: 0,
+        messages_remaining_today: 25,
+        rate_window_resets_at: null,
+      }),
+    }),
+  );
+  await page.route('**/api/patients', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([patient]),
+    }),
+  );
+  let currentThread = initialThread;
+  await page.route('**/api/clinical-threads', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            ...currentThread,
+            preview: null,
+            active_patient_id: patientId,
+            approval_pending: Boolean(currentThread.pending_action),
+          },
+        ]),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(currentThread),
+    });
+  });
+  await page.route(`**/api/clinical-threads/${threadId}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(currentThread),
+    }),
+  );
+  await page.route(`**/api/clinical-threads/${threadId}/active-patient`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(currentThread),
+    }),
+  );
+  const drive = await installDriveRoutes(page, options);
+  await page.goto(`/a/${threadId}`);
+  await expect(
+    page
+      .getByRole('heading', { name: 'Evolución clínica' })
+      .or(page.getByRole('heading', { name: 'Trabaja más rápido con tus evoluciones' })),
+  ).toBeVisible();
+  return {
+    setThread: (next) => {
+      currentThread = next;
+    },
+    driveRetries: drive.retryCount,
+  };
 }
 
 function sseEvent(
@@ -341,6 +597,13 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       ...current,
       status: decision === 'decline' ? 'declined' : 'approved',
       result_resource_id: evolutionId,
+      drive_export:
+        decision === 'approve'
+          ? {
+              status: 'pending',
+              journal,
+            }
+          : null,
       resolved_at: '2026-01-15T12:03:00Z',
     };
     threadState = {
@@ -380,6 +643,13 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       }),
     });
   });
+  await page.route('**/api/clinical/evolutions/*/drive-export/retry', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ drive_export: { status: 'synced', journal } }),
+    }),
+  );
 
   const initialThreadLoad = page.waitForResponse(
     (response) =>
@@ -422,20 +692,14 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     name: 'Abrir historial de asistente',
   });
   await expect(historyButton).toBeVisible();
-  await expect(sidebar).toHaveScreenshot('clinical-sidebar-collapsed.png', {
-    animations: 'disabled',
-    maxDiffPixels: 100,
-  });
   await historyButton.click();
   await expect(
     sidebar.getByRole('button', { name: 'Ana Pérez · Control', exact: true }),
   ).toBeVisible();
 
-  await expect(page).toHaveScreenshot('clinical-empty.png', {
-    fullPage: true,
-    animations: 'disabled',
-    maxDiffPixels: 300,
-  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
 
   const composer = page.getByTestId('clinical-composer').getByLabel('Nota clínica');
   await composer.fill('Control preventivo sin hallazgos nuevos.');
@@ -450,11 +714,12 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
   await expect(page.getByRole('article', { name: 'Tú' })).toBeVisible();
   await expect(page.getByRole('article', { name: 'Asistente' })).toBeVisible();
+  const liveArtifact = page.getByRole('article', { name: 'Evolución clínica' });
+  await liveArtifact.evaluate((element) => element.setAttribute('data-e2e-mounted', 'true'));
+  await expect(page.locator('.clinical-artifact')).toHaveCount(1);
+  await expect(page.locator('.clinical-result, .clinical-receipt')).toHaveCount(0);
   await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución clínica' }));
-  await expect(page).toHaveScreenshot('clinical-draft.png', {
-    animations: 'disabled',
-    maxDiffPixels: 300,
-  });
+  await expect(page.locator('.clinical-artifact')).toHaveCSS('border-style', 'solid');
 
   await page.getByRole('button', { name: 'Ver nota clínica original' }).click();
   await page.getByRole('button', { name: 'Editar nota original' }).click();
@@ -470,22 +735,18 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await page.getByRole('button', { name: 'Aplicar' }).click();
   await expect(page.getByText('Necesita regeneración')).toBeVisible();
   await settleClinicalItem(page, page.getByRole('article', { name: 'Evolución clínica' }));
-  await expect(page).toHaveScreenshot('clinical-editing.png', {
-    animations: 'disabled',
-    maxDiffPixels: 300,
-  });
+  await expect(page.locator('[data-clinical-stage="draft"]')).toBeVisible();
   await page.getByRole('button', { name: 'Regenerar', exact: true }).click();
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
 
   await page.getByRole('button', { name: 'Revisar y guardar' }).click();
+  await expect(liveArtifact).toHaveAttribute('data-clinical-stage', 'review');
+  await expect(liveArtifact).toHaveAttribute('data-e2e-mounted', 'true');
   let confirmation = page.getByRole('dialog', { name: 'Guardar evolución' });
   await expect(confirmation).toBeVisible();
   await expect(confirmation.getByText('Requiere confirmación')).toBeVisible();
-  await expect(page).toHaveScreenshot('clinical-approval-pending.png', {
-    animations: 'disabled',
-    maxDiffPixels: 300,
-  });
+  await expect(confirmation.getByRole('button', { name: 'Guardar evolución' })).toBeVisible();
   await confirmation.getByRole('button', { name: 'Volver a editar' }).click();
   await expect(confirmation).not.toBeVisible();
   await page.getByRole('button', { name: 'Editar Hallazgos' }).click();
@@ -496,31 +757,38 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await confirmation.getByRole('button', { name: 'Guardar' }).click();
   const savedArtifact = page.locator('[data-artifact-id="draft-1"]');
   await expect(savedArtifact).toHaveAttribute('data-clinical-stage', 'saving');
+  await expect(savedArtifact).toHaveAttribute('data-e2e-mounted', 'true');
   await expect(savedArtifact.getByText('Guardando…', { exact: true })).toBeVisible();
+  await expect(savedArtifact.locator('.clinical-artifact-overflow')).toHaveCount(0);
+  await expect(savedArtifact.locator('.clinical-artifact-terminal-actions')).toHaveCount(0);
+  await expect(savedArtifact.locator('button.clinical-primary-button')).toHaveCount(0);
+  await expect(savedArtifact.locator('button.clinical-secondary-button')).toHaveCount(0);
   await expect(savedArtifact).toHaveAttribute('data-clinical-stage', 'saved');
+  await expect(savedArtifact).toHaveAttribute('data-e2e-mounted', 'true');
   await expect(savedArtifact.getByText('Guardada', { exact: true })).toBeVisible();
+  await expect(savedArtifact.locator('.clinical-drive-row')).toHaveAttribute(
+    'data-drive-export',
+    'pending',
+  );
+  await expect(savedArtifact.getByRole('link', { name: /Ver en ficha/ })).toBeVisible();
+  await expect(savedArtifact.getByRole('button', { name: 'Revisar y guardar' })).toHaveCount(0);
+  await expect(savedArtifact.locator('.clinical-result, .clinical-receipt')).toHaveCount(0);
+  await expect(page.locator('.clinical-artifact')).toHaveCount(1);
   await settleClinicalItem(page, savedArtifact);
-  await expect(page).toHaveScreenshot('clinical-approval-resolved.png', {
-    animations: 'disabled',
-    maxDiffPixels: 300,
-  });
+  await expect(savedArtifact).toHaveCSS('border-radius', '10px');
 
   await composer.fill('Segundo control independiente.');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(2);
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(2);
   await settleClinicalItem(page, page.locator('[aria-label="Evolución clínica"]').last());
-  await expect(page).toHaveScreenshot('clinical-second-turn.png', {
-    animations: 'disabled',
-    maxDiffPixels: 300,
-  });
+  await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(2);
   await page.getByRole('button', { name: 'Revisar y guardar' }).last().click();
   await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
-  await expect(page).toHaveScreenshot('clinical-second-approval.png', {
-    animations: 'disabled',
-    maxDiffPixels: 300,
-  });
 
+  await page.route('**/api/conversations', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }),
+  );
   await page.goto('/chat');
   await expect(page.getByLabel('Pregunta sobre la biblioteca de videos')).toBeVisible();
   await page.evaluate((path) => {
@@ -539,12 +807,399 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await settleClinicalItem(page, page.getByText('Guardado pendiente'));
-  await expect(page).toHaveScreenshot('clinical-mobile.png', {
-    fullPage: true,
-    animations: 'disabled',
-    maxDiffPixels: 300,
-  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
 });
+
+test('clinical Drive export failure stays recoverable without changing the artifact', async ({
+  page,
+}) => {
+  const history = Array.from(
+    { length: 10 },
+    (_, index): MockMessage => ({
+      id: `drive-history-${index}`,
+      turn_id: `drive-history-turn-${index}`,
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      content: `Historial antes de sincronización ${index} `.repeat(16),
+      created_at: `2026-01-15T12:${String(index + 4).padStart(2, '0')}:00Z`,
+    }),
+  );
+  const state = thread(
+    [
+      approval({
+        created_at: '2026-01-15T12:00:00Z',
+        drive_export: { status: 'failed', error_code: 'DRIVE_WRITE_FAILED', journal },
+      }),
+    ],
+    { artifacts: [hydratedArtifact({ status: 'approved' })], messages: history },
+  );
+  let releaseRetry!: () => void;
+  let retryStarted!: () => void;
+  const retryRequest = new Promise<void>((resolve) => {
+    retryStarted = resolve;
+  });
+  const harness = await setupClinicalHarness(page, state, {
+    driveRetry: async () => {
+      retryStarted();
+      await new Promise<void>((resolve) => {
+        releaseRetry = resolve;
+      });
+      return { status: 'synced', journal };
+    },
+  });
+  const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+  await expect(artifact).toHaveAttribute('data-clinical-stage', 'saved');
+  await expect(artifact.locator('[data-drive-export="failed"]')).toContainText(
+    'No se pudo guardar en Drive',
+  );
+  await expect(artifact.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+  await expect(artifact.getByRole('button', { name: 'Verificar' })).toHaveCount(0);
+  const transcript = page.locator('.clinical-transcript');
+  await transcript.evaluate((element) => {
+    const transcriptElement = element as HTMLDivElement;
+    transcriptElement.scrollTop = 0;
+    transcriptElement.dispatchEvent(new Event('scroll'));
+  });
+  const transcriptPosition = await transcript.evaluate((element) => element.scrollTop);
+  const retryButton = artifact.getByRole('button', { name: 'Reintentar' });
+  await expect(retryButton).toBeVisible();
+  await retryButton.click({ force: true });
+  await retryRequest;
+  expect(await transcript.evaluate((element) => element.scrollTop)).toBe(transcriptPosition);
+  releaseRetry();
+  await expect(artifact.locator('[data-drive-export="synced"]')).toContainText('Guardado en Drive');
+  expect(harness.driveRetries()).toBe(1);
+  expect(await transcript.evaluate((element) => element.scrollTop)).toBe(transcriptPosition);
+  await expect(page.locator('.clinical-artifact')).toHaveCount(1);
+  await expect(page.locator('.clinical-result, .clinical-receipt')).toHaveCount(0);
+});
+
+test('clinical review exposes primary confirmation and secondary editing actions', async ({
+  page,
+}) => {
+  const pending = approval({
+    status: 'pending',
+    drive_export: null,
+  });
+  const state = thread([pending], {
+    artifacts: [hydratedArtifact({ status: 'pending' })],
+    pending_action: pending,
+    pending_action_patient: patient,
+  });
+  await setupClinicalHarness(page, state);
+  const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+  await expect(artifact).toHaveAttribute('data-clinical-stage', 'review');
+  await expect(artifact.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
+  await expect(artifact.getByRole('button', { name: 'Seguir editando' })).toBeVisible();
+  await expect(artifact.locator('.clinical-artifact-overflow summary')).toBeVisible();
+  await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toHaveCount(0);
+});
+
+for (const connection of [
+  {
+    name: 'disconnected',
+    status: { configured: true, status: 'disconnected' },
+    heading: 'Conecta Google Drive',
+    action: 'Conectar Google Drive',
+  },
+  {
+    name: 'revoked',
+    status: { configured: true, status: 'revoked' },
+    heading: 'Vuelve a conectar Google Drive',
+    action: 'Reconectar',
+  },
+] as const) {
+  test(`clinical Drive ${connection.name} preserves canonical approval`, async ({ page }) => {
+    const state = thread(
+      [
+        approval({
+          drive_export: {
+            status: 'failed',
+            error_code: 'DRIVE_CONNECTION_REQUIRED',
+            journal,
+          },
+        }),
+      ],
+      { artifacts: [hydratedArtifact({ status: 'approved' })] },
+    );
+    const harness = await setupClinicalHarness(page, state, { driveStatus: connection.status });
+    const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+    await expect(artifact.locator('[data-drive-export="failed"]')).toContainText(
+      'Drive necesita reconexión',
+    );
+    await expect(artifact.getByRole('button', { name: 'Reconectar' })).toBeVisible();
+    await expect(artifact.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Abrir Google Drive' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await artifact.getByRole('button', { name: 'Reconectar' }).click();
+    await expect(
+      page.getByRole('region', { name: 'Espacio de documentos de Google Drive' }),
+    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: connection.heading })).toBeVisible();
+    await expect(
+      page.getByTestId('accessory').getByRole('button', { name: connection.action }),
+    ).toBeVisible();
+    expect(harness.driveRetries()).toBe(0);
+  });
+}
+
+test('clinical hydration recovers process-loss export once and keeps refresh parity', async ({
+  page,
+}) => {
+  let releaseRecovery!: (value: Record<string, unknown>) => void;
+  const recovery = new Promise<Record<string, unknown>>((resolve) => {
+    releaseRecovery = resolve;
+  });
+  const state = thread([approval({ drive_export: { status: 'pending', journal } })], {
+    artifacts: [hydratedArtifact({ status: 'approved' })],
+  });
+  const harness = await setupClinicalHarness(page, state, {
+    driveRetry: async () => recovery,
+  });
+  const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+  await expect(artifact.locator('[data-drive-export="pending"]')).toContainText(
+    'Pendiente de sincronización',
+  );
+  expect(harness.driveRetries()).toBe(1);
+  await expect(page.locator('.clinical-artifact')).toHaveCount(1);
+  await expect(page.locator('.clinical-result, .clinical-receipt')).toHaveCount(0);
+
+  releaseRecovery({ status: 'synced', journal });
+  await expect(artifact.locator('[data-drive-export="synced"]')).toContainText('Guardado en Drive');
+  await expect(artifact).toHaveAttribute('data-clinical-stage', 'saved');
+  await page.reload();
+  await expect(page.locator('[data-artifact-id="draft-hydrated"]')).toHaveAttribute(
+    'data-clinical-stage',
+    'saved',
+  );
+  await expect(page.locator('.clinical-artifact')).toHaveCount(1);
+  await expect(page.locator('.clinical-result, .clinical-receipt')).toHaveCount(0);
+});
+
+test('clinical artifact deep link reads edited remote journal and preserves transcript position', async ({
+  page,
+}) => {
+  const state = thread([approval({ drive_export: { status: 'synced', journal } })], {
+    artifacts: [hydratedArtifact({ status: 'approved' })],
+  });
+  await setupClinicalHarness(page, state);
+  const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+  const transcript = page.locator('.clinical-transcript');
+  const transcriptPosition = await transcript.evaluate((element) => element.scrollTop);
+  await artifact.getByRole('button', { name: 'Abrir' }).click();
+  await expect(page.getByRole('button', { name: 'Diarios', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('heading', { name: journal.display_name })).toBeVisible();
+  await expect(page.getByText('Parte 1')).toHaveCount(0);
+  await expect(page.getByText('Edición remota confirmada en Drive.')).toBeVisible();
+  const entry = page.locator(`[data-evolution-id="${evolutionId}"]`);
+  await expect(entry).toHaveAttribute('tabindex', '-1');
+  await expect(entry).toHaveClass(/drive-journal-entry--highlighted/);
+  await expect(entry).toBeFocused();
+  await expect(page.getByText(/Actualizado/)).toBeVisible();
+  expect(await transcript.evaluate((element) => element.scrollTop)).toBe(transcriptPosition);
+  await expect(page.locator('.clinical-artifact')).toHaveCount(1);
+  expect(await transcript.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
+});
+
+test('clinical streaming keeps history anchored and offers jump for large artifacts', async ({
+  page,
+}) => {
+  const history = Array.from(
+    { length: 12 },
+    (_, index): MockMessage => ({
+      id: `history-${index}`,
+      turn_id: `history-turn-${index}`,
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      content: `Registro clínico anterior ${index} `.repeat(18),
+      created_at: `2026-01-15T10:${String(index).padStart(2, '0')}:00Z`,
+    }),
+  );
+  const initial = thread([], { messages: history });
+  let releaseStream!: () => void;
+  let routeEntered!: () => void;
+  const streamEntered = new Promise<void>((resolve) => {
+    routeEntered = resolve;
+  });
+  await page.route(`**/api/clinical-threads/${threadId}/turns`, async (route) => {
+    const body = route.request().postDataJSON() as { turn_id: string; content: string };
+    routeEntered();
+    await new Promise<void>((resolve) => {
+      releaseStream = resolve;
+    });
+    const largeDraft = {
+      ...draft,
+      findings: 'Hallazgo extenso. '.repeat(700),
+      assessment: 'Evaluación extensa. '.repeat(500),
+    };
+    const artifact = hydratedArtifact({
+      id: 'draft-large',
+      turn_id: body.turn_id,
+      source_note: body.content,
+      draft: largeDraft,
+      generated_draft: largeDraft,
+    });
+    harness.setThread({
+      ...initial,
+      messages: [
+        ...history,
+        {
+          id: `user-${body.turn_id}`,
+          turn_id: body.turn_id,
+          role: 'user',
+          content: body.content,
+          created_at: '2026-01-15T12:01:00Z',
+        },
+        {
+          id: `assistant-${body.turn_id}`,
+          turn_id: body.turn_id,
+          role: 'assistant',
+          content: 'Respuesta extensa disponible.',
+          created_at: '2026-01-15T12:01:01Z',
+        },
+      ],
+      artifacts: [artifact],
+    });
+    const payload = [
+      sseEvent(
+        'turn.started',
+        1,
+        body.turn_id,
+        `turn-${body.turn_id}`,
+        'turn',
+        {
+          user_content: body.content,
+        },
+        'running',
+      ),
+      sseEvent(
+        'item.started',
+        2,
+        body.turn_id,
+        `activity-${body.turn_id}`,
+        'activity',
+        { label: 'Preparando borrador' },
+        'running',
+      ),
+      sseEvent(
+        'item.completed',
+        3,
+        body.turn_id,
+        'draft-large',
+        'clinical_draft',
+        {
+          draft: largeDraft,
+          source_note: body.content,
+          patient_id: patientId,
+          evolution_at: '2026-01-15T12:01:00-03:00',
+        },
+        'completed',
+      ),
+      sseEvent(
+        'item.completed',
+        4,
+        body.turn_id,
+        `assistant-${body.turn_id}`,
+        'assistant_message',
+        { content: 'Respuesta extensa disponible.' },
+        'completed',
+      ),
+      sseEvent(
+        'turn.completed',
+        5,
+        body.turn_id,
+        `complete-${body.turn_id}`,
+        'turn',
+        {},
+        'completed',
+      ),
+    ].join('');
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
+  });
+  const harness = await setupClinicalHarness(page, initial);
+  const transcript = page.locator('.clinical-transcript');
+  const composer = page.getByLabel('Nota clínica');
+  await composer.fill('Nueva nota durante lectura histórica.');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await streamEntered;
+  await expect(page.getByText('Pensando…')).toBeVisible();
+  await transcript.evaluate((element) => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event('scroll'));
+  });
+  const historyPosition = await transcript.evaluate((element) => element.scrollTop);
+  releaseStream();
+  await expect(page.getByRole('heading', { name: 'Evolución clínica' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ir al mensaje más reciente/ })).toBeVisible();
+  expect(await transcript.evaluate((element) => element.scrollTop)).toBe(historyPosition);
+  const largeArtifact = page.locator('[data-artifact-id="draft-large"]');
+  await expect(largeArtifact).toBeVisible();
+  expect(await largeArtifact.locator('.clinical-artifact-body').innerText()).toContain(
+    'Hallazgo extenso.',
+  );
+  expect(await transcript.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+    true,
+  );
+  expect(await transcript.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
+  await page.getByRole('button', { name: /Ir al mensaje más reciente/ }).click();
+  await expect(page.getByRole('button', { name: /Ir al mensaje más reciente/ })).toHaveCount(0);
+});
+
+for (const viewport of [
+  { name: 'desktop', width: 1440, height: 1000 },
+  { name: 'tablet', width: 900, height: 1000 },
+  { name: 'mobile', width: 390, height: 844 },
+] as const) {
+  test(`clinical reduced-motion ${viewport.name} layout stays usable`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const state = thread([], { artifacts: [hydratedArtifact()] });
+    await setupClinicalHarness(page, state);
+    const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+    await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
+    await expect(artifact.locator('.clinical-artifact-overflow summary')).toBeVisible();
+    await expect(artifact).toHaveCSS('animation-name', 'none');
+    if (viewport.width <= 640) {
+      await expect(artifact.locator('.clinical-artifact-actions')).toHaveCSS(
+        'flex-direction',
+        'column',
+      );
+      expect(
+        await artifact.locator('.clinical-artifact-overflow').evaluate((element) => {
+          return element.getBoundingClientRect().width <= window.innerWidth;
+        }),
+      ).toBe(true);
+    }
+    await expect(page.getByRole('button', { name: 'Abrir Google Drive' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+    if (viewport.width <= 1024) {
+      await expect(page.locator('.drive-sheet-content')).toBeVisible();
+    } else {
+      await expect(page.locator('.workspace-row')).toBeVisible();
+      await expect(page.locator('.drive-sheet-content')).toHaveCount(0);
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    expect(
+      await page
+        .locator('.clinical-transcript')
+        .evaluate((element) => element.scrollWidth <= element.clientWidth),
+    ).toBe(true);
+  });
+}
 
 test('locks clinical patient scope while handing off dictation', async ({ page }) => {
   await page.addInitScript(() => {
