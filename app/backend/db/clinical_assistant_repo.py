@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from backend.config import CLINICAL_TURN_LIMIT_PER_24H
 from backend.db import evolutions_repo
 from backend.db.postgres import get_pg_pool
+from backend.evolution_exports import service as evolution_exports_service
 
 
 def _uuid(value: UUID | str) -> UUID:
@@ -924,13 +925,18 @@ async def resolve_action(
             _uuid(action["thread_id"]),
             owner,
         )
-        patient_exists = await conn.fetchval(
-            "SELECT 1 FROM patients WHERE id = $1 AND owner_user_id = $2",
+        patient = await conn.fetchrow(
+            """
+            SELECT id, first_name, last_name, rut_number, rut_dv
+            FROM patients
+            WHERE id = $1 AND owner_user_id = $2
+            """,
             _uuid(action["patient_id"]),
             owner,
         )
-        if not thread_exists or not patient_exists:
+        if not thread_exists or patient is None:
             raise LookupError("Action not found")
+        approval_at = datetime.now(UTC)
         try:
             async with conn.transaction():
                 result = await evolutions_repo.create_evolution_with_connection(
@@ -942,6 +948,13 @@ async def resolve_action(
                     raw_note=str(payload["raw_note"]),
                     generated_text=str(payload["generated_text"]),
                     final_text=str(payload["final_text"]),
+                )
+                await evolution_exports_service.persist_approval_export(
+                    conn,
+                    owner,
+                    result,
+                    dict(patient),
+                    approval_at,
                 )
         except Exception:
             row = await conn.fetchrow(

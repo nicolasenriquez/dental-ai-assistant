@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
@@ -99,6 +100,14 @@ CLINICAL_EXTERNAL_LLM_ENABLED: bool = os.environ.get(
     "CLINICAL_EXTERNAL_LLM_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "on")
 CLINICAL_TURN_LIMIT_PER_24H: int = int(os.environ.get("CLINICAL_TURN_LIMIT_PER_24H", "25"))
+CLINICAL_TIMEZONE: str = os.environ.get("CLINICAL_TIMEZONE", "America/Santiago").strip()
+try:
+    CLINICAL_TIMEZONE_INFO: ZoneInfo = ZoneInfo(CLINICAL_TIMEZONE)
+except (ValueError, ZoneInfoNotFoundError) as exc:
+    raise RuntimeError(
+        f"CLINICAL_TIMEZONE must be a valid IANA timezone, got {CLINICAL_TIMEZONE!r}"
+    ) from exc
+
 VOICE_TRANSCRIPTION_ENABLED: bool = os.environ.get(
     "VOICE_TRANSCRIPTION_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "on")

@@ -34,6 +34,7 @@ The app container reads these from `/opt/dynachat/.env` via docker-compose:
 | `JWT_SECRET` | **yes** (auth) | 32+ random bytes used to sign session-cookie JWTs. Generate with `openssl rand -hex 32`. Rotating this value invalidates all live sessions |
 | `ADMIN_USER_EMAIL` | optional | Email of the single admin user (case-insensitive match). When unset, every `/api/admin/*` endpoint returns 403. Match MUST equal the email the admin registered with |
 | `CLINICAL_EXTERNAL_LLM_ENABLED` | **no** (default: `false`) | Gate for external clinical drafting. Keep `false` until production approval |
+| `CLINICAL_TIMEZONE` | **no** (default: `America/Santiago`) | IANA timezone for approval-local journal grouping and Journal V1 display |
 
 The app's `DATABASE_URL` is assembled from the `POSTGRES_*` values inside
 `docker-compose.yml` — you do **not** set it directly in `.env`. It points at
