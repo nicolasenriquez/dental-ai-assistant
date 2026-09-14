@@ -267,6 +267,7 @@ export function ClinicalAssistantArea({
         }
         driveTransferDisabled={!activePatient}
         activePatientId={activePatient?.id}
+        activePatient={activePatient}
         onPrepare={(item) => {
           setPreparingDraftId(item.id);
           void assistant.prepareDraft(item).then((approval) => {

@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useChatAutoFollow } from './useChatAutoFollow';
+import { motionSafeScrollBehavior, useChatAutoFollow } from './useChatAutoFollow';
 
 function makeScrollContainer() {
   const container = document.createElement('div');
@@ -102,5 +102,33 @@ describe('useChatAutoFollow', () => {
     expect(result.current.followMode).toBe('following');
     expect(result.current.hasNewContentBelow).toBe(false);
     expect(container.scrollTop).toBe(container.scrollHeight);
+  });
+
+  it('uses immediate scrolling when reduced motion is preferred', () => {
+    const originalMatchMedia = window.matchMedia;
+    const { result } = renderHook(() => useChatAutoFollow());
+    const container = makeScrollContainer();
+    const scrollTo = vi.fn();
+    Object.defineProperty(container, 'scrollTo', {
+      configurable: true,
+      value: scrollTo,
+    });
+    result.current.scrollContainerRef.current = container;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn().mockReturnValue({ matches: true }),
+    });
+
+    try {
+      expect(motionSafeScrollBehavior('smooth')).toBe('auto');
+      expect(motionSafeScrollBehavior('auto')).toBe('auto');
+      act(() => result.current.jumpToLatest());
+      expect(scrollTo).toHaveBeenCalledWith({ top: 300, behavior: 'auto' });
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
   });
 });

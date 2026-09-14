@@ -88,11 +88,13 @@ function renderArtifact(
   approval?: ClinicalApprovalItem,
   onPrepare = vi.fn(),
   onSaveToDrive?: () => void,
+  patient?: ClinicalPatient | null,
 ) {
   return render(
     <MemoryRouter>
       <ClinicalEvolutionArtifact
         item={item}
+        patient={patient}
         approval={approval}
         onChange={vi.fn()}
         onSourceChange={vi.fn().mockResolvedValue(true)}
@@ -108,6 +110,24 @@ function renderArtifact(
 }
 
 describe('ClinicalEvolutionArtifact', () => {
+  it('keeps one quiet header, dominant body, provenance row, and primary action', () => {
+    const view = renderArtifact(draftItem(), undefined, undefined, undefined, patient);
+    const artifact = view.container.querySelector('[data-artifact-id="artifact-1"]');
+
+    expect(artifact).toBeInTheDocument();
+    expect(screen.getByText('Ana Pérez')).toBeVisible();
+    expect(screen.getByText('12.345.•••-6')).toBeVisible();
+    expect(screen.getByText('Fuente · Nota clínica')).toBeVisible();
+    expect(artifact?.querySelectorAll('.clinical-artifact-content')).toHaveLength(1);
+    expect(
+      artifact?.querySelectorAll('.clinical-artifact-content .clinical-artifact'),
+    ).toHaveLength(0);
+    expect(
+      artifact?.querySelectorAll('.clinical-artifact-actions .clinical-primary-button'),
+    ).toHaveLength(1);
+    expect(screen.getByText('Más acciones')).toBeVisible();
+  });
+
   it('renders draft lifecycle with one review action and overflow utilities', () => {
     const onPrepare = vi.fn();
     renderArtifact(draftItem(), undefined, onPrepare, vi.fn());
@@ -154,6 +174,7 @@ describe('ClinicalEvolutionArtifact', () => {
     expect(artifact?.querySelectorAll('.animate-spin')).toHaveLength(1);
     expect(screen.queryByText('Más acciones')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirmar guardado' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cambiar fecha y hora' })).not.toBeInTheDocument();
   });
 
   it('keeps saved state quiet with resource and Drive as secondary action', () => {

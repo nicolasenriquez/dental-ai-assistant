@@ -17,6 +17,17 @@ export interface ChatAutoFollowResult {
   restoreFollowMode: (mode: FollowMode) => void;
 }
 
+export function motionSafeScrollBehavior(behavior: ScrollBehavior): ScrollBehavior {
+  if (
+    behavior === 'smooth' &&
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+    return 'auto';
+  return behavior;
+}
+
 function isAtLatest(container: HTMLDivElement, sentinel: HTMLDivElement | null): boolean {
   if (sentinel) {
     const containerBounds = container.getBoundingClientRect();
@@ -29,7 +40,10 @@ function isAtLatest(container: HTMLDivElement, sentinel: HTMLDivElement | null):
 
 function scrollToLatest(container: HTMLDivElement, behavior: ScrollBehavior): void {
   if (typeof container.scrollTo === 'function') {
-    container.scrollTo({ top: container.scrollHeight, behavior });
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: motionSafeScrollBehavior(behavior),
+    });
     return;
   }
   container.scrollTop = container.scrollHeight;

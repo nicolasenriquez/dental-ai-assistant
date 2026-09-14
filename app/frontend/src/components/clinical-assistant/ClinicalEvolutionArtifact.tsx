@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
 import type { ClinicalApprovalItem, ClinicalDraftItem } from '../../hooks/useClinicalAssistant';
+import type { ClinicalPatient } from '../../lib/api';
 import {
   type ClinicalArtifactStage,
   EvolutionReviewArtifact,
@@ -12,6 +13,7 @@ import { ApprovalRequestItem } from './ApprovalRequestItem';
 
 interface ClinicalEvolutionArtifactProps {
   item: ClinicalDraftItem;
+  patient?: ClinicalPatient | null;
   approval?: ClinicalApprovalItem;
   result?: ClinicalResultItem;
   onChange: (draft: ClinicalDraftItem['draft']) => void;
@@ -98,6 +100,7 @@ function ArtifactOverflow({
 
 export function ClinicalEvolutionArtifact({
   item,
+  patient,
   approval,
   result,
   onChange,
@@ -133,6 +136,7 @@ export function ClinicalEvolutionArtifact({
       <EvolutionReviewArtifact
         mode="assistant"
         embedded
+        patient={patient ?? approval?.patient}
         sourceNote={item.sourceNote}
         draft={item.draft}
         generatedDraft={item.baseline}

@@ -2,14 +2,14 @@ import { Check, CircleX } from 'lucide-react';
 import { useEffect, useLayoutEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { useChatAutoFollow } from '../../hooks/useChatAutoFollow';
+import { motionSafeScrollBehavior, useChatAutoFollow } from '../../hooks/useChatAutoFollow';
 import type {
   ClinicalApprovalItem as ApprovalItemData,
   ClinicalTranscriptItem,
   ClinicalDraftItem as DraftItemData,
 } from '../../hooks/useClinicalAssistant';
 import { useConversationViewportCache } from '../../hooks/useConversationViewportCache';
-import type { ClinicalDraft } from '../../lib/api';
+import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
 import { Message } from '../Message';
 import { Spinner } from '../Spinner';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
@@ -58,6 +58,7 @@ interface ClinicalTranscriptProps {
   onSaveDraftToDrive?: (item: DraftItemData) => void;
   driveTransferDisabled?: boolean;
   activePatientId?: string | null;
+  activePatient?: ClinicalPatient | null;
 }
 
 function ProcessingStatus({ items }: { items: ClinicalTranscriptItem[] }) {
@@ -120,6 +121,7 @@ export function ClinicalTranscript({
   onSaveDraftToDrive,
   driveTransferDisabled = false,
   activePatientId = null,
+  activePatient = null,
 }: ClinicalTranscriptProps) {
   const follow = useChatAutoFollow();
   const viewport = useConversationViewportCache({
@@ -151,7 +153,10 @@ export function ClinicalTranscript({
       const container = follow.scrollContainerRef.current;
       const turn = container?.querySelector<HTMLElement>(`[data-turn-id="${latestItem.turnId}"]`);
       if (container && turn) {
-        container.scrollTo({ top: Math.max(0, turn.offsetTop - 24), behavior: 'smooth' });
+        container.scrollTo({
+          top: Math.max(0, turn.offsetTop - 24),
+          behavior: motionSafeScrollBehavior('smooth'),
+        });
       }
       return;
     }
@@ -219,6 +224,10 @@ export function ClinicalTranscript({
                     <ClinicalDraftItem
                       key={item.id}
                       item={item}
+                      patient={
+                        approval?.patient ??
+                        (activePatient?.id === item.patientId ? activePatient : undefined)
+                      }
                       approval={approval}
                       result={result}
                       onChange={(draft) => onDraftChange(item.id, draft)}

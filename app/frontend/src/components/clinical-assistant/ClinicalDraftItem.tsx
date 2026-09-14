@@ -4,12 +4,13 @@ import type {
   ClinicalApprovalItem,
   ClinicalDraftItem as DraftItemData,
 } from '../../hooks/useClinicalAssistant';
-import type { ClinicalDraft } from '../../lib/api';
+import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
 import { clinicalTrace } from '../../lib/clinicalTelemetry';
 import { ClinicalEvolutionArtifact } from './ClinicalEvolutionArtifact';
 
 interface ClinicalDraftItemProps {
   item: DraftItemData;
+  patient?: ClinicalPatient | null;
   onChange: (draft: ClinicalDraft) => void;
   onSourceChange: (sourceNote: string) => Promise<boolean>;
   onEvolutionAtChange: (evolutionAt: string) => void;
@@ -29,6 +30,7 @@ interface ClinicalDraftItemProps {
 
 export function ClinicalDraftItem({
   item,
+  patient,
   onChange,
   onSourceChange,
   onEvolutionAtChange,
@@ -57,6 +59,7 @@ export function ClinicalDraftItem({
   return (
     <ClinicalEvolutionArtifact
       item={item}
+      patient={patient}
       approval={approval}
       result={result}
       onChange={onChange}

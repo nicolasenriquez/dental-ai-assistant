@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
@@ -36,6 +36,15 @@ const callbacks = {
   onRetry: vi.fn(),
 };
 
+const peerCardSelector = [
+  '.clinical-approval',
+  '.clinical-approval-prompt',
+  '.clinical-approval-terminal',
+  '.clinical-receipt',
+  '.clinical-result',
+  '.evolution-review-artifact',
+].join(', ');
+
 function draftItem(overrides: Partial<ClinicalDraftItem> = {}): ClinicalDraftItem {
   return {
     ...base,
@@ -51,6 +60,18 @@ function draftItem(overrides: Partial<ClinicalDraftItem> = {}): ClinicalDraftIte
     patientId: patient.id,
     evolutionAt: '2026-09-10T12:00:00Z',
     ...overrides,
+  };
+}
+
+function assistantItem(
+  content = 'La evolución requiere control preventivo.',
+): ClinicalTranscriptItem {
+  return {
+    ...base,
+    id: 'assistant-1',
+    status: 'completed',
+    type: 'assistant',
+    content,
   };
 }
 
@@ -122,10 +143,23 @@ beforeAll(() => {
 });
 afterEach(cleanup);
 
-function renderTranscript(items: ClinicalTranscriptItem[], busy = true, threadId = 'thread-1') {
+function renderTranscript(
+  items: ClinicalTranscriptItem[],
+  busy = true,
+  threadId = 'thread-1',
+  options: {
+    onSaveDraftToDrive?: (item: ClinicalDraftItem) => void;
+  } = {},
+) {
   return render(
     <MemoryRouter>
-      <ClinicalTranscript threadId={threadId} items={items} busy={busy} {...callbacks} />
+      <ClinicalTranscript
+        threadId={threadId}
+        items={items}
+        busy={busy}
+        {...callbacks}
+        {...options}
+      />
     </MemoryRouter>,
   );
 }
@@ -134,6 +168,13 @@ function getArtifact(container: HTMLElement): HTMLElement {
   const artifacts = container.querySelectorAll<HTMLElement>('[data-artifact-id="artifact-1"]');
   expect(artifacts).toHaveLength(1);
   return artifacts[0] as HTMLElement;
+}
+
+function expectSingleHighEmphasisArtifact(container: HTMLElement): HTMLElement {
+  const artifact = getArtifact(container);
+  expect(container.querySelectorAll(`[data-artifact-id], ${peerCardSelector}`)).toHaveLength(1);
+  expect(artifact.querySelectorAll(`[data-artifact-id], ${peerCardSelector}`)).toHaveLength(0);
+  return artifact;
 }
 
 function expectNoPeerCards(container: HTMLElement): void {
@@ -201,6 +242,78 @@ describe('ClinicalTranscript', () => {
     ]);
     expect(screen.getByRole('status')).toHaveClass(className);
     expect(screen.getByText('pensando literal')).toBeVisible();
+  });
+
+  it('keeps assistant prose and processing unboxed beside one clinical artifact', () => {
+    const activity: ClinicalTranscriptItem = {
+      ...base,
+      id: 'activity-1',
+      type: 'activity',
+      status: 'running',
+      label: 'Revisando antecedentes',
+    };
+    const view = renderTranscript([assistantItem(), activity, draftItem()], false);
+    const artifact = expectSingleHighEmphasisArtifact(view.container);
+    const prose = screen.getByRole('article', { name: 'Asistente' });
+    const processing = screen.getByRole('status', { name: 'Preparando evolución' });
+    const stack = view.container.querySelector('.clinical-transcript-stack');
+
+    expect(prose).toHaveTextContent('La evolución requiere control preventivo.');
+    expect(prose.closest('[data-artifact-id]')).toBeNull();
+    expect(processing).toHaveTextContent('Revisando antecedentes');
+    expect(processing.closest('[data-artifact-id]')).toBeNull();
+    expect(stack).toHaveClass('chat-message-stack');
+    expect(prose.parentElement).toBe(artifact.parentElement);
+
+    fireEvent.click(within(artifact).getByRole('button', { name: 'Ver nota clínica original' }));
+    expect(within(artifact).getByText('Nota clínica original')).toBeVisible();
+    expectSingleHighEmphasisArtifact(view.container);
+  });
+
+  it('keeps saving feedback, Drive state, and terminal success in one artifact', () => {
+    const view = renderTranscript([draftItem()], false);
+    const artifact = getArtifact(view.container);
+    const savingItems = [
+      draftItem({ status: 'running', artifactStatus: 'pending' }),
+      approvalItem('running'),
+    ];
+
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={savingItems} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(expectSingleHighEmphasisArtifact(view.container)).toBe(artifact);
+    expect(artifact).toHaveTextContent('Guardando…');
+    expect(artifact.querySelectorAll('.animate-spin')).toHaveLength(1);
+    expectNoPeerCards(view.container);
+
+    const onSaveDraftToDrive = vi.fn();
+    const savedItems = [
+      draftItem({ artifactStatus: 'approved' }),
+      approvalItem('completed', 'evolution-1'),
+      resultItem(),
+    ];
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript
+          threadId="thread-1"
+          items={savedItems}
+          busy={false}
+          onSaveDraftToDrive={onSaveDraftToDrive}
+          activePatientId={patient.id}
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(expectSingleHighEmphasisArtifact(view.container)).toBe(artifact);
+    expect(artifact).toHaveTextContent('Guardada');
+    expect(artifact.querySelector('[data-drive-export="manual"]')).toBeInTheDocument();
+    fireEvent.click(within(artifact).getByRole('button', { name: 'Guardar en Drive' }));
+    expect(onSaveDraftToDrive).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Evolución guardada')).not.toBeInTheDocument();
+    expectNoPeerCards(view.container);
   });
 
   it('keeps one stable artifact through lifecycle, hydration, navigation, and back-to-edit', () => {

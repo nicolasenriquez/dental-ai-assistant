@@ -1,15 +1,23 @@
-import { AlertTriangle, ChevronDown, Pencil, Sparkles } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import type { ClinicalDraft } from '../../lib/api';
-import { formatClinicalDateTime } from '../../lib/clinicalDate';
+import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
+import { formatClinicalDateShort, formatClinicalDateTime } from '../../lib/clinicalDate';
 import { Spinner } from '../Spinner';
 import { clinicalFields, hasClinicalContent } from './evolutionFields';
 
 export type ClinicalArtifactStage = 'draft' | 'review' | 'saving' | 'saved';
 
+const lifecycleStageLabels: Record<ClinicalArtifactStage, string> = {
+  draft: 'Borrador',
+  review: 'Revisión',
+  saving: 'Guardando…',
+  saved: 'Guardada',
+};
+
 interface EvolutionReviewArtifactProps {
   mode: 'assistant' | 'manual';
   sourceNote: string;
+  patient?: ClinicalPatient | null;
   draft: ClinicalDraft;
   generatedDraft: ClinicalDraft | null;
   evolutionAt: string;
@@ -51,6 +59,7 @@ function dateParts(value: string): { date: string; time: string } {
 export function EvolutionReviewArtifact({
   mode,
   sourceNote,
+  patient,
   draft,
   generatedDraft,
   evolutionAt,
@@ -92,7 +101,10 @@ export function EvolutionReviewArtifact({
   const emptyDraft = !hasClinicalContent(draft);
   const visibleStage = lifecycleStage ?? 'draft';
   const assistantLifecycle =
-    lifecycleLabel ?? (stale && visibleStage === 'draft' ? 'Necesita regeneración' : 'Borrador');
+    lifecycleLabel ??
+    (stale && visibleStage === 'draft'
+      ? 'Necesita regeneración'
+      : lifecycleStageLabels[visibleStage]);
   const showActions = !embedded || !isAssistant || showAssistantActions;
   const Root = embedded ? ('div' as const) : ('article' as const);
   const parts = dateParts(evolutionAt);
@@ -145,19 +157,31 @@ export function EvolutionReviewArtifact({
             ? 'clinical-artifact'
             : 'evolution-review-artifact'
       }
+      data-assistant-label={isAssistant ? 'Borrador asistido' : undefined}
       aria-label={embedded ? undefined : isAssistant ? 'Evolución clínica' : 'Evolución propuesta'}
     >
       <div
         className={isAssistant ? 'clinical-artifact-heading' : 'evolution-review-artifact__heading'}
       >
-        <div>
-          <h3>
-            {isAssistant && <Sparkles aria-hidden="true" size={15} />}{' '}
-            {isAssistant ? 'Evolución clínica' : 'Borrador para revisar'}
-          </h3>
+        <div className={isAssistant ? 'clinical-artifact-heading__copy' : undefined}>
+          <h3>{isAssistant ? 'Evolución clínica' : 'Borrador para revisar'}</h3>
           <div className="clinical-artifact-metadata">
-            <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>
-            {onEvolutionAtChange && (
+            {isAssistant && patient && (
+              <>
+                <span>
+                  {patient.first_name} {patient.last_name}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>{patient.rut_masked}</span>
+                <span aria-hidden="true">·</span>
+              </>
+            )}
+            <time dateTime={evolutionAt}>
+              {isAssistant
+                ? formatClinicalDateShort(evolutionAt)
+                : formatClinicalDateTime(evolutionAt)}
+            </time>
+            {onEvolutionAtChange && !readOnly && (
               <button
                 type="button"
                 aria-label="Cambiar fecha y hora"
@@ -171,8 +195,7 @@ export function EvolutionReviewArtifact({
         </div>
         {isAssistant && (
           <div className="clinical-artifact-statuses">
-            <span className="clinical-artifact-status">Borrador asistido</span>
-            {assistantLifecycle !== 'Borrador' && (
+            {assistantLifecycle !== lifecycleStageLabels[visibleStage] && (
               <span className="clinical-artifact-status">{assistantLifecycle}</span>
             )}
             <ol
@@ -188,11 +211,7 @@ export function EvolutionReviewArtifact({
                 const label =
                   stage === 'saved' && visibleStage === 'saving'
                     ? 'Guardando…'
-                    : {
-                        draft: 'Borrador',
-                        review: 'Revisión',
-                        saved: 'Guardada',
-                      }[stage];
+                    : lifecycleStageLabels[stage];
                 return (
                   <li
                     key={stage}
@@ -273,7 +292,13 @@ export function EvolutionReviewArtifact({
         </div>
       )}
 
-      <div className={isAssistant ? 'clinical-draft-fields' : 'evolution-review-artifact__fields'}>
+      <div
+        className={
+          isAssistant
+            ? 'clinical-draft-fields clinical-artifact-body'
+            : 'evolution-review-artifact__fields'
+        }
+      >
         {clinicalFields.map(({ key, label }) => (
           <div
             key={key}
@@ -322,7 +347,7 @@ export function EvolutionReviewArtifact({
                     type="button"
                     className={
                       isAssistant
-                        ? 'clinical-primary-button'
+                        ? 'clinical-secondary-button'
                         : 'text-sm text-[var(--accent)] hover:underline'
                     }
                     onClick={applyFieldEdit}
@@ -373,15 +398,18 @@ export function EvolutionReviewArtifact({
 
       {showSource && isAssistant && (
         <div className="clinical-source-note">
-          <button
-            type="button"
-            className="clinical-source-note__toggle"
-            aria-expanded={sourceOpen}
-            onClick={() => setSourceOpen((current) => !current)}
-          >
-            <ChevronDown aria-hidden="true" size={15} />
-            {sourceOpen ? 'Ocultar nota clínica original' : 'Ver nota clínica original'}
-          </button>
+          <div className="clinical-provenance-row">
+            <span>Fuente · Nota clínica</span>
+            <button
+              type="button"
+              className="clinical-source-note__toggle"
+              aria-expanded={sourceOpen}
+              onClick={() => setSourceOpen((current) => !current)}
+            >
+              <ChevronDown aria-hidden="true" size={15} />
+              {sourceOpen ? 'Ocultar nota clínica original' : 'Ver nota clínica original'}
+            </button>
+          </div>
           {sourceOpen && (
             <>
               <blockquote>{sourceNote || 'Sin nota fuente disponible.'}</blockquote>
