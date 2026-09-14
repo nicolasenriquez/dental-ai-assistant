@@ -253,8 +253,8 @@ async def test_known_conflict_rollover_clears_target_before_replacement(
     async def list_files(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
         return [{"id": "journal-1", "version": "7", "appProperties": identity.app_properties}]
 
-    async def download(*_args: object, **_kwargs: object) -> bytes:
-        return b"existing\n"
+    async def download(*_args: object, **_kwargs: object) -> tuple[bytes, str]:
+        return b"existing\n", '"revision-7"'
 
     async def update(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise service.google_drive.GoogleDriveError("DRIVE_VERSION_CONFLICT", "conflict")
@@ -280,7 +280,7 @@ async def test_known_conflict_rollover_clears_target_before_replacement(
     monkeypatch.setattr(service, "_connection_access_token", lambda *_args: _active_connection())
     monkeypatch.setattr(service, "select_journal_part", lambda *_args, **_kwargs: next(selections))
     monkeypatch.setattr(service.google_drive, "list_journal_files", list_files)
-    monkeypatch.setattr(service.google_drive, "download_file", download)
+    monkeypatch.setattr(service.google_drive, "download_file_with_revision", download)
     monkeypatch.setattr(service.google_drive, "update_file", update)
     monkeypatch.setattr(service.google_drive, "create_file", create)
 

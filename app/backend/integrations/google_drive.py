@@ -63,7 +63,7 @@ def _error_for_status(status_code: int) -> GoogleDriveError:
         return GoogleDriveError("GOOGLE_DRIVE_ACCESS_DENIED", "Drive access denied")
     if status_code == 404:
         return GoogleDriveError("GOOGLE_DRIVE_NOT_FOUND", "Drive resource not found")
-    if status_code == 409:
+    if status_code in (409, 412):
         return GoogleDriveError("DRIVE_VERSION_CONFLICT", "Drive version conflict")
     return GoogleDriveError("DRIVE_UNAVAILABLE", "Drive unavailable")
 
@@ -246,8 +246,8 @@ async def find_file_by_creation_operation(
     return files[0] if files else None
 
 
-async def download_file(access_token: str, file_id: str) -> bytes:
-    """Stream one file body with a 1 MiB hard stop and strict UTF-8 decoding."""
+async def _download_file(access_token: str, file_id: str) -> tuple[bytes, str | None]:
+    """Stream one file body and return the ETag bound to those exact bytes."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         for attempt in range(_MAX_READ_RETRIES + 1):
             try:
@@ -264,6 +264,7 @@ async def download_file(access_token: str, file_id: str) -> bytes:
                         continue
                     if response.status_code != 200:
                         raise _error_for_status(response.status_code)
+                    revision = response.headers.get("ETag")
                     content = bytearray()
                     async for chunk in response.aiter_bytes(65536):
                         if len(content) + len(chunk) > MAX_CONTENT_BYTES:
@@ -284,7 +285,21 @@ async def download_file(access_token: str, file_id: str) -> bytes:
         raise GoogleDriveError(
             "DRIVE_FILE_ENCODING_INVALID", "Drive file is not valid UTF-8"
         ) from None
-    return bytes(content)
+    return bytes(content), revision
+
+
+async def download_file(access_token: str, file_id: str) -> bytes:
+    """Stream one UTF-8 file body with a 1 MiB hard stop."""
+    content, _revision = await _download_file(access_token, file_id)
+    return content
+
+
+async def download_file_with_revision(access_token: str, file_id: str) -> tuple[bytes, str]:
+    """Download bytes plus the provider token required for a conditional update."""
+    content, revision = await _download_file(access_token, file_id)
+    if not revision:
+        raise GoogleDriveError("DRIVE_VERSION_CONFLICT", "Drive revision unavailable")
+    return content, revision
 
 
 SOURCE_KINDS = {
@@ -409,7 +424,13 @@ def _upload_body(metadata: dict[str, Any], content: bytes) -> tuple[bytes, str]:
 
 
 async def _write(
-    access_token: str, method: str, url: str, metadata: dict[str, Any], content: bytes
+    access_token: str,
+    method: str,
+    url: str,
+    metadata: dict[str, Any],
+    content: bytes,
+    *,
+    revision: str | None = None,
 ) -> dict[str, Any]:
     """One write request — never retried; ambiguous outcomes belong to the route."""
     body, content_type = _upload_body(metadata, content)
@@ -419,7 +440,11 @@ async def _write(
                 method,
                 url,
                 params={"uploadType": "multipart"},
-                headers={**_headers(access_token), "Content-Type": content_type},
+                headers={
+                    **_headers(access_token),
+                    "Content-Type": content_type,
+                    **({"If-Match": revision} if revision else {}),
+                },
                 content=body,
             )
     except httpx.HTTPError as exc:
@@ -483,14 +508,16 @@ async def update_file(
     file_id: str,
     content: bytes,
     app_properties: dict[str, str],
+    revision: str | None = None,
 ) -> dict[str, Any]:
-    """Update media plus application markers in one PATCH request."""
+    """Update media and markers, conditionally when a revision is supplied."""
     return await _write(
         access_token,
         "PATCH",
         f"{_UPLOAD_FILES_URL}/{file_id}",
         _multipart_upload_meta(app_properties),
         content,
+        revision=revision,
     )
 
 

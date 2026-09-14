@@ -258,11 +258,39 @@ async def test_update_file_sends_last_operation_marker_and_one_request() -> None
         file_id="file-1",
         content=b"updated\n",
         app_properties={**_managed_properties(), "lastOperationId": "op-2"},
+        revision='"revision-7"',
     )
 
     assert result["version"] == "8"
     assert route.call_count == 1
+    assert route.calls.last.request.headers["if-match"] == '"revision-7"'
     assert b"lastOperationId" in route.calls.last.request.content
+
+
+@respx.mock
+async def test_conditional_update_maps_precondition_failure_to_version_conflict() -> None:
+    respx.patch(_UPLOAD_FILES_URL + "/file-1").mock(return_value=httpx.Response(412))
+
+    with pytest.raises(Exception) as exc_info:
+        await _adapter("update_file")(
+            "request-access-token",
+            file_id="file-1",
+            content=b"updated\n",
+            app_properties=_managed_properties(),
+            revision='"revision-7"',
+        )
+
+    assert getattr(exc_info.value, "code", None) == "DRIVE_VERSION_CONFLICT"
+
+
+@respx.mock
+async def test_revision_download_fails_closed_without_etag() -> None:
+    respx.get(_FILES_URL + "/file-1").mock(return_value=httpx.Response(200, content=b"texto"))
+
+    with pytest.raises(Exception) as exc_info:
+        await _adapter("download_file_with_revision")("request-access-token", "file-1")
+
+    assert getattr(exc_info.value, "code", None) == "DRIVE_VERSION_CONFLICT"
 
 
 @respx.mock

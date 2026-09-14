@@ -173,11 +173,17 @@ async def test_reconnected_retry_preserves_frozen_export_identity(
 
 
 @pytest.mark.asyncio
-async def test_connection_lost_after_claim_is_confirmed_no_write_failure(
+@pytest.mark.parametrize(
+    ("previous_status", "expected_status"),
+    [("pending", "failed"), ("syncing", "unknown"), ("unknown", "unknown")],
+)
+async def test_connection_lost_after_claim_preserves_ambiguous_state(
     monkeypatch: pytest.MonkeyPatch,
+    previous_status: str,
+    expected_status: str,
 ) -> None:
-    export = _export("pending")
-    claimed = {**export, "status": "syncing", "previous_status": "pending"}
+    export = _export(previous_status)
+    claimed = {**export, "status": "syncing", "previous_status": previous_status}
     statuses: list[tuple[str, str | None]] = []
 
     async def claim(*_args: object, **_kwargs: object) -> dict[str, Any]:
@@ -204,8 +210,8 @@ async def test_connection_lost_after_claim_is_confirmed_no_write_failure(
 
     result = await service.sync_export(OWNER_ID, EVOLUTION_ID, pool=_Pool())
 
-    assert result is not None and result["status"] == "failed"
-    assert statuses == [("failed", "DRIVE_CONNECTION_REQUIRED")]
+    assert result is not None and result["status"] == expected_status
+    assert statuses == [(expected_status, "DRIVE_CONNECTION_REQUIRED")]
 
 
 class _Acquire:

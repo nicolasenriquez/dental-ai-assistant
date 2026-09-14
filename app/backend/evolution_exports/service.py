@@ -466,8 +466,14 @@ async def _connection_access_token(owner_user_id: UUID | str) -> tuple[dict[str,
 
 
 async def _mark_claim_failed(
-    pool: Pool, owner_user_id: UUID | str, evolution_id: UUID | str, error_code: str
+    pool: Pool,
+    owner_user_id: UUID | str,
+    evolution_id: UUID | str,
+    error_code: str,
+    *,
+    previous_status: str,
 ) -> dict[str, Any] | None:
+    status = "unknown" if previous_status in {"syncing", "unknown"} else "failed"
     async with pool.acquire() as conn:
         return cast(
             dict[str, Any] | None,
@@ -475,7 +481,7 @@ async def _mark_claim_failed(
                 conn,
                 owner_user_id,
                 evolution_id,
-                "failed",
+                status,
                 last_error_code=error_code,
             ),
         )
@@ -512,8 +518,12 @@ async def _journal_parts(
         file_id = match.get("id")
         if not file_id:
             continue
+        content, revision = await google_drive.download_file_with_revision(
+            access_token, str(file_id)
+        )
+        match["_revision"] = revision
         selected[part] = match
-        contents.append((part, await google_drive.download_file(access_token, str(file_id))))
+        contents.append((part, content))
     return contents, selected
 
 
@@ -653,6 +663,7 @@ async def _write_journal(
             file_id=str(existing["id"]),
             content=current + journal_bytes,
             app_properties=identity.app_properties,
+            revision=str(existing["_revision"]),
         ),
     )
 
@@ -679,16 +690,30 @@ async def sync_export(
     try:
         connection, access_token = await _connection_access_token(owner_user_id)
     except google_drive.GoogleDriveError as exc:
-        return await _mark_claim_failed(active_pool, owner_user_id, evolution_id, exc.code)
+        return await _mark_claim_failed(
+            active_pool,
+            owner_user_id,
+            evolution_id,
+            exc.code,
+            previous_status=str(claimed["previous_status"]),
+        )
     except (UnicodeDecodeError, ValueError, KeyError):
         return await _mark_claim_failed(
-            active_pool, owner_user_id, evolution_id, "DRIVE_CONNECTION_REQUIRED"
+            active_pool,
+            owner_user_id,
+            evolution_id,
+            "DRIVE_CONNECTION_REQUIRED",
+            previous_status=str(claimed["previous_status"]),
         )
 
     folder_id = str(connection.get("folder_id") or "")
     if not folder_id:
         return await _mark_claim_failed(
-            active_pool, owner_user_id, evolution_id, "DRIVE_WORKSPACE_MISSING"
+            active_pool,
+            owner_user_id,
+            evolution_id,
+            "DRIVE_WORKSPACE_MISSING",
+            previous_status=str(claimed["previous_status"]),
         )
 
     period_type = str(claimed["period_type"])
