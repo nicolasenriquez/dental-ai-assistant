@@ -525,7 +525,10 @@ async def claim_turn(
     thread = _uuid(thread_id)
     turn = _uuid(turn_id)
     async with get_pg_pool().acquire() as conn, conn.transaction():
-        await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))", owner)
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+            str(owner),
+        )
         row = await conn.fetchrow(
             """
             SELECT active_patient_id, active_turn_id, updated_at
