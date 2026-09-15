@@ -2592,7 +2592,7 @@ body,
   position: absolute;
   z-index: 30;
   right: 0;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
   left: 0;
   overflow: hidden;
   border: 1px solid var(--border);

@@ -330,6 +330,27 @@ async function setupClinicalHarness(
   };
 }
 
+test('opens header patient picker with visible options', async ({ page }) => {
+  await setupClinicalHarness(page, thread());
+
+  const trigger = page.getByRole('button', { name: 'Seleccionar paciente activo' });
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+  const option = page.getByRole('option', { name: /Ana Pérez/ });
+  await expect(option).toBeVisible();
+  const optionBounds = await option.evaluate((element) => {
+    const { top, bottom } = element.getBoundingClientRect();
+    return { top, bottom };
+  });
+  const viewportHeight = page.viewportSize()?.height ?? 0;
+  expect(optionBounds.top).toBeGreaterThanOrEqual(0);
+  expect(optionBounds.bottom).toBeLessThanOrEqual(viewportHeight);
+
+  await option.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});
+
 function sseEvent(
   name: string,
   sequence: number,
