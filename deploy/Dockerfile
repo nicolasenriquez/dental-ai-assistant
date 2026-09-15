@@ -63,9 +63,9 @@ COPY --chown=app:app app/backend/ ./backend/
 # Pull the built frontend from stage 1 into /app/frontend/dist.
 COPY --from=frontend-build --chown=app:app /src/frontend/dist /app/frontend/dist
 
-# Data dir for SQLite (mounted as a named volume in compose so blue/green
-# swaps preserve state).
-RUN mkdir -p /app/data && chown -R app:app /app
+# Keep the legacy data directory and uv's runtime cache writable without
+# recursively walking the installed environment and copied application tree.
+RUN install -d -o app -g app /app/data /app/.cache/uv
 
 USER app
 
@@ -90,6 +90,6 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
 # `ports: - "8000:8000"` to this service, IP spoofing becomes possible and
 # signup_rate_limit.py's per-IP cap can be bypassed. See signup_rate_limit.py
 # module docstring for the full trust-boundary argument.
-CMD ["uv", "--project", "backend", "run", "uvicorn", "backend.main:app", \
+CMD ["uv", "--project", "backend", "run", "--no-sync", "uvicorn", "backend.main:app", \
      "--host", "0.0.0.0", "--port", "8000", \
      "--proxy-headers", "--forwarded-allow-ips", "*"]

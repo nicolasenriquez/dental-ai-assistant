@@ -134,6 +134,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const abortRef = useRef<AbortController | null>(null);
   const turnFailedRef = useRef(false);
   const loadSeqRef = useRef(0);
+  const activePatientRequestSeqRef = useRef(0);
   const turnInputRef = useRef<Record<string, string>>({});
   const artifactTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const recoveredExportsRef = useRef(new Set<string>());
@@ -174,6 +175,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   useEffect(() => {
     let cancelled = false;
     loadSeqRef.current += 1;
+    activePatientRequestSeqRef.current += 1;
     if (!threadId) {
       setThread(null);
       dispatch({ type: 'reset', items: [] });
@@ -199,7 +201,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const setActivePatient = useCallback(
     async (patientId: string | null) => {
       if (!threadId) return;
+      const requestSeq = ++activePatientRequestSeqRef.current;
       const updated = await setClinicalActivePatient(threadId, patientId);
+      if (requestSeq !== activePatientRequestSeqRef.current) return;
       setThread(updated);
     },
     [threadId],

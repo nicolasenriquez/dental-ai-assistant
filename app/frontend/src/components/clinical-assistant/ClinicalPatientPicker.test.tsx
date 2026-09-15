@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ClinicalPatient, Patient } from '../../lib/api';
-import { ClinicalPatientPicker } from './ClinicalPatientPicker';
+import { ClinicalPatientPicker, type ClinicalPatientSelectionState } from './ClinicalPatientPicker';
 
 const patient: ClinicalPatient = {
   id: 'patient-1',
@@ -13,9 +13,21 @@ const patient: ClinicalPatient = {
 
 const patients: Patient[] = [{ ...patient, last_evolution_at: null }];
 
-function renderPicker(onPatientChange = vi.fn()) {
+function renderPicker(
+  onPatientChange = vi.fn(),
+  selectionState: ClinicalPatientSelectionState = 'idle',
+  selectionError?: string,
+  onRetryPatientChange?: () => void,
+) {
   return render(
-    <ClinicalPatientPicker patient={null} patients={patients} onPatientChange={onPatientChange} />,
+    <ClinicalPatientPicker
+      patient={null}
+      patients={patients}
+      onPatientChange={onPatientChange}
+      selectionState={selectionState}
+      selectionError={selectionError}
+      onRetryPatientChange={onRetryPatientChange}
+    />,
   );
 }
 
@@ -60,5 +72,32 @@ describe('ClinicalPatientPicker', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Quitar paciente activo' }));
     expect(onPatientChange).toHaveBeenCalledWith(null);
+  });
+
+  it('announces a pending selection and disables interaction', () => {
+    renderPicker(vi.fn(), 'saving');
+
+    expect(screen.getByRole('status')).toHaveTextContent('Guardando paciente…');
+    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
+  });
+
+  it('shows a selection error with a retry action', () => {
+    const onRetryPatientChange = vi.fn();
+    renderPicker(vi.fn(), 'error', 'No pudimos cambiar el paciente activo.', onRetryPatientChange);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No pudimos cambiar el paciente activo.');
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+    expect(onRetryPatientChange).toHaveBeenCalledOnce();
+  });
+
+  it('returns focus to the trigger after an outside click', async () => {
+    renderPicker();
+    const trigger = screen.getByRole('button', { name: 'Seleccionar paciente activo' });
+
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });

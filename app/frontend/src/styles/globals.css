@@ -2582,6 +2582,15 @@ body,
   text-align: left;
 }
 
+.clinical-patient-trigger[aria-busy="true"] {
+  cursor: progress;
+}
+
+.clinical-patient-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
 .clinical-patient-trigger span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2657,8 +2666,8 @@ body,
 }
 
 .clinical-patient-clear {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -2671,6 +2680,42 @@ body,
 .clinical-patient-clear:focus-visible {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
+}
+
+.clinical-patient-status {
+  display: flex;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 2px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.clinical-patient-status span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.clinical-patient-status.is-error {
+  color: var(--danger);
+}
+
+.clinical-patient-status button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.clinical-patient-status button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .clinical-composer-input {
@@ -3295,8 +3340,14 @@ body,
   }
 
   .workspace-header__context {
-    order: 3;
+    order: 2;
     flex-basis: 100%;
+  }
+
+  .workspace-header__actions {
+    order: 3;
+    flex: 0 0 100%;
+    justify-content: flex-start;
   }
 
   .workspace-header__context .clinical-patient-context {
@@ -3312,7 +3363,7 @@ body,
   .clinical-patient-context .clinical-patient-label {
     grid-column: 1 / -1;
   }
-  .clinical-patient-context select {
+  .clinical-patient-context .clinical-patient-picker {
     grid-column: 1;
     grid-row: 2;
   }

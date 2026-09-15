@@ -1,6 +1,8 @@
 import { Check, ChevronsUpDown, Search, X } from 'lucide-react';
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ClinicalPatient, Patient } from '../../lib/api';
+
+export type ClinicalPatientSelectionState = 'idle' | 'saving' | 'error';
 
 interface ClinicalPatientPickerProps {
   patient: ClinicalPatient | null;
@@ -9,6 +11,9 @@ interface ClinicalPatientPickerProps {
   patientsError?: boolean;
   onRetryPatients?: () => void;
   onPatientChange: (patientId: string | null) => void;
+  selectionState?: ClinicalPatientSelectionState;
+  selectionError?: string | null;
+  onRetryPatientChange?: () => void;
   disabled?: boolean;
 }
 
@@ -19,13 +24,19 @@ export function ClinicalPatientPicker({
   patientsError = false,
   onRetryPatients,
   onPatientChange,
+  selectionState = 'idle',
+  selectionError,
+  onRetryPatientChange,
   disabled = false,
 }: ClinicalPatientPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeOption, setActiveOption] = useState(0);
+  const statusId = useId();
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const isSaving = selectionState === 'saving';
+  const interactionDisabled = disabled || isSaving;
   const filteredPatients = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
     if (!normalizedQuery) return patients;
@@ -37,11 +48,16 @@ export function ClinicalPatientPicker({
   }, [patients, query]);
 
   const choosePatient = (patientId: string) => {
-    if (disabled) return;
+    if (interactionDisabled) return;
     onPatientChange(patientId);
     setOpen(false);
     setQuery('');
     setActiveOption(0);
+  };
+
+  const clearPatient = () => {
+    if (interactionDisabled) return;
+    onPatientChange(null);
   };
 
   const closePicker = () => {
@@ -50,13 +66,13 @@ export function ClinicalPatientPicker({
   };
 
   useEffect(() => {
-    if (disabled) setOpen(false);
-  }, [disabled]);
+    if (interactionDisabled) setOpen(false);
+  }, [interactionDisabled]);
 
   useEffect(() => {
     if (!open) return;
     const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!pickerRef.current?.contains(event.target as Node)) closePicker();
     };
     document.addEventListener('pointerdown', closeOnOutsideClick);
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
@@ -97,8 +113,10 @@ export function ClinicalPatientPicker({
           className="clinical-patient-trigger"
           aria-label="Seleccionar paciente activo"
           aria-haspopup="listbox"
-          aria-expanded={open}
-          disabled={disabled}
+          aria-expanded={open && !isSaving}
+          aria-busy={isSaving}
+          aria-describedby={selectionState === 'error' ? statusId : undefined}
+          disabled={interactionDisabled}
           onClick={() => setOpen((current) => !current)}
         >
           <span title={patient ? `${patient.first_name} ${patient.last_name}` : undefined}>
@@ -108,7 +126,7 @@ export function ClinicalPatientPicker({
           </span>
           <ChevronsUpDown aria-hidden="true" size={15} />
         </button>
-        {open && (
+        {open && !isSaving && (
           <div className="clinical-patient-popover">
             <label className="clinical-patient-search">
               <Search aria-hidden="true" size={15} />
@@ -120,7 +138,7 @@ export function ClinicalPatientPicker({
                 aria-expanded="true"
                 aria-activedescendant={filteredPatients[activeOption]?.id}
                 value={query}
-                disabled={disabled}
+                disabled={interactionDisabled}
                 onChange={(event) => {
                   setQuery(event.target.value);
                   setActiveOption(0);
@@ -151,7 +169,7 @@ export function ClinicalPatientPicker({
                     id={option.id}
                     key={option.id}
                     aria-selected={option.id === patient?.id}
-                    disabled={disabled}
+                    disabled={interactionDisabled}
                     className={index === activeOption ? 'is-active' : undefined}
                     onMouseEnter={() => setActiveOption(index)}
                     onClick={() => choosePatient(option.id)}
@@ -174,12 +192,27 @@ export function ClinicalPatientPicker({
         <button
           type="button"
           className="clinical-patient-clear focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          onClick={() => onPatientChange(null)}
-          disabled={disabled}
+          onClick={clearPatient}
+          disabled={interactionDisabled}
           aria-label="Quitar paciente activo"
         >
           <X aria-hidden="true" size={17} />
         </button>
+      )}
+      {selectionState === 'saving' && (
+        <span id={statusId} className="clinical-patient-status" role="status" aria-live="polite">
+          Guardando paciente…
+        </span>
+      )}
+      {selectionState === 'error' && (
+        <div id={statusId} className="clinical-patient-status is-error" role="alert">
+          <span>{selectionError ?? 'No pudimos cambiar el paciente activo.'}</span>
+          {onRetryPatientChange && (
+            <button type="button" onClick={onRetryPatientChange} disabled={interactionDisabled}>
+              Reintentar
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

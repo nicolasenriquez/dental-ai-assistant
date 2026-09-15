@@ -17,7 +17,7 @@ import {
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { ClinicalComposer } from './ClinicalComposer';
-import { ClinicalPatientPicker } from './ClinicalPatientPicker';
+import { ClinicalPatientPicker, type ClinicalPatientSelectionState } from './ClinicalPatientPicker';
 import { ClinicalTranscript } from './ClinicalTranscript';
 
 interface ClinicalAssistantAreaProps {
@@ -55,6 +55,9 @@ export function ClinicalAssistantArea({
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
   const [patientsError, setPatientsError] = useState(false);
+  const [patientSelectionState, setPatientSelectionState] =
+    useState<ClinicalPatientSelectionState>('idle');
+  const [patientSelectionError, setPatientSelectionError] = useState<string | null>(null);
   const [draftByThread, setDraftByThread] = useState<Record<string, string>>({});
   const [queueByThread, setQueueByThread] = useState<Record<string, QueuedEntry[]>>({});
   const [preparingDraftId, setPreparingDraftId] = useState<string | null>(null);
@@ -64,6 +67,8 @@ export function ClinicalAssistantArea({
   const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
   const voiceCaretRef = useRef<number | null>(null);
   const previousVoiceInFlightRef = useRef(false);
+  const patientChangeRequestRef = useRef(0);
+  const lastPatientChangeRef = useRef<string | null | undefined>(undefined);
   const value = draftByThread[threadId] ?? '';
   const queued = queueByThread[threadId] ?? [];
   const setValue = useCallback(
@@ -94,13 +99,47 @@ export function ClinicalAssistantArea({
   const voice = useVoiceDictation(voiceScope, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
   const activePatient = assistant.thread?.active_patient ?? null;
+  useEffect(() => {
+    patientChangeRequestRef.current += 1;
+    lastPatientChangeRef.current = undefined;
+    setPatientSelectionState('idle');
+    setPatientSelectionError(null);
+  }, [threadId]);
+
+  const persistPatientChange = useCallback(
+    (patientId: string | null) => {
+      const requestId = ++patientChangeRequestRef.current;
+      lastPatientChangeRef.current = patientId;
+      setPatientSelectionState('saving');
+      setPatientSelectionError(null);
+      void Promise.resolve(assistant.setActivePatient(patientId))
+        .then(() => {
+          if (patientChangeRequestRef.current !== requestId) return;
+          setPatientSelectionState('idle');
+        })
+        .catch(() => {
+          if (patientChangeRequestRef.current !== requestId) return;
+          setPatientSelectionState('error');
+          setPatientSelectionError('No pudimos cambiar el paciente activo.');
+        });
+    },
+    [assistant.setActivePatient],
+  );
+
   const requestPatientChange = useCallback(
     (patientId: string | null) => {
-      const change = () => void assistant.setActivePatient(patientId);
+      if (patientSelectionState === 'saving') return;
+      const change = () => persistPatientChange(patientId);
       guardTransition ? guardTransition(change) : change();
     },
-    [assistant.setActivePatient, guardTransition],
+    [guardTransition, patientSelectionState, persistPatientChange],
   );
+
+  const retryPatientChange = useCallback(() => {
+    const patientId = lastPatientChangeRef.current;
+    if (patientId === undefined) return;
+    requestPatientChange(patientId);
+  }, [requestPatientChange]);
 
   useEffect(() => {
     if (previousVoiceInFlightRef.current && !voiceInFlight) {
@@ -240,6 +279,9 @@ export function ClinicalAssistantArea({
             patientsError={patientsError}
             onRetryPatients={() => void loadPatients()}
             onPatientChange={requestPatientChange}
+            selectionState={patientSelectionState}
+            selectionError={patientSelectionError}
+            onRetryPatientChange={retryPatientChange}
             disabled={voiceInFlight}
           />
         }
@@ -417,7 +459,7 @@ export function ClinicalAssistantArea({
                       onClick={() => {
                         requestPatientChange(queued[0].patientId);
                       }}
-                      disabled={voiceInFlight}
+                      disabled={voiceInFlight || patientSelectionState === 'saving'}
                     >
                       Volver a {queued[0].patientName}
                     </button>

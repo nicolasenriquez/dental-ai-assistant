@@ -1,4 +1,4 @@
-import { type Locator, type Page, expect, test } from '@playwright/test';
+import { type Locator, type Page, type Request, expect, test } from '@playwright/test';
 
 const threadId = '11111111-1111-4111-8111-111111111111';
 const patientId = '22222222-2222-4222-8222-222222222222';
@@ -154,6 +154,10 @@ interface ClinicalHarnessOptions {
   driveStatus?: Record<string, unknown>;
   driveRetry?: (count: number) => Promise<Record<string, unknown>>;
   journalDetail?: Record<string, unknown>;
+  activePatientPatch?: (request: Request) => Promise<{
+    status: number;
+    body: Record<string, unknown>;
+  }>;
 }
 
 async function installDriveRoutes(
@@ -288,7 +292,7 @@ async function setupClinicalHarness(
           {
             ...currentThread,
             preview: null,
-            active_patient_id: patientId,
+            active_patient_id: currentThread.active_patient ? patientId : null,
             approval_pending: Boolean(currentThread.pending_action),
           },
         ]),
@@ -308,13 +312,29 @@ async function setupClinicalHarness(
       body: JSON.stringify(currentThread),
     }),
   );
-  await page.route(`**/api/clinical-threads/${threadId}/active-patient`, (route) =>
-    route.fulfill({
+  await page.route(`**/api/clinical-threads/${threadId}/active-patient`, async (route) => {
+    if (options.activePatientPatch) {
+      const response = await options.activePatientPatch(route.request());
+      if (response.status >= 200 && response.status < 300) currentThread = response.body;
+      await route.fulfill({
+        status: response.status,
+        contentType: 'application/json',
+        body: JSON.stringify(response.body),
+      });
+      return;
+    }
+
+    const body = route.request().postDataJSON() as { patient_id?: string | null };
+    currentThread = {
+      ...currentThread,
+      active_patient: body.patient_id ? patient : null,
+    };
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(currentThread),
-    }),
-  );
+    });
+  });
   const drive = await installDriveRoutes(page, options);
   await page.goto(`/a/${threadId}`);
   await expect(
@@ -349,6 +369,59 @@ test('opens header patient picker with visible options', async ({ page }) => {
 
   await option.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('shows active-patient persistence failures and retries the selection', async ({ page }) => {
+  const requestBodies: Array<Record<string, unknown>> = [];
+  let failNext = true;
+  await setupClinicalHarness(page, thread([], { active_patient: null }), {
+    activePatientPatch: async (request) => {
+      requestBodies.push(request.postDataJSON() as Record<string, unknown>);
+      if (failNext) {
+        failNext = false;
+        return { status: 500, body: { detail: 'simulated selection failure' } };
+      }
+      return { status: 200, body: thread([], { active_patient: patient }) };
+    },
+  });
+
+  const trigger = page.getByRole('button', { name: 'Seleccionar paciente activo' });
+  await trigger.click();
+  await page.getByRole('option', { name: /Ana Pérez/ }).click();
+
+  await expect(page.getByRole('alert')).toContainText('No pudimos cambiar el paciente activo.');
+  await expect(trigger).toContainText('Seleccionar paciente');
+  expect(requestBodies).toEqual([{ patient_id: patientId }]);
+
+  await page.getByRole('alert').getByRole('button', { name: 'Reintentar' }).click();
+  await expect(trigger).toContainText('Ana Pérez');
+  await expect(page.getByPlaceholder('Escribe o dicta la nota clínica…')).toBeVisible();
+  expect(requestBodies).toEqual([{ patient_id: patientId }, { patient_id: patientId }]);
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toContainText(
+    'Ana Pérez',
+  );
+});
+
+test('keeps the patient context before secondary actions on mobile', async ({ page }) => {
+  await setupClinicalHarness(page, thread());
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const context = page.locator('.workspace-header__context');
+  const actions = page.locator('.workspace-header__actions');
+  const contextBounds = await context.boundingBox();
+  const actionBounds = await actions.boundingBox();
+  expect(contextBounds).not.toBeNull();
+  expect(actionBounds).not.toBeNull();
+  expect(contextBounds?.y).toBeLessThan(actionBounds?.y ?? 0);
+
+  await page.getByRole('button', { name: 'Seleccionar paciente activo' }).click();
+  const option = page.getByRole('option', { name: /Ana Pérez/ });
+  await expect(option).toBeVisible();
+  const optionBounds = await option.boundingBox();
+  expect(optionBounds?.x).toBeGreaterThanOrEqual(0);
+  expect((optionBounds?.x ?? 0) + (optionBounds?.width ?? 0)).toBeLessThanOrEqual(390);
 });
 
 function sseEvent(
