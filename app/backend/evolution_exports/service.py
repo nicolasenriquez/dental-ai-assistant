@@ -19,7 +19,7 @@ from fastapi import BackgroundTasks
 from backend import config
 from backend.auth import token_cipher
 from backend.auth.token_cipher import Ciphertext
-from backend.db import evolution_exports_repo, google_drive_repo
+from backend.db import evolution_exports_repo, evolutions_repo, google_drive_repo, patients_repo
 from backend.db.postgres import get_pg_pool
 from backend.integrations import google_drive, google_drive_oauth
 from backend.patients.rut import mask_rut
@@ -1021,3 +1021,59 @@ async def persist_approval_export(
             last_error_code=None if usable else "DRIVE_CONNECTION_REQUIRED",
         ),
     )
+
+
+async def persist_approved_evolution_with_connection(
+    conn: Connection,
+    owner_user_id: UUID | str,
+    patient_id: UUID | str,
+    *,
+    evolution_id: UUID | str,
+    evolution_at: datetime,
+    raw_note: str,
+    generated_text: str,
+    final_text: str,
+    approval_at: datetime,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Persist the canonical evolution and optional export intent atomically."""
+    patient = await patients_repo.get_patient_with_connection(conn, owner_user_id, patient_id)
+    if patient is None:
+        raise LookupError("Patient not found")
+    evolution = await evolutions_repo.create_evolution_with_connection(
+        conn,
+        owner_user_id,
+        patient_id,
+        evolution_id=evolution_id,
+        evolution_at=evolution_at,
+        raw_note=raw_note,
+        generated_text=generated_text,
+        final_text=final_text,
+    )
+    export = await persist_approval_export(conn, owner_user_id, evolution, patient, approval_at)
+    return evolution, export
+
+
+async def persist_approved_evolution(
+    owner_user_id: UUID | str,
+    patient_id: UUID | str,
+    *,
+    evolution_id: UUID | str,
+    evolution_at: datetime,
+    raw_note: str,
+    generated_text: str,
+    final_text: str,
+    approval_at: datetime,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Persist an approved evolution through the canonical transaction."""
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        return await persist_approved_evolution_with_connection(
+            conn,
+            owner_user_id,
+            patient_id,
+            evolution_id=evolution_id,
+            evolution_at=evolution_at,
+            raw_note=raw_note,
+            generated_text=generated_text,
+            final_text=final_text,
+            approval_at=approval_at,
+        )

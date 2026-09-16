@@ -51,10 +51,6 @@ class ArtifactNotDraftError(RuntimeError):
     """Raised when save preparation targets a frozen artifact."""
 
 
-async def list_threads(owner: UUID) -> list[dict[str, Any]]:
-    return cast(list[dict[str, Any]], await repository.list_threads(owner))
-
-
 async def create_thread(owner: UUID, title: str) -> ClinicalThreadResponse:
     safe_title = (await sanitize_content(owner, title)).display_text
     return ClinicalThreadResponse(**await repository.create_thread(owner, safe_title))
@@ -71,10 +67,6 @@ async def rename_thread(owner: UUID, thread: UUID, title: str) -> ClinicalThread
     if updated is None:
         return None
     return await get_thread_response(owner, thread)
-
-
-async def delete_thread(owner: UUID, thread: UUID) -> bool:
-    return cast(bool, await repository.delete_thread(owner, thread))
 
 
 async def get_thread_response(owner: UUID, thread: UUID) -> ClinicalThreadResponse | None:

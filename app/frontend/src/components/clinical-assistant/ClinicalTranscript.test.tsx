@@ -265,7 +265,7 @@ describe('ClinicalTranscript', () => {
     expect(stack).toHaveClass('chat-message-stack');
     expect(prose.parentElement).toBe(artifact.parentElement);
 
-    fireEvent.click(within(artifact).getByRole('button', { name: 'Ver nota clínica original' }));
+    fireEvent.click(within(artifact).getByRole('button', { name: 'Ver evidencia' }));
     expect(within(artifact).getByText('Nota clínica original')).toBeVisible();
     expectSingleHighEmphasisArtifact(view.container);
   });

@@ -6,6 +6,8 @@ from datetime import date
 from typing import Any
 from uuid import UUID, uuid4
 
+from asyncpg import Connection
+
 from backend.db.postgres import get_pg_pool
 
 
@@ -94,16 +96,24 @@ async def search_patients(
 async def get_patient(owner_user_id: UUID | str, patient_id: UUID | str) -> dict[str, Any] | None:
     pool = get_pg_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT id, first_name, last_name, rut_number, rut_dv, birth_date,
-                   created_at, updated_at
-            FROM patients
-            WHERE owner_user_id = $1 AND id = $2
-            """,
-            _uuid(owner_user_id),
-            _uuid(patient_id),
-        )
+        return await get_patient_with_connection(conn, owner_user_id, patient_id)
+
+
+async def get_patient_with_connection(
+    conn: Connection,
+    owner_user_id: UUID | str,
+    patient_id: UUID | str,
+) -> dict[str, Any] | None:
+    row = await conn.fetchrow(
+        """
+        SELECT id, first_name, last_name, rut_number, rut_dv, birth_date,
+               created_at, updated_at
+        FROM patients
+        WHERE owner_user_id = $1 AND id = $2
+        """,
+        _uuid(owner_user_id),
+        _uuid(patient_id),
+    )
     return dict(row) if row else None
 
 

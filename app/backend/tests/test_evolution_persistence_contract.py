@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from fastapi import BackgroundTasks
 from fastapi.routing import APIRoute
 from pydantic import ValidationError
 
@@ -109,6 +110,50 @@ def test_latest_successful_baseline_is_persisted_without_flags() -> None:
     assert "generated_text" in source
     assert "final_text" in source
     assert "review_flags" not in source
+
+
+async def test_manual_save_uses_approved_evolution_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.routes import evolutions
+
+    owner_id = uuid4()
+    patient_id = uuid4()
+    evolution_id = uuid4()
+    scheduled: list[tuple[object, object]] = []
+
+    async def current_user(_session: str | None) -> dict[str, object]:
+        return {"id": owner_id}
+
+    async def persist(*args: object, **kwargs: object):
+        assert args == (owner_id, patient_id)
+        assert kwargs["evolution_id"] == evolution_id
+        return {"id": evolution_id}, {"status": "pending"}
+
+    def schedule(
+        _tasks: BackgroundTasks, owner_user_id: object, saved_evolution_id: object
+    ) -> None:
+        scheduled.append((owner_user_id, saved_evolution_id))
+
+    monkeypatch.setattr(evolutions, "get_current_user", current_user)
+    monkeypatch.setattr(evolutions.evolution_exports_service, "persist_approved_evolution", persist)
+    monkeypatch.setattr(evolutions.evolution_exports_service, "schedule_export", schedule)
+
+    result = await evolutions.save_evolution(
+        patient_id,
+        evolutions.SaveEvolutionRequest(
+            id=evolution_id,
+            evolution_at=datetime.now(UTC),
+            raw_note="Nota",
+            generated_text="Borrador",
+            final_text="Aprobado",
+        ),
+        BackgroundTasks(),
+        session="session",
+    )
+
+    assert result == {"id": evolution_id}
+    assert scheduled == [(owner_id, evolution_id)]
 
 
 def test_no_evolution_update_or_delete_routes_exist() -> None:

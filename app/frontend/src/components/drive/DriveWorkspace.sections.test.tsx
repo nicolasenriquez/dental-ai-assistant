@@ -176,7 +176,9 @@ describe('Drive section boundaries', () => {
     await selectSection('Documentos');
 
     expect(await screen.findByText('Aún no hay documentos')).toBeInTheDocument();
-    expect(screen.getByText(/Ana Pérez/)).toBeInTheDocument();
+    expect(
+      screen.getByText(`Contexto activo · ${patientA.displayName} · ${patientA.rutMasked}`),
+    ).toBeInTheDocument();
     expect(api.listDriveFiles).toHaveBeenCalledWith('p1', undefined);
   });
 
@@ -241,7 +243,7 @@ describe('Drive Picker intents', () => {
     renderWorkspace(null);
 
     await selectSection('Notas');
-    fireEvent.click(await screen.findByRole('button', { name: 'Abrir nota desde Drive' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir desde Drive' }));
 
     expect(openDrivePicker).toHaveBeenCalledTimes(1);
     expect(openDrivePicker).toHaveBeenCalledWith();
@@ -272,7 +274,7 @@ describe('Drive Picker intents', () => {
   });
 
   it.each([
-    { section: 'Notas' as const, patientId: null, action: 'Abrir nota desde Drive' },
+    { section: 'Notas' as const, patientId: null, action: 'Abrir desde Drive' },
     { section: 'Documentos' as const, patientId: 'p1', action: 'Importar copia desde Drive' },
   ])(
     'leaves $section unchanged when its Picker is cancelled',
@@ -303,10 +305,10 @@ describe('Drive-to-composer insertion', () => {
     renderWorkspace('p1', insert);
 
     await openNote();
-    fireEvent.click(screen.getByRole('button', { name: 'Insertar nota completa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
 
     expect(insert).toHaveBeenCalledWith(`Fuente: Google Drive · ${source.name}\n${source.content}`);
-    expect(screen.getByRole('status', { name: 'Añadido al borrador' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeInTheDocument();
     expect(api.createDriveFile).not.toHaveBeenCalled();
     expect(api.updateDriveFile).not.toHaveBeenCalled();
     expect(api.importDriveCopy).not.toHaveBeenCalled();
@@ -319,11 +321,13 @@ describe('Drive-to-composer insertion', () => {
     const editor = (await openNote()) as HTMLTextAreaElement;
     editor.setSelectionRange(0, 4);
     fireEvent.select(editor);
-    fireEvent.click(screen.getByRole('button', { name: 'Insertar selección' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Incorporar selección al borrador' }));
 
     expect(insert).toHaveBeenCalledWith(`Fuente: Google Drive · ${source.name}\nNota`);
-    expect(screen.getByRole('button', { name: 'Insertar nota completa' })).toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'Añadido al borrador' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeInTheDocument();
   });
 
   it('requires a patient and leaves note state unchanged', async () => {
@@ -334,8 +338,8 @@ describe('Drive-to-composer insertion', () => {
     editor.setSelectionRange(0, 4);
     fireEvent.select(editor);
 
-    const complete = screen.getByRole('button', { name: 'Insertar nota completa' });
-    const selection = screen.getByRole('button', { name: 'Insertar selección' });
+    const complete = screen.getByRole('button', { name: 'Incorporar nota completa al borrador' });
+    const selection = screen.getByRole('button', { name: 'Incorporar selección al borrador' });
     expect(complete).toBeDisabled();
     expect(selection).toBeDisabled();
     expect(screen.getByText('Selecciona un paciente para insertar este contenido.')).toBeVisible();
@@ -351,10 +355,12 @@ describe('Drive-to-composer insertion', () => {
     renderWorkspace('p1', insert);
 
     const editor = await openNote();
-    fireEvent.click(screen.getByRole('button', { name: 'Insertar nota completa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
 
     expect(editor).toHaveValue(source.content);
     expect(screen.getByText('No se pudo añadir el contenido al borrador.')).toBeVisible();
-    expect(screen.queryByRole('status', { name: 'Añadido al borrador' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('status', { name: 'Incorporado al borrador' }),
+    ).not.toBeInTheDocument();
   });
 });

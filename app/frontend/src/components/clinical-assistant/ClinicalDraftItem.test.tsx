@@ -83,7 +83,7 @@ it('shows all clinical fields and keeps the source note collapsed', () => {
   expect(screen.getByText('Mantener higiene')).toBeVisible();
   expect(screen.getByText('Control en seis meses')).toBeVisible();
   expect(screen.queryByText('Control', { selector: 'blockquote' })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Ver nota clínica original' })).toHaveAttribute(
+  expect(screen.getByRole('button', { name: 'Ver evidencia' })).toHaveAttribute(
     'aria-expanded',
     'false',
   );

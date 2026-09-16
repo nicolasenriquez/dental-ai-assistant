@@ -18,6 +18,8 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const DRIVE_LAYOUT_KEY = 'dental.drive.workspace.layout.v1';
+const DEFAULT_WORKSPACE_LAYOUT = { main: 68, accessory: 32 } as const;
+const DOCUMENT_WORKSPACE_LAYOUT = { main: 56, accessory: 44 } as const;
 
 function readDriveLayout(): { main: number; accessory: number } {
   try {
@@ -26,13 +28,13 @@ function readDriveLayout(): { main: number; accessory: number } {
       accessory?: unknown;
     } | null;
     if (typeof parsed?.main !== 'number' || typeof parsed.accessory !== 'number') {
-      return { main: 68, accessory: 32 };
+      return DEFAULT_WORKSPACE_LAYOUT;
     }
     const main = Math.min(72, Math.max(58, parsed.main));
     const accessory = Math.min(40, Math.max(28, parsed.accessory));
     return { main, accessory };
   } catch {
-    return { main: 68, accessory: 32 };
+    return DEFAULT_WORKSPACE_LAYOUT;
   }
 }
 
@@ -80,7 +82,7 @@ export function AppShell({
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       workspaceGroup.current?.setLayout(
-        workspaceAccessoryMode === 'document' ? { main: 50, accessory: 50 } : workspaceLayout,
+        workspaceAccessoryMode === 'document' ? DOCUMENT_WORKSPACE_LAYOUT : workspaceLayout,
       );
     });
     return () => window.cancelAnimationFrame(frame);
@@ -232,7 +234,7 @@ export function AppShell({
                     className="workspace-resizable"
                     defaultLayout={
                       workspaceAccessoryMode === 'document'
-                        ? { main: 50, accessory: 50 }
+                        ? DOCUMENT_WORKSPACE_LAYOUT
                         : workspaceLayout
                     }
                     onLayoutChanged={(layout) => {
@@ -253,7 +255,7 @@ export function AppShell({
                     <ResizablePanel
                       id="main"
                       defaultSize="68"
-                      minSize={workspaceAccessoryMode === 'document' ? '40' : '58'}
+                      minSize={workspaceAccessoryMode === 'document' ? '52' : '58'}
                       className="workspace-panel-main"
                     >
                       {children}
@@ -262,8 +264,8 @@ export function AppShell({
                     <ResizablePanel
                       id="accessory"
                       defaultSize="32"
-                      minSize="28"
-                      maxSize={workspaceAccessoryMode === 'document' ? '60' : '40'}
+                      minSize={workspaceAccessoryMode === 'document' ? '32' : '28'}
+                      maxSize={workspaceAccessoryMode === 'document' ? '48' : '40'}
                       className="workspace-panel-accessory"
                     >
                       {workspaceAccessory}

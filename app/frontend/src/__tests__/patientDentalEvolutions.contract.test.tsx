@@ -118,11 +118,13 @@ describe('patient pages and evolution workspace contracts', () => {
     expect(source).toContain('.filter');
     const workspace = read('../components/PatientWorkspace.tsx');
     const evolutionContent = read('../components/EvolutionDetailContent.tsx');
+    const evolutionFields = read('../components/clinical/evolutionFields.ts');
     expect(evolutionContent).not.toContain('Registro aprobado');
     expect(evolutionContent).toContain('Fecha de atención');
     expect(evolutionContent).toContain('dateTime={evolution.evolution_at}');
-    expect(evolutionContent).toContain("normalize('NFD')");
-    expect(evolutionContent).toContain("block.indexOf(':')");
+    expect(evolutionContent).toContain('parseClinicalText(evolution.final_text)');
+    expect(evolutionFields).toContain("normalize('NFD')");
+    expect(evolutionFields).toContain("block.indexOf(':')");
     expect(workspace).toContain('Selecciona una evolución');
     expect(workspace).toContain("aria-current={selected ? 'page' : undefined}");
     expect(workspace).toContain('patient-workspace__detail');

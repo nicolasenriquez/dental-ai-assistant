@@ -37,7 +37,7 @@ export function DriveWorkspaceHome({
         disabled={picking}
         onClick={onPick}
       >
-        {picking ? 'Abriendo…' : 'Abrir nota desde Drive'}
+        {picking ? 'Abriendo…' : 'Abrir desde Drive'}
       </button>
       <h2>Notas</h2>
       <DriveSourceList files={filtered} loading={loading} onOpen={onOpen} />

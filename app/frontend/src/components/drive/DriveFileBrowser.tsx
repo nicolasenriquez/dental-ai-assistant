@@ -67,7 +67,7 @@ export function DriveFileBrowser({
   searchSubmitted,
   importing,
   imported,
-  importLabel = 'Agregar desde Drive',
+  importLabel = 'Importar copia desde Drive',
   nextPageToken,
   onQueryChange,
   onSearch,

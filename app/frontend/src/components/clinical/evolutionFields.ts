@@ -21,3 +21,44 @@ export function composeClinicalDraft(draft: ClinicalDraft): string {
 export function hasClinicalContent(draft: ClinicalDraft): boolean {
   return clinicalFields.some(({ key }) => draft[key].trim().length > 0);
 }
+
+function normalizeLabel(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
+export function parseClinicalText(text: string): {
+  sections: Partial<Record<ClinicalField, string>>;
+  fallback: string;
+} {
+  const sections: Partial<Record<ClinicalField, string>> = {};
+  const fallback: string[] = [];
+  let current: ClinicalField | null = null;
+
+  for (const block of text
+    .split(/\n\s*\n/)
+    .map((part) => part.trim())
+    .filter(Boolean)) {
+    const separator = block.indexOf(':');
+    const field =
+      separator === -1
+        ? undefined
+        : clinicalFields.find(
+            ({ label }) =>
+              normalizeLabel(block.slice(0, separator).trim()) === normalizeLabel(label),
+          );
+    if (field) {
+      const value = block.slice(separator + 1).trim();
+      if (value) sections[field.key] = value;
+      current = field.key;
+    } else if (current) {
+      sections[current] = [sections[current], block].filter(Boolean).join('\n\n');
+    } else {
+      fallback.push(block);
+    }
+  }
+
+  return { sections, fallback: fallback.join('\n\n') };
+}

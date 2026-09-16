@@ -158,21 +158,47 @@ async def test_clinical_thread_lifecycle_stays_owner_scoped(monkeypatch) -> None
         calls.append(("get", owner_id, thread_id))
         return "updated"
 
-    async def delete(owner_id, thread_id):
-        calls.append(("delete", owner_id, thread_id))
-        return True
-
     monkeypatch.setattr(service, "sanitize_content", sanitize)
     monkeypatch.setattr(service.repository, "rename_thread", rename)
     monkeypatch.setattr(service, "get_thread_response", get_response)
-    monkeypatch.setattr(service.repository, "delete_thread", delete)
 
     assert await service.rename_thread(owner, thread, " Control ") == "updated"
-    assert await service.delete_thread(owner, thread)
     assert calls == [
         ("rename", owner, thread, "Control"),
         ("get", owner, thread),
+    ]
+
+
+async def test_clinical_thread_list_and_delete_routes_stay_owner_scoped(monkeypatch) -> None:
+    from fastapi import HTTPException
+
+    from backend.routes import clinical_assistant
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    calls: list[tuple[object, ...]] = []
+
+    async def list_owned(owner_id):
+        calls.append(("list", owner_id))
+        return [{"id": thread}]
+
+    async def delete_owned(owner_id, thread_id):
+        calls.append(("delete", owner_id, thread_id))
+        return thread_id == thread
+
+    monkeypatch.setattr(clinical_assistant.repository, "list_threads", list_owned)
+    monkeypatch.setattr(clinical_assistant.repository, "delete_thread", delete_owned)
+
+    user = {"id": str(owner)}
+    assert await clinical_assistant.list_threads(user) == [{"id": thread}]
+    assert await clinical_assistant.delete_thread(thread, user) is None
+    with pytest.raises(HTTPException) as missing:
+        await clinical_assistant.delete_thread(UUID(int=3), user)
+    assert missing.value.status_code == 404
+    assert calls == [
+        ("list", owner),
         ("delete", owner, thread),
+        ("delete", owner, UUID(int=3)),
     ]
 
 

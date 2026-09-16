@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Cookie, HTTPException, status
 from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints, field_validator
 
 from backend.auth.dependencies import get_current_user
 from backend.db import evolutions_repo
+from backend.evolution_exports import service as evolution_exports_service
 from backend.services import clinical_evolutions
 
 router = APIRouter(prefix="/evolutions", tags=["evolutions"])
@@ -113,22 +114,24 @@ async def generate_evolution(
 async def save_evolution(
     patient_id: UUID,
     request: SaveEvolutionRequest,
+    background_tasks: BackgroundTasks,
     session: str | None = Cookie(default=None),
 ) -> dict[str, Any]:
     user: dict[str, Any] = await get_current_user(session)
     try:
-        return cast(
-            dict[str, Any],
-            await evolutions_repo.create_evolution(
-                user["id"],
-                patient_id,
-                evolution_id=request.id,
-                evolution_at=request.evolution_at,
-                raw_note=request.raw_note,
-                generated_text=request.generated_text,
-                final_text=request.final_text,
-            ),
+        result, export = await evolution_exports_service.persist_approved_evolution(
+            user["id"],
+            patient_id,
+            evolution_id=request.id,
+            evolution_at=request.evolution_at,
+            raw_note=request.raw_note,
+            generated_text=request.generated_text,
+            final_text=request.final_text,
+            approval_at=datetime.now(UTC),
         )
+        if export is not None and export["status"] == "pending":
+            evolution_exports_service.schedule_export(background_tasks, user["id"], result["id"])
+        return cast(dict[str, Any], result)
     except LookupError:
         raise HTTPException(status_code=404, detail="Paciente no encontrado") from None
     except evolutions_repo.EvolutionConflictError:

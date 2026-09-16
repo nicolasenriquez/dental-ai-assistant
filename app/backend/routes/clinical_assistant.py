@@ -23,6 +23,7 @@ from backend.clinical_assistant.schemas import (
     PrepareSaveRequest,
     RegenerateDraftRequest,
 )
+from backend.db import clinical_assistant_repo as repository
 from backend.evolution_exports import service as evolution_exports_service
 
 router = APIRouter(tags=["clinical-assistant"])
@@ -62,7 +63,7 @@ async def acquire_thread(user: dict[str, Any] = Depends(get_current_user)) -> di
 
 @router.get("/clinical-threads")
 async def list_threads(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
-    return cast(list[dict[str, Any]], await service.list_threads(_user_id(user)))
+    return cast(list[dict[str, Any]], await repository.list_threads(_user_id(user)))
 
 
 @router.get("/clinical-threads/{thread_id}", response_model=ClinicalThreadResponse)
@@ -86,7 +87,7 @@ async def rename_thread(
 
 @router.delete("/clinical-threads/{thread_id}", status_code=204)
 async def delete_thread(thread_id: UUID, user: dict[str, Any] = Depends(get_current_user)) -> None:
-    if not await service.delete_thread(_user_id(user), thread_id):
+    if not await repository.delete_thread(_user_id(user), thread_id):
         raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
 
 

@@ -1,12 +1,14 @@
 import { HardDrive, X } from 'lucide-react';
 import type { DriveStatus } from '../../lib/api';
+import type { DrivePatientContext } from './editors/types';
 
 interface DriveWorkspaceHeaderProps {
   status: DriveStatus | null;
+  patient?: DrivePatientContext | null;
   onClose?: () => void;
 }
 
-export function DriveWorkspaceHeader({ status, onClose }: DriveWorkspaceHeaderProps) {
+export function DriveWorkspaceHeader({ status, patient, onClose }: DriveWorkspaceHeaderProps) {
   const connected = status?.status === 'connected';
   return (
     <header className="drive-workspace-header">
@@ -17,6 +19,11 @@ export function DriveWorkspaceHeader({ status, onClose }: DriveWorkspaceHeaderPr
           {connected && (
             <p className="drive-header-status">
               <span>Conectado</span>
+            </p>
+          )}
+          {patient && (
+            <p className="drive-workspace-patient-context">
+              Contexto activo · {patient.displayName} · {patient.rutMasked}
             </p>
           )}
         </div>

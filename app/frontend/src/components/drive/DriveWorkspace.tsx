@@ -692,7 +692,7 @@ export function DriveWorkspace({
       return;
     try {
       onInsertToComposer(formatDriveInsertion(text, sourceName));
-      setInsertionFeedback('Añadido al borrador');
+      setInsertionFeedback('Incorporado al borrador');
       setErrorMessage(null);
     } catch {
       setInsertionFeedback(null);
@@ -955,11 +955,17 @@ export function DriveWorkspace({
       aria-label="Espacio de documentos de Google Drive"
     >
       {!sourceDoc && !isSheet && (
-        <DriveWorkspaceHeader status={driveStatus} onClose={requestCloseWorkspace} />
+        <DriveWorkspaceHeader
+          status={driveStatus}
+          patient={patient}
+          onClose={requestCloseWorkspace}
+        />
       )}
-      {errorMessage && (
+      {errorMessage && !conflictOpen && (
         <Alert>
-          <AlertTitle>No se pudo completar la acción</AlertTitle>
+          <AlertTitle>
+            {sourceDoc ? 'No se pudo guardar el documento' : 'No se pudo completar la acción'}
+          </AlertTitle>
           <AlertDescription>
             {debugErrorMessage
               ? `Google Drive: ${debugErrorMessage}`
@@ -1044,6 +1050,12 @@ export function DriveWorkspace({
       <SheetContent className="drive-sheet-workspace">
         <SheetHeader>
           <SheetTitle>{workspaceDocument ? 'Documento' : 'Google Drive'}</SheetTitle>
+          {driveStatus.status === 'connected' && <p className="drive-header-status">Conectado</p>}
+          {patient && (
+            <p className="drive-workspace-patient-context">
+              Contexto activo · {patient.displayName} · {patient.rutMasked}
+            </p>
+          )}
         </SheetHeader>
         {workspaceContent}
       </SheetContent>

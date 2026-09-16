@@ -28,6 +28,7 @@ async def db(monkeypatch: pytest.MonkeyPatch):
     except OSError as exc:
         pytest.skip(f"live Postgres unreachable: {exc}")
     monkeypatch.setattr(clinical_assistant_repo, "get_pg_pool", lambda: pool)
+    monkeypatch.setattr(evolution_exports_service, "get_pg_pool", lambda: pool)
     async with pool.acquire() as conn:
         await conn.execute("TRUNCATE users CASCADE")
     yield pool

@@ -407,7 +407,7 @@ export function EvolutionReviewArtifact({
               onClick={() => setSourceOpen((current) => !current)}
             >
               <ChevronDown aria-hidden="true" size={15} />
-              {sourceOpen ? 'Ocultar nota clínica original' : 'Ver nota clínica original'}
+              {sourceOpen ? 'Ocultar evidencia' : 'Ver evidencia'}
             </button>
           </div>
           {sourceOpen && (

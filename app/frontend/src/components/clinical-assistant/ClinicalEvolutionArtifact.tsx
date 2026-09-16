@@ -74,7 +74,10 @@ function DriveExportRow({
       role="status"
       aria-live="polite"
     >
-      <span>{copy}</span>
+      <span className="clinical-drive-row__statuses">
+        <span className="clinical-drive-row__clinical-state">Guardada en ficha</span>
+        <span>{copy}</span>
+      </span>
       {navigable && onOpen && (
         <button
           type="button"

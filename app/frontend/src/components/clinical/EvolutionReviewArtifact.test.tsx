@@ -187,7 +187,7 @@ describe('EvolutionReviewArtifact', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ver nota clínica original' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ver evidencia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Editar nota original' }));
     const source = screen.getByRole('textbox', { name: 'Editar nota clínica original' });
     fireEvent.change(source, { target: { value: 'Cambio local' } });
@@ -220,7 +220,7 @@ describe('EvolutionReviewArtifact', () => {
         onSourceChange={onSourceChange}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Ver nota clínica original' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ver evidencia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Editar nota original' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Editar nota clínica original' }), {
       target: { value: 'Texto conservado' },

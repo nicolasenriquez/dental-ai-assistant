@@ -1749,8 +1749,8 @@ body,
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: transparent;
+  border-radius: 12px;
+  background: var(--surface-1);
   padding: 0;
   scroll-margin-bottom: 24px;
   animation: clinical-item-enter 180ms ease-out both;
@@ -1774,7 +1774,8 @@ body,
 
 .clinical-artifact-heading {
   align-items: flex-start;
-  padding: 12px 16px 10px;
+  padding: 16px 18px 13px;
+  border-bottom: 1px solid var(--border);
 }
 .clinical-artifact-heading__copy {
   min-width: 0;
@@ -1796,7 +1797,7 @@ body,
   flex-wrap: wrap;
   margin-top: 4px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
 }
 .clinical-artifact-metadata button,
 .clinical-field-edit,
@@ -1814,13 +1815,13 @@ body,
   justify-content: flex-end;
   gap: 5px 8px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
 }
 .clinical-field-edit {
   min-width: 64px;
   min-height: 40px;
   justify-content: center;
-  opacity: 0.78;
+  opacity: 0.68;
 }
 .clinical-field-edit:hover,
 .clinical-field-edit:focus-visible {
@@ -1832,8 +1833,8 @@ body,
   align-items: center;
   gap: 6px;
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
 }
 
 .clinical-artifact-heading p,
@@ -1875,7 +1876,7 @@ body,
 }
 
 .clinical-artifact-lifecycle li.is-current {
-  color: var(--text-primary);
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -1885,13 +1886,13 @@ body,
 
 .clinical-draft-fields {
   display: grid;
-  padding: 0 16px;
+  padding: 4px 18px 0;
 }
 
 .clinical-source-note {
   display: grid;
   gap: 5px;
-  margin: 4px 16px 12px;
+  margin: 4px 18px 12px;
 }
 
 .clinical-provenance-row {
@@ -1924,6 +1925,8 @@ body,
   overflow-wrap: anywhere;
   padding: 4px 10px;
   white-space: pre-wrap;
+  background: var(--bg);
+  border-radius: 0 8px 8px 0;
 }
 
 .clinical-source-note textarea {
@@ -1977,7 +1980,7 @@ body,
   display: grid;
   min-width: 0;
   gap: 5px;
-  padding: 10px 0;
+  padding: 12px 0;
 }
 
 .clinical-draft-fields > div + div {
@@ -2031,9 +2034,11 @@ body,
 }
 
 .clinical-review-flags {
-  margin: 6px 16px 0;
-  border-top: 1px solid var(--warning-border);
-  padding: 8px 0 0;
+  margin: 10px 18px 0;
+  border: 1px solid var(--warning-border);
+  border-radius: 10px;
+  background: var(--warning-bg);
+  padding: 10px 12px;
 }
 
 .clinical-review-flags h4 {
@@ -2077,9 +2082,9 @@ body,
 .clinical-artifact .clinical-artifact-actions,
 .clinical-artifact > .clinical-artifact-review-actions,
 .clinical-artifact > .clinical-artifact-terminal-actions {
-  margin-top: 6px;
-  border-top: 0;
-  padding-top: 6px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
 }
 
 .clinical-artifact-utility-row,
@@ -2089,7 +2094,7 @@ body,
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 16px 14px;
+  padding: 0 18px 16px;
 }
 
 .clinical-artifact-review-actions {
@@ -2118,6 +2123,16 @@ body,
   padding: 10px 0 0;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.clinical-drive-row__statuses {
+  display: grid;
+  gap: 3px;
+}
+
+.clinical-drive-row__clinical-state {
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .clinical-artifact .clinical-secondary-button {
@@ -4520,6 +4535,16 @@ body,
 .drive-header-status {
   color: var(--success);
   font-size: 12px;
+}
+
+.drive-workspace-patient-context {
+  margin: 6px 0 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .drive-header-workspace {

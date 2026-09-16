@@ -396,13 +396,13 @@ describe('Clinical Assistant Drive transfer', () => {
 
     await openAssistantMessageDraft();
     fireEvent.change(composer(), { target: { value: 'nota previa' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Insertar nota completa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
 
     expect(composer()).toHaveValue(
       'nota previa\n\nFuente: Google Drive · Respuesta del asistente.txt\nMensaje del asistente',
     );
     expect(composer()).toHaveFocus();
-    expect(screen.getByRole('status', { name: 'Añadido al borrador' })).toBeVisible();
+    expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeVisible();
     expect(mocks.send).not.toHaveBeenCalled();
     expect(apiSeam.createDriveFile).not.toHaveBeenCalled();
   });
