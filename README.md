@@ -12,7 +12,7 @@ This repository is the **running project for the Dynamous Agentic Engineering Co
 
 ## What it does
 
-1. **Clinical Assistant** — clinicians select a patient, write or dictate a note, review a generated evolution, and explicitly approve or discard the save.
+1. **Clinical Assistant.** Clinicians can ask general questions, consult a selected patient's recent history, and create or revise evolution drafts in chat. Every save still requires explicit approval.
 2. **Patients and evolutions** — patient identity is owner-scoped and RUT values are masked outside the privacy boundary.
 3. **Voice dictation** — short-lived audio is transcribed by the Whisper sidecar and returned as editable text. Audio is not persisted.
 4. **RAG chat** — the secondary library chat ingests YouTube and Dynamous transcripts, retrieves with hybrid RRF search, and streams cited answers.

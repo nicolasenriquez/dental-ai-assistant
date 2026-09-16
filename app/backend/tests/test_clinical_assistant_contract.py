@@ -1,7 +1,9 @@
 """Security and boundary contracts for the isolated Clinical Assistant."""
 
+import asyncio
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -310,6 +312,166 @@ async def test_clinical_turn_releases_lock_when_setup_fails(monkeypatch) -> None
         _ = [chunk async for chunk in service.stream_turn(owner, thread, turn, "Control")]
 
     assert finished == [(owner, thread, turn)]
+
+
+async def test_clinical_turn_marks_cancellation_as_expected_failure(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    blocked = asyncio.Event()
+    release = asyncio.Event()
+    finished: list[tuple[object, ...]] = []
+
+    async def stalled(_owner, _thread, _turn, _content, claimed_new):
+        claimed_new["value"] = True
+        yield "started"
+        blocked.set()
+        await release.wait()
+
+    async def finish(owner_id, thread_id, turn_id, status="failed", error_code=None):
+        finished.append((owner_id, thread_id, turn_id, status, error_code))
+
+    monkeypatch.setattr(service, "_stream_turn", stalled)
+    monkeypatch.setattr(service.repository, "finish_turn", finish)
+
+    stream = service.stream_turn(owner, thread, turn, "Control")
+    assert await anext(stream) == "started"
+    pending = asyncio.create_task(anext(stream))
+    await blocked.wait()
+    pending.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+
+    assert finished == [
+        (owner, thread, turn, "failed", "CLINICAL_TURN_CANCELLED"),
+    ]
+
+
+async def test_clinical_turn_can_answer_without_active_patient(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.agent import ClinicalAgentOutput
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    appended: list[str] = []
+
+    async def sanitize(_owner, content):
+        return type(
+            "Sanitized",
+            (),
+            {
+                "display_text": content,
+                "model_text": content,
+                "invalid_candidates": 0,
+                "unresolved_candidates": 0,
+                "patient_ids": (),
+            },
+        )()
+
+    async def claim(*_args):
+        return {"replay": False, "active_patient_id": None}
+
+    async def stored(*_args):
+        return {
+            "messages": [{"role": "user", "content": "Hola"}],
+            "artifacts": [],
+        }
+
+    async def agent(*, context, messages, handlers):
+        assert context.patient_id is None
+        assert messages[-1] == {"role": "user", "content": "Hola"}
+        assert "create_evolution_draft" in handlers
+        yield ClinicalAgentOutput(kind="assistant", content="Hola, ¿en qué te ayudo?")
+
+    async def append(*_args):
+        appended.append(_args[-1])
+        return {"id": UUID(int=4)}
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.repository, "claim_turn", claim)
+    monkeypatch.setattr(service.repository, "get_thread", stored)
+    monkeypatch.setattr(service.repository, "append_message", append)
+    monkeypatch.setattr(service.repository, "finish_turn", no_op)
+    monkeypatch.setattr(service, "_set_contextual_title", no_op)
+    monkeypatch.setattr(service, "run_clinical_agent", agent)
+    monkeypatch.setattr(service.clinical_evolutions, "CLINICAL_EXTERNAL_LLM_ENABLED", True)
+
+    chunks = [chunk async for chunk in service.stream_turn(owner, thread, turn, "Hola")]
+
+    assert appended == ["Hola, ¿en qué te ayudo?"]
+    assert any("assistant_message" in chunk for chunk in chunks)
+    assert chunks[-1].startswith("event: turn.completed")
+
+
+async def test_clinical_update_tool_reopens_pending_artifact(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.policy import ClinicalTurnContext
+    from backend.clinical_assistant.schemas import ClinicalDraft
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    patient = UUID(int=4)
+    artifact_id = UUID(int=5)
+    action_id = UUID(int=6)
+    draft = ClinicalDraft(
+        context="Control",
+        findings="",
+        assessment="",
+        treatment="Texto largo",
+        follow_up="Cuatro semanas",
+        review_flags=[],
+    )
+    reopened: list[UUID] = []
+
+    async def stored(*_args):
+        return {"pending_action": {"id": action_id, "artifact_id": artifact_id}}
+
+    async def reopen(_owner, pending_id):
+        reopened.append(pending_id)
+        return {"artifact_id": artifact_id}
+
+    async def artifact(*_args):
+        return {
+            "id": artifact_id,
+            "turn_id": turn,
+            "patient_id": patient,
+            "status": "draft",
+            "source_note": "Nota segura",
+            "draft": draft.model_dump(mode="json"),
+            "generated_draft": draft.model_dump(mode="json"),
+            "evolution_at": datetime.now(UTC),
+        }
+
+    async def sanitize(_owner, content):
+        return type("Sanitized", (), {"display_text": content})()
+
+    async def update(*_args, **_kwargs):
+        return {"id": artifact_id}
+
+    monkeypatch.setattr(service.repository, "get_thread", stored)
+    monkeypatch.setattr(service.repository, "return_to_editing", reopen)
+    monkeypatch.setattr(service.repository, "get_artifact", artifact)
+    monkeypatch.setattr(service.repository, "update_artifact", update)
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+
+    handlers = service._clinical_tool_handlers(
+        ClinicalTurnContext(owner, thread, UUID(int=7), patient, artifact_id),
+        "Nota segura",
+        "Nota segura",
+    )
+    result = await handlers["update_evolution_draft"]({"treatment": "Texto breve"})
+
+    assert reopened == [action_id]
+    assert result.payload["draft"]["treatment"] == "Texto breve"
+    assert result.effect and result.effect["item_id"] == str(artifact_id)
 
 
 @pytest.mark.parametrize(

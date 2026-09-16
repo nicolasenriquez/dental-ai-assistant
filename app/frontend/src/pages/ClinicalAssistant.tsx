@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
+import { useClinicalAssistant } from '../hooks/useClinicalAssistant';
 import { TransitionGuardProvider, useTransitionGuard } from '../hooks/useTransitionGuard';
 import type { ClinicalPatient, DriveJournalTarget } from '../lib/api';
 import { acquireClinicalThread } from '../lib/api';
@@ -140,6 +141,7 @@ function ClinicalAssistantContent() {
   }, [createAttempt, navigate, threadId]);
 
   const activeId = threadId ?? createdThreadId;
+  const assistant = useClinicalAssistant(activeId ?? undefined);
   return (
     <AppShell
       showConversations={false}
@@ -176,6 +178,7 @@ function ClinicalAssistantContent() {
       {activeId ? (
         <ClinicalAssistantArea
           threadId={activeId}
+          assistant={assistant}
           onThreadStateChanged={() => setThreadListVersion((version) => version + 1)}
           guardTransition={(continuation) => {
             if (driveRef.current?.preservesPatientSwitch?.()) continuation();

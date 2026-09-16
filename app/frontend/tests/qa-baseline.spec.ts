@@ -94,10 +94,12 @@ interface QaRouteOptions {
   conversationLoadFailures?: number;
   streamFailuresBeforeSuccess?: number;
   holdFirstStream?: boolean;
+  holdClinicalStream?: boolean;
 }
 
 interface QaRouteControls {
   releaseHeldStream: () => void;
+  clinicalStreamEntered: Promise<void>;
 }
 
 interface QaRuntimeDiagnostics {
@@ -154,6 +156,10 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
   let conversationLoadAttempts = 0;
   let streamAttempts = 0;
   let releaseHeldStream: (() => void) | null = null;
+  let resolveClinicalStreamEntered: (() => void) | null = null;
+  const clinicalStreamEntered = new Promise<void>((resolve) => {
+    resolveClinicalStreamEntered = resolve;
+  });
   let currentClinicalThread: Record<string, unknown> = {
     ...clinicalThread,
     messages: [],
@@ -457,6 +463,12 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
         ),
         clinicalEvent('turn.completed', 4, 'turn-complete', 'turn', {}, turn),
       ].join('');
+      if (options.holdClinicalStream) {
+        await new Promise<void>((resolve) => {
+          releaseHeldStream = resolve;
+          resolveClinicalStreamEntered?.();
+        });
+      }
       await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
       return;
     }
@@ -587,6 +599,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
 
   return {
     releaseHeldStream: () => releaseHeldStream?.(),
+    clinicalStreamEntered,
   };
 }
 
@@ -1066,6 +1079,35 @@ test('clinical assistant exposes the review lifecycle and Drive surface', async 
   await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
   await expect(page.locator('.drive-sheet-content')).toBeVisible();
   await page.keyboard.press('Escape');
+});
+
+test('clinical stream survives closing Drive', async ({ page }) => {
+  const controls = await installQaRoutes(page, {
+    driveEnabled: true,
+    holdClinicalStream: true,
+  });
+  try {
+    await page.goto(`/a/${threadId}`);
+    const input = page.getByLabel('Nota clínica');
+    await expect(input).toBeVisible();
+
+    await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+    await expect(page.getByRole('heading', { name: 'Google Drive' })).toBeVisible();
+
+    await input.fill('Nota durante stream clínico QA.');
+    await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+    await controls.clinicalStreamEntered;
+    await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cerrar Google Drive' }).click();
+    await expect(page.getByRole('button', { name: 'Abrir Google Drive' })).toBeVisible();
+
+    controls.releaseHeldStream();
+    await expect(page.getByText('Preparé un borrador para revisión.')).toBeVisible();
+    await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
+  } finally {
+    controls.releaseHeldStream();
+  }
 });
 
 test('admin view validates video actions and native confirmation', async ({ page }) => {

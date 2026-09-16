@@ -25,6 +25,8 @@ os.environ["CLINICAL_EXTERNAL_LLM_ENABLED"] = "false"
 # not leak into tests. PYTEST_CURRENT_TEST is not set yet at conftest import
 # time, so an explicit marker is required.
 os.environ["AI_TUTOR_DISABLE_DOTENV"] = "1"
+# CPython 3.14.4 on Windows aborts in OpenSSL when TLS key logging is enabled.
+os.environ.pop("SSLKEYLOGFILE", None)
 
 import pytest
 

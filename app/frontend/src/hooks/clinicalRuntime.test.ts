@@ -114,6 +114,72 @@ describe('clinical runtime', () => {
     });
   });
 
+  it('updates the existing draft artifact instead of adding another card', () => {
+    const first = decodeClinicalEvent(
+      'item.completed',
+      event({
+        item_type: 'clinical_draft',
+        data: {
+          patient_id: 'patient-1',
+          evolution_at: '2026-09-08T12:00:00Z',
+          source_note: 'Control',
+          draft: {
+            context: 'Control',
+            findings: '',
+            assessment: '',
+            treatment: 'Texto largo',
+            follow_up: 'Cuatro semanas',
+            review_flags: [],
+          },
+        },
+      }),
+      { threadId: 'thread-1', turnId: 'turn-1' },
+    );
+    const updated = decodeClinicalEvent(
+      'item.completed',
+      event({
+        event_id: 'event-2',
+        sequence: 2,
+        turn_id: 'turn-2',
+        item_type: 'clinical_draft',
+        data: {
+          patient_id: 'patient-1',
+          evolution_at: '2026-09-08T12:00:00Z',
+          source_note: 'Control',
+          draft: {
+            context: 'Control',
+            findings: '',
+            assessment: '',
+            treatment: 'Texto breve',
+            follow_up: 'Cuatro semanas',
+            review_flags: [],
+          },
+          generated_draft: {
+            context: 'Control',
+            findings: '',
+            assessment: '',
+            treatment: 'Texto largo',
+            follow_up: 'Cuatro semanas',
+            review_flags: [],
+          },
+        },
+      }),
+      { threadId: 'thread-1', turnId: 'turn-2' },
+    );
+    if (!first || !updated) throw new Error('expected valid draft events');
+
+    let state = clinicalReducer(createClinicalReducerState(), { type: 'event', event: first });
+    state = clinicalReducer(state, { type: 'event', event: updated });
+
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toMatchObject({
+      type: 'draft',
+      turnId: 'turn-1',
+      edited: true,
+      draft: { treatment: 'Texto breve' },
+    });
+  });
+
   it('rejects malformed or foreign events before state changes', () => {
     expect(
       decodeClinicalEvent('item.completed', event({ thread_id: 'other-thread' }), {

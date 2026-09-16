@@ -22,8 +22,8 @@ import { act, render, renderHook, screen, waitFor } from '@testing-library/react
 import { MemoryRouter } from 'react-router-dom';
 import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
-import * as authApi from '../lib/authApi';
 import * as driveApi from '../lib/api';
+import * as authApi from '../lib/authApi';
 import { Login } from '../pages/Login';
 
 vi.mock('../lib/authApi', () => ({

@@ -302,6 +302,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
               item_type: decoded.itemType,
               sequence: decoded.sequence,
             });
+            if (decoded.itemType === 'approval_request') {
+              setRuntime('awaiting_approval');
+            }
             if (event === 'turn.started' && typeof payload.user_content === 'string') {
               dispatch({
                 type: 'append',
@@ -335,7 +338,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
               setError(code === 'PATIENT_SWITCH_REQUIRED' ? null : safeError(code));
               setRuntime('failed');
             } else if (event === 'turn.completed') {
-              setRuntime('idle');
+              setRuntime((current) => (current === 'awaiting_approval' ? current : 'idle'));
             }
           },
           controller.signal,
@@ -641,3 +644,5 @@ export function useClinicalAssistant(threadId: string | undefined) {
       }),
   };
 }
+
+export type ClinicalAssistantController = ReturnType<typeof useClinicalAssistant>;

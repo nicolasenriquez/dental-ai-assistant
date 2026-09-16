@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { KeyboardEventHandler, RefObject } from 'react';
+import { type KeyboardEventHandler, type RefObject, useEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AppShell } from './AppShell';
 
@@ -54,6 +54,11 @@ vi.mock('./Sidebar', () => ({
   ),
 }));
 
+function MountProbe({ onUnmount }: { onUnmount: () => void }) {
+  useEffect(() => () => onUnmount(), [onUnmount]);
+  return <main>Contenido</main>;
+}
+
 describe('AppShell mobile sidebar', () => {
   it('renders the desktop workspace as a resizable accessory split', () => {
     vi.stubGlobal(
@@ -98,6 +103,46 @@ describe('AppShell mobile sidebar', () => {
     expect(container.querySelector('.workspace-row')).not.toBeInTheDocument();
     expect(container.querySelector('.workspace-resize-handle')).not.toBeInTheDocument();
 
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['desktop', false],
+    ['compact', true],
+  ])('keeps main content mounted when the workspace accessory closes on %s', (_, isCompact) => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('1024') ? isCompact : false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const onUnmount = vi.fn();
+
+    function Harness() {
+      const [accessoryOpen, setAccessoryOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setAccessoryOpen((open) => !open)}>
+            Alternar Drive
+          </button>
+          <AppShell
+            showConversations={false}
+            workspaceMode
+            workspaceAccessory={accessoryOpen ? <aside>Drive</aside> : null}
+          >
+            <MountProbe onUnmount={onUnmount} />
+          </AppShell>
+        </>
+      );
+    }
+
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Alternar Drive' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Alternar Drive' }));
+
+    expect(onUnmount).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 

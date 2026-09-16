@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -15,6 +16,7 @@ from backend.db import evolution_exports_repo, patients_repo
 from backend.evolution_exports.service import drive_export_state
 from backend.services import clinical_evolutions
 
+from .agent import ClinicalAgentError, ClinicalToolResult, run_clinical_agent
 from .events import event
 from .policy import ClinicalTurnContext
 from .schemas import (
@@ -268,16 +270,196 @@ def _activity(
     )
 
 
+def _active_artifact_id(stored: dict[str, Any], patient_id: UUID | None) -> UUID | None:
+    if patient_id is None:
+        return None
+    candidates = [
+        artifact
+        for artifact in stored.get("artifacts", [])
+        if UUID(str(artifact["patient_id"])) == patient_id
+        and artifact["status"] in {"draft", "stale", "pending"}
+    ]
+    if not candidates:
+        return None
+    return UUID(str(candidates[-1]["id"]))
+
+
+def _conversation_messages(stored: dict[str, Any], model_text: str) -> list[dict]:
+    messages = [
+        {"role": message["role"], "content": str(message["content"])}
+        for message in stored.get("messages", [])[-12:]
+        if message["role"] in {"user", "assistant"}
+    ]
+    for message in reversed(messages):
+        if message["role"] == "user":
+            message["content"] = model_text
+            break
+    return messages or [{"role": "user", "content": model_text}]
+
+
+def _clinical_tool_handlers(
+    context: ClinicalTurnContext,
+    source_note: str,
+    model_note: str,
+) -> dict[str, Any]:
+    active_artifact = {"id": context.active_artifact_id}
+
+    async def patient_context(_arguments: dict[str, Any]) -> ClinicalToolResult:
+        if context.patient_id is None:
+            return ClinicalToolResult({"ok": False, "error": "PATIENT_REQUIRED"})
+        patient = await patients_repo.get_patient(context.user_id, context.patient_id)
+        if patient is None:
+            return ClinicalToolResult({"ok": False, "error": "PATIENT_NOT_FOUND"})
+        return ClinicalToolResult({"ok": True, "patient_selected": True})
+
+    async def recent_evolutions(_arguments: dict[str, Any]) -> ClinicalToolResult:
+        return ClinicalToolResult(await _get_recent_evolutions(context))
+
+    async def create_draft(_arguments: dict[str, Any]) -> ClinicalToolResult:
+        if context.patient_id is None:
+            return ClinicalToolResult({"ok": False, "error": "PATIENT_REQUIRED"})
+        draft = await _draft_evolution(context, model_note)
+        item_id = uuid4()
+        evolution_at = datetime.now(UTC)
+        await repository.create_artifact(
+            context.user_id,
+            context.thread_id,
+            context.turn_id,
+            context.patient_id,
+            item_id,
+            _artifact_payload(
+                source_note=source_note,
+                generated_draft=draft,
+                draft=draft,
+                evolution_at=evolution_at,
+            ),
+        )
+        active_artifact["id"] = item_id
+        draft_data = draft.model_dump(mode="json")
+        return ClinicalToolResult(
+            {"ok": True, "artifact_id": str(item_id), "draft": draft_data},
+            {
+                "kind": "draft",
+                "item_id": str(item_id),
+                "draft": draft_data,
+                "generated_draft": draft_data,
+                "source_note": source_note,
+                "patient_id": str(context.patient_id),
+                "evolution_at": evolution_at.isoformat(),
+            },
+        )
+
+    async def update_draft(arguments: dict[str, Any]) -> ClinicalToolResult:
+        artifact_id = active_artifact["id"]
+        if context.patient_id is None:
+            return ClinicalToolResult({"ok": False, "error": "PATIENT_REQUIRED"})
+        if artifact_id is None:
+            return ClinicalToolResult({"ok": False, "error": "ACTIVE_ARTIFACT_REQUIRED"})
+        stored = await repository.get_thread(context.user_id, context.thread_id)
+        if stored is None:
+            return ClinicalToolResult({"ok": False, "error": "THREAD_NOT_FOUND"})
+        pending = stored.get("pending_action")
+        if pending and UUID(str(pending["artifact_id"])) == artifact_id:
+            await repository.return_to_editing(context.user_id, pending["id"])
+        artifact = await repository.get_artifact(context.user_id, context.thread_id, artifact_id)
+        if artifact is None or UUID(str(artifact["patient_id"])) != context.patient_id:
+            return ClinicalToolResult({"ok": False, "error": "ARTIFACT_NOT_FOUND"})
+        if artifact["status"] not in {"draft", "stale"}:
+            return ClinicalToolResult({"ok": False, "error": "ARTIFACT_NOT_EDITABLE"})
+        draft = ClinicalDraft.model_validate(artifact["draft"])
+        fields = draft.model_dump()
+        for key, value in arguments.items():
+            fields[key] = (await sanitize_content(context.user_id, value)).display_text
+        updated_draft = ClinicalDraft(**fields)
+        updated = await repository.update_artifact(
+            context.user_id,
+            context.thread_id,
+            artifact_id,
+            payload=_artifact_payload(
+                source_note=str(artifact["source_note"]),
+                generated_draft=ClinicalDraft.model_validate(artifact["generated_draft"]),
+                draft=updated_draft,
+                evolution_at=datetime.fromisoformat(str(artifact["evolution_at"])),
+            ),
+            status=str(artifact["status"]),
+        )
+        if updated is None:
+            return ClinicalToolResult({"ok": False, "error": "ARTIFACT_NOT_FOUND"})
+        draft_data = updated_draft.model_dump(mode="json")
+        baseline_data = ClinicalDraft.model_validate(artifact["generated_draft"]).model_dump(
+            mode="json"
+        )
+        return ClinicalToolResult(
+            {"ok": True, "artifact_id": str(artifact_id), "draft": draft_data},
+            {
+                "kind": "draft",
+                "item_id": str(artifact_id),
+                "draft": draft_data,
+                "generated_draft": baseline_data,
+                "source_note": str(artifact["source_note"]),
+                "patient_id": str(context.patient_id),
+                "evolution_at": str(artifact["evolution_at"]),
+            },
+        )
+
+    async def prepare_draft(_arguments: dict[str, Any]) -> ClinicalToolResult:
+        artifact_id = active_artifact["id"]
+        if artifact_id is None:
+            return ClinicalToolResult({"ok": False, "error": "ACTIVE_ARTIFACT_REQUIRED"})
+        artifact = await repository.get_artifact(context.user_id, context.thread_id, artifact_id)
+        if artifact is None or (
+            context.patient_id is not None
+            and UUID(str(artifact["patient_id"])) != context.patient_id
+        ):
+            return ClinicalToolResult({"ok": False, "error": "ARTIFACT_NOT_FOUND"})
+        action = await prepare_save(
+            context.user_id,
+            context.thread_id,
+            PrepareSaveRequest(turn_id=UUID(str(artifact["turn_id"])), artifact_id=artifact_id),
+        )
+        return ClinicalToolResult(
+            {"ok": True, "approval_required": True, "action_id": str(action["id"])},
+            {"kind": "approval", "item_id": str(action["id"]), "action": action},
+        )
+
+    return {
+        "get_patient_context": patient_context,
+        "get_recent_evolutions": recent_evolutions,
+        "create_evolution_draft": create_draft,
+        "update_evolution_draft": update_draft,
+        "prepare_evolution_save": prepare_draft,
+    }
+
+
 async def stream_turn(
     owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, content: str
 ) -> AsyncIterator[str]:
     """Run one safe clinical turn and always release its thread lock."""
     claimed_new = {"value": False}
+    cancellation_handled = False
     try:
         async for chunk in _stream_turn(owner_user_id, thread_id, turn_id, content, claimed_new):
             yield chunk
-    finally:
+    except asyncio.CancelledError:
+        cancellation_handled = True
         if claimed_new["value"]:
+            try:
+                await asyncio.shield(
+                    repository.finish_turn(
+                        owner_user_id,
+                        thread_id,
+                        turn_id,
+                        "failed",
+                        "CLINICAL_TURN_CANCELLED",
+                    )
+                )
+            except asyncio.CancelledError:
+                logger.warning("clinical_turn_cancel_cleanup_interrupted turn_id=%s", turn_id)
+            except Exception:
+                logger.exception("clinical_turn_cancel_cleanup_failed turn_id=%s", turn_id)
+        raise
+    finally:
+        if claimed_new["value"] and not cancellation_handled:
             await repository.finish_turn(owner_user_id, thread_id, turn_id)
 
 
@@ -449,86 +631,73 @@ async def _stream_turn(
             )
             return
 
+    patient_id = UUID(str(active_patient_id)) if active_patient_id is not None else None
+    await _set_contextual_title(owner, thread, turn, patient_id, sanitized.display_text)
+    stored = await repository.get_thread(owner, thread)
+    if stored is None:
+        raise LookupError("Thread not found")
     context = ClinicalTurnContext(
         user_id=owner,
         thread_id=thread,
         turn_id=turn,
-        patient_id=UUID(str(active_patient_id)) if active_patient_id is not None else None,
+        patient_id=patient_id,
+        active_artifact_id=_active_artifact_id(stored, patient_id),
     )
 
-    await _set_contextual_title(owner, thread, turn, context.patient_id, sanitized.display_text)
-
-    if context.patient_id is None:
-        message = (
-            "Selecciona un paciente activo para preparar una evolución. "
-            "Puedes elegirlo desde el contexto del asistente."
-        )
-        if "[RUT no encontrado]" in sanitized.display_text:
-            message = "No encontré un paciente asociado a ese RUT."
-        elif "[RUT no válido]" in sanitized.display_text:
-            message = "El RUT indicado no es válido."
-        async for item in _assistant_item(owner, thread, turn, message):
-            yield item
-        await repository.finish_turn(owner, thread, turn, "completed")
-        yield event(
-            "turn.completed",
-            {"thread_id": str(thread), "turn_id": str(turn), "item_id": str(uuid4())},
-        )
-        return
-
     try:
-        yield _activity("item.completed", thread, turn, "Paciente identificado")
-        history_item_id = str(uuid4())
-        yield _activity(
-            "item.started", thread, turn, "Consultando evoluciones", "running", history_item_id
-        )
-        history = await _get_recent_evolutions(context)
-        yield _activity(
-            "item.completed",
-            thread,
-            turn,
-            f"{history.get('count', 0)} evoluciones revisadas",
-            item_id=history_item_id,
-        )
         if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
             raise clinical_evolutions.ClinicalGenerationDisabledError
-        draft_item_id = str(uuid4())
-        yield _activity(
-            "item.started", thread, turn, "Preparando borrador", "running", draft_item_id
-        )
-        draft = await _draft_evolution(context, sanitized.model_text)
-        evolution_at = datetime.now(UTC)
-        await repository.create_artifact(
-            owner,
-            thread,
-            turn,
-            context.patient_id,
-            draft_item_id,
-            _artifact_payload(
-                source_note=sanitized.display_text,
-                generated_draft=draft,
-                draft=draft,
-                evolution_at=evolution_at,
-            ),
-        )
-        yield event(
-            "item.completed",
-            {
-                "thread_id": str(thread),
-                "turn_id": str(turn),
-                "item_id": draft_item_id,
-                "item_type": "clinical_draft",
-                "status": "completed",
-                "draft": draft.model_dump(mode="json"),
-                "source_note": sanitized.display_text,
-                "patient_id": str(context.patient_id),
-                "evolution_at": evolution_at.isoformat(),
-            },
-        )
-        yield _activity("item.completed", thread, turn, "Borrador listo", item_id=draft_item_id)
-        message = "Preparé un borrador para tu revisión. Todavía no se ha guardado."
-        async for item in _assistant_item(owner, thread, turn, message):
-            yield item
+        activity_ids: dict[str, str] = {}
+        async for output in run_clinical_agent(
+            context=context,
+            messages=_conversation_messages(stored, sanitized.model_text),
+            handlers=_clinical_tool_handlers(context, sanitized.display_text, sanitized.model_text),
+        ):
+            if output.kind == "heartbeat":
+                yield ": keepalive\n\n"
+            elif output.kind == "activity_started":
+                activity_id = str(uuid4())
+                activity_ids[output.tool_name] = activity_id
+                yield _activity("item.started", thread, turn, output.label, "running", activity_id)
+            elif output.kind == "activity_completed":
+                yield _activity(
+                    "item.completed",
+                    thread,
+                    turn,
+                    output.label,
+                    item_id=activity_ids.get(output.tool_name),
+                )
+            elif output.kind == "effect" and output.effect:
+                effect = output.effect
+                if effect["kind"] == "draft":
+                    yield event(
+                        "item.completed",
+                        {
+                            "thread_id": str(thread),
+                            "turn_id": str(turn),
+                            "item_id": effect["item_id"],
+                            "item_type": "clinical_draft",
+                            "status": "completed",
+                            **{key: value for key, value in effect.items() if key != "kind"},
+                        },
+                    )
+                elif effect["kind"] == "approval":
+                    action = effect["action"]
+                    yield event(
+                        "item.completed",
+                        {
+                            "thread_id": str(thread),
+                            "turn_id": str(turn),
+                            "item_id": effect["item_id"],
+                            "item_type": "approval_request",
+                            "status": "pending",
+                            "action": action,
+                            "patient": action["patient"],
+                        },
+                    )
+            elif output.kind == "assistant":
+                async for item in _assistant_item(owner, thread, turn, output.content):
+                    yield item
         await repository.finish_turn(owner, thread, turn, "completed")
         yield event(
             "turn.completed",
@@ -559,7 +728,7 @@ async def _stream_turn(
                 "error_code": "CLINICAL_CONTENT_INSUFFICIENT",
             },
         )
-    except clinical_evolutions.ClinicalGenerationError:
+    except (clinical_evolutions.ClinicalGenerationError, ClinicalAgentError):
         logger.warning("clinical_turn_failed code=CLINICAL_MODEL_UNAVAILABLE turn_id=%s", turn)
         await repository.finish_turn(owner, thread, turn, "failed", "CLINICAL_MODEL_UNAVAILABLE")
         yield event(

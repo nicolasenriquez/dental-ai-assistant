@@ -36,3 +36,4 @@ class ClinicalTurnContext:
     thread_id: UUID
     turn_id: UUID
     patient_id: UUID | None
+    active_artifact_id: UUID | None = None

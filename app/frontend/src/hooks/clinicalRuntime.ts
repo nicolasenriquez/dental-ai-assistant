@@ -158,6 +158,21 @@ function isClinicalDraftData(data: Record<string, unknown>): boolean {
   );
 }
 
+function isApprovalData(data: Record<string, unknown>): boolean {
+  if (!isRecord(data.action) || !isRecord(data.patient)) return false;
+  return (
+    nonEmptyString(data.action.id) &&
+    nonEmptyString(data.action.thread_id) &&
+    nonEmptyString(data.action.turn_id) &&
+    nonEmptyString(data.action.patient_id) &&
+    nonEmptyString(data.action.proposal_hash) &&
+    nonEmptyString(data.patient.id) &&
+    typeof data.patient.first_name === 'string' &&
+    typeof data.patient.last_name === 'string' &&
+    typeof data.patient.rut_masked === 'string'
+  );
+}
+
 export function decodeClinicalEvent(
   name: string,
   raw: string,
@@ -183,6 +198,7 @@ export function decodeClinicalEvent(
   if (!nonEmptyString(parsed.item_id) || !nonEmptyString(parsed.item_type)) return null;
   if (!isRecord(parsed.data)) return null;
   if (parsed.item_type === 'clinical_draft' && !isClinicalDraftData(parsed.data)) return null;
+  if (parsed.item_type === 'approval_request' && !isApprovalData(parsed.data)) return null;
   const status = parsed.status;
   if (
     status !== null &&
@@ -265,6 +281,13 @@ function upsertStreamItem(
     }
     return items;
   }
+  if (current.type === 'draft' && incoming.type === 'draft') {
+    return items.map((item, itemIndex) =>
+      itemIndex === index
+        ? { ...incoming, turnId: current.turnId, createdAt: current.createdAt }
+        : item,
+    );
+  }
   if (terminalStatuses.has(current.status)) return items;
   return items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...incoming } : item));
 }
@@ -309,6 +332,9 @@ function itemFromEvent(event: ClinicalEvent): ClinicalTranscriptItem | null {
       )
     )
       return null;
+    const generatedDraft = isRecord(event.data.generated_draft)
+      ? (event.data.generated_draft as unknown as ClinicalDraft)
+      : draft;
     const sourceNote = typeof event.data.source_note === 'string' ? event.data.source_note : '';
     const patientId = typeof event.data.patient_id === 'string' ? event.data.patient_id : '';
     const evolutionAt =
@@ -322,12 +348,27 @@ function itemFromEvent(event: ClinicalEvent): ClinicalTranscriptItem | null {
       type: 'draft',
       artifactStatus: 'draft',
       draft,
-      baseline: draft,
+      baseline: generatedDraft,
       sourceNote,
-      edited: false,
+      edited: JSON.stringify(draft) !== JSON.stringify(generatedDraft),
       stale: false,
       patientId,
       evolutionAt,
+    };
+  }
+  if (
+    event.itemType === 'approval_request' &&
+    isRecord(event.data.action) &&
+    isRecord(event.data.patient)
+  ) {
+    return {
+      id: event.itemId,
+      turnId: event.turnId,
+      status: 'pending',
+      createdAt,
+      type: 'approval',
+      action: event.data.action as unknown as ClinicalPendingAction,
+      patient: event.data.patient as unknown as ClinicalPatient,
     };
   }
   return null;

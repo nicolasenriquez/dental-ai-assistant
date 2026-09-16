@@ -85,9 +85,7 @@ export function ClinicalComposer({
         rows={1}
         aria-label="Nota clínica"
         placeholder={
-          patient
-            ? 'Escribe o dicta la nota clínica…'
-            : 'Selecciona un paciente y escribe una nota…'
+          patient ? 'Escribe o dicta la nota clínica…' : 'Escribe un mensaje o elige un paciente…'
         }
         className="chat-composer-input clinical-composer-input"
         aria-busy={voice.state === 'transcribing'}

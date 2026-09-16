@@ -19,7 +19,7 @@ jobs:
     # Restrict where nobody will look: read-only on content, minimal grants.
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       id-token: write        # required for the action's GitHub App auth
     steps:
       - uses: actions/checkout@v6
@@ -35,7 +35,3 @@ jobs:
           claude_args: |
             --model sonnet
             --max-turns 60
-          # Defaults to false, which redacts the review's own summary text
-          # from the run log — the demo reads that summary on camera, so the
-          # claim needs this set explicitly rather than left to the default.
-          show_full_output: true

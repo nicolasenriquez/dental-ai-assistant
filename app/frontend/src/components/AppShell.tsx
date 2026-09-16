@@ -20,6 +20,7 @@ const FOCUSABLE_SELECTOR =
 const DRIVE_LAYOUT_KEY = 'dental.drive.workspace.layout.v1';
 const DEFAULT_WORKSPACE_LAYOUT = { main: 68, accessory: 32 } as const;
 const DOCUMENT_WORKSPACE_LAYOUT = { main: 56, accessory: 44 } as const;
+const CLOSED_WORKSPACE_LAYOUT = { main: 100, accessory: 0 } as const;
 
 function readDriveLayout(): { main: number; accessory: number } {
   try {
@@ -78,15 +79,21 @@ export function AppShell({
     () => window.matchMedia?.('(max-width: 1024px)').matches ?? true,
   );
   const [workspaceLayout] = useState(readDriveLayout);
+  const workspaceAccessoryVisible = Boolean(workspaceAccessory);
+  // Keep main content under same React parent so closing Drive cannot abort its stream.
+  const workspaceLayoutEnabled = workspaceMode || workspaceAccessoryVisible;
+  const workspaceDefaultLayout = !workspaceAccessoryVisible
+    ? CLOSED_WORKSPACE_LAYOUT
+    : workspaceAccessoryMode === 'document'
+      ? DOCUMENT_WORKSPACE_LAYOUT
+      : workspaceLayout;
   const workspaceGroup = useRef<GroupImperativeHandle>(null);
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      workspaceGroup.current?.setLayout(
-        workspaceAccessoryMode === 'document' ? DOCUMENT_WORKSPACE_LAYOUT : workspaceLayout,
-      );
+      workspaceGroup.current?.setLayout(workspaceDefaultLayout);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [workspaceAccessoryMode, workspaceLayout]);
+  }, [workspaceDefaultLayout]);
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarWasOpen = useRef(false);
@@ -219,11 +226,11 @@ export function AppShell({
               </button>
             )}
             <DriveBootstrapBanner />
-            {workspaceAccessory ? (
+            {workspaceLayoutEnabled ? (
               isCompactWorkspace ? (
                 <div className="workspace-mobile-stack">
                   {children}
-                  {workspaceAccessory}
+                  {workspaceAccessoryVisible ? workspaceAccessory : null}
                 </div>
               ) : (
                 <div className="workspace-row">
@@ -232,13 +239,10 @@ export function AppShell({
                     id="clinical-workspace"
                     orientation="horizontal"
                     className="workspace-resizable"
-                    defaultLayout={
-                      workspaceAccessoryMode === 'document'
-                        ? DOCUMENT_WORKSPACE_LAYOUT
-                        : workspaceLayout
-                    }
+                    defaultLayout={workspaceDefaultLayout}
                     onLayoutChanged={(layout) => {
-                      if (workspaceAccessoryMode === 'document') return;
+                      if (!workspaceAccessoryVisible || workspaceAccessoryMode === 'document')
+                        return;
                       try {
                         window.localStorage.setItem(
                           DRIVE_LAYOUT_KEY,
@@ -254,21 +258,29 @@ export function AppShell({
                   >
                     <ResizablePanel
                       id="main"
-                      defaultSize="68"
+                      defaultSize={workspaceAccessoryVisible ? '68' : '100'}
                       minSize={workspaceAccessoryMode === 'document' ? '52' : '58'}
                       className="workspace-panel-main"
                     >
                       {children}
                     </ResizablePanel>
-                    <ResizableHandle className="workspace-resize-handle" />
+                    <ResizableHandle
+                      className={`workspace-resize-handle${workspaceAccessoryVisible ? '' : ' workspace-resize-handle-closed'}`}
+                    />
                     <ResizablePanel
                       id="accessory"
-                      defaultSize="32"
-                      minSize={workspaceAccessoryMode === 'document' ? '32' : '28'}
+                      defaultSize={workspaceAccessoryVisible ? '32' : '0'}
+                      minSize={
+                        workspaceAccessoryVisible
+                          ? workspaceAccessoryMode === 'document'
+                            ? '32'
+                            : '28'
+                          : '0'
+                      }
                       maxSize={workspaceAccessoryMode === 'document' ? '48' : '40'}
                       className="workspace-panel-accessory"
                     >
-                      {workspaceAccessory}
+                      {workspaceAccessoryVisible ? workspaceAccessory : null}
                     </ResizablePanel>
                   </ResizableGroup>
                 </div>

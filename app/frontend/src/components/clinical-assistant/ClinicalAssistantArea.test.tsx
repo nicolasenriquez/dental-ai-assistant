@@ -1,12 +1,21 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { type ClinicalPatient, type Patient, getPatients } from '../../lib/api';
+import type {
+  ClinicalAssistantController,
+  ClinicalRuntime,
+} from '../../hooks/useClinicalAssistant';
+import {
+  type ClinicalPatient,
+  type ClinicalThread,
+  type Patient,
+  getPatients,
+} from '../../lib/api';
 import { ClinicalAssistantArea } from './ClinicalAssistantArea';
 
 const send = vi.fn();
-const runtime = vi.hoisted(() => ({ value: 'streaming' }));
+const runtime = vi.hoisted(() => ({ value: 'streaming' as ClinicalRuntime }));
 const assistantState = vi.hoisted(() => ({
-  thread: null as { title: string; active_patient: ClinicalPatient | null } | null,
+  thread: null as ClinicalThread | null,
   setActivePatient: vi.fn(),
 }));
 
@@ -15,8 +24,8 @@ vi.mock('../../lib/api', async () => {
   return { ...actual, getPatients: vi.fn().mockResolvedValue([]) };
 });
 
-vi.mock('../../hooks/useClinicalAssistant', () => ({
-  useClinicalAssistant: () => ({
+function createAssistant(): ClinicalAssistantController {
+  return {
     thread: assistantState.thread,
     items: [],
     runtime: runtime.value,
@@ -34,22 +43,41 @@ vi.mock('../../hooks/useClinicalAssistant', () => ({
     patientSwitch: null,
     cancelPatientSwitch: vi.fn(),
     confirmPatientSwitch: vi.fn(),
+    reload: vi.fn(async () => assistantState.thread),
     retryTurn: vi.fn(),
+    retryDriveExport: vi.fn(),
     artifactSyncState: {},
     retryArtifactSync: vi.fn(),
-  }),
-}));
+  };
+}
+
+function createThread(activePatient: ClinicalPatient | null): ClinicalThread {
+  return {
+    id: 'thread-1',
+    owner_user_id: 'user-1',
+    title: 'Asistente',
+    active_patient: activePatient,
+    pending_action_patient: null,
+    active_turn_id: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    messages: [],
+    artifacts: [],
+    pending_action: null,
+    actions: [],
+  };
+}
 
 describe('ClinicalAssistantArea queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     runtime.value = 'streaming';
-    assistantState.thread = { title: 'Asistente', active_patient: null };
+    assistantState.thread = createThread(null);
     vi.mocked(getPatients).mockResolvedValue([]);
   });
 
   it('keeps the fourth draft when three messages are already queued', () => {
-    render(<ClinicalAssistantArea threadId="thread-1" />);
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
     const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
     const submit = screen.getByRole('button', { name: 'Poner mensaje en cola' });
 
@@ -65,16 +93,18 @@ describe('ClinicalAssistantArea queue', () => {
     expect(screen.getByText('3 mensajes en cola')).toBeVisible();
   });
 
-  it('preserves the draft and does not queue while approval is pending', () => {
+  it('keeps the composer available while approval is pending', () => {
     runtime.value = 'awaiting_approval';
-    render(<ClinicalAssistantArea threadId="thread-1" />);
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
     const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
 
     fireEvent.change(composer, { target: { value: 'Siguiente nota' } });
 
-    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeEnabled();
     expect(composer).toHaveValue('Siguiente nota');
-    expect(screen.getByText('Revisa la evolución pendiente antes de continuar.')).toBeVisible();
+    expect(
+      screen.queryByText('Revisa la evolución pendiente antes de continuar.'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/mensaje.*en cola/)).not.toBeInTheDocument();
   });
 
@@ -97,7 +127,7 @@ describe('ClinicalAssistantArea queue', () => {
     assistantState.setActivePatient.mockResolvedValueOnce(undefined);
     vi.mocked(getPatients).mockResolvedValue([selectablePatient]);
 
-    render(<ClinicalAssistantArea threadId="thread-1" />);
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
 
     const trigger = screen.getByRole('button', { name: 'Seleccionar paciente activo' });
     fireEvent.click(trigger);

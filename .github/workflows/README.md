@@ -1,17 +1,20 @@
 # GitHub Actions workflows
 
-Two agentic workflows. Both are the same primitive the rest of the AI Layer uses —
+The repository has one deterministic CI workflow and two agentic workflows. All
+three use the same event-driven primitive the rest of the AI Layer uses —
 a skill or a prompt, invoked by something that is not a human sitting at a terminal.
 Here the invoker is GitHub: an event, and a clock.
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
+| `ci.yml` | `pull_request`; pushes to `main` | Runs the locked backend and frontend format, lint, type-check, test, and build checks. |
+| `claude.yml` | comments/reviews/issues containing `@claude` | Lets an authorized maintainer invoke Claude interactively on a repository conversation. |
 | `claude-review.yml` | `pull_request` (`opened`, `synchronize`) | Runs this repo's `/piv-review-changes` skill against the PR diff and posts findings worst-first, each marked BLOCKER or NIT. |
 | `daily-report.yml` | `schedule` — cron `0 9 * * *` (09:00 UTC) | Summarizes yesterday's commits and open issues into the run log. No checkout; it reads through the GitHub API. |
 
 ## Required secret
 
-Both workflows need one repository secret:
+Both agentic workflows need one repository secret:
 
 ```
 CLAUDE_CODE_OAUTH_TOKEN
@@ -22,7 +25,7 @@ per-token meter. Generate and install it by running `/install-github-app` inside
 Claude Code in this repo, which walks through the GitHub App install and writes the
 secret. Nothing else is required; no `ANTHROPIC_API_KEY` is used here.
 
-Until that secret exists, both workflows will fail at the
+Until that secret exists, both agentic workflows will fail at the
 `anthropics/claude-code-action@v1` step.
 
 ## Notes that bite
@@ -31,8 +34,8 @@ Until that secret exists, both workflows will fail at the
   against the base branch; the default shallow checkout (depth 1) would see no
   base to diff against and the review would come back empty.
 - **`id-token: write`** is required for the action's GitHub App authentication.
-  Content permissions stay read-only on purpose — the reviewer reads and comments,
-  it does not push.
+  The review workflow grants `pull-requests: write` so it can publish findings,
+  while content remains read-only and it does not push.
 - **`claude-review.yml` invokes a skill by name** (`/piv-review-changes`), which
   lives at `.claude/skills/piv-review-changes/SKILL.md` in this repo. The skill
   carries its own allowed-tools frontmatter, so it brings both its instructions and

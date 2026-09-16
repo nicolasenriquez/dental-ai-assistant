@@ -1,6 +1,6 @@
 import { HardDrive, Stethoscope } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useClinicalAssistant } from '../../hooks/useClinicalAssistant';
+import type { ClinicalAssistantController } from '../../hooks/useClinicalAssistant';
 import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
 import {
   type ClinicalDraft,
@@ -22,6 +22,7 @@ import { ClinicalTranscript } from './ClinicalTranscript';
 
 interface ClinicalAssistantAreaProps {
   threadId: string;
+  assistant: ClinicalAssistantController;
   onThreadStateChanged?: () => void;
   guardTransition?: (continuation: () => void) => void;
   onActivePatientChange?: (patient: ClinicalPatient | null) => void;
@@ -42,6 +43,7 @@ function appendWithBlankLine(current: string, inserted: string): string {
 
 export function ClinicalAssistantArea({
   threadId,
+  assistant,
   onThreadStateChanged,
   guardTransition,
   onActivePatientChange,
@@ -51,7 +53,6 @@ export function ClinicalAssistantArea({
   onToggleDrive,
   onOpenDriveJournal,
 }: ClinicalAssistantAreaProps) {
-  const assistant = useClinicalAssistant(threadId);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
   const [patientsError, setPatientsError] = useState(false);
@@ -208,7 +209,7 @@ export function ClinicalAssistantArea({
     if (!value.trim() || voiceInFlight) return;
     const message = value.trim();
     const queueable = assistant.runtime === 'streaming' || assistant.runtime === 'stopping';
-    if (assistant.runtime === 'awaiting_approval' || assistant.runtime === 'saving') return;
+    if (assistant.runtime === 'saving') return;
     if (queueable) {
       if (queued.length >= 3) {
         setQueueError('Ya tienes 3 mensajes pendientes.');
@@ -289,7 +290,7 @@ export function ClinicalAssistantArea({
           <section className="chat-empty-state clinical-empty-state">
             <Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />
             <h1>Trabaja más rápido con tus evoluciones</h1>
-            <p>Selecciona un paciente y escribe o dicta una nota clínica.</p>
+            <p>Pregunta algo o selecciona un paciente para trabajar con su ficha.</p>
           </section>
         }
         onDraftChange={onDraftChange}
@@ -409,11 +410,9 @@ export function ClinicalAssistantArea({
       )}
       <div className="chat-input-dock clinical-composer-dock">
         <div className="chat-input-dock-inner">
-          {(assistant.runtime === 'awaiting_approval' || assistant.runtime === 'saving') && (
+          {assistant.runtime === 'saving' && (
             <p className="clinical-composer-lock" role="status">
-              {assistant.runtime === 'saving'
-                ? 'Espera mientras guardamos la evolución.'
-                : 'Revisa la evolución pendiente antes de continuar.'}
+              Espera mientras guardamos la evolución.
             </p>
           )}
           {queued.length > 0 && (
@@ -490,11 +489,7 @@ export function ClinicalAssistantArea({
               onCancel: voice.cancel,
               onRetry: voice.retry,
             }}
-            submitDisabled={
-              voiceInFlight ||
-              assistant.runtime === 'awaiting_approval' ||
-              assistant.runtime === 'saving'
-            }
+            submitDisabled={voiceInFlight || assistant.runtime === 'saving'}
           />
         </div>
       </div>

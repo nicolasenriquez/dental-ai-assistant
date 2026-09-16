@@ -4471,6 +4471,10 @@ body,
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+.workspace-resize-handle-closed {
+  display: none;
+}
+
 .drive-workspace {
   display: flex;
   flex-direction: column;
