@@ -82,6 +82,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const isStopping = runState === 'stopping';
     const isDisabled = disabled;
     const voiceInFlight = voiceState ? isVoiceInFlight(voiceState) : false;
+    const voiceStatusLayout =
+      voiceState !== undefined && voiceState !== 'idle' && voiceState !== 'success';
     const isSubmitDisabled = isDisabled || submitDisabled || voiceInFlight;
 
     useAutosizeTextarea({ ref: textareaRef, value: inputValue });
@@ -143,7 +145,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     return (
       <ComposerShell
-        className={voiceInFlight ? 'chat-composer--voice-active' : ''}
+        className={voiceStatusLayout ? 'chat-composer--voice-layout' : ''}
         focused={focused}
         disabled={isDisabled}
         onKeyDown={(event) => {

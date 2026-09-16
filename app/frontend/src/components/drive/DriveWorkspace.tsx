@@ -878,11 +878,6 @@ export function DriveWorkspace({
             />
           ) : section === 'documents' ? (
             <div className="min-h-0 flex-1 overflow-auto">
-              {patient && (
-                <p className="drive-header-patient">
-                  {patient.displayName} · {patient.rutMasked}
-                </p>
-              )}
               <DriveFileBrowser
                 managedOnly
                 patientId={patientId}
@@ -954,7 +949,7 @@ export function DriveWorkspace({
       role="region"
       aria-label="Espacio de documentos de Google Drive"
     >
-      {!sourceDoc && !isSheet && (
+      {!isSheet && (
         <DriveWorkspaceHeader
           status={driveStatus}
           patient={patient}
@@ -1000,7 +995,7 @@ export function DriveWorkspace({
           document={sourceDoc}
           patient={patient}
           saving={saving}
-          showClose={!isSheet}
+          showClose={false}
           onBack={closeDoc}
           onClose={requestCloseWorkspace}
           onSave={() => void handleSave()}

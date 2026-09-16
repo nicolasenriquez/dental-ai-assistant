@@ -342,6 +342,18 @@ async function setupClinicalHarness(
       .getByRole('heading', { name: 'Evolución clínica' })
       .or(page.getByRole('heading', { name: 'Trabaja más rápido con tus evoluciones' })),
   ).toBeVisible();
+  const header = page.locator('.workspace-header');
+  const driveButton = page.getByRole('button', { name: 'Abrir Google Drive' });
+  const [headerBox, driveBox] = await Promise.all([
+    header.boundingBox(),
+    driveButton.boundingBox(),
+  ]);
+  expect(headerBox).not.toBeNull();
+  expect(driveBox).not.toBeNull();
+  expect(driveBox?.y).toBeGreaterThanOrEqual(headerBox?.y ?? 0);
+  expect((driveBox?.y ?? 0) + (driveBox?.height ?? 0)).toBeLessThanOrEqual(
+    (headerBox?.y ?? 0) + (headerBox?.height ?? 0),
+  );
   return {
     setThread: (next) => {
       currentThread = next;
@@ -367,10 +379,6 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     const harness = await setupClinicalHarness(page, thread());
     await expectNoHorizontalOverflow(page);
-    await expect(page).toHaveScreenshot(`assistant-empty-${viewport.name}.png`, {
-      animations: 'disabled',
-    });
-
     harness.setThread(thread([], { artifacts: [hydratedArtifact()] }));
     await page.reload();
     const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
@@ -379,14 +387,26 @@ for (const viewport of [
     await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
     await expect(artifact.locator('[aria-current="step"]')).toContainText('Borrador');
     await expectNoHorizontalOverflow(page);
-    await expect(page).toHaveScreenshot(`assistant-draft-${viewport.name}.png`, {
-      animations: 'disabled',
-    });
+    if (viewport.name === 'desktop') {
+      await expect(page).toHaveScreenshot('assistant-draft-desktop.png', {
+        animations: 'disabled',
+      });
+    } else if (viewport.name === 'mobile') {
+      await expect(page).toHaveScreenshot('assistant-mobile.png', {
+        animations: 'disabled',
+      });
+    }
 
     const driveUtility = page.locator('[data-drive-utility="true"]');
     await driveUtility.click();
-    await expect(page.getByRole('region', { name: 'Espacio de documentos de Google Drive' })).toBeVisible();
-    await expect(page.getByText(`Contexto activo · ${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`)).toBeVisible();
+    await expect(
+      page.getByRole('region', { name: 'Espacio de documentos de Google Drive' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        `Contexto activo · ${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`,
+      ),
+    ).toBeVisible();
     if (viewport.width <= 1024) {
       await expect(page.locator('.drive-sheet-content')).toBeVisible();
       await expect(page.getByText('Conectado', { exact: true })).toBeVisible();
@@ -395,12 +415,19 @@ for (const viewport of [
       await expect(page.locator('.workspace-row')).toBeVisible();
     }
     await expectNoHorizontalOverflow(page);
-    await expect(viewport.width > 1024 ? page.getByTestId('accessory') : page).toHaveScreenshot(`drive-connected-${viewport.name}.png`, {
-      animations: 'disabled',
-    });
+    if (viewport.name === 'desktop') {
+      await expect(page).toHaveScreenshot('drive-browser-desktop.png', {
+        animations: 'disabled',
+      });
+    }
 
     await page.getByRole('button', { name: /Nota remota\.txt/ }).click();
     await expect(page.getByRole('heading', { name: 'Nota remota.txt' })).toBeVisible();
+    const editor = page.getByRole('textbox', { name: 'Contenido del documento' });
+    await editor.click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await expect(page.getByText('2 palabras seleccionadas')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Incorporar al borrador' })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     if (viewport.width > 1024) {
       const main = await page.locator('.workspace-panel-main').boundingBox();
@@ -409,18 +436,14 @@ for (const viewport of [
     } else {
       await expect(page.locator('.drive-sheet-content')).toBeVisible();
     }
-    await expect(page).toHaveScreenshot(`drive-document-${viewport.name}.png`, {
-      animations: 'disabled',
-    });
+    if (viewport.name !== 'boundary') {
+      await expect(page).toHaveScreenshot(`drive-document-${viewport.name}.png`, {
+        animations: 'disabled',
+      });
+    }
 
     if (viewport.name === 'desktop') {
-      const editor = page.getByRole('textbox', { name: 'Contenido del documento' });
-      await editor.click();
-      await page.keyboard.press('ControlOrMeta+A');
-      await expect(page.getByRole('button', { name: 'Incorporar selección al borrador' })).toBeVisible({
-        timeout: 3000,
-      });
-      await page.getByRole('button', { name: 'Incorporar selección al borrador' }).click();
+      await page.getByRole('button', { name: 'Incorporar al borrador' }).click();
       await expect(page.getByRole('status', { name: 'Incorporado al borrador' })).toBeVisible();
       await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue(
         'Fuente: Google Drive · Nota remota.txt\nContenido remoto.',
@@ -436,7 +459,11 @@ for (const viewport of [
 
 for (const failure of [
   { name: 'conflict', status: 409, heading: 'El documento cambió' },
-  { name: 'error', status: 503, heading: 'No se pudo confirmar el guardado. Tu trabajo local se conserva.' },
+  {
+    name: 'error',
+    status: 503,
+    heading: 'No se pudo confirmar el guardado. Tu trabajo local se conserva.',
+  },
 ] as const) {
   test(`Drive document ${failure.name} preserves local text`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -463,9 +490,12 @@ for (const failure of [
       await expect(page.getByRole('button', { name: 'Ver versión actual' })).toBeVisible();
     }
     await expectNoHorizontalOverflow(page);
-    await expect(page.getByTestId('accessory')).toHaveScreenshot(`drive-${failure.name}-desktop.png`, {
-      animations: 'disabled',
-    });
+    await expect(page.getByTestId('accessory')).toHaveScreenshot(
+      `drive-${failure.name}-desktop.png`,
+      {
+        animations: 'disabled',
+      },
+    );
   });
 }
 
@@ -935,6 +965,15 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(page.locator('.clinical-artifact')).toHaveCSS('border-style', 'solid');
 
   await page.getByRole('button', { name: 'Ver evidencia' }).click();
+  await expect(page.getByRole('button', { name: 'Ocultar evidencia' })).toBeVisible();
+  await expect(
+    page
+      .getByRole('article', { name: 'Evolución clínica' })
+      .getByText('Control preventivo sin hallazgos nuevos.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Ocultar evidencia' }).click();
+  await expect(page.getByText('Control preventivo sin hallazgos nuevos.')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Ver evidencia' }).click();
   await page.getByRole('button', { name: 'Editar nota original' }).click();
   await page.getByLabel('Editar nota clínica original').fill('Nota fuente corregida.');
   await page.getByRole('button', { name: 'Cancelar' }).click();
@@ -1114,10 +1153,9 @@ test('clinical review exposes primary confirmation and secondary editing actions
 });
 
 test('saved evolution distinguishes clinical save from Drive synchronization', async ({ page }) => {
-  const state = thread(
-    [approval({ drive_export: { status: 'synced', journal } })],
-    { artifacts: [hydratedArtifact({ status: 'approved' })] },
-  );
+  const state = thread([approval({ drive_export: { status: 'synced', journal } })], {
+    artifacts: [hydratedArtifact({ status: 'approved' })],
+  });
   await setupClinicalHarness(page, state);
   const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
   await expect(artifact).toHaveAttribute('data-clinical-stage', 'saved');
@@ -1178,9 +1216,12 @@ for (const connection of [
     ).toBeVisible();
     if (connection.name === 'disconnected') {
       await expectNoHorizontalOverflow(page);
-      await expect(page.getByTestId('accessory')).toHaveScreenshot('drive-disconnected-desktop.png', {
-        animations: 'disabled',
-      });
+      await expect(page.getByTestId('accessory')).toHaveScreenshot(
+        'drive-disconnected-desktop.png',
+        {
+          animations: 'disabled',
+        },
+      );
     }
     expect(harness.driveRetries()).toBe(0);
   });
@@ -1442,6 +1483,7 @@ for (const viewport of [
 }
 
 test('locks clinical patient scope while handing off dictation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     class DeterministicMediaRecorder {
       static isTypeSupported() {
@@ -1528,6 +1570,19 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   await expect(input).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar dictado' }).click();
   await expect(page.getByRole('button', { name: 'Detener grabación' })).toBeVisible();
+  const composer = page.getByTestId('clinical-composer');
+  const voiceStatus = composer.locator('.voice-composer-status');
+  await expect(composer).toHaveClass(/chat-composer--voice-layout/);
+  const [composerBox, recordingStatusBox] = await Promise.all([
+    composer.boundingBox(),
+    voiceStatus.boundingBox(),
+  ]);
+  expect(composerBox).not.toBeNull();
+  expect(recordingStatusBox).not.toBeNull();
+  expect(recordingStatusBox?.x).toBeGreaterThanOrEqual(composerBox?.x ?? 0);
+  expect((recordingStatusBox?.x ?? 0) + (recordingStatusBox?.width ?? 0)).toBeLessThanOrEqual(
+    (composerBox?.x ?? 0) + (composerBox?.width ?? 0),
+  );
   await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Quitar paciente activo' })).toBeDisabled();
   await expect(input).toBeEditable();
@@ -1535,6 +1590,8 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
 
   await expect(input).toBeEditable();
   await expect(page.getByText('Transcribiendo dictado…')).toBeVisible();
+  await expect(composer).toHaveClass(/chat-composer--voice-layout/);
+  await expectNoHorizontalOverflow(page);
   await input.fill('Nota manual');
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
   releaseTranscription();

@@ -27,6 +27,7 @@ export function DriveDocumentWorkspace({
   onInsert,
 }: Props) {
   const [selection, setSelection] = useState('');
+  const selectionWordCount = selection.trim().split(/\s+/).filter(Boolean).length;
   const { source, content, baseline } = document;
   const text = source.kind === 'text' || source.kind === 'markdown';
   const original = source.webViewLink;
@@ -105,14 +106,24 @@ export function DriveDocumentWorkspace({
       {onInsert && text && (
         <footer className="drive-doc-actions">
           {selection.trim() && (
-            <button
-              type="button"
-              className="drive-btn drive-btn-secondary"
-              disabled={!patient}
-              onClick={() => onInsert(selection)}
-            >
-              Incorporar selección al borrador
-            </button>
+            <>
+              <p className="drive-selection-context">
+                <span>{selectionWordCount} palabras seleccionadas</span>
+                {patient && (
+                  <span>
+                    {patient.displayName} · {patient.rutMasked}
+                  </span>
+                )}
+              </p>
+              <button
+                type="button"
+                className="drive-btn drive-btn-secondary"
+                disabled={!patient}
+                onClick={() => onInsert(selection)}
+              >
+                Incorporar al borrador
+              </button>
+            </>
           )}
           <button
             type="button"

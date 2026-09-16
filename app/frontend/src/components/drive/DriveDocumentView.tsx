@@ -143,7 +143,7 @@ export function DriveDocumentView({
                 disabled={!canTransfer}
                 onClick={() => onInsert(selectedText)}
               >
-                Incorporar selección al borrador
+                Incorporar al borrador
               </button>
             )}
             <button

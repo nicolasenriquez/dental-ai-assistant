@@ -251,11 +251,6 @@ export function ClinicalAssistantArea({
     <main className="chat-area clinical-assistant-area">
       <WorkspaceHeader
         title={assistant.thread?.title ?? 'Asistente'}
-        description={
-          assistant.thread?.active_patient
-            ? `Paciente · ${assistant.thread.active_patient.rut_masked}`
-            : 'Sin paciente activo'
-        }
         actions={
           onToggleDrive ? (
             <button

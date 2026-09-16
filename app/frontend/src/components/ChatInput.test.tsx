@@ -148,6 +148,27 @@ describe('ChatInput', () => {
       expect(onCancelVoice).toHaveBeenCalledTimes(1);
     });
 
+    it('keeps error recovery in the shared voice layout', () => {
+      render(
+        <ChatInput
+          value="Borrador"
+          onValueChange={vi.fn()}
+          onSend={vi.fn()}
+          voiceState="error"
+          voiceError="No pudimos transcribir esta grabación."
+          voiceCanRetry
+          onVoice={vi.fn()}
+          onStopVoice={vi.fn()}
+          onCancelVoice={vi.fn()}
+          onRetryVoice={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole('textbox').parentElement).toHaveClass('chat-composer--voice-layout');
+      expect(screen.getByRole('textbox')).toHaveValue('Borrador');
+      expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeEnabled();
+    });
+
     it('cancels active voice on Escape and does not submit during IME composition', () => {
       const onSend = vi.fn();
       const onCancelVoice = vi.fn();

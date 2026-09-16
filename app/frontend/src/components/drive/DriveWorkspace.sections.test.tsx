@@ -321,7 +321,7 @@ describe('Drive-to-composer insertion', () => {
     const editor = (await openNote()) as HTMLTextAreaElement;
     editor.setSelectionRange(0, 4);
     fireEvent.select(editor);
-    fireEvent.click(screen.getByRole('button', { name: 'Incorporar selección al borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Incorporar al borrador' }));
 
     expect(insert).toHaveBeenCalledWith(`Fuente: Google Drive · ${source.name}\nNota`);
     expect(
@@ -339,7 +339,7 @@ describe('Drive-to-composer insertion', () => {
     fireEvent.select(editor);
 
     const complete = screen.getByRole('button', { name: 'Incorporar nota completa al borrador' });
-    const selection = screen.getByRole('button', { name: 'Incorporar selección al borrador' });
+    const selection = screen.getByRole('button', { name: 'Incorporar al borrador' });
     expect(complete).toBeDisabled();
     expect(selection).toBeDisabled();
     expect(screen.getByText('Selecciona un paciente para insertar este contenido.')).toBeVisible();

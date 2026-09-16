@@ -20,7 +20,7 @@
   - text: Dental AI Assistant
 - main:
   - strong: Ana Pérez · Control
-  - text: /Paciente · \d+\.\d+\.•••-6 Paciente/
+  - text: Paciente
   - button "Seleccionar paciente activo": /Ana Pérez · \d+\.\d+\.•••-6/
   - button "Quitar paciente activo"
   - button "Abrir Google Drive"

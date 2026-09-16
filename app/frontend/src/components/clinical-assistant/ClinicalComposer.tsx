@@ -45,6 +45,7 @@ export function ClinicalComposer({
 }: ClinicalComposerProps) {
   const [focused, setFocused] = useState(false);
   const voiceInFlight = isVoiceInFlight(voice.state);
+  const voiceStatusLayout = voice.state !== 'idle' && voice.state !== 'success';
   useAutosizeTextarea({ ref: textareaRef, value });
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Escape' && voiceInFlight) {
@@ -62,7 +63,7 @@ export function ClinicalComposer({
 
   return (
     <ComposerShell
-      className="clinical-composer"
+      className={`clinical-composer${voiceStatusLayout ? ' chat-composer--voice-layout' : ''}`}
       focused={focused}
       testId="clinical-composer"
       onKeyDown={(event) => {
@@ -91,60 +92,58 @@ export function ClinicalComposer({
         className="chat-composer-input clinical-composer-input"
         aria-busy={voice.state === 'transcribing'}
       />
-      <div className="clinical-composer-actions">
-        <VoiceDictationStatus
-          voiceState={voice.state}
-          voiceElapsed={voice.elapsed}
-          voiceError={voice.error}
-          canRetry={voice.canRetry}
-          stream={voice.stream ?? null}
-          onStartVoice={voice.onStart}
-          onStopVoice={voice.onStop}
-          onCancelVoice={voice.onCancel}
-          onRetryVoice={voice.onRetry}
-        />
-        {onStop && (
-          <button
-            type="button"
-            className="chat-stop-button"
-            onClick={onStop}
-            disabled={stopping}
-            aria-label={stopping ? 'Deteniendo respuesta' : 'Detener respuesta'}
-          >
-            {stopping ? <span aria-hidden="true" className="spinner" /> : <Square size={13} />}
-            <span className="sr-only">{stopping ? 'Deteniendo…' : 'Detener'}</span>
-          </button>
-        )}
+      <VoiceDictationStatus
+        voiceState={voice.state}
+        voiceElapsed={voice.elapsed}
+        voiceError={voice.error}
+        canRetry={voice.canRetry}
+        stream={voice.stream ?? null}
+        onStartVoice={voice.onStart}
+        onStopVoice={voice.onStop}
+        onCancelVoice={voice.onCancel}
+        onRetryVoice={voice.onRetry}
+      />
+      {onStop && (
         <button
           type="button"
-          className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}
-          onClick={onSubmit}
-          disabled={!value.trim() || submitDisabled || voiceInFlight}
-          aria-label={busy ? 'Poner mensaje en cola' : 'Enviar mensaje'}
-          title={busy ? 'Agregar a cola' : 'Enviar'}
+          className="chat-stop-button"
+          onClick={onStop}
+          disabled={stopping}
+          aria-label={stopping ? 'Deteniendo respuesta' : 'Detener respuesta'}
         >
-          {voice.state === 'stopping' || voice.state === 'transcribing' ? (
-            <span aria-hidden="true" className="spinner" />
-          ) : busy ? (
-            <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />
-          ) : (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="8" y1="14" x2="8" y2="3" />
-              <polyline points="3,8 8,3 13,8" />
-            </svg>
-          )}
+          {stopping ? <span aria-hidden="true" className="spinner" /> : <Square size={13} />}
+          <span className="sr-only">{stopping ? 'Deteniendo…' : 'Detener'}</span>
         </button>
-      </div>
+      )}
+      <button
+        type="button"
+        className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}
+        onClick={onSubmit}
+        disabled={!value.trim() || submitDisabled || voiceInFlight}
+        aria-label={busy ? 'Poner mensaje en cola' : 'Enviar mensaje'}
+        title={busy ? 'Agregar a cola' : 'Enviar'}
+      >
+        {voice.state === 'stopping' || voice.state === 'transcribing' ? (
+          <span aria-hidden="true" className="spinner" />
+        ) : busy ? (
+          <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />
+        ) : (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="8" y1="14" x2="8" y2="3" />
+            <polyline points="3,8 8,3 13,8" />
+          </svg>
+        )}
+      </button>
     </ComposerShell>
   );
 }
