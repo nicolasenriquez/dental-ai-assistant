@@ -6,7 +6,7 @@ Instructions for AI coding agents working in this repository. Read this before m
 
 ## Project Overview
 
-**The AI Tutor** (internally named **DynaChat**) is a RAG-powered chat interface that lets viewers query a creator's video catalog and get streaming answers with per-chunk citations that deep-link to the exact timestamp in the source video. Python + FastAPI backend, React + Vite + TypeScript frontend, Postgres + pgvector for storage and hybrid retrieval.
+**The AI Tutor** (internally named **DynaChat**) is an authenticated workspace combining RAG video chat with a clinical assistant for patients and evolutions, optional voice transcription, and managed Google Drive export. Python + FastAPI backend, React + Vite + TypeScript frontend, Postgres + pgvector for chat, retrieval, and clinical data.
 
 This codebase is the running project for the Dynamous Agentic Engineering Course. See `README.md` for a human-facing overview.
 
@@ -31,8 +31,8 @@ This codebase is the running project for the Dynamous Agentic Engineering Course
 - `react-router-dom` v6 for routing
 - `react-markdown` + `remark-gfm` for assistant message rendering
 - `react-syntax-highlighter` for code blocks
-- Tailwind CSS 3.4 (no component library — components are built from Tailwind primitives)
-- Vanilla `fetch()` for API calls (no axios, no SDK) — typed wrappers in `src/lib/api.ts`
+- Tailwind CSS 3.4 with selected Radix UI primitives and `react-resizable-panels`
+- Vanilla `fetch()` for API calls (no axios, no SDK) — typed clients in `src/lib/api.ts` and `src/lib/authApi.ts`; SSE framing in `src/lib/sse.ts`
 
 ---
 
@@ -56,17 +56,18 @@ ai-tutor/
 │   │   ├── auth/            # Google OAuth + password + JWT token handling
 │   │   ├── data/
 │   │   │   └── seed.py      # Sample videos seeded on first startup
-│   │   ├── db/
-│   │   │   ├── postgres.py  # asyncpg connection pool
-│   │   │   ├── repository.py        # ALL raw SQL for chat tables — nowhere else
-│   │   │   ├── users_repo.py        # Auth user queries
-│   │   │   ├── user_messages_repo.py # Rate-limit audit-table access
-│   │   │   └── signup_attempts_repo.py # Signup rate-limit audit-table access
+│   │   ├── clinical_assistant/      # Clinical thread, turn, safety, and review domain
+│   │   ├── evolution_exports/       # Approved evolution persistence and Drive export orchestration
+│   │   ├── patients/                # Patient identity and RUT helpers
+│   │   ├── transcription/           # Voice transcription port, service, and adapter
+│   │   ├── db/                      # asyncpg pool and repositories for chat, auth, clinical, and Drive data
 │   │   ├── ingest/
 │   │   │   ├── youtube_url.py        # YouTube URL parsing/validation
 │   │   │   └── dynamous.py          # Dynamous course transcript ingester
-│   │   ├── integrations/
-│   │   │   └── circle.py            # Circle community integration (gated content)
+│   │   ├── integrations/            # Circle and Google Drive provider boundaries
+│   │   │   ├── circle.py            # Circle community integration (gated content)
+│   │   │   ├── google_drive.py      # Google Drive file and export boundary
+│   │   │   └── google_drive_oauth.py # Google OAuth boundary
 │   │   ├── llm/
 │   │   │   └── openrouter.py        # stream_chat() async generator, SSE output
 │   │   ├── rag/
@@ -77,15 +78,9 @@ ai-tutor/
 │   │   │   ├── expansion.py         # Query expansion
 │   │   │   ├── retriever_hybrid.py  # RRF hybrid retrieval (tsvector + pgvector)
 │   │   │   └── tools.py             # RAG tool definitions
-│   │   ├── routes/
-│   │   │   ├── admin.py             # Admin-only video library management
-│   │   │   ├── auth.py              # Sign-in / sign-up / session
-│   │   │   ├── channels.py          # POST /api/channels/sync, sync runs
-│   │   │   ├── conversations.py     # GET/POST/DELETE /api/conversations*
-│   │   │   ├── ingest.py            # POST /api/ingest
-│   │   │   └── messages.py          # POST /api/conversations/{id}/messages (SSE)
+│   │   ├── routes/                  # Auth, chat, content, clinical, patient, transcription, and Drive APIs
 │   │   ├── scripts/                 # eval_retrieval, sync_channel, migration tooling
-│   │   ├── services/
+│   │   ├── services/                # Video ingestion, metadata, and clinical evolution services
 │   │   │   ├── supadata.py          # Supadata API client (YouTube transcripts)
 │   │   │   ├── video_ingest.py      # Video ingestion orchestration
 │   │   │   └── youtube_meta.py      # YouTube metadata fetching
@@ -98,10 +93,13 @@ ai-tutor/
 │       └── src/
 │           ├── main.tsx      # React root
 │           ├── App.tsx       # BrowserRouter + layout
-│           ├── components/   # ChatArea, Sidebar, Message, MarkdownRenderer, etc.
+│           ├── components/   # Chat, clinical assistant, patient, Drive, and shared UI components
 │           ├── hooks/        # useConversations, useMessages, useStreamingResponse, useToast
 │           ├── lib/
-│           │   └── api.ts    # All typed fetch wrappers + TypeScript interfaces
+│           │   ├── api.ts    # Typed chat, clinical, patient, transcription, and Drive clients
+│           │   ├── authApi.ts # Typed authentication client
+│           │   └── sse.ts    # Shared SSE framing helper
+│           ├── pages/         # Chat, clinical assistant, patient, and evolution routes
 │           ├── styles/
 │           │   └── globals.css # Tailwind imports
 │           └── __tests__/    # Vitest test files
@@ -119,7 +117,7 @@ ai-tutor/
 - New content sources → `app/backend/ingest/`, one module per source.
 - New React components → `app/frontend/src/components/`, one component per file, named exports matching filename.
 - New React hooks → `app/frontend/src/hooks/`, prefix with `use`.
-- New API client functions → `app/frontend/src/lib/api.ts`. Keep all fetch calls in this one file.
+- New API client functions → `app/frontend/src/lib/api.ts` or `app/frontend/src/lib/authApi.ts` for auth. Keep ordinary API fetches in typed clients; stream transport stays in its feature hook and uses `src/lib/sse.ts`. Never fetch inline in UI components.
 
 ---
 
@@ -221,10 +219,10 @@ bun run test
 - **Async everywhere.** FastAPI routes are `async def`. Database calls use `asyncpg` via a connection pool. Any sync blocking call (file I/O, CPU work) in a route handler is a bug — use `asyncio.to_thread` or move it to a background task.
 - **Imports:** stdlib first, third-party second, local third. Group with blank lines. No wildcard imports.
 - **Type hints:** on every function signature and return type. Use `list[str]` / `dict[str, int]` syntax, not `List` / `Dict` from `typing`.
-- **No `print()` in runtime code.** Use `logging` with a module-level logger: `logger = logging.getLogger(__name__)`. `print()` is acceptable in `data/seed.py` and one-off scripts.
+- **No `print()` in runtime code.** Use `logging` with a module-level logger: `logger = logging.getLogger(__name__)`. `print()` is acceptable in `data/seed.py`, startup diagnostics in `config.py`, and one-off scripts.
 - **Errors:** raise specific exceptions (`ValueError`, `KeyError`, custom) with clear messages. Never `except:` bare. Avoid `except Exception` except at the outermost request handler.
 - **SQL:** all queries live in `db/`. Parameterize with `$1, $2, $3...` placeholders (asyncpg) — never use f-strings or `%` formatting to build SQL.
-- **Config:** every environment variable is read exactly once in `config.py` and exposed as a module-level constant. Routes and services import the constant, never `os.environ` directly.
+- **Config:** application environment variables are read in `config.py` and exposed as module-level constants. Bootstrap-only code such as Alembic or content discovery may read the raw environment before application configuration; routes and services import config constants.
 - **Pydantic models:** use `pydantic.BaseModel` for request/response schemas, defined in the route file that uses them (unless shared).
 
 ### TypeScript (frontend)
@@ -245,7 +243,7 @@ bun run test
 
 Postgres via `asyncpg`. All tables (chat + auth) live in Postgres. Schema is managed by Alembic migrations. The connection pool is initialised in the FastAPI lifespan handler via `db/postgres.py:get_pg_pool()`. No ORM. No SQLite.
 
-**Tables:** `users`, `user_messages`, `signup_attempts`, `videos`, `chunks` (FK → videos), `conversations`, `messages` (FK → conversations), `channel_sync_runs`, `channel_sync_videos` (FK → channel_sync_runs). Timestamps use `TIMESTAMPTZ`. TEXT primary keys for chat tables (compatible with client-side IDs); UUID primary keys for auth tables.
+**Tables:** PostgreSQL stores auth/audit, video/RAG, conversation/chat, patient/evolution, clinical turn/artifact, voice-transcription, Google OAuth/Drive, and export data. Schema is the source of truth in `app/backend/alembic/versions/`; timestamps use `TIMESTAMPTZ`. Legacy chat IDs remain TEXT where required; auth and clinical records use UUIDs.
 
 **Rules for database code:**
 1. All SQL lives in `db/` — parameterised, no f-string interpolation.
@@ -320,7 +318,7 @@ Existing quirks in the repo — fix them when an issue covers them, but don't de
 **Do:**
 - Run the full validation suite (tests, lint, typecheck) before declaring a PR done
 - Keep all SQL in `db/`
-- Keep all fetch calls in `src/lib/api.ts`
+- Keep API requests in typed clients or the feature stream hook; never fetch inline in UI components
 - Add tests for every bug fix (regression test) and every new feature
 - Keep scope tight — implement what the ticket asks, nothing more
 
@@ -328,7 +326,7 @@ Existing quirks in the repo — fix them when an issue covers them, but don't de
 - Introduce a new LLM provider, embedding model, or vector database without an explicit ticket authorizing it
 - Add state management libraries to the frontend
 - Add an ORM to the backend
-- Write SQL outside `db/` or fetch calls outside `src/lib/api.ts`
+- Write SQL outside `db/` or fetch calls outside the typed clients/feature stream hook
 - "Improve" code that wasn't part of the issue you're fixing
 
 ---
@@ -349,4 +347,13 @@ These files implement or gate security invariants (authentication, authorization
 - `app/backend/rate_limit.py` — the 25 msg/user/24h cap
 - `app/backend/db/user_messages_repo.py` — rate-limit audit-table access
 - `app/backend/signup_rate_limit.py`, `app/backend/db/signup_attempts_repo.py` — signup abuse guard
+- `app/backend/clinical_assistant/`, `app/backend/routes/clinical_assistant.py`, `app/backend/routes/clinical_artifacts.py` — clinical turn and artifact safety boundaries
+- `app/backend/routes/patients.py`, `app/backend/routes/evolutions.py` — owner-scoped patient and evolution data
+- `app/backend/evolution_exports/service.py` — approved persistence and export transaction boundary
+- `app/backend/routes/google_drive.py`, `app/backend/integrations/google_drive.py`, `app/backend/integrations/google_drive_oauth.py` — OAuth tokens and external file access
 - `deploy/Dockerfile` — uvicorn `--proxy-headers --forwarded-allow-ips` flags; the signup IP trust boundary depends on these
+
+Clinical and Drive invariants:
+
+- Clinical input containing RUTs is sanitized at `clinical_assistant/sensitive_input.py`; raw identifiers never reach model prompts or the UI.
+- Google Drive tokens use an independent versioned encryption keyring, never `JWT_SECRET`; approved evolution persistence/export goes through `evolution_exports/service.py`.
