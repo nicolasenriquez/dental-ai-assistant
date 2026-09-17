@@ -1,7 +1,9 @@
 import { FileText, Search, X } from 'lucide-react';
-import type { RefObject } from 'react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { DriveFile } from '../../lib/api';
 import { Spinner } from '../Spinner';
+import { DriveFileDetailsView } from './DriveFileDetailsView';
+import { DriveFileRow } from './DriveFileRow';
 
 interface DriveFileBrowserProps {
   managedOnly?: boolean;
@@ -28,6 +30,7 @@ function fileTypeLabel(mimeType: string): string {
   if (mimeType === 'application/pdf') return 'PDF';
   if (mimeType.includes('google-apps.document')) return 'Google Doc';
   if (mimeType.includes('word')) return 'Word';
+  if (mimeType === 'text/markdown') return 'Markdown';
   if (mimeType === 'text/plain') return 'TXT';
   const parts = mimeType.split('/');
   return parts[parts.length - 1]?.toUpperCase() || 'Archivo';
@@ -77,6 +80,14 @@ export function DriveFileBrowser({
   onLoadMore,
   searchInputRef,
 }: DriveFileBrowserProps) {
+  const [detailsFile, setDetailsFile] = useState<DriveFile | null>(null);
+  const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    setDetailsFile(null);
+    detailsTriggerRef.current = null;
+  }, [patientId]);
+
   if (!patientId) {
     return (
       <section className="drive-empty-state" aria-live="polite">
@@ -89,116 +100,134 @@ export function DriveFileBrowser({
 
   const noMatch = searchSubmitted && query.trim() && !searchLoading && files.length === 0;
 
+  const handleShowDetails = (file: DriveFile, trigger: HTMLButtonElement): void => {
+    detailsTriggerRef.current = trigger;
+    setDetailsFile(file);
+  };
+
+  const handleCloseDetails = (): void => {
+    setDetailsFile(null);
+    window.requestAnimationFrame(() => detailsTriggerRef.current?.focus());
+  };
+
   return (
-    <section className="drive-browser" aria-label="Documentos de Google Drive">
-      <div className="drive-list-tools">
-        <div className="drive-search-wrap">
-          <Search aria-hidden="true" size={16} />
-          <input
-            type="search"
-            className="drive-search"
-            ref={searchInputRef}
-            aria-label="Buscar documentos"
-            placeholder="Buscar documentos"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') onSearch();
-            }}
-          />
-          {query && (
+    <>
+      <section
+        className="drive-browser"
+        aria-label="Documentos de Google Drive"
+        hidden={detailsFile !== null}
+      >
+        <div className="drive-list-tools">
+          <div className="drive-search-wrap">
+            <Search aria-hidden="true" size={16} />
+            <input
+              type="search"
+              className="drive-search"
+              ref={searchInputRef}
+              aria-label="Buscar documentos"
+              placeholder="Buscar documentos"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') onSearch();
+              }}
+            />
+            {query && (
+              <button
+                type="button"
+                className="drive-search-clear"
+                aria-label="Limpiar búsqueda"
+                onClick={onClearSearch}
+              >
+                <X aria-hidden="true" size={15} />
+              </button>
+            )}
+          </div>
+          {(listLoading || files.length > 0 || searchSubmitted) && (
             <button
               type="button"
-              className="drive-search-clear"
-              aria-label="Limpiar búsqueda"
-              onClick={onClearSearch}
+              className="drive-btn drive-btn-primary"
+              onClick={onImport}
+              disabled={importing}
             >
-              <X aria-hidden="true" size={15} />
+              {importing ? (
+                <>
+                  <Spinner /> Importando…
+                </>
+              ) : (
+                importLabel
+              )}
             </button>
           )}
+          {imported && (
+            <span className="drive-doc-saved" role="status" aria-live="polite">
+              Documento importado
+            </span>
+          )}
         </div>
-        {(listLoading || files.length > 0 || searchSubmitted) && (
-          <button
-            type="button"
-            className="drive-btn drive-btn-primary"
-            onClick={onImport}
-            disabled={importing}
-          >
-            {importing ? (
-              <>
-                <Spinner /> Importando…
-              </>
-            ) : (
-              importLabel
+        {searchLoading && <p className="drive-list-status">Buscando…</p>}
+        {listLoading ? (
+          <>
+            <p className="drive-list-status">Cargando documentos…</p>
+            <SkeletonRows />
+          </>
+        ) : noMatch ? (
+          <div className="drive-empty-state" aria-live="polite">
+            <h3>Sin coincidencias</h3>
+            <p>No encontramos documentos para “{query.trim()}”.</p>
+            <button type="button" className="drive-btn drive-btn-secondary" onClick={onClearSearch}>
+              Limpiar búsqueda
+            </button>
+          </div>
+        ) : files.length === 0 ? (
+          <div className="drive-empty-state" aria-live="polite">
+            <FileText aria-hidden="true" size={22} />
+            <h3>Aún no hay documentos</h3>
+            <p>
+              {managedOnly
+                ? 'Los resultados que guardes desde el Asistente aparecerán aquí.'
+                : 'Agrega un documento desde tu Drive para usarlo en el chat.'}
+            </p>
+            <button
+              type="button"
+              className="drive-btn drive-btn-primary"
+              onClick={onImport}
+              disabled={importing}
+            >
+              {importLabel}
+            </button>
+          </div>
+        ) : (
+          <>
+            <ul className="drive-file-list">
+              {files.map((file) => (
+                <DriveFileRow
+                  key={file.id}
+                  file={file}
+                  typeLabel={fileTypeLabel(file.mimeType)}
+                  modifiedLabel={modifiedLabel(file.modifiedTime)}
+                  onOpen={onOpen}
+                  onDetails={handleShowDetails}
+                />
+              ))}
+            </ul>
+            {nextPageToken && (
+              <button type="button" className="drive-btn drive-btn-secondary" onClick={onLoadMore}>
+                Cargar más
+              </button>
             )}
-          </button>
+          </>
         )}
-        {imported && (
-          <span className="drive-doc-saved" role="status">
-            Documento agregado
-          </span>
-        )}
-      </div>
-      {searchLoading && <p className="drive-list-status">Buscando…</p>}
-      {listLoading ? (
-        <>
-          <p className="drive-list-status">Cargando documentos…</p>
-          <SkeletonRows />
-        </>
-      ) : noMatch ? (
-        <div className="drive-empty-state" aria-live="polite">
-          <h3>Sin coincidencias</h3>
-          <p>No encontramos documentos para “{query.trim()}”.</p>
-          <button type="button" className="drive-btn drive-btn-secondary" onClick={onClearSearch}>
-            Limpiar búsqueda
-          </button>
-        </div>
-      ) : files.length === 0 ? (
-        <div className="drive-empty-state" aria-live="polite">
-          <FileText aria-hidden="true" size={22} />
-          <h3>Aún no hay documentos</h3>
-          <p>
-            {managedOnly
-              ? 'Los resultados que guardes desde el Asistente aparecerán aquí.'
-              : 'Agrega un documento desde tu Drive para usarlo en el chat.'}
-          </p>
-          <button
-            type="button"
-            className="drive-btn drive-btn-primary"
-            onClick={onImport}
-            disabled={importing}
-          >
-            {importLabel}
-          </button>
-        </div>
-      ) : (
-        <>
-          <ul className="drive-file-list">
-            {files.map((file) => (
-              <li key={file.id}>
-                <button
-                  type="button"
-                  aria-label={file.name}
-                  onClick={() => onOpen(file)}
-                  className="drive-file-row"
-                >
-                  <FileText aria-hidden="true" size={18} />
-                  <span className="drive-file-main">
-                    <strong>{file.name}</strong>
-                    <span>{fileTypeLabel(file.mimeType)}</span>
-                  </span>
-                  <time dateTime={file.modifiedTime}>{modifiedLabel(file.modifiedTime)}</time>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {nextPageToken && (
-            <button type="button" className="drive-btn drive-btn-secondary" onClick={onLoadMore}>
-              Cargar más
-            </button>
-          )}
-        </>
+      </section>
+      {detailsFile && (
+        <DriveFileDetailsView
+          file={detailsFile}
+          typeLabel={fileTypeLabel(detailsFile.mimeType)}
+          modifiedLabel={modifiedLabel(detailsFile.modifiedTime)}
+          onBack={handleCloseDetails}
+          onOpen={onOpen}
+        />
       )}
-    </section>
+    </>
   );
 }

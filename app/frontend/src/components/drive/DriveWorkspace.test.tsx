@@ -159,7 +159,7 @@ function stubMobile() {
 
 async function openFirstFile(name = 'nota.txt') {
   await selectDocuments();
-  const row = await screen.findByRole('button', { name });
+  const row = await screen.findByRole('button', { name: `Abrir ${name}` });
   fireEvent.click(row);
 }
 
@@ -323,10 +323,10 @@ describe('patient-scoped list', () => {
     renderWorkspace();
 
     await selectDocuments();
-    expect(await screen.findByRole('button', { name: 'nota.txt' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Abrir nota.txt' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cargar más' }));
 
-    expect(await screen.findByRole('button', { name: 'segunda.txt' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Abrir segunda.txt' })).toBeInTheDocument();
     expect(listDriveFilesMock).toHaveBeenLastCalledWith('p1', 'tok1');
     expect(screen.queryByRole('button', { name: 'Cargar más' })).not.toBeInTheDocument();
   });
@@ -336,7 +336,7 @@ describe('patient-scoped list', () => {
     const { rerender } = renderWorkspace('p1');
 
     await selectDocuments();
-    await screen.findByRole('button', { name: 'nota.txt' });
+    await screen.findByRole('button', { name: 'Abrir nota.txt' });
     rerender(<Workspace patientId="p2" />);
 
     await waitFor(() => expect(listDriveFilesMock).toHaveBeenLastCalledWith('p2', undefined));
@@ -539,7 +539,7 @@ describe('document preview and edit', () => {
     await screen.findByText('**negrita**');
     fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
 
-    expect(await screen.findByRole('button', { name: 'nota.txt' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Abrir nota.txt' })).toBeInTheDocument();
     expect(
       screen.queryByRole('textbox', { name: 'Contenido del documento' }),
     ).not.toBeInTheDocument();

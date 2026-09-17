@@ -647,6 +647,9 @@ export function DriveWorkspace({
 
   const handleOpenNote = async () => {
     if (importing) return;
+    setErrorMessage(null);
+    setDebugErrorMessage(null);
+    setUnknownWrite(false);
     setImporting(true);
     try {
       const picked = await openDrivePicker();
@@ -660,6 +663,9 @@ export function DriveWorkspace({
 
   const handleImport = async () => {
     if (!patientId || importing) return;
+    setErrorMessage(null);
+    setDebugErrorMessage(null);
+    setUnknownWrite(false);
     setImporting(true);
     try {
       const picked = await openDrivePicker(patientId);
@@ -749,7 +755,13 @@ export function DriveWorkspace({
           type="button"
           className="drive-section-button"
           aria-pressed={section === value}
-          onClick={() => setSection(value)}
+          onClick={() => {
+            setSection(value);
+            setErrorMessage(null);
+            setDebugErrorMessage(null);
+            setUnknownWrite(false);
+            setInsertionFeedback(null);
+          }}
         >
           {label}
         </button>

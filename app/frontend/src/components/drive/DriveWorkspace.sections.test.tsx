@@ -176,9 +176,9 @@ describe('Drive section boundaries', () => {
     await selectSection('Documentos');
 
     expect(await screen.findByText('Aún no hay documentos')).toBeInTheDocument();
-    expect(
-      screen.getByText(`Contexto activo · ${patientA.displayName} · ${patientA.rutMasked}`),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Paciente')).toBeInTheDocument();
+    expect(screen.getByText(patientA.displayName)).toBeInTheDocument();
+    expect(screen.getByText(patientA.rutMasked)).toBeInTheDocument();
     expect(api.listDriveFiles).toHaveBeenCalledWith('p1', undefined);
   });
 
@@ -227,7 +227,7 @@ describe('Drive section boundaries', () => {
     const view = renderWorkspace('p1');
 
     await selectSection('Documentos');
-    fireEvent.click(await screen.findByRole('button', { name: managedFile.name }));
+    fireEvent.click(await screen.findByRole('button', { name: `Abrir ${managedFile.name}` }));
     expect(await screen.findByText(managedFile.content)).toBeInTheDocument();
 
     view.rerender(<DriveWorkspace patientId="p2" patient={patientB} />);
@@ -291,6 +291,18 @@ describe('Drive Picker intents', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     },
   );
+
+  it('clears a Picker error when changing Drive sections', async () => {
+    vi.mocked(openDrivePicker).mockRejectedValueOnce(new Error('picker failed'));
+    renderWorkspace(null);
+
+    await selectSection('Notas');
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir desde Drive' }));
+    expect(await screen.findByText('No se pudo abrir el selector de Drive.')).toBeInTheDocument();
+
+    await selectSection('Diarios');
+    expect(screen.queryByText('No se pudo abrir el selector de Drive.')).not.toBeInTheDocument();
+  });
 });
 
 describe('Drive-to-composer insertion', () => {

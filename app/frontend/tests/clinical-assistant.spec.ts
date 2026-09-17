@@ -175,6 +175,13 @@ async function installDriveRoutes(
     kind: 'text',
     editable: true,
   };
+  const managedFile = {
+    id: '77777777-7777-4777-8777-777777777777',
+    name: 'Evolución septiembre.md',
+    mimeType: 'text/markdown',
+    modifiedTime: '2026-09-16T14:30:00Z',
+    version: '27',
+  };
 
   await page.route('**/api/google-drive/sources', (route) =>
     route.fulfill({
@@ -206,7 +213,7 @@ async function installDriveRoutes(
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ files: [], next_page_token: null }),
+      body: JSON.stringify({ files: [managedFile], next_page_token: null }),
     }),
   );
   await page.route('**/api/google-drive/evolution-journals/preferences', async (route) => {
@@ -402,11 +409,9 @@ for (const viewport of [
     await expect(
       page.getByRole('region', { name: 'Espacio de documentos de Google Drive' }),
     ).toBeVisible();
-    await expect(
-      page.getByText(
-        `Contexto activo · ${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`,
-      ),
-    ).toBeVisible();
+    const drivePatientContext = page.locator('.drive-workspace-patient-context');
+    await expect(drivePatientContext).toContainText(`${patient.first_name} ${patient.last_name}`);
+    await expect(drivePatientContext).toContainText(patient.rut_masked);
     if (viewport.width <= 1024) {
       await expect(page.locator('.drive-sheet-content')).toBeVisible();
       await expect(page.getByText('Conectado', { exact: true })).toBeVisible();
@@ -420,6 +425,33 @@ for (const viewport of [
         animations: 'disabled',
       });
     }
+
+    await page.getByRole('button', { name: 'Documentos' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Abrir Evolución septiembre.md' }),
+    ).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    if (viewport.name === 'desktop' || viewport.name === 'mobile') {
+      await expect(page).toHaveScreenshot(`drive-documents-browser-${viewport.name}.png`, {
+        animations: 'disabled',
+      });
+    }
+
+    await page.getByRole('button', { name: 'Ver detalles de Evolución septiembre.md' }).click();
+    await expect(page.getByText('Detalles del documento')).toBeVisible();
+    await expect(page.getByText('Administrado por Dental AI Assistant')).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    if (viewport.name === 'desktop' || viewport.name === 'mobile') {
+      await expect(page).toHaveScreenshot(`drive-document-details-${viewport.name}.png`, {
+        animations: 'disabled',
+      });
+    }
+
+    await page.getByRole('button', { name: 'Volver a documentos' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Ver detalles de Evolución septiembre.md' }),
+    ).toBeFocused();
+    await page.getByRole('button', { name: 'Notas' }).click();
 
     await page.getByRole('button', { name: /Nota remota\.txt/ }).click();
     await expect(page.getByRole('heading', { name: 'Nota remota.txt' })).toBeVisible();
@@ -1595,7 +1627,7 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   await input.fill('Nota manual');
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
   releaseTranscription();
-  await expect(input).toHaveValue('Nota manual\nTexto dictado.');
+  await expect(input).toHaveValue('Texto dictado. Nota manual');
   await expect(page.getByText('Dictado añadido')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeEnabled();
 });

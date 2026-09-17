@@ -59,6 +59,7 @@ declare global {
 
 let loadedGapi: GapiGlobal | null = null;
 let pickerApiPromise: Promise<void> | null = null;
+const PICKER_TIMEOUT_MS = 10_000;
 
 function loadPickerApi(): Promise<void> {
   const gapi = window.gapi;
@@ -120,6 +121,7 @@ export async function openDrivePicker(
   return new Promise<PickedDriveSource | null>((resolve, reject) => {
     let settled = false;
     let pickerInstance: PickerInstance | null = null;
+    let timeoutId: number | null = null;
     const pickedAction = picker.Action?.PICKED ?? 'picked';
     const cancelAction = picker.Action?.CANCEL ?? 'cancel';
     const errorAction = picker.Action?.ERROR ?? 'error';
@@ -131,12 +133,14 @@ export async function openDrivePicker(
     const finish = (value: PickedDriveSource | null) => {
       if (settled) return;
       settled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
       closePicker();
       resolve(value);
     };
     const fail = (message: string) => {
       if (settled) return;
       settled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
       closePicker();
       reject(new Error(message));
     };
@@ -184,6 +188,7 @@ export async function openDrivePicker(
       );
     });
     pickerInstance = builder.build();
+    timeoutId = window.setTimeout(() => fail('GOOGLE_PICKER_TIMEOUT'), PICKER_TIMEOUT_MS);
     pickerInstance.setVisible?.(true);
   });
 }

@@ -64,6 +64,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -227,6 +228,24 @@ describe('openDrivePicker', () => {
     callback({ action: 'error' });
 
     await expect(opening).rejects.toThrow('GOOGLE_PICKER_ACTION_ERROR');
+  });
+
+  it('rejects and disposes when Picker never emits a terminal action', async () => {
+    vi.useFakeTimers();
+    stubPickerGlobals();
+    const pickerInstance = { setVisible: vi.fn(), dispose: vi.fn() };
+    builderCalls.build.mockReturnValue(pickerInstance);
+
+    const opening = seam().openDrivePicker('p1');
+    for (let attempt = 0; attempt < 5; attempt += 1) await Promise.resolve();
+    expect(builderCalls.setCallback).toHaveBeenCalled();
+
+    const outcome = expect(opening).rejects.toThrow('GOOGLE_PICKER_TIMEOUT');
+    await vi.advanceTimersByTimeAsync(10_000);
+    await outcome;
+
+    expect(pickerInstance.setVisible).toHaveBeenCalledWith(false);
+    expect(pickerInstance.dispose).toHaveBeenCalled();
   });
 
   it('never persists the Picker token anywhere', async () => {
