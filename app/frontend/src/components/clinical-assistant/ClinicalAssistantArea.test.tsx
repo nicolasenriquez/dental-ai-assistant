@@ -93,18 +93,16 @@ describe('ClinicalAssistantArea queue', () => {
     expect(screen.getByText('3 mensajes en cola')).toBeVisible();
   });
 
-  it('keeps the composer available while approval is pending', () => {
+  it('preserves composer text but blocks submission while approval is pending', () => {
     runtime.value = 'awaiting_approval';
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
     const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
 
     fireEvent.change(composer, { target: { value: 'Siguiente nota' } });
 
-    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
     expect(composer).toHaveValue('Siguiente nota');
-    expect(
-      screen.queryByText('Revisa la evolución pendiente antes de continuar.'),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText('Revisa la evolución pendiente antes de continuar.')).toBeVisible();
     expect(screen.queryByText(/mensaje.*en cola/)).not.toBeInTheDocument();
   });
 

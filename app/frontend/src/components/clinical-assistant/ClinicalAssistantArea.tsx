@@ -209,7 +209,7 @@ export function ClinicalAssistantArea({
     if (!value.trim() || voiceInFlight) return;
     const message = value.trim();
     const queueable = assistant.runtime === 'streaming' || assistant.runtime === 'stopping';
-    if (assistant.runtime === 'saving') return;
+    if (assistant.runtime === 'saving' || assistant.runtime === 'awaiting_approval') return;
     if (queueable) {
       if (queued.length >= 3) {
         setQueueError('Ya tienes 3 mensajes pendientes.');
@@ -415,6 +415,11 @@ export function ClinicalAssistantArea({
               Espera mientras guardamos la evolución.
             </p>
           )}
+          {assistant.runtime === 'awaiting_approval' && (
+            <p className="clinical-composer-lock" role="status">
+              Revisa la evolución pendiente antes de continuar.
+            </p>
+          )}
           {queued.length > 0 && (
             <div className="clinical-queue" aria-label="Mensajes en cola">
               <strong>
@@ -489,7 +494,11 @@ export function ClinicalAssistantArea({
               onCancel: voice.cancel,
               onRetry: voice.retry,
             }}
-            submitDisabled={voiceInFlight || assistant.runtime === 'saving'}
+            submitDisabled={
+              voiceInFlight ||
+              assistant.runtime === 'saving' ||
+              assistant.runtime === 'awaiting_approval'
+            }
           />
         </div>
       </div>

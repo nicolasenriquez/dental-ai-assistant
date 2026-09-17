@@ -1,10 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  type ClinicalDraft,
   type ClinicalPatient,
   type ClinicalThread,
   getClinicalThread,
   setClinicalActivePatient,
+  updateClinicalArtifact,
 } from '../lib/api';
 import { useClinicalAssistant } from './useClinicalAssistant';
 
@@ -14,6 +16,7 @@ vi.mock('../lib/api', async () => {
     ...actual,
     getClinicalThread: vi.fn(),
     setClinicalActivePatient: vi.fn(),
+    updateClinicalArtifact: vi.fn(),
   };
 });
 
@@ -58,6 +61,15 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+const draft: ClinicalDraft = {
+  context: 'context',
+  findings: 'findings',
+  assessment: 'assessment',
+  treatment: 'treatment',
+  follow_up: 'follow-up',
+  review_flags: [],
+};
+
 describe('useClinicalAssistant active patient persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -90,5 +102,76 @@ describe('useClinicalAssistant active patient persistence', () => {
       await first.promise;
     });
     expect(result.current.thread?.active_patient?.id).toBe(patientB.id);
+  });
+
+  it('does not let an old thread loader mutate the active thread', async () => {
+    vi.mocked(getClinicalThread).mockImplementation(async (threadId) => ({
+      ...thread(null),
+      id: threadId,
+    }));
+    const { result, rerender } = renderHook(({ threadId }) => useClinicalAssistant(threadId), {
+      initialProps: { threadId: 'thread-1' },
+    });
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-1'));
+    const staleReload = result.current.reload;
+
+    rerender({ threadId: 'thread-2' });
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-2'));
+    vi.mocked(getClinicalThread).mockClear();
+
+    await act(async () => {
+      await staleReload();
+    });
+
+    expect(getClinicalThread).not.toHaveBeenCalled();
+    expect(result.current.thread?.id).toBe('thread-2');
+  });
+
+  it('serializes autosaves for the same artifact', async () => {
+    vi.useFakeTimers();
+    const first = deferred<Awaited<ReturnType<typeof updateClinicalArtifact>>>();
+    vi.mocked(updateClinicalArtifact)
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({} as Awaited<ReturnType<typeof updateClinicalArtifact>>);
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(null),
+      artifacts: [
+        {
+          id: 'artifact-1',
+          owner_user_id: 'user-1',
+          thread_id: 'thread-1',
+          turn_id: 'turn-1',
+          patient_id: 'patient-a',
+          artifact_type: 'clinical_draft',
+          status: 'draft',
+          source_note: 'note',
+          generated_draft: draft,
+          draft,
+          evolution_at: '2026-09-17T12:00:00Z',
+          created_at: '2026-09-17T12:00:00Z',
+          updated_at: '2026-09-17T12:00:00Z',
+        },
+      ],
+    });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    act(() => result.current.updateDraft('artifact-1', { ...draft, context: 'first' }));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    act(() => result.current.updateDraft('artifact-1', { ...draft, context: 'second' }));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    expect(updateClinicalArtifact).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.resolve({} as Awaited<ReturnType<typeof updateClinicalArtifact>>);
+      await first.promise;
+      await vi.runAllTimersAsync();
+    });
+
+    expect(updateClinicalArtifact).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(updateClinicalArtifact).mock.calls[1][2].draft.context).toBe('second');
+    vi.useRealTimers();
   });
 });

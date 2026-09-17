@@ -132,18 +132,21 @@ export function useClinicalAssistant(threadId: string | undefined) {
     Record<string, 'idle' | 'saving' | 'saved' | 'error'>
   >({});
   const abortRef = useRef<AbortController | null>(null);
+  const threadIdRef = useRef(threadId);
+  threadIdRef.current = threadId;
   const turnFailedRef = useRef(false);
   const loadSeqRef = useRef(0);
   const activePatientRequestSeqRef = useRef(0);
   const turnInputRef = useRef<Record<string, string>>({});
   const artifactTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const artifactSyncsRef = useRef<Record<string, Promise<void>>>({});
   const recoveredExportsRef = useRef(new Set<string>());
 
   const load = useCallback(async (): Promise<ClinicalThread | null> => {
-    if (!threadId) return null;
+    if (!threadId || threadIdRef.current !== threadId) return null;
     const seq = ++loadSeqRef.current;
     const loaded = await getClinicalThread(threadId);
-    if (seq !== loadSeqRef.current) return null;
+    if (seq !== loadSeqRef.current || threadIdRef.current !== threadId) return null;
     setThread(loaded);
     const actions = loaded.actions ?? [];
     const hydrated = hydrateItems({ ...loaded, actions });
@@ -409,11 +412,18 @@ export function useClinicalAssistant(threadId: string | undefined) {
       if (previousTimer) clearTimeout(previousTimer);
       setArtifactSyncState((state) => ({ ...state, [itemId]: 'saving' }));
       artifactTimersRef.current[itemId] = setTimeout(() => {
-        void updateClinicalArtifact(threadId, itemId, {
-          source_note: nextSource,
-          draft: nextDraft,
-          evolution_at: nextEvolutionAt,
-        })
+        const previous = artifactSyncsRef.current[itemId] ?? Promise.resolve();
+        artifactSyncsRef.current[itemId] = previous
+          .catch(() => undefined)
+          .then(() =>
+            updateClinicalArtifact(threadId, itemId, {
+              source_note: nextSource,
+              draft: nextDraft,
+              evolution_at: nextEvolutionAt,
+            }),
+          )
+          .then(() => undefined);
+        void artifactSyncsRef.current[itemId]
           .then(() => setArtifactSyncState((state) => ({ ...state, [itemId]: 'saved' })))
           .catch(() => setArtifactSyncState((state) => ({ ...state, [itemId]: 'error' })));
       }, 300);
@@ -438,11 +448,18 @@ export function useClinicalAssistant(threadId: string | undefined) {
       if (!current || current.type !== 'draft') return false;
       dispatch({ type: 'updateSource', itemId, sourceNote });
       try {
-        await updateClinicalArtifact(threadId, itemId, {
-          source_note: sourceNote,
-          draft: current.draft,
-          evolution_at: current.evolutionAt,
-        });
+        const previous = artifactSyncsRef.current[itemId] ?? Promise.resolve();
+        const sync = previous
+          .catch(() => undefined)
+          .then(() =>
+            updateClinicalArtifact(threadId, itemId, {
+              source_note: sourceNote,
+              draft: current.draft,
+              evolution_at: current.evolutionAt,
+            }),
+          );
+        artifactSyncsRef.current[itemId] = sync.then(() => undefined);
+        await sync;
         setError(null);
         return true;
       } catch {
@@ -481,6 +498,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
       try {
         const syncTimer = artifactTimersRef.current[item.id];
         if (syncTimer) clearTimeout(syncTimer);
+        await artifactSyncsRef.current[item.id]?.catch(() => undefined);
         await updateClinicalArtifact(threadId, item.id, {
           source_note: item.sourceNote,
           draft: item.draft,

@@ -164,6 +164,30 @@ async function openFirstFile(name = 'nota.txt') {
 }
 
 describe('connection presentation', () => {
+  it('shows a retry when status loading fails', async () => {
+    getDriveStatusMock
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(connectedStatus);
+    renderWorkspace();
+
+    expect(await screen.findByText('Google Drive no está disponible')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+    expect(await screen.findByText('Conectado')).toBeVisible();
+  });
+
+  it('shows a retry when the backend reports Drive unavailable', async () => {
+    getDriveStatusMock.mockResolvedValue({
+      configured: true,
+      status: 'unavailable',
+      retryable: true,
+    });
+    renderWorkspace();
+
+    expect(await screen.findByText('Google Drive no está disponible')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled();
+  });
+
   it('is passive when Drive is unconfigured, without a fake CTA', async () => {
     getDriveStatusMock.mockResolvedValue({ configured: false, status: 'unconfigured' });
     renderWorkspace();
@@ -340,6 +364,30 @@ describe('patient-scoped list', () => {
     rerender(<Workspace patientId="p2" />);
 
     await waitFor(() => expect(listDriveFilesMock).toHaveBeenLastCalledWith('p2', undefined));
+  });
+
+  it('ignores a late page from the previous patient', async () => {
+    const latePage = deferred<{ files: unknown[]; next_page_token: string | null }>();
+    listDriveFilesMock
+      .mockResolvedValueOnce({ files: [fileBody], next_page_token: 'tok1' })
+      .mockReturnValueOnce(latePage.promise)
+      .mockResolvedValueOnce({ files: [], next_page_token: null });
+    const { rerender } = renderWorkspace('p1');
+    await selectDocuments();
+    await screen.findByRole('button', { name: 'Abrir nota.txt' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar más' }));
+    rerender(<Workspace patientId="p2" />);
+    await waitFor(() => expect(listDriveFilesMock).toHaveBeenCalledWith('p2', undefined));
+    await act(async () => {
+      latePage.resolve({
+        files: [{ ...fileBody, id: 'stale', name: 'paciente-a.txt' }],
+        next_page_token: null,
+      });
+      await latePage.promise;
+    });
+
+    expect(screen.queryByRole('button', { name: 'Abrir paciente-a.txt' })).not.toBeInTheDocument();
   });
 
   it('searches through the body-scoped endpoint, never the URL', async () => {

@@ -143,7 +143,12 @@ async def _get_recent_evolutions(context: ClinicalTurnContext) -> dict[str, Any]
         "ok": True,
         "count": len(history),
         "evolutions": [
-            {"evolution_at": row["evolution_at"], "final_text": row["final_text"]}
+            {
+                "evolution_at": row["evolution_at"],
+                "final_text": (
+                    await sanitize_content(context.user_id, row["final_text"])
+                ).model_text,
+            }
             for row in history
         ],
     }

@@ -128,6 +128,7 @@ export function DriveWorkspace({
   onJournalTargetConsumed,
 }: DriveWorkspaceProps) {
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
@@ -152,6 +153,8 @@ export function DriveWorkspace({
   const [journalsLoading, setJournalsLoading] = useState(false);
   const [journalsLoaded, setJournalsLoaded] = useState(false);
   const openSequence = useRef(0);
+  const statusSequence = useRef(0);
+  const pageRequestInFlight = useRef(false);
   const [docPhase, setDocPhase] = useState<'opening' | 'ready'>('ready');
   const [mode, setMode] = useState<'viewing' | 'editing'>('viewing');
   const [saving, setSaving] = useState(false);
@@ -197,26 +200,35 @@ export function DriveWorkspace({
 
   useEffect(() => {
     patientIdRef.current = patientId;
+    pageRequestInFlight.current = false;
   }, [patientId]);
 
   useEffect(() => {
     onDirtyStateChange?.(dirty);
   }, [dirty, onDirtyStateChange]);
 
+  const loadDriveStatus = async () => {
+    const sequence = ++statusSequence.current;
+    setStatusLoading(true);
+    setErrorMessage(null);
+    try {
+      const status = await getDriveStatus();
+      if (sequence === statusSequence.current) setDriveStatus(status);
+    } catch {
+      if (sequence === statusSequence.current) {
+        setDriveStatus(null);
+        setDebugErrorMessage(null);
+        setErrorMessage('No se pudo completar la acción');
+      }
+    } finally {
+      if (sequence === statusSequence.current) setStatusLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-    getDriveStatus()
-      .then((status) => {
-        if (!cancelled) setDriveStatus(status);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDebugErrorMessage(null);
-          setErrorMessage('No se pudo completar la acción');
-        }
-      });
+    void loadDriveStatus();
     return () => {
-      cancelled = true;
+      statusSequence.current += 1;
     };
   }, []);
 
@@ -436,10 +448,25 @@ export function DriveWorkspace({
   };
 
   const handleLoadMore = async () => {
-    if (!patientId || !nextPageToken) return;
-    const page = await listDriveFiles(patientId, nextPageToken);
-    setFiles((prev) => [...prev, ...page.files]);
-    setNextPageToken(page.next_page_token);
+    if (!patientId || !nextPageToken || pageRequestInFlight.current) return;
+    const requestedPatient = patientId;
+    const requestedCursor = nextPageToken;
+    pageRequestInFlight.current = true;
+    try {
+      const page = await listDriveFiles(requestedPatient, requestedCursor);
+      if (patientIdRef.current !== requestedPatient) return;
+      setFiles((prev) => [...prev, ...page.files]);
+      setNextPageToken(page.next_page_token);
+    } catch {
+      if (patientIdRef.current === requestedPatient) {
+        setDebugErrorMessage(null);
+        setErrorMessage('No se pudo completar la acción');
+      }
+    } finally {
+      if (patientIdRef.current === requestedPatient) {
+        pageRequestInFlight.current = false;
+      }
+    }
   };
 
   const showLoadedFile = (content: DriveFileContent, boundPatientId: string): void => {
@@ -734,7 +761,18 @@ export function DriveWorkspace({
     />
   ) : null;
 
-  if (!driveStatus) return null;
+  if (!driveStatus) {
+    if (statusLoading) return null;
+    return (
+      <Alert>
+        <AlertTitle>Google Drive no está disponible</AlertTitle>
+        <AlertDescription>{errorMessage}</AlertDescription>
+        <button type="button" className="drive-btn drive-btn-primary" onClick={loadDriveStatus}>
+          Reintentar
+        </button>
+      </Alert>
+    );
+  }
 
   const sectionNavigation = (
     <nav className="drive-section-nav" aria-label="Secciones de Google Drive">
@@ -866,6 +904,17 @@ export function DriveWorkspace({
             onClick={() => setRecreateDialog('recovery')}
           >
             Ver opciones
+          </button>
+        </Alert>
+      );
+      break;
+    case 'unavailable':
+      connectionContent = (
+        <Alert>
+          <AlertTitle>Google Drive no está disponible</AlertTitle>
+          <AlertDescription>Intenta nuevamente en unos minutos.</AlertDescription>
+          <button type="button" className="drive-btn drive-btn-primary" onClick={loadDriveStatus}>
+            Reintentar
           </button>
         </Alert>
       );

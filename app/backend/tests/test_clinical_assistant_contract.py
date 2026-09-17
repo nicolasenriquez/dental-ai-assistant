@@ -45,6 +45,35 @@ async def test_rut_sanitizer_never_returns_raw_identifier(monkeypatch) -> None:
     assert result.masked_ruts == ("••.•••.678-5",)
 
 
+async def test_recent_evolutions_are_sanitized_before_model_use(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.policy import ClinicalTurnContext
+
+    owner = UUID(int=1)
+    patient_id = UUID(int=4)
+
+    async def get_patient(_owner, _patient_id):
+        return {"id": patient_id}
+
+    async def get_history(_owner, _patient_id, *, limit):
+        assert limit > 0
+        return [{"evolution_at": "2026-09-17", "final_text": "RUT 12.345.678-5"}]
+
+    async def sanitize(_owner, content):
+        assert content == "RUT 12.345.678-5"
+        return type("Sanitized", (), {"model_text": "RUT [PATIENT_REF:4]"})()
+
+    monkeypatch.setattr(service.patients_repo, "get_patient", get_patient)
+    monkeypatch.setattr(service.patients_repo, "get_recent_approved_evolutions", get_history)
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+
+    result = await service._get_recent_evolutions(
+        ClinicalTurnContext(owner, UUID(int=2), UUID(int=3), patient_id)
+    )
+
+    assert result["evolutions"][0]["final_text"] == "RUT [PATIENT_REF:4]"
+
+
 async def test_unknown_rut_is_replaced_without_provider_safe_echo(monkeypatch) -> None:
     from backend.clinical_assistant.sensitive_input import sanitize_content
 
