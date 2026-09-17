@@ -725,6 +725,7 @@ export function DriveWorkspace({
       mode={mode}
       saving={saving}
       saved={saved}
+      dirty={dirty}
       selectedText={selectedText}
       patientId={patientId}
       onBack={closeDoc}
@@ -882,6 +883,7 @@ export function DriveWorkspace({
           {section === 'notes' ? (
             <DriveWorkspaceHome
               files={sources}
+              patient={patient}
               loading={sourcesLoading}
               picking={importing}
               onPick={() => void handleOpenNote()}
@@ -893,6 +895,7 @@ export function DriveWorkspace({
               <DriveFileBrowser
                 managedOnly
                 patientId={patientId}
+                patient={patient}
                 query={query}
                 files={files}
                 listLoading={listLoading}

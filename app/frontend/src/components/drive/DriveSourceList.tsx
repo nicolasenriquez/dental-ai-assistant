@@ -1,10 +1,6 @@
-import { FileText } from 'lucide-react';
 import type { DriveSourceFile } from '../../lib/api';
-
-function kindLabel(kind: DriveSourceFile['kind']): string {
-  if (kind === 'google-doc') return 'Google Doc';
-  return kind.toUpperCase();
-}
+import { DriveFileIcon } from './DriveFileIcon';
+import { driveTypeLabel, formatDriveDate } from './drivePresentation';
 
 export function DriveSourceList({
   files,
@@ -27,14 +23,13 @@ export function DriveSourceList({
       {files.map((file) => (
         <li key={file.id}>
           <button type="button" className="drive-file-row" onClick={() => onOpen(file)}>
-            <FileText aria-hidden="true" size={18} />
+            <DriveFileIcon mimeType={file.mimeType} name={file.name} kind={file.kind} />
             <span className="drive-file-main">
               <strong>{file.name}</strong>
-              <span>{kindLabel(file.kind)}</span>
+              <span>{driveTypeLabel(file.mimeType, file.name, file.kind)}</span>
+              <span>{file.editable ? 'Editable' : 'Solo lectura'}</span>
             </span>
-            <time dateTime={file.modifiedTime}>
-              {new Date(file.modifiedTime).toLocaleDateString('es-CL')}
-            </time>
+            <time dateTime={file.modifiedTime}>{formatDriveDate(file.modifiedTime)}</time>
           </button>
         </li>
       ))}

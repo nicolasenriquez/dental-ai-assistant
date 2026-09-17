@@ -50,6 +50,7 @@ function renderBrowser(overrides: BrowserOverrides = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
@@ -61,8 +62,10 @@ describe('DriveFileBrowser', () => {
     renderBrowser();
 
     expect(screen.getByText(file.name)).toBeInTheDocument();
-    expect(screen.getByText('Markdown')).toBeInTheDocument();
-    expect(screen.getByText(/Modificado 16 sept 2026/i)).toBeInTheDocument();
+    const row = screen.getByRole('button', { name: `Abrir ${file.name}` }).closest('li');
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText('Markdown')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText('16 sept 2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: `Abrir ${file.name}` })).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: `Ver detalles de ${file.name}` }),
@@ -154,5 +157,44 @@ describe('DriveFileBrowser', () => {
     const imported = renderBrowser({ imported: true, nextPageToken: 'next-page' });
     expect(screen.getByRole('status')).toHaveTextContent('Documento importado');
     expect(screen.getByRole('button', { name: 'Cargar más' })).toBeInTheDocument();
+  });
+
+  it('switches between grid and list views and persists the preference', () => {
+    const files = [
+      file,
+      { ...file, id: 'file-2', name: 'indicaciones.txt', modifiedTime: '2026-09-15T12:00:00Z' },
+      { ...file, id: 'file-3', name: 'plan.pdf', modifiedTime: '2026-09-14T12:00:00Z' },
+    ];
+    const view = renderBrowser({ files, query: '', searchSubmitted: false });
+
+    expect(screen.getByRole('button', { name: 'Vista en lista' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Vista en cuadrícula' }));
+    expect(screen.getByRole('button', { name: 'Vista en cuadrícula' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('region', { name: 'Acceso rápido' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abrir plan.pdf' })).toBeInTheDocument();
+
+    view.unmount();
+    renderBrowser({ files, query: '', searchSubmitted: false });
+    expect(screen.getByRole('button', { name: 'Vista en cuadrícula' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('hides Quick Access while searching', () => {
+    const files = [
+      file,
+      { ...file, id: 'file-2', name: 'indicaciones.txt' },
+      { ...file, id: 'file-3', name: 'plan.pdf' },
+    ];
+    renderBrowser({ files, query: 'plan', searchSubmitted: true });
+
+    expect(screen.queryByRole('region', { name: 'Acceso rápido' })).not.toBeInTheDocument();
   });
 });

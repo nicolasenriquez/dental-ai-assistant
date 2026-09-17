@@ -65,8 +65,16 @@ describe('WorkspaceThreadList', () => {
       />,
     );
 
+    const trigger = screen.getByRole('button', { name: 'Buscar en asistente' });
+    fireEvent.click(trigger);
+
+    const searchbox = screen.getByRole('searchbox', { name: 'Buscar en asistente' });
+    expect(searchbox).toHaveFocus();
+
+    fireEvent.keyDown(searchbox, { key: 'Escape' });
+    expect(screen.getByRole('button', { name: 'Buscar en asistente' })).toHaveFocus();
+
     fireEvent.click(screen.getByRole('button', { name: 'Buscar en asistente' }));
-    expect(screen.getByRole('searchbox', { name: 'Buscar en asistente' })).toHaveFocus();
     fireEvent.click(screen.getByRole('button', { name: 'Limpiar búsqueda' }));
 
     expect(onQueryChange).toHaveBeenCalledWith('');

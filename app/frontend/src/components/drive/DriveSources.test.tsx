@@ -79,7 +79,7 @@ it('preserves source edits and exact selection across patient changes, then save
     />,
   );
   expect(editor).toHaveValue('  Exact\nBeta  ');
-  expect(screen.getByText(/Usar para: Beta/)).toBeInTheDocument();
+  expect(screen.getByText('Beta · ****1234')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Incorporar al borrador' }));
   expect(insert).toHaveBeenCalledWith('Fuente: Google Drive · notas.md\n  Exact');
   fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));

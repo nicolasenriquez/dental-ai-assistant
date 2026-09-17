@@ -1,13 +1,18 @@
-import { FileText, Search, X } from 'lucide-react';
+import { FileText, LayoutGrid, List, Search, X } from 'lucide-react';
 import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { DriveFile } from '../../lib/api';
 import { Spinner } from '../Spinner';
 import { DriveFileDetailsView } from './DriveFileDetailsView';
+import { DriveFileIcon } from './DriveFileIcon';
 import { DriveFileRow } from './DriveFileRow';
+import { DriveQuickAccess } from './DriveQuickAccess';
+import { driveTypeLabel, formatDriveDate, newestFirst } from './drivePresentation';
+import type { DrivePatientContext } from './editors/types';
 
 interface DriveFileBrowserProps {
   managedOnly?: boolean;
   patientId: string | null;
+  patient?: DrivePatientContext | null;
   query: string;
   files: DriveFile[];
   listLoading: boolean;
@@ -26,24 +31,16 @@ interface DriveFileBrowserProps {
   searchInputRef?: RefObject<HTMLInputElement>;
 }
 
-function fileTypeLabel(mimeType: string): string {
-  if (mimeType === 'application/pdf') return 'PDF';
-  if (mimeType.includes('google-apps.document')) return 'Google Doc';
-  if (mimeType.includes('word')) return 'Word';
-  if (mimeType === 'text/markdown') return 'Markdown';
-  if (mimeType === 'text/plain') return 'TXT';
-  const parts = mimeType.split('/');
-  return parts[parts.length - 1]?.toUpperCase() || 'Archivo';
-}
+type DriveViewMode = 'list' | 'grid';
+const VIEW_MODE_KEY = 'dental-ai:drive-file-view-mode:v1';
 
-function modifiedLabel(modifiedTime: string): string {
-  const parsed = new Date(modifiedTime);
-  if (Number.isNaN(parsed.getTime())) return 'Fecha desconocida';
-  return new Intl.DateTimeFormat('es-CL', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed);
+function readStoredViewMode(): DriveViewMode {
+  if (typeof window === 'undefined') return 'list';
+  try {
+    return window.localStorage.getItem(VIEW_MODE_KEY) === 'grid' ? 'grid' : 'list';
+  } catch {
+    return 'list';
+  }
 }
 
 function SkeletonRows() {
@@ -63,6 +60,7 @@ function SkeletonRows() {
 export function DriveFileBrowser({
   managedOnly = false,
   patientId,
+  patient = null,
   query,
   files,
   listLoading,
@@ -81,6 +79,7 @@ export function DriveFileBrowser({
   searchInputRef,
 }: DriveFileBrowserProps) {
   const [detailsFile, setDetailsFile] = useState<DriveFile | null>(null);
+  const [viewMode, setViewMode] = useState<DriveViewMode>(readStoredViewMode);
   const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -99,6 +98,17 @@ export function DriveFileBrowser({
   }
 
   const noMatch = searchSubmitted && query.trim() && !searchLoading && files.length === 0;
+  const displayFiles = newestFirst(files);
+  const quickFiles = query.trim() || files.length < 3 ? [] : displayFiles.slice(0, 3);
+
+  const changeViewMode = (nextMode: DriveViewMode): void => {
+    setViewMode(nextMode);
+    try {
+      window.localStorage.setItem(VIEW_MODE_KEY, nextMode);
+    } catch {
+      // View preference is an enhancement and must not block the browser.
+    }
+  };
 
   const handleShowDetails = (file: DriveFile, trigger: HTMLButtonElement): void => {
     detailsTriggerRef.current = trigger;
@@ -117,7 +127,7 @@ export function DriveFileBrowser({
         aria-label="Documentos de Google Drive"
         hidden={detailsFile !== null}
       >
-        <div className="drive-list-tools">
+        <div className="drive-list-tools drive-explorer-toolbar">
           <div className="drive-search-wrap">
             <Search aria-hidden="true" size={16} />
             <input
@@ -164,7 +174,40 @@ export function DriveFileBrowser({
               Documento importado
             </span>
           )}
+          <div className="drive-view-toggle" role="group" aria-label="Vista de documentos">
+            <button
+              type="button"
+              aria-label="Vista en cuadrícula"
+              aria-pressed={viewMode === 'grid'}
+              onClick={() => changeViewMode('grid')}
+            >
+              <LayoutGrid aria-hidden="true" size={16} />
+            </button>
+            <button
+              type="button"
+              aria-label="Vista en lista"
+              aria-pressed={viewMode === 'list'}
+              onClick={() => changeViewMode('list')}
+            >
+              <List aria-hidden="true" size={16} />
+            </button>
+          </div>
         </div>
+        <div className="drive-context-trail" aria-label="Contexto del workspace">
+          <span>Google Drive</span>
+          <span aria-hidden="true">›</span>
+          <span>{patient?.displayName ?? 'Paciente'}</span>
+          {patient && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{patient.rutMasked}</span>
+            </>
+          )}
+          <span aria-hidden="true">›</span>
+          <strong>Documentos</strong>
+        </div>
+        <DriveQuickAccess files={quickFiles} onOpen={onOpen} />
+        <h2 className="drive-section-title">Todos los documentos</h2>
         {searchLoading && <p className="drive-list-status">Buscando…</p>}
         {listLoading ? (
           <>
@@ -199,18 +242,53 @@ export function DriveFileBrowser({
           </div>
         ) : (
           <>
-            <ul className="drive-file-list">
-              {files.map((file) => (
-                <DriveFileRow
-                  key={file.id}
-                  file={file}
-                  typeLabel={fileTypeLabel(file.mimeType)}
-                  modifiedLabel={modifiedLabel(file.modifiedTime)}
-                  onOpen={onOpen}
-                  onDetails={handleShowDetails}
-                />
-              ))}
-            </ul>
+            {viewMode === 'list' ? (
+              <ul className="drive-file-table-body">
+                <li className="drive-file-table-header" aria-hidden="true">
+                  <span>Nombre</span>
+                  <span>Tipo</span>
+                  <span>Modificado</span>
+                  <span />
+                </li>
+                {displayFiles.map((file) => (
+                  <DriveFileRow
+                    key={file.id}
+                    file={file}
+                    typeLabel={driveTypeLabel(file.mimeType, file.name)}
+                    modifiedLabel={formatDriveDate(file.modifiedTime)}
+                    onOpen={onOpen}
+                    onDetails={handleShowDetails}
+                    layout="table"
+                  />
+                ))}
+              </ul>
+            ) : (
+              <div className="drive-file-grid">
+                {displayFiles.map((file) => (
+                  <div className="drive-file-card-shell" key={file.id}>
+                    <button
+                      type="button"
+                      className="drive-file-card"
+                      aria-label={`Abrir ${file.name}`}
+                      onClick={() => onOpen(file)}
+                    >
+                      <DriveFileIcon mimeType={file.mimeType} name={file.name} size={22} />
+                      <strong title={file.name}>{file.name}</strong>
+                      <span>{driveTypeLabel(file.mimeType, file.name)}</span>
+                      <time dateTime={file.modifiedTime}>{formatDriveDate(file.modifiedTime)}</time>
+                    </button>
+                    <button
+                      type="button"
+                      className="drive-file-card-details"
+                      aria-label={`Ver detalles de ${file.name}`}
+                      onClick={(event) => handleShowDetails(file, event.currentTarget)}
+                    >
+                      Detalles
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             {nextPageToken && (
               <button type="button" className="drive-btn drive-btn-secondary" onClick={onLoadMore}>
                 Cargar más
@@ -222,8 +300,8 @@ export function DriveFileBrowser({
       {detailsFile && (
         <DriveFileDetailsView
           file={detailsFile}
-          typeLabel={fileTypeLabel(detailsFile.mimeType)}
-          modifiedLabel={modifiedLabel(detailsFile.modifiedTime)}
+          typeLabel={driveTypeLabel(detailsFile.mimeType, detailsFile.name)}
+          modifiedLabel={formatDriveDate(detailsFile.modifiedTime)}
           onBack={handleCloseDetails}
           onOpen={onOpen}
         />

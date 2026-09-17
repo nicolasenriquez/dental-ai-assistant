@@ -23,9 +23,16 @@ export function SidebarSearch({
   onOpenChange,
 }: SidebarSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(isOpen);
 
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
+    if (isOpen) {
+      inputRef.current?.focus();
+    } else if (wasOpenRef.current) {
+      triggerRef.current?.focus();
+    }
+    wasOpenRef.current = isOpen;
   }, [isOpen]);
 
   useEffect(() => {
@@ -36,7 +43,6 @@ export function SidebarSearch({
         if (document.querySelector('#app-sidebar[aria-hidden="true"]')) return;
         event.preventDefault();
         onOpenChange(true);
-        window.requestAnimationFrame(() => inputRef.current?.focus());
       }
     };
 
@@ -60,8 +66,8 @@ export function SidebarSearch({
         className="sidebar-search-trigger"
         onClick={() => {
           onOpenChange(true);
-          window.requestAnimationFrame(() => inputRef.current?.focus());
         }}
+        ref={triggerRef}
         aria-label={label}
         title={`${label} (${shortcutLabel})`}
         data-tooltip={isCollapsed ? label : undefined}

@@ -217,8 +217,20 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
     const focusFrame = window.requestAnimationFrame?.(focusCloseButton);
     return () => {
       if (focusFrame !== undefined) window.cancelAnimationFrame?.(focusFrame);
-      if (restoreFocusRef.current?.isConnected) restoreFocusRef.current.focus();
-      restoreFocusRef.current = null;
+      const restoreFocus = restoreFocusRef.current;
+      if (!restoreFocus?.isConnected) {
+        restoreFocusRef.current = null;
+        return;
+      }
+
+      window.requestAnimationFrame?.(() => {
+        if (restoreFocusRef.current !== restoreFocus) return;
+        restoreFocusRef.current = null;
+        if (!restoreFocus.isConnected || restoreFocus.closest('[inert], [aria-hidden="true"]')) {
+          return;
+        }
+        restoreFocus.focus();
+      });
     };
   }, [isOpen]);
 

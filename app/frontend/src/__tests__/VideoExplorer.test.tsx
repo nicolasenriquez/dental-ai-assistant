@@ -55,8 +55,35 @@ describe('VideoExplorer', () => {
       expect(onClose).toHaveBeenCalledTimes(1);
 
       rerender(<VideoExplorer isOpen={false} onClose={onClose} />);
-      expect(opener).toHaveFocus();
+      await waitFor(() => expect(opener).toHaveFocus());
       opener.remove();
+    });
+
+    it('does not steal focus when opener becomes inert before cleanup', async () => {
+      const sidebar = document.createElement('aside');
+      const opener = document.createElement('button');
+      const fallback = document.createElement('button');
+      sidebar.appendChild(opener);
+      document.body.append(sidebar, fallback);
+      opener.focus();
+
+      const onClose = vi.fn(() => {
+        sidebar.setAttribute('inert', '');
+        fallback.focus();
+      });
+      const { rerender } = render(<VideoExplorer isOpen={false} onClose={onClose} />);
+      rerender(<VideoExplorer isOpen onClose={onClose} />);
+
+      const closeButton = await screen.findByRole('button', {
+        name: 'Cerrar biblioteca de videos',
+      });
+      fireEvent.keyDown(closeButton, { key: 'Escape' });
+
+      rerender(<VideoExplorer isOpen={false} onClose={onClose} />);
+      await waitFor(() => expect(fallback).toHaveFocus());
+
+      sidebar.remove();
+      fallback.remove();
     });
 
     it('keeps Escape inside the ingest dialog and returns focus to its opener', async () => {

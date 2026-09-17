@@ -8,7 +8,7 @@
  * details of the Picker helper.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../../lib/api';
 import { openDrivePicker } from '../../lib/drivePicker';
@@ -171,14 +171,15 @@ describe('Drive section boundaries', () => {
   });
 
   it('shows the patient-bound Documents empty state for an active patient', async () => {
-    renderWorkspace('p1');
+    const { container } = renderWorkspace('p1');
 
     await selectSection('Documentos');
 
     expect(await screen.findByText('Aún no hay documentos')).toBeInTheDocument();
-    expect(screen.getByText('Paciente')).toBeInTheDocument();
-    expect(screen.getByText(patientA.displayName)).toBeInTheDocument();
-    expect(screen.getByText(patientA.rutMasked)).toBeInTheDocument();
+    const context = container.querySelector('.drive-context-trail');
+    expect(context).not.toBeNull();
+    expect(within(context as HTMLElement).getByText(patientA.displayName)).toBeInTheDocument();
+    expect(within(context as HTMLElement).getByText(patientA.rutMasked)).toBeInTheDocument();
     expect(api.listDriveFiles).toHaveBeenCalledWith('p1', undefined);
   });
 
@@ -354,7 +355,7 @@ describe('Drive-to-composer insertion', () => {
     const selection = screen.getByRole('button', { name: 'Incorporar al borrador' });
     expect(complete).toBeDisabled();
     expect(selection).toBeDisabled();
-    expect(screen.getByText('Selecciona un paciente para insertar este contenido.')).toBeVisible();
+    expect(screen.getByText('Selecciona un paciente antes de usar este fragmento.')).toBeVisible();
 
     expect(editor).toHaveValue(source.content);
     expect(insert).not.toHaveBeenCalled();

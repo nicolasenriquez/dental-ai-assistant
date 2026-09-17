@@ -211,7 +211,7 @@ describe('connection presentation', () => {
   it('shows the compact connected header without account identity', async () => {
     renderWorkspace();
 
-    expect(await screen.findByText('Google Drive')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Google Drive' })).toBeInTheDocument();
     expect(screen.getByText('Conectado')).toBeInTheDocument();
     expect(screen.getByText('Conectado')).toBeInTheDocument();
     await selectDocuments();

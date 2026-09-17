@@ -175,13 +175,36 @@ async function installDriveRoutes(
     kind: 'text',
     editable: true,
   };
-  const managedFile = {
-    id: '77777777-7777-4777-8777-777777777777',
-    name: 'Evolución septiembre.md',
-    mimeType: 'text/markdown',
-    modifiedTime: '2026-09-16T14:30:00Z',
-    version: '27',
-  };
+  const managedFiles = [
+    {
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Evolución septiembre.md',
+      mimeType: 'text/markdown',
+      modifiedTime: '2026-09-16T14:30:00Z',
+      version: '27',
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777778',
+      name: 'Indicaciones postoperatorias.txt',
+      mimeType: 'text/plain',
+      modifiedTime: '2026-09-15T14:30:00Z',
+      version: '12',
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777779',
+      name: 'Plan de tratamiento.pdf',
+      mimeType: 'application/pdf',
+      modifiedTime: '2026-09-14T14:30:00Z',
+      version: '8',
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777780',
+      name: 'Resumen clínico.txt',
+      mimeType: 'text/plain',
+      modifiedTime: '2026-09-13T14:30:00Z',
+      version: '4',
+    },
+  ];
 
   await page.route('**/api/google-drive/sources', (route) =>
     route.fulfill({
@@ -209,13 +232,43 @@ async function installDriveRoutes(
       body: JSON.stringify({ ...source, content: 'Contenido remoto.' }),
     });
   });
-  await page.route('**/api/google-drive/files*', (route) =>
-    route.fulfill({
+  await page.route('**/api/google-drive/files*', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+
+    if (request.method() === 'POST' && url.pathname.endsWith('/search')) {
+      const body = request.postDataJSON() as { query?: string };
+      const query = body.query?.toLocaleLowerCase() ?? '';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          files: managedFiles.filter((file) => file.name.toLocaleLowerCase().includes(query)),
+          next_page_token: null,
+        }),
+      });
+      return;
+    }
+
+    const detailMatch = url.pathname.match(/\/files\/([^/]+)$/);
+    if (detailMatch) {
+      const file = managedFiles.find((item) => item.id === detailMatch[1]);
+      await route.fulfill({
+        status: file ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          file ? { ...file, content: `Contenido remoto de ${file.name}.` } : { detail: 'Not found' },
+        ),
+      });
+      return;
+    }
+
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ files: [managedFile], next_page_token: null }),
-    }),
-  );
+      body: JSON.stringify({ files: managedFiles, next_page_token: null }),
+    });
+  });
   await page.route('**/api/google-drive/evolution-journals/preferences', async (route) => {
     if (route.request().method() === 'PUT') {
       await route.fulfill({
@@ -428,8 +481,17 @@ for (const viewport of [
 
     await page.getByRole('button', { name: 'Documentos' }).click();
     await expect(
-      page.getByRole('button', { name: 'Abrir Evolución septiembre.md' }),
+      page.getByRole('button', { name: 'Abrir Evolución septiembre.md', exact: true }),
     ).toBeVisible();
+    await page.getByRole('button', { name: 'Vista en cuadrícula' }).click();
+    await expect(page.getByRole('button', { name: 'Vista en cuadrícula' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(page.locator('.drive-file-grid')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Acceso rápido' })).toBeVisible();
+    await page.getByRole('button', { name: 'Vista en lista' }).click();
+    await expect(page.locator('.drive-file-table-body')).toBeVisible();
     await expectNoHorizontalOverflow(page);
     if (viewport.name === 'desktop' || viewport.name === 'mobile') {
       await expect(page).toHaveScreenshot(`drive-documents-browser-${viewport.name}.png`, {
@@ -589,8 +651,8 @@ test('keeps the patient context before secondary actions on mobile', async ({ pa
   await setupClinicalHarness(page, thread());
   await page.setViewportSize({ width: 390, height: 844 });
 
-  const context = page.locator('.workspace-header__context');
-  const actions = page.locator('.workspace-header__actions');
+  const context = page.locator('.workspace-header:visible .workspace-header__context');
+  const actions = page.locator('.workspace-header:visible .workspace-header__actions');
   const contextBounds = await context.boundingBox();
   const actionBounds = await actions.boundingBox();
   expect(contextBounds).not.toBeNull();

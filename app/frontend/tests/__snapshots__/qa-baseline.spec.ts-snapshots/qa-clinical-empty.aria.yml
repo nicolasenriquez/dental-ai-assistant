@@ -16,17 +16,17 @@
       - button "Hoy 1" [expanded]
       - button "Ana Pérez · Control"
       - button "Acciones para Ana Pérez · Control"
-  - button "Abrir menú de usuario para qa@example.com"
+  - button "Abrir menú de usuario para qa@example.com": qa@example.com
   - text: Dental AI Assistant
 - main:
   - strong: Ana Pérez · Control
   - text: Paciente
-  - button "Seleccionar paciente activo": /Ana Pérez · \d+\.\d+\.•••-6/
+  - button "Seleccionar paciente activo": Ana Pérez · 12.345.•••-6
   - button "Quitar paciente activo"
-  - button "Abrir Google Drive"
+  - button "Abrir Google Drive": Google Drive
   - log "Transcripción clínica":
     - heading "Trabaja más rápido con tus evoluciones" [level=1]
-    - paragraph: Selecciona un paciente y escribe o dicta una nota clínica.
+    - paragraph: Pregunta algo o selecciona un paciente para trabajar con su ficha.
   - textbox "Nota clínica":
     - /placeholder: Escribe o dicta la nota clínica…
   - status:

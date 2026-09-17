@@ -1,5 +1,6 @@
 import { ArrowLeft, X } from 'lucide-react';
 import { useState } from 'react';
+import { driveTypeLabel } from './drivePresentation';
 import { TextDocumentEditor } from './editors/TextDocumentEditor';
 import type { DrivePatientContext, SourceWorkspaceDocument } from './editors/types';
 
@@ -35,10 +36,10 @@ export function DriveDocumentWorkspace({
     original && /^https:\/\/(docs|drive)\.google\.com\//.test(original) ? original : null;
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-3 p-3"
+      className="drive-document-workspace flex min-h-0 flex-1 flex-col gap-3 p-3"
       aria-label={`Documento ${source.name}`}
     >
-      <header className="flex items-center gap-2">
+      <header className="drive-document-header flex items-center gap-2">
         <button
           type="button"
           className="drive-btn drive-btn-icon"
@@ -48,10 +49,15 @@ export function DriveDocumentWorkspace({
         >
           <ArrowLeft aria-hidden="true" size={18} />
         </button>
-        <h2 className="min-w-0 flex-1 truncate" title={source.name}>
-          {source.name}
-        </h2>
-        <span role="status">
+        <div className="drive-document-title-group min-w-0 flex-1">
+          <h2 title={source.name}>{source.name}</h2>
+          <span>
+            {driveTypeLabel(source.mimeType, source.name, source.kind)}
+            {' · '}
+            {source.editable ? 'Editable' : 'Solo lectura'}
+          </span>
+        </div>
+        <span className="drive-document-status" role="status">
           {saving
             ? 'Guardando…'
             : !source.editable
@@ -104,26 +110,28 @@ export function DriveDocumentWorkspace({
         </div>
       )}
       {onInsert && text && (
-        <footer className="drive-doc-actions">
+        <footer className={`drive-doc-actions${selection.trim() ? ' drive-selection-bar' : ''}`}>
           {selection.trim() && (
-            <>
-              <p className="drive-selection-context">
-                <span>{selectionWordCount} palabras seleccionadas</span>
-                {patient && (
-                  <span>
-                    {patient.displayName} · {patient.rutMasked}
-                  </span>
-                )}
-              </p>
-              <button
-                type="button"
-                className="drive-btn drive-btn-secondary"
-                disabled={!patient}
-                onClick={() => onInsert(selection)}
-              >
-                Incorporar al borrador
-              </button>
-            </>
+            <div className="drive-selection-context">
+              <strong>{selectionWordCount} palabras seleccionadas</strong>
+              {patient ? (
+                <span>
+                  {patient.displayName} · {patient.rutMasked}
+                </span>
+              ) : (
+                <span>Selecciona un paciente antes de usar este fragmento.</span>
+              )}
+            </div>
+          )}
+          {selection.trim() && (
+            <button
+              type="button"
+              className="drive-btn drive-btn-primary"
+              disabled={!patient}
+              onClick={() => onInsert(selection)}
+            >
+              Incorporar al borrador
+            </button>
           )}
           <button
             type="button"
@@ -133,11 +141,11 @@ export function DriveDocumentWorkspace({
           >
             Incorporar nota completa al borrador
           </button>
-          <p className="drive-insert-prerequisite">
-            {patient
-              ? `Usar para: ${patient.displayName} · ${patient.rutMasked}`
-              : 'Selecciona un paciente para insertar este contenido.'}
-          </p>
+          {!patient && !selection.trim() && (
+            <p className="drive-insert-prerequisite">
+              Selecciona un paciente para insertar este contenido.
+            </p>
+          )}
         </footer>
       )}
     </section>

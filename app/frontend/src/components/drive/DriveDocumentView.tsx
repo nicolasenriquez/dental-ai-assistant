@@ -3,6 +3,7 @@ import type { AuthoringRepresentation } from '../../lib/driveDocument';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Spinner } from '../Spinner';
 import { ScrollArea } from '../ui/scroll-area';
+import { driveTypeLabel } from './drivePresentation';
 
 export interface DriveDocumentViewModel {
   fileId: string | null;
@@ -15,21 +16,13 @@ export interface DriveDocumentViewModel {
   representation: AuthoringRepresentation;
 }
 
-function formatLabel(mimeType: string): string {
-  if (mimeType === 'application/pdf') return 'PDF';
-  if (mimeType.includes('google-apps.document')) return 'Google Doc';
-  if (mimeType.includes('word')) return 'Word';
-  if (mimeType === 'text/plain') return 'TXT';
-  const parts = mimeType.split('/');
-  return parts[parts.length - 1]?.toUpperCase() || 'Archivo';
-}
-
 interface DriveDocumentViewProps {
   doc: DriveDocumentViewModel;
   docPhase: 'opening' | 'ready';
   mode: 'viewing' | 'editing';
   saving: boolean;
   saved: boolean;
+  dirty: boolean;
   selectedText: string;
   patientId: string | null;
   onBack: () => void;
@@ -47,6 +40,7 @@ export function DriveDocumentView({
   mode,
   saving,
   saved,
+  dirty,
   selectedText,
   patientId,
   onBack,
@@ -58,27 +52,39 @@ export function DriveDocumentView({
   onNameChange,
 }: DriveDocumentViewProps) {
   const canTransfer = Boolean(patientId && doc.boundPatientId === patientId);
+  const statusLabel = saving
+    ? 'Guardando…'
+    : docPhase === 'opening'
+      ? null
+      : dirty
+        ? 'Cambios sin guardar'
+        : saved || doc.fileId !== null
+          ? 'Guardado'
+          : null;
+
   return (
     <section className="drive-doc" aria-label={`Documento ${doc.name}`}>
-      <div className="drive-doc-header">
+      <header className="drive-document-header drive-doc-header">
         <button type="button" className="drive-btn drive-btn-secondary" onClick={onBack}>
           Volver
         </button>
-        {doc.fileId === null ? (
-          <label className="drive-doc-name-input">
-            Nombre del documento
-            <input
-              type="text"
-              value={doc.name}
-              onChange={(event) => onNameChange(event.target.value)}
-            />
-          </label>
-        ) : (
-          <span className="drive-doc-name" title={doc.name}>
-            {doc.name}
-          </span>
-        )}
-        <span className="drive-doc-format">{formatLabel(doc.mimeType)}</span>
+        <div className="drive-document-title-group min-w-0 flex-1">
+          {doc.fileId === null ? (
+            <label className="drive-doc-name-input">
+              Nombre del documento
+              <input
+                type="text"
+                value={doc.name}
+                onChange={(event) => onNameChange(event.target.value)}
+              />
+            </label>
+          ) : (
+            <span className="drive-doc-name" title={doc.name}>
+              {doc.name}
+            </span>
+          )}
+          <span className="drive-document-format">{driveTypeLabel(doc.mimeType, doc.name)}</span>
+        </div>
         <div className="drive-doc-modes" role="group" aria-label="Modo de visualización">
           <button
             type="button"
@@ -95,17 +101,16 @@ export function DriveDocumentView({
             Editar
           </button>
         </div>
-        {saving && (
-          <span className="drive-doc-saved" role="status" aria-label="Guardando…">
-            Guardando…
+        {statusLabel && (
+          <span
+            className="drive-document-status drive-doc-saved"
+            role="status"
+            aria-label={statusLabel}
+          >
+            {statusLabel}
           </span>
         )}
-        {!saving && saved && (
-          <span className="drive-doc-saved" role="status" aria-label="Guardado">
-            Guardado
-          </span>
-        )}
-      </div>
+      </header>
       <ScrollArea className="drive-doc-body">
         {docPhase === 'opening' ? (
           <div className="drive-document-skeleton" aria-busy="true" aria-label="Abriendo documento">
