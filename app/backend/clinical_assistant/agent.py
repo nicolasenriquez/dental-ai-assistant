@@ -116,6 +116,7 @@ async def run_clinical_agent(
 ) -> AsyncIterator[ClinicalAgentOutput]:
     """Run the clinical assistant and expose only typed domain outputs."""
     effects: deque[dict[str, Any]] = deque()
+    has_terminal_effect = False
 
     async def execute(tool_name: str, raw_arguments: str) -> str:
         handler = handlers.get(tool_name)
@@ -163,7 +164,10 @@ async def run_clinical_agent(
                 )
             elif loop_event.kind == "tool_done":
                 while effects:
-                    yield ClinicalAgentOutput(kind="effect", effect=effects.popleft())
+                    effect = effects.popleft()
+                    if effect.get("kind") in {"draft", "approval"}:
+                        has_terminal_effect = True
+                    yield ClinicalAgentOutput(kind="effect", effect=effect)
                 yield ClinicalAgentOutput(
                     kind="activity_completed",
                     tool_name=loop_event.tool_name,
@@ -174,5 +178,5 @@ async def run_clinical_agent(
     except Exception as exc:
         raise ClinicalAgentError from exc
 
-    if final_text:
+    if final_text and not has_terminal_effect:
         yield ClinicalAgentOutput(kind="assistant", content=final_text)

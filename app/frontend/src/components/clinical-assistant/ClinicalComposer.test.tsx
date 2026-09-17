@@ -17,7 +17,6 @@ function renderComposer(value = '') {
     <ClinicalComposer
       patient={patient}
       value={value}
-      busy={false}
       textareaRef={createRef<HTMLTextAreaElement>()}
       onChange={vi.fn()}
       onSubmit={vi.fn()}
@@ -51,7 +50,6 @@ describe('ClinicalComposer', () => {
       <ClinicalComposer
         patient={patient}
         value="Nota clínica"
-        busy={false}
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
         onSubmit={onSubmit}
@@ -81,7 +79,6 @@ describe('ClinicalComposer', () => {
       <ClinicalComposer
         patient={patient}
         value="Nota existente"
-        busy={false}
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={onChange}
         onSubmit={onSubmit}
@@ -119,7 +116,6 @@ describe('ClinicalComposer', () => {
       <ClinicalComposer
         patient={patient}
         value="Nota existente"
-        busy={false}
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -151,7 +147,6 @@ describe('ClinicalComposer', () => {
       <ClinicalComposer
         patient={patient}
         value="Nota"
-        busy={false}
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
         onSubmit={onSubmit}
@@ -174,18 +169,15 @@ describe('ClinicalComposer', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('exposes Stop and cancels voice from any focused composer control', () => {
-    const onStop = vi.fn();
+  it('keeps voice controls independent from agent runtime controls', () => {
     const onCancel = vi.fn();
     render(
       <ClinicalComposer
         patient={patient}
         value="Nota"
-        busy
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
-        onStop={onStop}
         voice={{
           state: 'recording',
           elapsed: 0,
@@ -198,10 +190,9 @@ describe('ClinicalComposer', () => {
         }}
       />,
     );
-    const stop = screen.getByRole('button', { name: 'Detener respuesta' });
+    const stop = screen.getByRole('button', { name: 'Detener grabación' });
     fireEvent.keyDown(stop, { key: 'Escape' });
-    fireEvent.click(stop);
     expect(onCancel).toHaveBeenCalledTimes(1);
-    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Detener respuesta' })).not.toBeInTheDocument();
   });
 });

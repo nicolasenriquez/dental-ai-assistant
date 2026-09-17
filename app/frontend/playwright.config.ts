@@ -1,6 +1,16 @@
 import os from 'node:os';
 import path from 'node:path';
 import { defineConfig } from '@playwright/test';
+import { loadEnv } from 'vite';
+
+const rootEnv = loadEnv(
+  process.env.NODE_ENV ?? 'development',
+  path.resolve(__dirname, '../..'),
+  '',
+);
+for (const [key, value] of Object.entries(rootEnv)) {
+  process.env[key] ??= value;
+}
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:8000';
 const parsedBaseURL = new URL(baseURL);

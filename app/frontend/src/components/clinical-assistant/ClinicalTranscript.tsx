@@ -14,6 +14,7 @@ import { Message } from '../Message';
 import { Spinner } from '../Spinner';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 import { ClinicalDraftItem } from './ClinicalDraftItem';
+import { ClinicalPatientSwitchItem } from './ClinicalPatientSwitchItem';
 
 type ResultItemData = Extract<ClinicalTranscriptItem, { type: 'result' }>;
 
@@ -62,11 +63,30 @@ interface ClinicalTranscriptProps {
   onRecoverDriveExport?: (evolutionId: string) => void;
   onReconnectDrive?: () => void;
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
+  onKeepPatient?: (itemId: string) => void;
+  onChangePatient?: (item: Extract<ClinicalTranscriptItem, { type: 'patient_switch' }>) => void;
 }
 
 function ProcessingStatus({ items }: { items: ClinicalTranscriptItem[] }) {
   const activities = items.filter((item) => item.type === 'activity');
   const status = activities[0]?.status ?? 'pending';
+  const active = activities.some((item) => item.status === 'running' || item.status === 'pending');
+  const activityList = (
+    <ul>
+      {activities.map((item) => (
+        <li key={item.id} className={`is-${item.status}`}>
+          {item.status === 'running' || item.status === 'pending' ? (
+            <Spinner />
+          ) : item.status === 'failed' || item.status === 'declined' ? (
+            <CircleX aria-hidden="true" size={14} />
+          ) : (
+            <Check aria-hidden="true" size={14} />
+          )}
+          <span>{item.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
   return (
     <section
       className={`clinical-processing clinical-activity--${status === 'running' || status === 'pending' ? 'active' : status}`}
@@ -74,21 +94,20 @@ function ProcessingStatus({ items }: { items: ClinicalTranscriptItem[] }) {
       aria-label="Preparando evolución"
       aria-live="polite"
     >
-      <strong>Preparando evolución</strong>
-      <ul>
-        {activities.map((item) => (
-          <li key={item.id} className={`is-${item.status}`}>
-            {item.status === 'running' || item.status === 'pending' ? (
-              <Spinner />
-            ) : item.status === 'failed' || item.status === 'declined' ? (
-              <CircleX aria-hidden="true" size={14} />
-            ) : (
-              <Check aria-hidden="true" size={14} />
-            )}
-            <span>{item.label}</span>
-          </li>
-        ))}
-      </ul>
+      {active ? (
+        <>
+          <strong>Preparando evolución…</strong>
+          {activityList}
+        </>
+      ) : (
+        <details>
+          <summary>
+            Preparado con {activities.length} {activities.length === 1 ? 'paso' : 'pasos'} · Ver
+            detalles
+          </summary>
+          {activityList}
+        </details>
+      )}
     </section>
   );
 }
@@ -128,6 +147,8 @@ export function ClinicalTranscript({
   onRecoverDriveExport,
   onReconnectDrive,
   onOpenDriveJournal,
+  onKeepPatient,
+  onChangePatient,
 }: ClinicalTranscriptProps) {
   const follow = useChatAutoFollow();
   const viewport = useConversationViewportCache({
@@ -216,6 +237,16 @@ export function ClinicalTranscript({
                   if (group.slice(0, index).some((candidate) => candidate.type === 'activity'))
                     return null;
                   return <ProcessingStatus key={item.id} items={group} />;
+                }
+                if (item.type === 'patient_switch') {
+                  return (
+                    <ClinicalPatientSwitchItem
+                      key={item.id}
+                      item={item}
+                      onKeep={() => onKeepPatient?.(item.id)}
+                      onChange={() => onChangePatient?.(item)}
+                    />
+                  );
                 }
                 if (item.type === 'draft') {
                   const approval = group.find(

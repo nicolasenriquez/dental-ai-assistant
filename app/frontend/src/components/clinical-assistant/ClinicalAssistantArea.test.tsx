@@ -40,7 +40,6 @@ function createAssistant(): ClinicalAssistantController {
     prepareDraft: vi.fn(),
     resolve: vi.fn(),
     backToEdit: vi.fn(),
-    patientSwitch: null,
     cancelPatientSwitch: vi.fn(),
     confirmPatientSwitch: vi.fn(),
     reload: vi.fn(async () => assistantState.thread),
@@ -79,7 +78,7 @@ describe('ClinicalAssistantArea queue', () => {
   it('keeps the fourth draft when three messages are already queued', () => {
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
     const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
-    const submit = screen.getByRole('button', { name: 'Poner mensaje en cola' });
+    const submit = screen.getByRole('button', { name: 'Enviar mensaje' });
 
     for (const message of ['Uno', 'Dos', 'Tres']) {
       fireEvent.change(composer, { target: { value: message } });
@@ -90,7 +89,7 @@ describe('ClinicalAssistantArea queue', () => {
 
     expect(composer).toHaveValue('Cuatro');
     expect(screen.getByRole('alert')).toHaveTextContent('Ya tienes 3 mensajes pendientes.');
-    expect(screen.getByText('3 mensajes en cola')).toBeVisible();
+    expect(screen.getByText('Pendientes 3/3')).toBeVisible();
   });
 
   it('preserves composer text but blocks submission while approval is pending', () => {
@@ -102,8 +101,42 @@ describe('ClinicalAssistantArea queue', () => {
 
     expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
     expect(composer).toHaveValue('Siguiente nota');
-    expect(screen.getByText('Revisa la evolución pendiente antes de continuar.')).toBeVisible();
+    expect(screen.getByText('Evolución pendiente de revisión · Ver')).toBeVisible();
     expect(screen.queryByText(/mensaje.*en cola/)).not.toBeInTheDocument();
+  });
+
+  it('shows patient status only for an active patient and reuses the header picker', async () => {
+    const patient: ClinicalPatient = {
+      id: 'patient-1',
+      first_name: 'Ana',
+      last_name: 'Pérez',
+      rut_masked: '12.345.•••-6',
+      birth_date: '1990-01-01',
+    };
+    assistantState.thread = createThread(patient);
+    runtime.value = 'idle';
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+
+    const statusTrigger = screen.getByRole('button', { name: 'Ana Pérez' });
+    fireEvent.click(statusTrigger);
+    const region = screen.getByRole('region', { name: 'Paciente' });
+    expect(within(region).getByText('12.345.•••-6')).toBeVisible();
+    expect(region).not.toHaveTextContent('patient-1');
+
+    fireEvent.click(within(region).getByRole('button', { name: 'Cambiar paciente' }));
+    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  });
+
+  it('keeps agent Stop outside the voice controls', () => {
+    const assistant = createAssistant();
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Detener' }));
+    expect(assistant.stop).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
   });
 
   it('shows selection progress, preserves the previous patient, and retries failures', async () => {

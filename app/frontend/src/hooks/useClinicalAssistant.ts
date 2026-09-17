@@ -20,7 +20,7 @@ import {
   type ClinicalApprovalItem,
   type ClinicalDraftItem,
   type ClinicalItemStatus,
-  type ClinicalPatientSwitch,
+  type ClinicalPatientSwitchItem,
   type ClinicalRuntime,
   type ClinicalTranscriptItem,
   artifactToDraftItem,
@@ -33,7 +33,7 @@ import {
 export type {
   ClinicalApprovalItem,
   ClinicalDraftItem,
-  ClinicalPatientSwitch,
+  ClinicalPatientSwitchItem,
   ClinicalTranscriptItem,
   ClinicalRuntime,
 } from './clinicalRuntime';
@@ -127,7 +127,6 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
   const [runtime, setRuntime] = useState<ClinicalRuntime>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [patientSwitch, setPatientSwitch] = useState<ClinicalPatientSwitch | null>(null);
   const [artifactSyncState, setArtifactSyncState] = useState<
     Record<string, 'idle' | 'saving' | 'saved' | 'error'>
   >({});
@@ -141,6 +140,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const artifactTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const artifactSyncsRef = useRef<Record<string, Promise<void>>>({});
   const recoveredExportsRef = useRef(new Set<string>());
+  const patientSwitchItemsRef = useRef<ClinicalPatientSwitchItem[]>([]);
 
   const load = useCallback(async (): Promise<ClinicalThread | null> => {
     if (!threadId || threadIdRef.current !== threadId) return null;
@@ -151,6 +151,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     const actions = loaded.actions ?? [];
     const hydrated = hydrateItems({ ...loaded, actions });
     dispatch({ type: 'reset', items: hydrated });
+    for (const item of patientSwitchItemsRef.current) dispatch({ type: 'append', item });
     setRuntime(
       actions.some((action) => action.status === 'pending') ? 'awaiting_approval' : 'idle',
     );
@@ -184,14 +185,14 @@ export function useClinicalAssistant(threadId: string | undefined) {
       dispatch({ type: 'reset', items: [] });
       setRuntime('idle');
       setError(null);
-      setPatientSwitch(null);
+      patientSwitchItemsRef.current = [];
       return;
     }
     setThread(null);
     dispatch({ type: 'reset', items: [] });
     setRuntime('idle');
     setError(null);
-    setPatientSwitch(null);
+    patientSwitchItemsRef.current = [];
     void load().catch(() => {
       if (!cancelled) setError('No pudimos cargar este hilo clínico.');
     });
@@ -332,7 +333,19 @@ export function useClinicalAssistant(threadId: string | undefined) {
               const currentPatient = payload.current_patient as ClinicalPatient | undefined;
               const detectedPatient = payload.detected_patient as ClinicalPatient | undefined;
               if (currentPatient?.id && detectedPatient?.id) {
-                setPatientSwitch({ current: currentPatient, detected: detectedPatient });
+                patientSwitchItemsRef.current = [
+                  ...patientSwitchItemsRef.current.filter((item) => item.id !== decoded.itemId),
+                  {
+                    id: decoded.itemId,
+                    turnId: decoded.turnId,
+                    status: 'pending',
+                    createdAt: now(),
+                    type: 'patient_switch',
+                    current: currentPatient,
+                    detected: detectedPatient,
+                    resolution: 'pending',
+                  },
+                ];
               }
             } else if (event === 'turn.failed') {
               turnFailedRef.current = true;
@@ -614,23 +627,34 @@ export function useClinicalAssistant(threadId: string | undefined) {
     [clinicalState.items, send],
   );
 
-  const cancelPatientSwitch = useCallback(() => {
-    setPatientSwitch(null);
+  const cancelPatientSwitch = useCallback((itemId: string) => {
+    patientSwitchItemsRef.current = patientSwitchItemsRef.current.map((item) =>
+      item.id === itemId ? { ...item, status: 'completed', resolution: 'kept_current' } : item,
+    );
+    dispatch({ type: 'resolvePatientSwitch', itemId, resolution: 'kept_current' });
     setError(null);
     setRuntime('idle');
   }, []);
 
-  const confirmPatientSwitch = useCallback(async () => {
-    if (!patientSwitch || !threadId) return;
-    try {
-      await setActivePatient(patientSwitch.detected.id);
-      setPatientSwitch(null);
-      setError(null);
-      setRuntime('idle');
-    } catch {
-      setError('No pudimos cambiar el paciente activo.');
-    }
-  }, [patientSwitch, setActivePatient, threadId]);
+  const confirmPatientSwitch = useCallback(
+    async (item: ClinicalPatientSwitchItem) => {
+      if (!threadId) return;
+      try {
+        await setActivePatient(item.detected.id);
+        patientSwitchItemsRef.current = patientSwitchItemsRef.current.map((candidate) =>
+          candidate.id === item.id
+            ? { ...candidate, status: 'completed', resolution: 'changed_patient' }
+            : candidate,
+        );
+        dispatch({ type: 'resolvePatientSwitch', itemId: item.id, resolution: 'changed_patient' });
+        setError(null);
+        setRuntime('idle');
+      } catch {
+        setError('No pudimos cambiar el paciente activo.');
+      }
+    },
+    [setActivePatient, threadId],
+  );
 
   return {
     thread,
@@ -647,7 +671,6 @@ export function useClinicalAssistant(threadId: string | undefined) {
     prepareDraft,
     resolve,
     backToEdit,
-    patientSwitch,
     cancelPatientSwitch,
     confirmPatientSwitch,
     reload: load,

@@ -67,7 +67,7 @@ export interface DriveWorkspaceProps {
   patient?: DrivePatientContext | null;
   onSurfaceChange?: (surface: 'compact' | 'document') => void;
   draftSeed?: { name: string; content: string } | null;
-  onInsertToComposer?: (text: string) => void;
+  onInsertToComposer?: (item: import('../../lib/api').ComposerContextItem) => void;
   onDirtyStateChange?: (dirty: boolean) => void;
   guardTransition?: (continuation: () => void) => void;
   handleRef?: MutableRefObject<DriveWorkspaceHandle | null>;
@@ -105,11 +105,6 @@ function diagnosticError(error: unknown): string {
   if (error instanceof ApiError) return `API error ${error.status}`;
   if (error instanceof Error && error.message.length <= 120) return error.message;
   return 'unknown error';
-}
-
-function formatDriveInsertion(text: string, sourceName: string): string {
-  const name = sourceName.replace(/\s+/g, ' ').trim() || 'Nota de Drive';
-  return `Fuente: Google Drive · ${name}\n${text}`;
 }
 
 export function DriveWorkspace({
@@ -709,7 +704,12 @@ export function DriveWorkspace({
     }
   };
 
-  const handleInsert = (text: string, sourceName: string, boundPatientId?: string | null) => {
+  const handleInsert = (
+    text: string,
+    sourceId: string,
+    sourceName: string,
+    boundPatientId?: string | null,
+  ) => {
     if (
       !text ||
       !patientId ||
@@ -718,7 +718,13 @@ export function DriveWorkspace({
     )
       return;
     try {
-      onInsertToComposer(formatDriveInsertion(text, sourceName));
+      onInsertToComposer({
+        id: crypto.randomUUID(),
+        kind: 'drive_selection',
+        sourceId,
+        sourceName: sourceName.replace(/\s+/g, ' ').trim() || 'Nota de Drive',
+        content: text,
+      });
       setInsertionFeedback('Incorporado al borrador');
       setErrorMessage(null);
     } catch {
@@ -752,7 +758,7 @@ export function DriveWorkspace({
       onBack={closeDoc}
       onModeChange={setMode}
       onSave={() => void handleSave()}
-      onInsert={(text) => handleInsert(text, doc.name, doc.boundPatientId)}
+      onInsert={(text) => handleInsert(text, doc.fileId ?? doc.name, doc.name, doc.boundPatientId)}
       setDoc={setDoc}
       setSelectedText={setSelectedText}
       onNameChange={(name) =>
@@ -1057,7 +1063,7 @@ export function DriveWorkspace({
           onBack={closeDoc}
           onClose={requestCloseWorkspace}
           onSave={() => void handleSave()}
-          onInsert={(text) => handleInsert(text, sourceDoc.source.name)}
+          onInsert={(text) => handleInsert(text, sourceDoc.source.id, sourceDoc.source.name)}
           onChange={(content) =>
             setWorkspaceDocument((previous) =>
               previous?.kind === 'source' ? { ...previous, content } : previous,

@@ -61,6 +61,13 @@ export interface ClinicalErrorItem extends ClinicalBaseItem {
   message: string;
 }
 
+export interface ClinicalPatientSwitchItem extends ClinicalBaseItem {
+  type: 'patient_switch';
+  current: ClinicalPatient;
+  detected: ClinicalPatient;
+  resolution: 'pending' | 'kept_current' | 'changed_patient';
+}
+
 export function artifactToDraftItem(artifact: ClinicalTurnArtifact): ClinicalDraftItem {
   return {
     id: artifact.id,
@@ -91,12 +98,8 @@ export type ClinicalTranscriptItem =
   | ClinicalDraftItem
   | ClinicalApprovalItem
   | ClinicalResultItem
-  | ClinicalErrorItem;
-
-export interface ClinicalPatientSwitch {
-  current: ClinicalPatient;
-  detected: ClinicalPatient;
-}
+  | ClinicalErrorItem
+  | ClinicalPatientSwitchItem;
 
 export type ClinicalRuntime =
   | 'idle'
@@ -256,7 +259,12 @@ export type ClinicalReducerAction =
       evolutionId: string;
       driveExport: NonNullable<ClinicalPendingAction['drive_export']>;
     }
-  | { type: 'returnToEditing'; approvalId: string; artifactId: string | null };
+  | { type: 'returnToEditing'; approvalId: string; artifactId: string | null }
+  | {
+      type: 'resolvePatientSwitch';
+      itemId: string;
+      resolution: ClinicalPatientSwitchItem['resolution'];
+    };
 
 export function createClinicalReducerState(
   items: ClinicalTranscriptItem[] = [],
@@ -371,6 +379,22 @@ function itemFromEvent(event: ClinicalEvent): ClinicalTranscriptItem | null {
       patient: event.data.patient as unknown as ClinicalPatient,
     };
   }
+  if (
+    event.name === 'patient.switch_required' &&
+    isRecord(event.data.current_patient) &&
+    isRecord(event.data.detected_patient)
+  ) {
+    return {
+      id: event.itemId,
+      turnId: event.turnId,
+      status: 'pending',
+      createdAt,
+      type: 'patient_switch',
+      current: event.data.current_patient as unknown as ClinicalPatient,
+      detected: event.data.detected_patient as unknown as ClinicalPatient,
+      resolution: 'pending',
+    };
+  }
   return null;
 }
 
@@ -426,6 +450,16 @@ export function clinicalReducer(
             ? { ...item, status: 'completed' as const, artifactStatus: 'draft' as const }
             : item,
         ),
+    };
+  }
+  if (action.type === 'resolvePatientSwitch') {
+    return {
+      ...state,
+      items: state.items.map((item) =>
+        item.id === action.itemId && item.type === 'patient_switch'
+          ? { ...item, status: 'completed', resolution: action.resolution }
+          : item,
+      ),
     };
   }
   if (action.type === 'updateDraft') {

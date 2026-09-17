@@ -144,6 +144,14 @@ export interface ClinicalMessage {
   created_at: string;
 }
 
+export interface ComposerContextItem {
+  id: string;
+  kind: 'drive_selection';
+  sourceId: string;
+  sourceName: string;
+  content: string;
+}
+
 export interface ClinicalPatient {
   id: string;
   first_name: string;

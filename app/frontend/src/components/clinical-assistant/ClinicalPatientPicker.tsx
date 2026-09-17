@@ -15,6 +15,8 @@ interface ClinicalPatientPickerProps {
   selectionError?: string | null;
   onRetryPatientChange?: () => void;
   disabled?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function ClinicalPatientPicker({
@@ -28,8 +30,16 @@ export function ClinicalPatientPicker({
   selectionError,
   onRetryPatientChange,
   disabled = false,
+  open: controlledOpen,
+  onOpenChange,
 }: ClinicalPatientPickerProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean | ((current: boolean) => boolean)) => {
+    const value = typeof next === 'function' ? next(open) : next;
+    if (controlledOpen === undefined) setInternalOpen(value);
+    onOpenChange?.(value);
+  };
   const [query, setQuery] = useState('');
   const [activeOption, setActiveOption] = useState(0);
   const statusId = useId();

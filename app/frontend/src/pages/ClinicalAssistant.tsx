@@ -17,7 +17,7 @@ import {
 } from '../components/ui/alert-dialog';
 import { useClinicalAssistant } from '../hooks/useClinicalAssistant';
 import { TransitionGuardProvider, useTransitionGuard } from '../hooks/useTransitionGuard';
-import type { ClinicalPatient, DriveJournalTarget } from '../lib/api';
+import type { ClinicalPatient, ComposerContextItem, DriveJournalTarget } from '../lib/api';
 import { acquireClinicalThread } from '../lib/api';
 
 export function ClinicalAssistant() {
@@ -59,7 +59,7 @@ function ClinicalAssistantContent() {
   const [pendingTransition, setPendingTransition] = useState<(() => void) | null>(null);
   const [savingTransition, setSavingTransition] = useState(false);
   const driveRef = useRef<DriveWorkspaceHandle>(null);
-  const composerInsertRef = useRef<(text: string) => void>(() => undefined);
+  const composerInsertRef = useRef<(item: ComposerContextItem) => void>(() => undefined);
   const createStarted = useRef(false);
 
   const setDriveVisibility = (open: boolean) => {
@@ -164,7 +164,7 @@ function ClinicalAssistantContent() {
             onSurfaceChange={setDriveSurface}
             draftSeed={driveDraftSeed}
             guardTransition={transitionGuard.guardTransition}
-            onInsertToComposer={(text) => composerInsertRef.current(text)}
+            onInsertToComposer={(item) => composerInsertRef.current(item)}
             onDirtyStateChange={setDriveDirty}
             open={driveOpen}
             onClose={() => requestDriveVisibility(false)}

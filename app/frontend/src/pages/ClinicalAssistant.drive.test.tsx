@@ -125,7 +125,6 @@ vi.mock('../hooks/useClinicalAssistant', () => ({
     prepareDraft: vi.fn(async () => null),
     resolve: vi.fn(async () => {}),
     backToEdit: vi.fn(async () => true),
-    patientSwitch: null,
     cancelPatientSwitch: vi.fn(),
     confirmPatientSwitch: vi.fn(),
     reload: vi.fn(),
@@ -398,9 +397,8 @@ describe('Clinical Assistant Drive transfer', () => {
     fireEvent.change(composer(), { target: { value: 'nota previa' } });
     fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
 
-    expect(composer()).toHaveValue(
-      'nota previa\n\nFuente: Google Drive · Respuesta del asistente.txt\nMensaje del asistente',
-    );
+    expect(composer()).toHaveValue('nota previa');
+    expect(screen.getByText('Respuesta del asistente.txt · selección')).toBeVisible();
     expect(composer()).toHaveFocus();
     expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeVisible();
     expect(mocks.send).not.toHaveBeenCalled();

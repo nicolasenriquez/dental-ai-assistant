@@ -120,7 +120,7 @@ afterEach(() => {
 
 function renderWorkspace(
   patientId: string | null = 'p1',
-  onInsertToComposer?: (text: string) => void,
+  onInsertToComposer?: (item: import('../../lib/api').ComposerContextItem) => void,
 ) {
   return render(
     <DriveWorkspace
@@ -334,7 +334,14 @@ describe('Drive-to-composer insertion', () => {
     await openNote();
     fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
 
-    expect(insert).toHaveBeenCalledWith(`Fuente: Google Drive · ${source.name}\n${source.content}`);
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'drive_selection',
+        sourceId: source.id,
+        sourceName: source.name,
+        content: source.content,
+      }),
+    );
     expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeInTheDocument();
     expect(api.createDriveFile).not.toHaveBeenCalled();
     expect(api.updateDriveFile).not.toHaveBeenCalled();
@@ -350,7 +357,14 @@ describe('Drive-to-composer insertion', () => {
     fireEvent.select(editor);
     fireEvent.click(screen.getByRole('button', { name: 'Incorporar al borrador' }));
 
-    expect(insert).toHaveBeenCalledWith(`Fuente: Google Drive · ${source.name}\nNota`);
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'drive_selection',
+        sourceId: source.id,
+        sourceName: source.name,
+        content: 'Nota',
+      }),
+    );
     expect(
       screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }),
     ).toBeInTheDocument();

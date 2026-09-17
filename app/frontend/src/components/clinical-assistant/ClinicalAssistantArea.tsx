@@ -5,6 +5,7 @@ import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictatio
 import {
   type ClinicalDraft,
   type ClinicalPatient,
+  type ComposerContextItem,
   type DriveJournalTarget,
   type Patient,
   getPatients,
@@ -19,6 +20,7 @@ import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { ClinicalComposer } from './ClinicalComposer';
 import { ClinicalPatientPicker, type ClinicalPatientSelectionState } from './ClinicalPatientPicker';
 import { ClinicalTranscript } from './ClinicalTranscript';
+import { PatientStatusPanel } from './PatientStatusPanel';
 
 interface ClinicalAssistantAreaProps {
   threadId: string;
@@ -26,7 +28,7 @@ interface ClinicalAssistantAreaProps {
   onThreadStateChanged?: () => void;
   guardTransition?: (continuation: () => void) => void;
   onActivePatientChange?: (patient: ClinicalPatient | null) => void;
-  onComposerInsertReady?: (insert: (text: string) => void) => void;
+  onComposerInsertReady?: (insert: (item: ComposerContextItem) => void) => void;
   onSaveToDrive?: (seed: { name: string; content: string }) => void;
   driveOpen?: boolean;
   onToggleDrive?: () => void;
@@ -34,12 +36,6 @@ interface ClinicalAssistantAreaProps {
 }
 
 type QueuedEntry = { id: string; content: string; patientId: string | null; patientName: string };
-
-function appendWithBlankLine(current: string, inserted: string): string {
-  if (!current) return inserted;
-  const trailingNewlines = current.match(/\n*$/)?.[0].length ?? 0;
-  return `${current}${'\n'.repeat(Math.max(0, 2 - trailingNewlines))}${inserted}`;
-}
 
 export function ClinicalAssistantArea({
   threadId,
@@ -64,6 +60,9 @@ export function ClinicalAssistantArea({
   const [preparingDraftId, setPreparingDraftId] = useState<string | null>(null);
   const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
+  const [contextByThread, setContextByThread] = useState<Record<string, ComposerContextItem[]>>({});
+  const [patientStatusOpen, setPatientStatusOpen] = useState(false);
+  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
   const voiceCaretRef = useRef<number | null>(null);
@@ -72,6 +71,7 @@ export function ClinicalAssistantArea({
   const lastPatientChangeRef = useRef<string | null | undefined>(undefined);
   const value = draftByThread[threadId] ?? '';
   const queued = queueByThread[threadId] ?? [];
+  const contextItems = contextByThread[threadId] ?? [];
   const setValue = useCallback(
     (next: string | ((current: string) => string)) => {
       setDraftByThread((current) => ({
@@ -100,6 +100,9 @@ export function ClinicalAssistantArea({
   const voice = useVoiceDictation(voiceScope, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
   const activePatient = assistant.thread?.active_patient ?? null;
+  useEffect(() => {
+    setPatientStatusOpen(false);
+  }, [threadId, activePatient?.id]);
   useEffect(() => {
     patientChangeRequestRef.current += 1;
     lastPatientChangeRef.current = undefined;
@@ -156,12 +159,15 @@ export function ClinicalAssistantArea({
   }, [voiceInFlight]);
 
   const insertIntoComposer = useCallback(
-    (text: string) => {
-      if (!text) return;
-      setValue((current) => appendWithBlankLine(current, text));
+    (item: ComposerContextItem) => {
+      if (!item.content) return;
+      setContextByThread((current) => ({
+        ...current,
+        [threadId]: [...(current[threadId] ?? []), item],
+      }));
       textareaRef.current?.focus();
     },
-    [setValue],
+    [threadId],
   );
 
   useEffect(() => {
@@ -207,7 +213,11 @@ export function ClinicalAssistantArea({
 
   const send = () => {
     if (!value.trim() || voiceInFlight) return;
-    const message = value.trim();
+    const instruction = value.trim();
+    const sources = contextItems
+      .map((item) => `Fuente: Google Drive · ${item.sourceName}\n${item.content}`)
+      .join('\n\n');
+    const message = sources ? `${instruction}\n\n${sources}` : instruction;
     const queueable = assistant.runtime === 'streaming' || assistant.runtime === 'stopping';
     if (assistant.runtime === 'saving' || assistant.runtime === 'awaiting_approval') return;
     if (queueable) {
@@ -217,6 +227,7 @@ export function ClinicalAssistantArea({
       }
       setQueueError(null);
       setValue('');
+      setContextByThread((current) => ({ ...current, [threadId]: [] }));
       updateQueue((current) => [
         ...current,
         {
@@ -232,6 +243,7 @@ export function ClinicalAssistantArea({
     }
     setQueueError(null);
     setValue('');
+    setContextByThread((current) => ({ ...current, [threadId]: [] }));
     void assistant.send(message).then((ok) => {
       if (!ok) setValue((current) => current || message);
       else onThreadStateChanged?.();
@@ -279,6 +291,8 @@ export function ClinicalAssistantArea({
             selectionError={patientSelectionError}
             onRetryPatientChange={retryPatientChange}
             disabled={voiceInFlight}
+            open={patientPickerOpen}
+            onOpenChange={setPatientPickerOpen}
           />
         }
       />
@@ -319,6 +333,11 @@ export function ClinicalAssistantArea({
           if (!driveOpen) onToggleDrive?.();
         }}
         onOpenDriveJournal={onOpenDriveJournal}
+        onKeepPatient={assistant.cancelPatientSwitch}
+        onChangePatient={(item) => {
+          const change = () => void assistant.confirmPatientSwitch(item);
+          guardTransition ? guardTransition(change) : change();
+        }}
         onPrepare={(item) => {
           setPreparingDraftId(item.id);
           void assistant.prepareDraft(item).then((approval) => {
@@ -359,57 +378,32 @@ export function ClinicalAssistantArea({
           {queueError}
         </p>
       )}
-      {assistant.patientSwitch && (
-        <section
-          className="clinical-patient-switch"
-          role="alert"
-          aria-labelledby="patient-switch-title"
-        >
-          <h2 id="patient-switch-title">Cambiar paciente activo</h2>
-          <p>Este mensaje identificó un paciente distinto al activo.</p>
-          <div className="clinical-patient-switch-grid">
-            <span>
-              Actual:{' '}
-              <strong>
-                {assistant.patientSwitch.current.first_name}{' '}
-                {assistant.patientSwitch.current.last_name} ·{' '}
-                {assistant.patientSwitch.current.rut_masked}
-              </strong>
-            </span>
-            <span>
-              Detectado:{' '}
-              <strong>
-                {assistant.patientSwitch.detected.first_name}{' '}
-                {assistant.patientSwitch.detected.last_name} ·{' '}
-                {assistant.patientSwitch.detected.rut_masked}
-              </strong>
-            </span>
-          </div>
-          <div className="clinical-artifact-actions">
-            <button
-              type="button"
-              className="clinical-secondary-button"
-              onClick={assistant.cancelPatientSwitch}
-              disabled={voiceInFlight}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="clinical-primary-button"
-              onClick={() => {
-                const change = () => void assistant.confirmPatientSwitch();
-                guardTransition ? guardTransition(change) : change();
-              }}
-              disabled={voiceInFlight}
-            >
-              Cambiar paciente
-            </button>
-          </div>
-        </section>
-      )}
-      <div className="chat-input-dock clinical-composer-dock">
+      <div
+        className="chat-input-dock clinical-composer-dock"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && patientStatusOpen && !voiceInFlight) {
+            event.preventDefault();
+            setPatientStatusOpen(false);
+          }
+        }}
+      >
         <div className="chat-input-dock-inner">
+          {(assistant.runtime === 'streaming' || assistant.runtime === 'stopping') && (
+            <div
+              className="mb-2 flex items-center justify-between gap-3 text-xs text-[var(--text-secondary)]"
+              role="status"
+            >
+              <span>Assistant trabajando · los mensajes nuevos quedarán pendientes</span>
+              <button
+                type="button"
+                className="clinical-secondary-button"
+                onClick={assistant.stop}
+                disabled={assistant.runtime === 'stopping'}
+              >
+                {assistant.runtime === 'stopping' ? 'Deteniendo…' : 'Detener'}
+              </button>
+            </div>
+          )}
           {assistant.runtime === 'saving' && (
             <p className="clinical-composer-lock" role="status">
               Espera mientras guardamos la evolución.
@@ -417,14 +411,12 @@ export function ClinicalAssistantArea({
           )}
           {assistant.runtime === 'awaiting_approval' && (
             <p className="clinical-composer-lock" role="status">
-              Revisa la evolución pendiente antes de continuar.
+              Evolución pendiente de revisión · Ver
             </p>
           )}
           {queued.length > 0 && (
             <div className="clinical-queue" aria-label="Mensajes en cola">
-              <strong>
-                {queued.length} {queued.length === 1 ? 'mensaje' : 'mensajes'} en cola
-              </strong>
+              <strong>Pendientes {queued.length}/3</strong>
               {queued.map((entry) => (
                 <div key={entry.id} className="clinical-queue-item">
                   <span>{entry.content}</span>
@@ -467,19 +459,31 @@ export function ClinicalAssistantArea({
               )}
             </div>
           )}
+          {patientStatusOpen && activePatient && (
+            <PatientStatusPanel
+              patient={activePatient}
+              onClose={() => setPatientStatusOpen(false)}
+              onChangePatient={() => {
+                setPatientStatusOpen(false);
+                setPatientPickerOpen(true);
+              }}
+            />
+          )}
           <ClinicalComposer
             patient={assistant.thread?.active_patient ?? null}
             value={value}
-            busy={assistant.runtime === 'streaming' || assistant.runtime === 'stopping'}
             textareaRef={textareaRef}
             onChange={setValue}
             onSubmit={send}
-            onStop={
-              assistant.runtime === 'streaming' || assistant.runtime === 'stopping'
-                ? assistant.stop
-                : undefined
+            patientStatusOpen={patientStatusOpen}
+            onTogglePatientStatus={() => setPatientStatusOpen((open) => !open)}
+            contextItems={contextItems}
+            onRemoveContext={(id) =>
+              setContextByThread((current) => ({
+                ...current,
+                [threadId]: (current[threadId] ?? []).filter((item) => item.id !== id),
+              }))
             }
-            stopping={assistant.runtime === 'stopping'}
             voice={{
               state: voice.state,
               elapsed: voice.elapsed,

@@ -241,7 +241,12 @@ describe('ClinicalTranscript', () => {
       { ...base, id: `activity-${status}`, type: 'activity', status, label: 'pensando literal' },
     ]);
     expect(screen.getByRole('status')).toHaveClass(className);
-    expect(screen.getByText('pensando literal')).toBeVisible();
+    if (status === 'pending' || status === 'running') {
+      expect(screen.getByText('pensando literal')).toBeVisible();
+    } else {
+      expect(screen.getByText('Preparado con 1 paso · Ver detalles')).toBeVisible();
+      expect(screen.getByText('pensando literal')).not.toBeVisible();
+    }
   });
 
   it('keeps assistant prose and processing unboxed beside one clinical artifact', () => {

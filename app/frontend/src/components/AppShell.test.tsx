@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { type KeyboardEventHandler, type RefObject, useEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AppShell } from './AppShell';
@@ -60,6 +60,37 @@ function MountProbe({ onUnmount }: { onUnmount: () => void }) {
 }
 
 describe('AppShell mobile sidebar', () => {
+  it('keeps workspace content mounted when crossing the mobile breakpoint', () => {
+    let mobile = false;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        get matches() {
+          return query.includes('767') ? mobile : true;
+        },
+        addEventListener: (_event: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_event: string, listener: () => void) => listeners.delete(listener),
+      })),
+    );
+    const onUnmount = vi.fn();
+
+    render(
+      <AppShell showConversations={false} workspaceMode>
+        <MountProbe onUnmount={onUnmount} />
+      </AppShell>,
+    );
+
+    mobile = true;
+    act(() => {
+      for (const listener of listeners) listener();
+    });
+
+    expect(screen.getByText('Contenido')).toBeVisible();
+    expect(onUnmount).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it('renders the desktop workspace as a resizable accessory split', () => {
     vi.stubGlobal(
       'matchMedia',

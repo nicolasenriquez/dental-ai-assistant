@@ -1,5 +1,6 @@
 import { PanelLeftOpen } from 'lucide-react';
 import {
+  Fragment,
   type KeyboardEvent,
   type MutableRefObject,
   type ReactNode,
@@ -213,6 +214,7 @@ export function AppShell({
           >
             {isMobileSidebar && !sidebarOpen && (
               <button
+                key="mobile-navigation-trigger"
                 ref={menuButtonRef}
                 type="button"
                 className="hamburger-btn"
@@ -225,15 +227,15 @@ export function AppShell({
                 <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
               </button>
             )}
-            <DriveBootstrapBanner />
+            <DriveBootstrapBanner key="drive-bootstrap-banner" />
             {workspaceLayoutEnabled ? (
               isCompactWorkspace ? (
-                <div className="workspace-mobile-stack">
+                <div key="workspace" className="workspace-mobile-stack">
                   {children}
                   {workspaceAccessoryVisible ? workspaceAccessory : null}
                 </div>
               ) : (
-                <div className="workspace-row">
+                <div key="workspace" className="workspace-row">
                   <ResizableGroup
                     groupRef={workspaceGroup}
                     id="clinical-workspace"
@@ -286,7 +288,7 @@ export function AppShell({
                 </div>
               )
             ) : (
-              children
+              <Fragment key="workspace">{children}</Fragment>
             )}
           </div>
         </div>
