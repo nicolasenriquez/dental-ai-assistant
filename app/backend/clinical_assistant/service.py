@@ -503,6 +503,26 @@ async def _stream_turn(
     )
 
     if claimed["replay"]:
+        artifacts = await repository.list_turn_artifacts(owner, thread, turn)
+        for artifact in artifacts:
+            if artifact.get("artifact_type") != "clinical_draft":
+                continue
+            yield event(
+                "item.completed",
+                {
+                    "thread_id": str(thread),
+                    "turn_id": str(turn),
+                    "item_id": str(artifact["id"]),
+                    "item_type": "clinical_draft",
+                    "status": "completed",
+                    "artifact_status": artifact["status"],
+                    "draft": artifact["draft"],
+                    "generated_draft": artifact["generated_draft"],
+                    "source_note": artifact["source_note"],
+                    "patient_id": str(artifact["patient_id"]),
+                    "evolution_at": str(artifact["evolution_at"]),
+                },
+            )
         for message in claimed["messages"]:
             if message["role"] == "assistant":
                 yield event(
@@ -648,6 +668,7 @@ async def _stream_turn(
         if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
             raise clinical_evolutions.ClinicalGenerationDisabledError
         activity_ids: dict[str, str] = {}
+        produced_artifact = False
         async for output in run_clinical_agent(
             context=context,
             messages=_conversation_messages(stored, sanitized.model_text),
@@ -670,6 +691,7 @@ async def _stream_turn(
             elif output.kind == "effect" and output.effect:
                 effect = output.effect
                 if effect["kind"] == "draft":
+                    produced_artifact = True
                     yield event(
                         "item.completed",
                         {
@@ -695,7 +717,7 @@ async def _stream_turn(
                             "patient": action["patient"],
                         },
                     )
-            elif output.kind == "assistant":
+            elif output.kind == "assistant" and not produced_artifact:
                 async for item in _assistant_item(owner, thread, turn, output.content):
                     yield item
         await repository.finish_turn(owner, thread, turn, "completed")

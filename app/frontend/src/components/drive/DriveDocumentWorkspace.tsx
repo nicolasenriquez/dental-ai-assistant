@@ -70,7 +70,7 @@ export function DriveDocumentWorkspace({
           <button
             type="button"
             className="drive-btn drive-btn-primary"
-            disabled={saving || !source.editable || !source.version}
+            disabled={saving || !source.editable}
             onClick={onSave}
           >
             Guardar

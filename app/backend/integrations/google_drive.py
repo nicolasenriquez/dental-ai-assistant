@@ -399,9 +399,9 @@ async def update_blob(
     content: bytes,
     mime_type: str,
     *,
-    revision: str,
+    revision: str | None = None,
 ) -> dict[str, Any]:
-    """One media-only write; preserve all source metadata and never retry."""
+    """One media-only write; preserve source metadata and never retry."""
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             response = await client.patch(
@@ -410,7 +410,7 @@ async def update_blob(
                 headers={
                     **_headers(access_token),
                     "Content-Type": mime_type,
-                    "If-Match": revision,
+                    **({"If-Match": revision} if revision else {}),
                 },
                 content=content,
             )

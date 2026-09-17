@@ -127,6 +127,16 @@ describe('CitationModal', () => {
     expect(iframe).toBeInTheDocument();
   });
 
+  it.each([
+    'https://youtu.be/abc123',
+    'https://www.youtube.com/shorts/abc123',
+    'https://www.youtube.com/embed/abc123',
+  ])('supports YouTube URL form %s', (video_url) => {
+    render(<CitationModal citation={{ ...mockCitation, video_url }} onClose={vi.fn()} />);
+
+    expect(screen.getByTitle('YouTube video player')).toBeInTheDocument();
+  });
+
   it('locks body scroll while mounted and restores on unmount', () => {
     const onClose = vi.fn();
     const { unmount } = render(<CitationModal citation={mockCitation} onClose={onClose} />);

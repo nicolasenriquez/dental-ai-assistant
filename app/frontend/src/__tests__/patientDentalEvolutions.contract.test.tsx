@@ -80,7 +80,7 @@ describe('patient pages and evolution workspace contracts', () => {
     expect(source).toContain('Cambiar fecha y hora');
     expect(source).toContain("workspace === 'reviewing'");
     expect(source).toContain('canSave');
-    expect(source).toContain('elemento requiere');
+    expect(source).toContain('Observación de revisión');
     expect(source).toContain('data-state');
     expect(source).toContain('El borrador quedó desactualizado');
     expect(source).toContain('staleMessageId');

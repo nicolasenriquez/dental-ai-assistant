@@ -106,6 +106,17 @@ describe('useConversations', () => {
       expect(result.current.conversations).toHaveLength(4);
     });
 
+    it('localizes legacy default title for displayed conversations', async () => {
+      vi.spyOn(api, 'getConversations').mockResolvedValue([
+        { id: '1', title: 'New Conversation', created_at: '', updated_at: '', preview: 'Hello' },
+      ] as api.Conversation[]);
+
+      const { result } = renderHook(() => useConversations());
+
+      await waitFor(() => expect(result.current.filteredConversations).toHaveLength(1));
+      expect(result.current.filteredConversations[0].title).toBe('Nueva conversación');
+    });
+
     it('includes a conversation after its first message is sent', async () => {
       const conversations = [
         { id: '1', title: 'New Conversation', created_at: '', updated_at: '', preview: null },
@@ -160,7 +171,7 @@ describe('useConversations', () => {
       ];
       vi.spyOn(api, 'getConversations').mockResolvedValue(conversations as api.Conversation[]);
 
-      const { result } = renderHook(() => useConversations('New'));
+      const { result } = renderHook(() => useConversations('Nueva'));
 
       await waitFor(() => expect(result.current.filteredConversations).toHaveLength(1));
       expect(result.current.filteredConversations[0].id).toBe('2');

@@ -1,5 +1,5 @@
-import { AlertTriangle, ChevronDown, Pencil } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, CircleAlert, Pencil } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalDateTime } from '../../lib/clinicalDate';
 import { Spinner } from '../Spinner';
@@ -43,6 +43,7 @@ interface EvolutionReviewArtifactProps {
   staleMessageId?: string;
   syncState?: 'idle' | 'saving' | 'saved' | 'error';
   onRetrySync?: () => void;
+  footerAccessory?: ReactNode;
 }
 
 type ClinicalFieldKey = (typeof clinicalFields)[number]['key'];
@@ -85,6 +86,7 @@ export function EvolutionReviewArtifact({
   staleMessageId,
   syncState = 'idle',
   onRetrySync,
+  footerAccessory,
 }: EvolutionReviewArtifactProps) {
   const [editingSource, setEditingSource] = useState(false);
   const [sourceEditingValue, setSourceEditingValue] = useState(sourceNote);
@@ -234,7 +236,6 @@ export function EvolutionReviewArtifact({
                 );
               })}
             </ol>
-            {draft.review_flags.length > 0 && <span>{draft.review_flags.length} por revisar</span>}
           </div>
         )}
       </div>
@@ -368,7 +369,7 @@ export function EvolutionReviewArtifact({
       {draft.review_flags.length > 0 && (
         <section
           className={isAssistant ? 'clinical-review-flags' : 'evolution-review-artifact__flags'}
-          aria-label="Información por revisar"
+          aria-label="Observaciones de revisión"
         >
           <button
             type="button"
@@ -376,22 +377,47 @@ export function EvolutionReviewArtifact({
             aria-expanded={flagsOpen}
             onClick={() => setFlagsOpen((current) => !current)}
           >
-            <AlertTriangle aria-hidden="true" size={16} />
-            <span>
-              {draft.review_flags.length}{' '}
-              {draft.review_flags.length === 1 ? 'elemento requiere' : 'elementos requieren'}{' '}
-              revisión
+            <span className="clinical-review-flags__summary">
+              <CircleAlert aria-hidden="true" size={15} strokeWidth={1.8} />
+              <span className="clinical-review-flags__copy">
+                <strong>
+                  {draft.review_flags.length === 1
+                    ? 'Observación de revisión'
+                    : 'Observaciones de revisión'}
+                </strong>
+                <small>Información que puede ser útil verificar clínicamente.</small>
+              </span>
             </span>
-            <ChevronDown aria-hidden="true" size={15} />
+            <span className="clinical-review-flags__meta">
+              <span aria-label={`${draft.review_flags.length} observaciones`}>
+                {draft.review_flags.length}
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                size={15}
+                className={flagsOpen ? 'is-open' : undefined}
+              />
+            </span>
           </button>
           {flagsOpen && (
-            <ul>
-              {draft.review_flags.map((flag) => (
-                <li key={`${flag.source_text}-${flag.reason}`}>
-                  <q>{flag.source_text}</q> {flag.reason}
-                </li>
-              ))}
-            </ul>
+            <div className="clinical-review-flags__content">
+              <ul>
+                {draft.review_flags.map((flag, index) => (
+                  <li key={`${flag.source_text}-${flag.reason}`}>
+                    <span className="clinical-review-flags__index">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <div>
+                      <q>{flag.source_text}</q>
+                      <p>{flag.reason}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="clinical-review-flags__advisory">
+                Estas observaciones no impiden guardar la evolución.
+              </p>
+            </div>
           )}
         </section>
       )}
@@ -500,73 +526,76 @@ export function EvolutionReviewArtifact({
               )}
             </div>
           )}
-          {!readOnly && stale && onRegenerate ? (
-            confirmReplace ? (
-              <span className="clinical-regeneration-confirmation">
-                <span>Reemplazar el borrador editado</span>
+          <div className="clinical-artifact-actions__controls">
+            {footerAccessory}
+            {!readOnly && stale && onRegenerate ? (
+              confirmReplace ? (
+                <span className="clinical-regeneration-confirmation">
+                  <span>Reemplazar el borrador editado</span>
+                  <button
+                    type="button"
+                    className="clinical-secondary-button"
+                    onClick={() => setConfirmReplace(false)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="clinical-primary-button"
+                    disabled={editingField !== null}
+                    onClick={() => {
+                      setConfirmReplace(false);
+                      onRegenerate();
+                    }}
+                  >
+                    Regenerar
+                  </button>
+                </span>
+              ) : (
                 <button
                   type="button"
                   className="clinical-secondary-button"
-                  onClick={() => setConfirmReplace(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="clinical-primary-button"
                   disabled={editingField !== null}
-                  onClick={() => {
-                    setConfirmReplace(false);
-                    onRegenerate();
-                  }}
+                  onClick={() => (edited ? setConfirmReplace(true) : onRegenerate())}
                 >
                   Regenerar
                 </button>
-              </span>
-            ) : (
+              )
+            ) : !readOnly && onSave ? (
               <button
                 type="button"
-                className="clinical-secondary-button"
-                disabled={editingField !== null}
-                onClick={() => (edited ? setConfirmReplace(true) : onRegenerate())}
+                disabled={!canSave || saving || editingField !== null}
+                onClick={onSave}
+                aria-describedby={stale ? staleMessageId : undefined}
+                className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-50"
               >
-                Regenerar
+                {saving ? (
+                  <>
+                    <Spinner /> Guardando…
+                  </>
+                ) : (
+                  'Guardar evolución'
+                )}
               </button>
-            )
-          ) : !readOnly && onSave ? (
-            <button
-              type="button"
-              disabled={!canSave || saving || editingField !== null}
-              onClick={onSave}
-              aria-describedby={stale ? staleMessageId : undefined}
-              className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-50"
-            >
-              {saving ? (
-                <>
-                  <Spinner /> Guardando…
-                </>
-              ) : (
-                'Guardar evolución'
-              )}
-            </button>
-          ) : !readOnly && onPrepare ? (
-            <button
-              type="button"
-              className="clinical-primary-button"
-              disabled={emptyDraft || editingField !== null || preparing}
-              onClick={onPrepare}
-            >
-              {preparing ? (
-                <>
-                  <Spinner /> Preparando…
-                </>
-              ) : isAssistant ? (
-                'Revisar y guardar'
-              ) : (
-                'Preparar para guardar'
-              )}
-            </button>
-          ) : null}
+            ) : !readOnly && onPrepare ? (
+              <button
+                type="button"
+                className="clinical-primary-button"
+                disabled={emptyDraft || editingField !== null || preparing}
+                onClick={onPrepare}
+              >
+                {preparing ? (
+                  <>
+                    <Spinner /> Preparando…
+                  </>
+                ) : isAssistant ? (
+                  'Revisar y guardar'
+                ) : (
+                  'Preparar para guardar'
+                )}
+              </button>
+            ) : null}
+          </div>
         </div>
       )}
     </Root>

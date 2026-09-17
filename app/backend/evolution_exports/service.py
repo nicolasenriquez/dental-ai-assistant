@@ -957,6 +957,20 @@ async def _run_background_export(
             "evolution_export.background_failed",
             extra={"user_id": owner_user_id, "evolution_id": evolution_id},
         )
+        try:
+            async with get_pg_pool().acquire() as conn:
+                await evolution_exports_repo.update_export_status(
+                    conn,
+                    owner_user_id,
+                    evolution_id,
+                    "unknown",
+                    last_error_code="DRIVE_EXPORT_BACKGROUND_FAILED",
+                )
+        except Exception:
+            logger.exception(
+                "evolution_export.background_status_failed",
+                extra={"user_id": owner_user_id, "evolution_id": evolution_id},
+            )
 
 
 async def run_export_background(owner_user_id: str, evolution_id: str) -> None:

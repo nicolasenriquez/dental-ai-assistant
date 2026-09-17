@@ -279,7 +279,7 @@ export function DriveWorkspace({
     }
   }, [driveStatus?.status, journalsLoaded, section]);
 
-  const openSource = async (fileId: string) => {
+  const openSource = async (fileId: string): Promise<string | null> => {
     const sequence = ++openSequence.current;
     setDocPhase('opening');
     setErrorMessage(null);
@@ -292,13 +292,15 @@ export function DriveWorkspace({
         source = loaded;
         content = loaded.content;
       }
-      if (sequence !== openSequence.current) return;
+      if (sequence !== openSequence.current) return null;
       setWorkspaceDocument({ kind: 'source', source, content, baseline: content });
       setUnknownWrite(false);
       setConflictOpen(false);
       setSources((previous) => [source, ...previous.filter((file) => file.id !== source.id)]);
-    } catch {
+      return null;
+    } catch (error) {
       if (sequence === openSequence.current) setErrorMessage('No se pudo abrir el documento.');
+      return apiErrorCode(error);
     } finally {
       if (sequence === openSequence.current) setDocPhase('ready');
     }
@@ -512,21 +514,10 @@ export function DriveWorkspace({
 
   const handleSave = async (): Promise<boolean> => {
     if (sourceDoc) {
-      if (
-        saving ||
-        unknownWrite ||
-        conflictOpen ||
-        !sourceDoc.source.editable ||
-        !sourceDoc.source.version
-      )
-        return false;
+      if (saving || unknownWrite || conflictOpen || !sourceDoc.source.editable) return false;
       setSaving(true);
       try {
-        const updated = await updateDriveSourceText(
-          sourceDoc.source.id,
-          sourceDoc.content,
-          sourceDoc.source.version,
-        );
+        const updated = await updateDriveSourceText(sourceDoc.source.id, sourceDoc.content);
         setWorkspaceDocument((previous) =>
           previous?.kind === 'source' && previous.source.id === updated.id
             ? { ...previous, source: updated, baseline: sourceDoc.content }
@@ -535,13 +526,9 @@ export function DriveWorkspace({
         setErrorMessage(null);
         return true;
       } catch (error) {
-        setConflictOpen(error instanceof ApiError && error.status === 409);
+        setConflictOpen(false);
         setUnknownWrite(!(error instanceof ApiError) || error.status >= 500);
-        setErrorMessage(
-          error instanceof ApiError && error.status === 409
-            ? 'El archivo cambió en Drive. Conserva tus cambios y vuelve a abrirlo para revisar la versión actual.'
-            : 'No se pudo confirmar el guardado. Tu trabajo local se conserva.',
-        );
+        setErrorMessage('No se pudo confirmar el guardado. Tu trabajo local se conserva.');
         return false;
       } finally {
         setSaving(false);
@@ -653,7 +640,14 @@ export function DriveWorkspace({
     setImporting(true);
     try {
       const picked = await openDrivePicker();
-      if (picked) await openSource(picked.id);
+      if (picked) {
+        const errorCode = await openSource(picked.id);
+        if (errorCode === 'DRIVE_SOURCE_ALREADY_MANAGED') {
+          setErrorMessage('Este archivo ya pertenece al Workspace. Ábrelo desde Documentos.');
+        } else if (errorCode === 'DRIVE_FILE_TYPE_UNSUPPORTED') {
+          setErrorMessage('Este tipo de archivo no se puede abrir como nota.');
+        }
+      }
     } catch {
       setErrorMessage('No se pudo abrir el selector de Drive.');
     } finally {

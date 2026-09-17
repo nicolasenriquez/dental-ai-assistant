@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { Citation } from '../lib/api';
+import { extractYouTubeVideoId } from '../lib/youtube';
 
 interface CitationModalProps {
   citation: Citation;
@@ -19,15 +20,7 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
   // straight to the lesson URL with the (MM:SS) shown as text in the header.
   const isDynamous = citation.source_type === 'dynamous';
 
-  // Extract YouTube video ID from URL (format: https://www.youtube.com/watch?v=<id>)
-  let videoId = '';
-  if (!isDynamous) {
-    try {
-      videoId = new URL(citation.video_url).searchParams.get('v') ?? '';
-    } catch {
-      console.warn('[CitationModal] Could not parse video URL:', citation.video_url);
-    }
-  }
+  const videoId = isDynamous ? null : extractYouTubeVideoId(citation.video_url);
 
   const startSeconds = Math.floor(citation.start_seconds);
 

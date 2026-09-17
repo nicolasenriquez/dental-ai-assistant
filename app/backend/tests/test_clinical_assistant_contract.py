@@ -502,17 +502,159 @@ async def test_clinical_turn_replay_preserves_terminal_state(
             "turn_error_code": error_code,
         }
 
+    async def artifacts(*_args):
+        return []
+
     async def unexpected_finish(*_args):
         raise AssertionError("replay must not finish another worker's turn")
 
     monkeypatch.setattr(service, "sanitize_content", sanitize)
     monkeypatch.setattr(service.repository, "claim_turn", claim)
+    monkeypatch.setattr(service.repository, "list_turn_artifacts", artifacts)
     monkeypatch.setattr(service.repository, "finish_turn", unexpected_finish)
 
     chunks = [chunk async for chunk in service.stream_turn(owner, thread, turn, "Control")]
     events = [json.loads(chunk.split("data: ", 1)[1]) for chunk in chunks]
     assert chunks[-1].splitlines()[0] == f"event: {terminal_event}"
     assert events[-1]["data"].get("error_code") == terminal_error
+
+
+async def test_clinical_draft_turn_does_not_append_redundant_assistant_message(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.agent import ClinicalAgentOutput
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    patient = UUID(int=4)
+    artifact = UUID(int=5)
+    appended: list[str] = []
+
+    async def sanitize(_owner, content):
+        return type(
+            "Sanitized",
+            (),
+            {
+                "display_text": content,
+                "model_text": content,
+                "invalid_candidates": 0,
+                "unresolved_candidates": 0,
+                "patient_ids": (),
+            },
+        )()
+
+    async def claim(*_args):
+        return {"replay": False, "active_patient_id": patient}
+
+    async def stored(*_args):
+        return {"messages": [], "artifacts": []}
+
+    async def agent(*, context, messages, handlers):
+        yield ClinicalAgentOutput(
+            kind="effect",
+            effect={
+                "kind": "draft",
+                "item_id": str(artifact),
+                "draft": {
+                    "context": "Control",
+                    "findings": "",
+                    "assessment": "",
+                    "treatment": "",
+                    "follow_up": "",
+                    "review_flags": [],
+                },
+                "generated_draft": {
+                    "context": "Control",
+                    "findings": "",
+                    "assessment": "",
+                    "treatment": "",
+                    "follow_up": "",
+                    "review_flags": [],
+                },
+                "source_note": "Nota",
+                "patient_id": str(patient),
+                "evolution_at": "2026-09-17T12:00:00+00:00",
+            },
+        )
+        yield ClinicalAgentOutput(kind="assistant", content="Borrador preparado.")
+
+    async def append(*_args):
+        appended.append(_args[-1])
+        return {"id": UUID(int=6)}
+
+    async def finish(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.repository, "claim_turn", claim)
+    monkeypatch.setattr(service.repository, "get_thread", stored)
+    monkeypatch.setattr(service.repository, "append_message", append)
+    monkeypatch.setattr(service.repository, "finish_turn", finish)
+    monkeypatch.setattr(service, "_set_contextual_title", finish)
+    monkeypatch.setattr(service, "run_clinical_agent", agent)
+    monkeypatch.setattr(service.clinical_evolutions, "CLINICAL_EXTERNAL_LLM_ENABLED", True)
+
+    chunks = [chunk async for chunk in service.stream_turn(owner, thread, turn, "Nota")]
+
+    assert appended == []
+    assert any('"item_type": "clinical_draft"' in chunk for chunk in chunks)
+
+
+async def test_clinical_draft_replay_emits_persisted_artifact(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    artifact = UUID(int=4)
+    patient = UUID(int=5)
+    draft = {
+        "context": "Control",
+        "findings": "",
+        "assessment": "",
+        "treatment": "",
+        "follow_up": "",
+        "review_flags": [],
+    }
+
+    async def sanitize(_owner, content):
+        return type("Sanitized", (), {"display_text": content})()
+
+    async def claim(*_args):
+        return {
+            "replay": True,
+            "messages": [{"id": UUID(int=6), "role": "user", "content": "Nota"}],
+            "turn_status": "completed",
+            "turn_error_code": None,
+        }
+
+    async def artifacts(*_args):
+        return [
+            {
+                "id": artifact,
+                "artifact_type": "clinical_draft",
+                "status": "draft",
+                "draft": draft,
+                "generated_draft": draft,
+                "source_note": "Nota",
+                "patient_id": patient,
+                "evolution_at": "2026-09-17T12:00:00+00:00",
+            }
+        ]
+
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.repository, "claim_turn", claim)
+    monkeypatch.setattr(service.repository, "list_turn_artifacts", artifacts)
+
+    chunks = [chunk async for chunk in service.stream_turn(owner, thread, turn, "Nota")]
+    events = [
+        json.loads(chunk.split("data: ", 1)[1]) for chunk in chunks if chunk.startswith("event:")
+    ]
+
+    draft_events = [event for event in events if event["item_type"] == "clinical_draft"]
+    assert len(draft_events) == 1
+    assert draft_events[0]["data"]["item_id"] == str(artifact)
+    assert events[-1]["data"]["thread_id"] == str(thread)
 
 
 @pytest.mark.parametrize("artifact_status", ["stale", "pending", "approved", "declined", "failed"])

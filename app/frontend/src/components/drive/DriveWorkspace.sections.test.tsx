@@ -304,6 +304,20 @@ describe('Drive Picker intents', () => {
     await selectSection('Diarios');
     expect(screen.queryByText('No se pudo abrir el selector de Drive.')).not.toBeInTheDocument();
   });
+
+  it('explains when Notes Picker selection is already a managed file', async () => {
+    vi.mocked(api.getDriveSource).mockRejectedValueOnce(
+      new api.ApiError(409, { error: 'DRIVE_SOURCE_ALREADY_MANAGED' }),
+    );
+    renderWorkspace(null);
+
+    await selectSection('Notas');
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir desde Drive' }));
+
+    expect(
+      await screen.findByText('Este archivo ya pertenece al Workspace. Ábrelo desde Documentos.'),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('Drive-to-composer insertion', () => {

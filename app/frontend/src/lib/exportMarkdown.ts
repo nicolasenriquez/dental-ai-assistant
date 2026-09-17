@@ -10,6 +10,7 @@
  */
 import { saveAs } from 'file-saver';
 import type { Citation, Conversation, Message } from './api';
+import { extractYouTubeVideoId } from './youtube';
 
 export function formatTimestamp(seconds: number): string {
   const s = Math.floor(seconds);
@@ -21,16 +22,13 @@ export function formatTimestamp(seconds: number): string {
 export function formatCitation(citation: Citation): string {
   if (!citation.snippet?.trim()) return '';
 
-  let videoId: string;
-  try {
-    videoId = new URL(citation.video_url).searchParams.get('v') ?? '';
-  } catch {
-    console.warn(
-      `[exportMarkdown] Skipping timestamp link — invalid video_url: "${citation.video_url}"`,
-    );
-    return `${citation.video_title} (timestamp link unavailable) — ${formatTimestamp(citation.start_seconds)}–${formatTimestamp(citation.end_seconds)}`;
+  if (citation.source_type === 'dynamous') {
+    const lessonUrl = citation.lesson_url?.trim();
+    const title = lessonUrl ? `[${citation.video_title}](${lessonUrl})` : citation.video_title;
+    return `- ${title} — ${formatTimestamp(citation.start_seconds)}–${formatTimestamp(citation.end_seconds)}\n  > "${citation.snippet}"`;
   }
 
+  const videoId = extractYouTubeVideoId(citation.video_url);
   if (!videoId) {
     console.warn(
       `[exportMarkdown] Skipping timestamp link — invalid video_url: "${citation.video_url}"`,

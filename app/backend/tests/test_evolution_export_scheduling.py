@@ -63,6 +63,46 @@ async def test_background_runner_reacquires_work_from_ids(
 
 
 @pytest.mark.asyncio
+async def test_background_runner_marks_unexpected_failure_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    updates: list[tuple[object, ...]] = []
+
+    async def sync(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("worker crashed")
+
+    async def update(*args: object, **kwargs: object) -> None:
+        updates.append((*args, kwargs))
+
+    class _ConnectionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    class _Pool:
+        def acquire(self) -> _ConnectionContext:
+            return _ConnectionContext()
+
+    monkeypatch.setattr(service, "sync_export", sync)
+    monkeypatch.setattr(service, "get_pg_pool", lambda: _Pool())
+    monkeypatch.setattr(service.evolution_exports_repo, "update_export_status", update)
+
+    await service.run_export_background(str(OWNER_ID), str(EVOLUTION_ID))
+
+    assert updates == [
+        (
+            updates[0][0],
+            str(OWNER_ID),
+            str(EVOLUTION_ID),
+            "unknown",
+            {"last_error_code": "DRIVE_EXPORT_BACKGROUND_FAILED"},
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_approval_success_schedules_export_but_decline_does_not(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

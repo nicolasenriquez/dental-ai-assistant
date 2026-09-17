@@ -208,7 +208,7 @@ describe('ClinicalEvolutionArtifact', () => {
       'href',
       '/patients/patient-1/evolutions/evolution-1',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar en Drive' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar copia en Drive' }));
     expect(onSaveToDrive).toHaveBeenCalledOnce();
     expect(screen.queryByText('Evolución guardada')).not.toBeInTheDocument();
   });

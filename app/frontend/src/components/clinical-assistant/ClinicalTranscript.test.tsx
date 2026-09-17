@@ -310,7 +310,7 @@ describe('ClinicalTranscript', () => {
     expect(expectSingleHighEmphasisArtifact(view.container)).toBe(artifact);
     expect(artifact).toHaveTextContent('Guardada');
     expect(artifact.querySelector('[data-drive-export="manual"]')).toBeInTheDocument();
-    fireEvent.click(within(artifact).getByRole('button', { name: 'Guardar en Drive' }));
+    fireEvent.click(within(artifact).getByRole('button', { name: 'Guardar copia en Drive' }));
     expect(onSaveDraftToDrive).toHaveBeenCalledOnce();
     expect(screen.queryByText('Evolución guardada')).not.toBeInTheDocument();
     expectNoPeerCards(view.container);

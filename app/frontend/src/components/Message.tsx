@@ -170,7 +170,7 @@ export function Message({
                 onClick={onSaveToDrive}
                 disabled={saveToDriveDisabled}
               >
-                Guardar en Drive
+                Guardar copia en Drive
               </button>
             )}
           </>

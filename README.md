@@ -86,6 +86,15 @@ Subsequent starts can use `just dev-up`. Stop containers with `just dev-down`.
 Logs with `just dev-logs`. The app runs Alembic migrations automatically on
 startup, so a fresh Postgres database is brought up to schema on first run.
 
+### Local Google Sign-In
+
+Set `AUTH_MODE=google` and provide `GOOGLE_CLIENT_ID` in `.env`. In Google Cloud
+Console, configure the Web OAuth client with exact authorized JavaScript origins
+for the URL you open: `http://localhost:5173` for Vite and
+`http://localhost:8000` for the Docker-served app. `localhost` and `127.0.0.1`
+are different origins; add the latter explicitly if you use it. Do not add
+paths, trailing slashes, wildcards, or unused origins.
+
 <details>
 <summary>Host fallback (only when Docker unavailable)</summary>
 

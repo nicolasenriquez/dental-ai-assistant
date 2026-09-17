@@ -168,7 +168,7 @@ function ArtifactOverflow({
         </button>
         {onSaveToDrive && (
           <button type="button" onClick={onSaveToDrive} disabled={saveToDriveDisabled}>
-            Guardar en Drive
+            Guardar copia en Drive
           </button>
         )}
       </div>
@@ -242,17 +242,16 @@ export function ClinicalEvolutionArtifact({
         showAssistantActions={stage === 'draft' && !terminalApproval}
         syncState={syncState}
         onRetrySync={onRetrySync}
+        footerAccessory={
+          stage === 'draft' && !terminalApproval && showOverflow ? (
+            <ArtifactOverflow
+              content={clinicalContent}
+              onSaveToDrive={onSaveToDrive}
+              saveToDriveDisabled={saveToDriveDisabled}
+            />
+          ) : undefined
+        }
       />
-
-      {stage === 'draft' && !terminalApproval && showOverflow && (
-        <div className="clinical-artifact-utility-row">
-          <ArtifactOverflow
-            content={clinicalContent}
-            onSaveToDrive={onSaveToDrive}
-            saveToDriveDisabled={saveToDriveDisabled}
-          />
-        </div>
-      )}
 
       {stage === 'review' && approval && (
         <div className="clinical-artifact-review-actions">
@@ -298,7 +297,7 @@ export function ClinicalEvolutionArtifact({
                 onClick={onSaveToDrive}
                 disabled={saveToDriveDisabled}
               >
-                Guardar en Drive
+                Guardar copia en Drive
               </button>
             </div>
           ) : null}

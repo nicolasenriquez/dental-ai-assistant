@@ -503,7 +503,7 @@ async def _maybe_set_conversation_title(
     conv = await repository.get_conversation(conv_id, user_id=user_id)
     if not conv:
         return
-    if conv.get("title") == "New Conversation":
+    if conv.get("title") in {"New Conversation", "Nueva conversación"}:
         if len(first_user_message) > 50:
             title = first_user_message[:47].strip() + "…"
         else:

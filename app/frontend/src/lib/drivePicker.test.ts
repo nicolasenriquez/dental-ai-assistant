@@ -161,9 +161,7 @@ describe('openDrivePicker', () => {
     expect(builderCalls.addView).toHaveBeenCalledTimes(1);
     const [view] = builderCalls.addView.mock.calls[0];
     expect(view).toBeInstanceOf(MockDocsView);
-    expect(view.setMimeTypes).toHaveBeenCalledWith(
-      'text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.google-apps.document,application/pdf',
-    );
+    expect(view.setMimeTypes).toHaveBeenCalledWith('text/plain,text/markdown');
   });
 
   it('ignores the Picker loaded lifecycle action until a terminal action arrives', async () => {

@@ -65,6 +65,8 @@ _DRIVE_ERROR_HTTP: dict[str, int] = {
     "DRIVE_FILE_ENCODING_INVALID": status.HTTP_422_UNPROCESSABLE_ENTITY,
     "GOOGLE_DRIVE_NOT_FOUND": status.HTTP_404_NOT_FOUND,
     "GOOGLE_DRIVE_ACCESS_DENIED": status.HTTP_403_FORBIDDEN,
+    "DRIVE_FILE_TYPE_UNSUPPORTED": status.HTTP_422_UNPROCESSABLE_ENTITY,
+    "DRIVE_SOURCE_ALREADY_MANAGED": status.HTTP_409_CONFLICT,
 }
 
 
@@ -1166,12 +1168,12 @@ def _normalized_managed_name(raw: str) -> str:
 
 def _source_body(metadata: dict[str, Any]) -> dict[str, Any]:
     mime = metadata.get("mimeType")
-    if (
-        mime not in google_drive.SOURCE_KINDS
-        or metadata.get("trashed")
-        or (metadata.get("appProperties") or {}).get("managedBy") == google_drive.MANAGED_BY
-    ):
+    if metadata.get("trashed"):
         raise _DriveDomainError("GOOGLE_DRIVE_NOT_FOUND", 404)
+    if mime not in google_drive.SOURCE_KINDS:
+        raise _DriveDomainError("DRIVE_FILE_TYPE_UNSUPPORTED", 422)
+    if (metadata.get("appProperties") or {}).get("managedBy") == google_drive.MANAGED_BY:
+        raise _DriveDomainError("DRIVE_SOURCE_ALREADY_MANAGED", 409)
     body = {
         key: metadata[key]
         for key in ("id", "name", "mimeType", "modifiedTime", "version", "webViewLink")
@@ -1207,7 +1209,6 @@ async def _source_text(token: str, metadata: dict[str, Any]) -> str:
 
 class _SourceUpdateBody(BaseModel):
     content: str
-    expectedVersion: str
 
 
 @router.get("/sources")
@@ -1253,11 +1254,6 @@ async def put_source_content(
     token, metadata = await _source_context(user, file_id)
     if not _source_body(metadata)["editable"]:
         raise _DriveDomainError("GOOGLE_DRIVE_ACCESS_DENIED", 403)
-    if not body.expectedVersion or str(metadata.get("version", "")) != body.expectedVersion:
-        raise _DriveDomainError("DRIVE_VERSION_CONFLICT", 409)
-    revision = metadata.get("_revision")
-    if not revision:
-        raise _DriveDomainError("DRIVE_VERSION_CONFLICT", 409)
     try:
         raw = body.content.encode("utf-8")
     except UnicodeEncodeError:
@@ -1265,9 +1261,7 @@ async def put_source_content(
     if len(raw) > MAX_CONTENT_BYTES:
         raise _DriveDomainError("DRIVE_FILE_TOO_LARGE", 422)
     try:
-        updated = await google_drive.update_blob(
-            token, file_id, raw, metadata["mimeType"], revision=str(revision)
-        )
+        updated = await google_drive.update_blob(token, file_id, raw, metadata["mimeType"])
     except httpx.HTTPError:
         raise _DriveDomainError("DRIVE_WRITE_UNKNOWN", 503) from None
     return {**_source_body(updated), "content": body.content}

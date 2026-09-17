@@ -3,12 +3,12 @@
  *
  * Seam for task 6.2 (design decisions 27, 28, 29): the Clinical Assistant
  * page mounts the Drive workspace accessory, passes the active patient,
- * exposes `Guardar en Drive` on completed assistant messages and structured
+ * exposes `Guardar copia en Drive` on completed assistant messages and structured
  * draft artifacts, bridges explicit Drive-to-composer insertion, and owns
  * the dirty-transition guard plus the `beforeunload` handler.
  *
  * Contract:
- * - `Guardar en Drive` opens an editable local Markdown draft with the
+ * - `Guardar copia en Drive` opens an editable local Markdown draft with the
  *   message text or the serialized draft (visible labels only, empty
  *   sections and review flags omitted) and performs no Drive API write.
  * - `Insertar nota completa` and `Insertar selección` append Drive content
@@ -294,7 +294,7 @@ function renderAssistant() {
 async function openAssistantMessageDraft() {
   fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
   const assistantMessage = screen.getByRole('article', { name: 'Asistente' });
-  fireEvent.click(within(assistantMessage).getByRole('button', { name: 'Guardar en Drive' }));
+  fireEvent.click(within(assistantMessage).getByRole('button', { name: 'Guardar copia en Drive' }));
   return screen.findByRole('textbox', { name: 'Contenido del documento' });
 }
 
@@ -380,7 +380,7 @@ describe('Clinical Assistant Drive transfer', () => {
 
     const artifact = screen.getByRole('article', { name: 'Evolución clínica' });
     fireEvent.click(within(artifact).getByText('Más acciones'));
-    fireEvent.click(within(artifact).getByRole('button', { name: 'Guardar en Drive' }));
+    fireEvent.click(within(artifact).getByRole('button', { name: 'Guardar copia en Drive' }));
 
     const editor = await screen.findByRole('textbox', { name: 'Contenido del documento' });
     expect(editor).toHaveValue(
@@ -414,7 +414,7 @@ describe('Clinical Assistant Drive transfer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
 
     await screen.findByText('Conectado');
-    const transferButtons = screen.queryAllByRole('button', { name: 'Guardar en Drive' });
+    const transferButtons = screen.queryAllByRole('button', { name: 'Guardar copia en Drive' });
     expect(transferButtons.length).toBeGreaterThan(0);
     for (const button of transferButtons) {
       expect(button).toBeDisabled();

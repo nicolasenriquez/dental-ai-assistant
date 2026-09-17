@@ -208,7 +208,7 @@ async def _hydrate_chunks(raw_chunks: list[dict]) -> list[dict]:
             "lesson_url": video_cache.get(c.get("video_id", ""), {}).get("lesson_url", ""),
             "start_seconds": c.get("start_seconds", 0.0),
             "end_seconds": c.get("end_seconds", 0.0),
-            "snippet": c.get("snippet", ""),
+            "snippet": str(c.get("snippet") or c.get("content") or "").strip()[:320],
             # Preserve chunk_index so downstream small-to-big expansion (see
             # rag/expansion.py) can fetch siblings in the same video.
             "chunk_index": c.get("chunk_index", 0),
@@ -284,7 +284,10 @@ def _normalize_chunk_shape(chunk: dict) -> dict:
             return 0
         return ""
 
-    return {key: chunk.get(key, _default(key)) for key in _CANONICAL_CHUNK_KEYS}
+    normalized = {key: chunk.get(key, _default(key)) for key in _CANONICAL_CHUNK_KEYS}
+    if not normalized["snippet"]:
+        normalized["snippet"] = str(chunk.get("content") or "").strip()[:320]
+    return normalized
 
 
 async def _expand_with_neighbors(chunks: list[dict]) -> list[dict]:
@@ -562,9 +565,12 @@ async def execute_get_video_transcript(
             "video_id": video_id,
             "video_title": video.get("title", ""),
             "video_url": video.get("url", ""),
+            "source_type": video.get("source_type", "youtube") or "youtube",
+            "lesson_url": video.get("lesson_url", "") or "",
+            "chunk_index": c.get("chunk_index", 0),
             "start_seconds": c.get("start_seconds", 0.0),
             "end_seconds": c.get("end_seconds", 0.0),
-            "snippet": c.get("snippet", ""),
+            "snippet": str(c.get("snippet") or c.get("content") or "").strip()[:320],
         }
         for c in raw_chunks
     ]

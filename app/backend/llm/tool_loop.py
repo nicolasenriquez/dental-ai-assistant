@@ -116,7 +116,6 @@ async def stream_tool_loop(
                 finish_reason = choice.finish_reason
             if delta and delta.content:
                 assistant_text_parts.append(delta.content)
-                yield ToolLoopEvent(kind="text", text=delta.content)
                 last_heartbeat_at = time.monotonic()
             if delta and delta.tool_calls:
                 for tool_call in delta.tool_calls:
@@ -190,9 +189,12 @@ async def stream_tool_loop(
                 )
             continue
 
+        final_text = "".join(assistant_text_parts)
+        if final_text:
+            yield ToolLoopEvent(kind="text", text=final_text)
         yield ToolLoopEvent(
             kind="final",
-            text="".join(assistant_text_parts),
+            text=final_text,
             finish_reason=finish_reason,
             round_num=round_num,
             tool_calls_made=tool_calls_made,

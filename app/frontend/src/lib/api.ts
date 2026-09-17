@@ -623,13 +623,12 @@ export async function getDriveSourceText(fileId: string): Promise<DriveSourceTex
 export async function updateDriveSourceText(
   fileId: string,
   content: string,
-  expectedVersion: string,
 ): Promise<DriveSourceTextContent> {
   return request<DriveSourceTextContent>(
     `/google-drive/sources/${encodeURIComponent(fileId)}/content`,
     {
       method: 'PUT',
-      body: JSON.stringify({ content, expectedVersion }),
+      body: JSON.stringify({ content }),
     },
   );
 }

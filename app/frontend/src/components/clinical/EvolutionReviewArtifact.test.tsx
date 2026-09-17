@@ -12,6 +12,16 @@ const draft: ClinicalDraft = {
   review_flags: [],
 };
 
+const flaggedDraft: ClinicalDraft = {
+  ...draft,
+  review_flags: [
+    {
+      source_text: 'Dolor ocasional',
+      reason: 'Conviene confirmar frecuencia y duración.',
+    },
+  ],
+};
+
 afterEach(cleanup);
 
 function renderArtifact(onChange = vi.fn()) {
@@ -168,6 +178,52 @@ describe('EvolutionReviewArtifact', () => {
     );
 
     expect(screen.queryByRole('button', { name: /^Editar / })).not.toBeInTheDocument();
+  });
+
+  it('presents review flags as advisory information and keeps preparation available', () => {
+    const onPrepare = vi.fn();
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={flaggedDraft}
+        generatedDraft={flaggedDraft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited={false}
+        onChange={vi.fn()}
+        onPrepare={onPrepare}
+      />,
+    );
+
+    expect(screen.getByRole('region', { name: 'Observaciones de revisión' })).toBeVisible();
+    expect(screen.getByText('Observación de revisión')).toBeVisible();
+    expect(screen.getByText('Estas observaciones no impiden guardar la evolución.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Revisar y guardar' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y guardar' }));
+    expect(onPrepare).toHaveBeenCalledOnce();
+  });
+
+  it('opens one flag by default and toggles its details', () => {
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={flaggedDraft}
+        generatedDraft={flaggedDraft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited={false}
+        onChange={vi.fn()}
+      />,
+    );
+
+    const toggle = screen.getByRole('button', { name: /Observación de revisión/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Dolor ocasional')).toBeVisible();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Dolor ocasional')).not.toBeInTheDocument();
   });
 
   it('buffers source edits, cancels locally, and applies once', async () => {

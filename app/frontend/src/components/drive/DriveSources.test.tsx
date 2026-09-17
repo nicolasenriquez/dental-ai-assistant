@@ -84,7 +84,7 @@ it('preserves source edits and exact selection across patient changes, then save
   expect(insert).toHaveBeenCalledWith('Fuente: Google Drive · notas.md\n  Exact');
   fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
   await waitFor(() =>
-    expect(api.updateDriveSourceText).toHaveBeenCalledWith('source', '  Exact\nBeta  ', '1'),
+    expect(api.updateDriveSourceText).toHaveBeenCalledWith('source', '  Exact\nBeta  '),
   );
   await waitFor(() => expect(dirty).toHaveBeenLastCalledWith(false));
   expect(api.getDriveSourceText).toHaveBeenCalledTimes(1);

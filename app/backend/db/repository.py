@@ -403,8 +403,10 @@ async def replace_chunks_for_video(
 # Conversations
 # ---------------------------------------------------------------------------
 
+DEFAULT_CONVERSATION_TITLE = "Nueva conversación"
 
-async def create_conversation(*, user_id: str, title: str = "New Conversation") -> dict:
+
+async def create_conversation(*, user_id: str, title: str = DEFAULT_CONVERSATION_TITLE) -> dict:
     conv_id = _new_id()
     now = _now()
     async with _acquire() as conn:
@@ -465,7 +467,7 @@ async def acquire_conversation(*, user_id: str) -> tuple[dict, bool]:
         row = await conn.fetchrow(
             """
             INSERT INTO conversations (id, user_id, title, created_at, updated_at)
-            VALUES ($1, $2, 'New Conversation', $3, $3)
+            VALUES ($1, $2, 'Nueva conversación', $3, $3)
             RETURNING *
             """,
             conv_id,

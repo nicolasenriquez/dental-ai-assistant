@@ -54,7 +54,7 @@ async def test_source_read_and_save_have_no_patient_binding(source_context):
         saved = await client.put(
             "/api/google-drive/sources/source-1/content",
             headers={"Origin": "http://test"},
-            json={"content": "# unchanged markdown\n", "expectedVersion": "3"},
+            json={"content": "# unchanged markdown\n"},
         )
         assert saved.status_code == 200
         assert saved.json()["version"] == "4"
@@ -63,7 +63,6 @@ async def test_source_read_and_save_have_no_patient_binding(source_context):
             "source-1",
             b"# unchanged markdown\n",
             "text/markdown",
-            revision='"revision-3"',
         )
         token.assert_awaited_with("user-1")
 
@@ -100,35 +99,36 @@ async def test_source_list_filters_provider_results(source_context, monkeypatch)
 
 
 @pytest.mark.parametrize(
-    "change",
+    ("change", "status"),
     [
-        {"trashed": True},
-        {"mimeType": "image/png"},
-        {"mimeType": "application/vnd.google-apps.folder"},
-        {"appProperties": {"managedBy": google_drive.MANAGED_BY}},
+        ({"trashed": True}, 404),
+        ({"mimeType": "image/png"}, 422),
+        ({"mimeType": "application/vnd.google-apps.folder"}, 422),
+        ({"appProperties": {"managedBy": google_drive.MANAGED_BY}}, 409),
     ],
 )
-async def test_sources_reject_managed_and_unsupported_files(source_context, change):
+async def test_sources_reject_managed_and_unsupported_files(source_context, change, status):
     app, metadata, _ = source_context
     metadata.update(change)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
-        assert (await client.get("/api/google-drive/sources/source-1")).status_code == 404
+        assert (await client.get("/api/google-drive/sources/source-1")).status_code == status
 
 
-async def test_source_write_protects_origin_version_and_size(source_context):
+async def test_source_write_protects_origin_and_size_without_app_version(source_context):
     app, _, _ = source_context
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
         url = "/api/google-drive/sources/source-1/content"
-        body = {"content": "local", "expectedVersion": "2"}
+        body = {"content": "local"}
         assert (await client.put(url, json=body)).status_code == 403
         assert (
             await client.put(url, headers={"Origin": "http://test"}, json=body)
-        ).status_code == 409
-        body = {"content": "x" * (google_drive.MAX_CONTENT_BYTES + 1), "expectedVersion": "3"}
+        ).status_code == 200
+        google_drive.update_blob.reset_mock()
+        body = {"content": "x" * (google_drive.MAX_CONTENT_BYTES + 1)}
         assert (
             await client.put(url, headers={"Origin": "http://test"}, json=body)
         ).status_code == 422
@@ -144,7 +144,7 @@ async def test_source_write_timeout_is_not_retried(source_context):
         result = await client.put(
             "/api/google-drive/sources/source-1/content",
             headers={"Origin": "http://test"},
-            json={"content": "local", "expectedVersion": "3"},
+            json={"content": "local"},
         )
         assert result.status_code == 503
         assert result.json()["error"] == "DRIVE_WRITE_UNKNOWN"
@@ -167,7 +167,7 @@ async def test_source_adapter_lists_supported_unmanaged_files() -> None:
 
 
 @respx.mock
-async def test_source_adapter_updates_original_without_managed_properties() -> None:
+async def test_source_adapter_updates_without_provider_revision() -> None:
     request = respx.patch(_UPLOAD_FILES_URL + "/source-1").mock(
         return_value=httpx.Response(200, json={"id": "source-1", "version": "4"})
     )
@@ -176,12 +176,11 @@ async def test_source_adapter_updates_original_without_managed_properties() -> N
         "source-1",
         b"clinical notes",
         "text/plain",
-        revision='"revision-3"',
     )
     sent = request.calls.last.request
     assert result["version"] == "4"
     assert sent.url.params["uploadType"] == "media"
     assert sent.headers["Content-Type"] == "text/plain"
-    assert sent.headers["If-Match"] == '"revision-3"'
+    assert "If-Match" not in sent.headers
     assert sent.content == b"clinical notes"
     assert b"managedBy" not in sent.content

@@ -145,15 +145,7 @@ export async function openDrivePicker(
       reject(new Error(message));
     };
     const view = new picker.DocsView(picker.ViewId?.DOCS);
-    view.setMimeTypes(
-      [
-        'text/plain',
-        'text/markdown',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.google-apps.document',
-        'application/pdf',
-      ].join(','),
-    );
+    view.setMimeTypes(['text/plain', 'text/markdown'].join(','));
     view.setIncludeFolders?.(false);
     const builder = new picker.PickerBuilder();
     builder.setAppId(appId);

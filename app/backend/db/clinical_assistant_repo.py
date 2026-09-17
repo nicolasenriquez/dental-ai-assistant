@@ -363,6 +363,26 @@ async def get_artifact(
     return _artifact_dict(row) if row else None
 
 
+async def list_turn_artifacts(
+    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str
+) -> list[dict[str, Any]]:
+    """Load artifacts for one owner-scoped turn for idempotent replay."""
+    async with get_pg_pool().acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                   status, payload, created_at, updated_at, resolved_at
+            FROM clinical_turn_artifacts
+            WHERE owner_user_id = $1 AND thread_id = $2 AND turn_id = $3
+            ORDER BY created_at ASC
+            """,
+            _uuid(owner_user_id),
+            _uuid(thread_id),
+            _uuid(turn_id),
+        )
+    return [_artifact_dict(row) for row in rows]
+
+
 async def update_artifact(
     owner_user_id: UUID | str,
     thread_id: UUID | str,
