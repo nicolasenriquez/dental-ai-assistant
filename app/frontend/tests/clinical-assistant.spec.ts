@@ -468,7 +468,7 @@ for (const viewport of [
     if (viewport.width <= 1024) {
       await expect(page.locator('.drive-sheet-content')).toBeVisible();
       await expect(page.getByText('Conectado', { exact: true })).toBeVisible();
-      await expect(page.locator('.workspace-row')).toHaveCount(0);
+      await expect(page.locator('.workspace-row')).toHaveCount(1);
     } else {
       await expect(page.locator('.workspace-row')).toBeVisible();
     }
@@ -539,9 +539,10 @@ for (const viewport of [
     if (viewport.name === 'desktop') {
       await page.getByRole('button', { name: 'Incorporar al borrador' }).click();
       await expect(page.getByRole('status', { name: 'Incorporado al borrador' })).toBeVisible();
-      await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue(
-        'Fuente: Google Drive · Nota remota.txt\nContenido remoto.',
+      await expect(page.locator('[aria-label="Contexto adjunto"]')).toContainText(
+        'Nota remota.txt · selección',
       );
+      await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue('');
     }
     if (viewport.width <= 1024) {
       await page.keyboard.press('Escape');
@@ -638,7 +639,7 @@ test('shows active-patient persistence failures and retries the selection', asyn
 
   await page.getByRole('alert').getByRole('button', { name: 'Reintentar' }).click();
   await expect(trigger).toContainText('Ana Pérez');
-  await expect(page.getByPlaceholder('Escribe o dicta la nota clínica…')).toBeVisible();
+  await expect(page.getByPlaceholder('Escribe o dicta una indicación clínica…')).toBeVisible();
   expect(requestBodies).toEqual([{ patient_id: patientId }, { patient_id: patientId }]);
 
   await page.reload();

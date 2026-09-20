@@ -141,6 +141,13 @@ export interface ClinicalMessage {
   turn_id: string;
   role: 'user' | 'assistant';
   content: string;
+  context_items?: ClinicalContextItem[] | null;
+  patient_switch?: {
+    item_id: string;
+    current_patient: ClinicalPatient;
+    detected_patient: ClinicalPatient;
+    resolution: 'pending' | 'kept_current' | 'changed_patient';
+  } | null;
   created_at: string;
 }
 
@@ -149,6 +156,14 @@ export interface ComposerContextItem {
   kind: 'drive_selection';
   sourceId: string;
   sourceName: string;
+  content: string;
+}
+
+export interface ClinicalContextItem {
+  id: string;
+  kind: 'drive_selection';
+  source_id: string;
+  source_name: string;
   content: string;
 }
 
@@ -374,9 +389,18 @@ export const setClinicalActivePatient = (threadId: string, patientId: string | n
     method: 'PATCH',
     body: JSON.stringify({ patient_id: patientId }),
   });
+export const resolveClinicalPatientSwitch = (
+  threadId: string,
+  turnId: string,
+  decision: 'keep_current' | 'change_patient',
+) =>
+  request<ClinicalThread>(`/clinical-threads/${threadId}/turns/${turnId}/patient-switch`, {
+    method: 'PATCH',
+    body: JSON.stringify({ decision }),
+  });
 export const streamClinicalTurn = async (
   threadId: string,
-  body: { turn_id: string; content: string },
+  body: { turn_id: string; content: string; context_items?: ClinicalContextItem[] },
   signal?: AbortSignal,
 ): Promise<Response> => {
   const res = await fetch(`${BASE}/clinical-threads/${threadId}/turns`, {

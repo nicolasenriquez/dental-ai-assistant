@@ -21,6 +21,28 @@ def test_turn_context_is_immutable() -> None:
         context.patient_id = UUID(int=5)
 
 
+def test_turn_request_validates_structured_drive_context() -> None:
+    from backend.clinical_assistant.schemas import ClinicalTurnRequest
+
+    request = ClinicalTurnRequest.model_validate(
+        {
+            "turn_id": str(UUID(int=2)),
+            "content": "Actualizar evolución",
+            "context_items": [
+                {
+                    "id": str(UUID(int=3)),
+                    "kind": "drive_selection",
+                    "source_id": "drive-file-1",
+                    "source_name": "Evaluación.md",
+                    "content": "Control en seis meses",
+                }
+            ],
+        }
+    )
+
+    assert request.context_items[0].source_name == "Evaluación.md"
+
+
 async def test_rut_sanitizer_never_returns_raw_identifier(monkeypatch) -> None:
     from backend.clinical_assistant.sensitive_input import sanitize_content
 
@@ -88,6 +110,37 @@ async def test_unknown_rut_is_replaced_without_provider_safe_echo(monkeypatch) -
     assert "12.345.678-5" not in result.display_text
     assert "12.345.678-5" not in result.model_text
     assert "[RUT no encontrado]" in result.display_text
+
+
+async def test_patient_switch_payload_serializes_uuid_patient_ids(monkeypatch) -> None:
+    from backend.db import clinical_assistant_repo
+
+    captured: dict[str, object] = {}
+
+    class Connection:
+        async def execute(self, *args: object) -> None:
+            captured["payload"] = args[-1]
+
+    class Acquire:
+        async def __aenter__(self) -> Connection:
+            return Connection()
+
+        async def __aexit__(self, *_args: object) -> bool:
+            return False
+
+    class Pool:
+        def acquire(self) -> Acquire:
+            return Acquire()
+
+    monkeypatch.setattr(clinical_assistant_repo, "get_pg_pool", lambda: Pool())
+    await clinical_assistant_repo.set_patient_switch(
+        UUID(int=1),
+        UUID(int=2),
+        UUID(int=3),
+        {"current_patient": {"id": UUID(int=4)}},
+    )
+
+    assert json.loads(str(captured["payload"])) == {"current_patient": {"id": str(UUID(int=4))}}
 
 
 async def test_compact_rut_is_redacted(monkeypatch) -> None:
@@ -353,7 +406,7 @@ async def test_clinical_turn_marks_cancellation_as_expected_failure(monkeypatch)
     release = asyncio.Event()
     finished: list[tuple[object, ...]] = []
 
-    async def stalled(_owner, _thread, _turn, _content, claimed_new):
+    async def stalled(_owner, _thread, _turn, _content, _context_items, claimed_new):
         claimed_new["value"] = True
         yield "started"
         blocked.set()
@@ -437,6 +490,73 @@ async def test_clinical_turn_can_answer_without_active_patient(monkeypatch) -> N
     assert appended == ["Hola, ¿en qué te ayudo?"]
     assert any("assistant_message" in chunk for chunk in chunks)
     assert chunks[-1].startswith("event: turn.completed")
+
+
+async def test_patient_switch_is_persisted_before_event(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    current_id = UUID(int=4)
+    detected_id = UUID(int=5)
+    persisted: list[dict] = []
+
+    async def sanitize(_owner, content):
+        return type(
+            "Sanitized",
+            (),
+            {
+                "display_text": content,
+                "model_text": content,
+                "invalid_candidates": 0,
+                "unresolved_candidates": 0,
+                "patient_ids": (detected_id,),
+            },
+        )()
+
+    async def claim(*_args):
+        return {"replay": False, "active_patient_id": current_id}
+
+    async def get_patient(_owner, patient_id):
+        patients = {
+            current_id: {
+                "id": current_id,
+                "first_name": "Ana",
+                "last_name": "Pérez",
+                "rut_number": 12_345_678,
+                "rut_dv": "5",
+            },
+            detected_id: {
+                "id": detected_id,
+                "first_name": "Bruno",
+                "last_name": "Rojas",
+                "rut_number": 98_765_432,
+                "rut_dv": "1",
+            },
+        }
+        return patients[UUID(str(patient_id))]
+
+    async def set_switch(_owner, _thread, _turn, patient_switch):
+        persisted.append(patient_switch)
+
+    async def finish(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.repository, "claim_turn", claim)
+    monkeypatch.setattr(service.patients_repo, "get_patient", get_patient)
+    monkeypatch.setattr(service.repository, "set_patient_switch", set_switch)
+    monkeypatch.setattr(service.repository, "finish_turn", finish)
+
+    chunks = [chunk async for chunk in service.stream_turn(owner, thread, turn, "Actualizar")]
+    events = [json.loads(chunk.split("data: ", 1)[1]) for chunk in chunks]
+    switch_event = next(item for item in events if item["item_type"] == "patient.switch_required")
+
+    assert persisted[0]["resolution"] == "pending"
+    assert persisted[0]["current_patient"]["id"] == current_id
+    assert persisted[0]["detected_patient"]["id"] == detected_id
+    assert switch_event["data"]["resolution"] == "pending"
 
 
 async def test_clinical_update_tool_reopens_pending_artifact(monkeypatch) -> None:

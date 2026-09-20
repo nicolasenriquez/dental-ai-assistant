@@ -13,6 +13,9 @@ from backend.services.clinical_evolutions import ClinicalDraft
 ClinicalText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40_000)
 ]
+ClinicalContextText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=10_000)
+]
 
 
 class ClinicalThreadCreate(BaseModel):
@@ -35,6 +38,26 @@ class ActivePatientUpdate(BaseModel):
     patient_id: UUID | None
 
 
+class PatientSwitchResolution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["keep_current", "change_patient"]
+
+
+class ClinicalContextItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    kind: Literal["drive_selection"]
+    source_id: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+    ]
+    source_name: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+    ]
+    content: ClinicalContextText
+
+
 class ClinicalTurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -42,6 +65,7 @@ class ClinicalTurnRequest(BaseModel):
     content: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40_000)
     ]
+    context_items: list[ClinicalContextItem] = Field(default_factory=list, max_length=5)
 
 
 class PrepareSaveRequest(BaseModel):

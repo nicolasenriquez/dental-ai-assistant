@@ -21,8 +21,10 @@ from .events import event
 from .policy import ClinicalTurnContext
 from .schemas import (
     ClinicalArtifactUpdate,
+    ClinicalContextItem,
     ClinicalDraft,
     ClinicalThreadResponse,
+    PatientSwitchResolution,
     PrepareSaveRequest,
 )
 from .sensitive_input import safe_patient, sanitize_content
@@ -100,6 +102,33 @@ async def get_thread_response(owner: UUID, thread: UUID) -> ClinicalThreadRespon
         artifact_patient = await patients_repo.get_patient(owner, artifact["patient_id"])
         artifact["patient"] = safe_patient(artifact_patient) if artifact_patient else None
     return ClinicalThreadResponse(**stored)
+
+
+async def resolve_patient_switch(
+    owner: UUID,
+    thread: UUID,
+    turn: UUID,
+    request: PatientSwitchResolution,
+) -> ClinicalThreadResponse | None:
+    stored = await repository.get_thread(owner, thread)
+    if stored is None:
+        return None
+    message = next(
+        (
+            item
+            for item in stored["messages"]
+            if UUID(str(item["turn_id"])) == turn and item.get("patient_switch")
+        ),
+        None,
+    )
+    if message is None:
+        return None
+    resolution = "kept_current"
+    if request.decision == "change_patient":
+        resolution = "changed_patient"
+    if not await repository.resolve_patient_switch(owner, thread, turn, resolution):
+        return None
+    return await get_thread_response(owner, thread)
 
 
 async def set_active_patient(
@@ -437,13 +466,19 @@ def _clinical_tool_handlers(
 
 
 async def stream_turn(
-    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, content: str
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    content: str,
+    context_items: list[ClinicalContextItem] | None = None,
 ) -> AsyncIterator[str]:
     """Run one safe clinical turn and always release its thread lock."""
     claimed_new = {"value": False}
     cancellation_handled = False
     try:
-        async for chunk in _stream_turn(owner_user_id, thread_id, turn_id, content, claimed_new):
+        async for chunk in _stream_turn(
+            owner_user_id, thread_id, turn_id, content, context_items or [], claimed_new
+        ):
             yield chunk
     except asyncio.CancelledError:
         cancellation_handled = True
@@ -473,6 +508,7 @@ async def _stream_turn(
     thread_id: UUID | str,
     turn_id: UUID | str,
     content: str,
+    context_items: list[ClinicalContextItem],
     claimed_new: dict[str, bool],
 ) -> AsyncIterator[str]:
     """Run one safe clinical turn and emit typed lifecycle events."""
@@ -481,6 +517,19 @@ async def _stream_turn(
     turn = UUID(str(turn_id))
     try:
         sanitized = await sanitize_content(owner, content)
+        sanitized_context = []
+        for context_item in context_items:
+            safe_content = await sanitize_content(owner, context_item.content)
+            safe_name = await sanitize_content(owner, context_item.source_name)
+            sanitized_context.append(
+                {
+                    **context_item.model_dump(mode="json", exclude={"content"}),
+                    "source_name": safe_name.display_text,
+                    "content": safe_content.display_text,
+                    "model_content": safe_content.model_text,
+                    "model_source_name": safe_name.model_text,
+                }
+            )
     except Exception:
         logger.warning("clinical_turn_failed code=SENSITIVE_INPUT_FAILURE turn_id=%s", turn)
         yield event(
@@ -493,7 +542,17 @@ async def _stream_turn(
             },
         )
         return
-    claimed = await repository.claim_turn(owner, thread, turn, sanitized.display_text)
+    stored_context = [
+        {
+            key: value
+            for key, value in item.items()
+            if key not in {"model_content", "model_source_name"}
+        }
+        for item in sanitized_context
+    ]
+    claimed = await repository.claim_turn(
+        owner, thread, turn, sanitized.display_text, stored_context
+    )
     claimed_new["value"] = not claimed["replay"]
 
     yield event(
@@ -504,6 +563,7 @@ async def _stream_turn(
             "item_id": str(uuid4()),
             "status": "running",
             "user_content": sanitized.display_text,
+            "context_items": stored_context,
         },
     )
 
@@ -634,14 +694,21 @@ async def _stream_turn(
                     },
                 )
                 return
+            switch_item_id = uuid4()
+            patient_switch = {
+                "item_id": str(switch_item_id),
+                "current_patient": safe_patient(active_patient),
+                "detected_patient": safe_patient(patient),
+                "resolution": "pending",
+            }
+            await repository.set_patient_switch(owner, thread, turn, patient_switch)
             yield event(
                 "patient.switch_required",
                 {
                     "thread_id": str(thread),
                     "turn_id": str(turn),
-                    "item_id": str(uuid4()),
-                    "current_patient": safe_patient(active_patient),
-                    "detected_patient": safe_patient(patient),
+                    "item_id": str(switch_item_id),
+                    **patient_switch,
                 },
             )
             await repository.finish_turn(owner, thread, turn, "failed", "PATIENT_SWITCH_REQUIRED")
@@ -661,6 +728,13 @@ async def _stream_turn(
     stored = await repository.get_thread(owner, thread)
     if stored is None:
         raise LookupError("Thread not found")
+    model_text = sanitized.model_text
+    if sanitized_context:
+        sources = "\n\n".join(
+            f"Fuente: Google Drive · {item['model_source_name']}\n{item['model_content']}"
+            for item in sanitized_context
+        )
+        model_text = f"{model_text}\n\n{sources}"
     context = ClinicalTurnContext(
         user_id=owner,
         thread_id=thread,
@@ -676,8 +750,8 @@ async def _stream_turn(
         produced_artifact = False
         async for output in run_clinical_agent(
             context=context,
-            messages=_conversation_messages(stored, sanitized.model_text),
-            handlers=_clinical_tool_handlers(context, sanitized.display_text, sanitized.model_text),
+            messages=_conversation_messages(stored, model_text),
+            handlers=_clinical_tool_handlers(context, sanitized.display_text, model_text),
         ):
             if output.kind == "heartbeat":
                 yield ": keepalive\n\n"

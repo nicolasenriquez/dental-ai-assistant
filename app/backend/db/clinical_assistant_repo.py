@@ -234,7 +234,7 @@ async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[s
             return None
         messages = await conn.fetch(
             """
-            SELECT id, thread_id, turn_id, role, content, created_at
+            SELECT id, thread_id, turn_id, role, content, context_items, patient_switch, created_at
             FROM clinical_messages WHERE thread_id = $1
             ORDER BY created_at ASC
             """,
@@ -298,6 +298,89 @@ async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[s
         "pending_action": _action_dict(pending) if pending else None,
         "actions": [_action_dict(row) for row in actions],
     }
+
+
+async def set_patient_switch(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    patient_switch: dict[str, Any],
+) -> None:
+    async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE clinical_messages m
+            SET patient_switch = $4::jsonb
+            FROM clinical_threads t
+            WHERE m.thread_id = t.id AND m.thread_id = $1 AND m.turn_id = $2
+              AND m.role = 'user' AND t.owner_user_id = $3
+            """,
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(owner_user_id),
+            json.dumps(patient_switch, ensure_ascii=False, default=str),
+        )
+
+
+async def resolve_patient_switch(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    resolution: str,
+) -> bool:
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        switch = await conn.fetchrow(
+            """
+            SELECT m.patient_switch->'detected_patient'->>'id' AS detected_patient_id
+            FROM clinical_messages m
+            JOIN clinical_threads t ON t.id = m.thread_id
+            WHERE m.thread_id = $1 AND m.turn_id = $2 AND m.role = 'user'
+              AND t.owner_user_id = $3
+              AND m.patient_switch->>'resolution' = 'pending'
+            FOR UPDATE
+            """,
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(owner_user_id),
+        )
+        if switch is None:
+            return False
+        if resolution == "changed_patient":
+            detected_patient_id = switch["detected_patient_id"]
+            if not detected_patient_id:
+                return False
+            patient_exists = await conn.fetchval(
+                "SELECT 1 FROM patients WHERE id = $1 AND owner_user_id = $2",
+                _uuid(detected_patient_id),
+                _uuid(owner_user_id),
+            )
+            if not patient_exists:
+                return False
+            await conn.execute(
+                """
+                UPDATE clinical_threads
+                SET active_patient_id = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3
+                """,
+                _uuid(detected_patient_id),
+                _uuid(thread_id),
+                _uuid(owner_user_id),
+            )
+        result = await conn.execute(
+            """
+            UPDATE clinical_messages m
+            SET patient_switch = jsonb_set(m.patient_switch, '{resolution}', to_jsonb($4::text))
+            FROM clinical_threads t
+            WHERE m.thread_id = t.id AND m.thread_id = $1 AND m.turn_id = $2
+              AND m.role = 'user' AND t.owner_user_id = $3
+              AND m.patient_switch->>'resolution' = 'pending'
+            """,
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(owner_user_id),
+            resolution,
+        )
+    return bool(result == "UPDATE 1")
 
 
 async def create_artifact(
@@ -538,7 +621,11 @@ async def update_title_if_default(
 
 
 async def claim_turn(
-    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str, content: str
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    content: str,
+    context_items: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     owner = _uuid(owner_user_id)
     thread = _uuid(thread_id)
@@ -562,7 +649,7 @@ async def claim_turn(
             raise LookupError("Thread not found")
         existing = await conn.fetch(
             """
-            SELECT m.id, m.role, m.content, m.turn_status, m.turn_error_code
+            SELECT m.id, m.role, m.content, m.context_items, m.turn_status, m.turn_error_code
             FROM clinical_messages m
             JOIN clinical_threads t ON t.id = m.thread_id
             WHERE m.turn_id = $1 AND m.thread_id = $2 AND t.owner_user_id = $3
@@ -572,7 +659,14 @@ async def claim_turn(
             owner,
         )
         if existing:
-            if any(msg["role"] == "user" and msg["content"] != content for msg in existing):
+            if any(
+                msg["role"] == "user"
+                and (
+                    msg["content"] != content
+                    or (msg["context_items"] or []) != (context_items or [])
+                )
+                for msg in existing
+            ):
                 raise TurnIdempotencyConflictError
             messages = [dict(msg) for msg in existing]
             user_message = next(msg for msg in messages if msg["role"] == "user")
@@ -633,15 +727,16 @@ async def claim_turn(
         message = await conn.fetchrow(
             """
             INSERT INTO clinical_messages (
-                id, thread_id, turn_id, role, content, turn_status, created_at
+                id, thread_id, turn_id, role, content, context_items, turn_status, created_at
             )
-            VALUES ($1, $2, $3, 'user', $4, 'running', now())
-            RETURNING id, thread_id, turn_id, role, content, created_at
+            VALUES ($1, $2, $3, 'user', $4, $5::jsonb, 'running', now())
+            RETURNING id, thread_id, turn_id, role, content, context_items, created_at
             """,
             uuid4(),
             thread,
             turn,
             content,
+            json.dumps(context_items, ensure_ascii=False) if context_items else None,
         )
     return {
         "replay": False,

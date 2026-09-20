@@ -76,9 +76,6 @@ export function AppShell({
   const [isMobileSidebar, setIsMobileSidebar] = useState(
     () => window.matchMedia?.('(max-width: 767px)').matches ?? true,
   );
-  const [isCompactWorkspace, setIsCompactWorkspace] = useState(
-    () => window.matchMedia?.('(max-width: 1024px)').matches ?? true,
-  );
   const [workspaceLayout] = useState(readDriveLayout);
   const workspaceAccessoryVisible = Boolean(workspaceAccessory);
   // Keep main content under same React parent so closing Drive cannot abort its stream.
@@ -109,15 +106,6 @@ export function AppShell({
       setIsMobileSidebar(mediaQuery.matches);
       if (mediaQuery.matches) setSidebarCollapsed(false);
     };
-    update();
-    mediaQuery.addEventListener?.('change', update);
-    return () => mediaQuery.removeEventListener?.('change', update);
-  }, []);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia?.('(max-width: 1024px)');
-    if (!mediaQuery) return;
-    const update = () => setIsCompactWorkspace(mediaQuery.matches);
     update();
     mediaQuery.addEventListener?.('change', update);
     return () => mediaQuery.removeEventListener?.('change', update);
@@ -229,64 +217,56 @@ export function AppShell({
             )}
             <DriveBootstrapBanner key="drive-bootstrap-banner" />
             {workspaceLayoutEnabled ? (
-              isCompactWorkspace ? (
-                <div key="workspace" className="workspace-mobile-stack">
-                  {children}
-                  {workspaceAccessoryVisible ? workspaceAccessory : null}
-                </div>
-              ) : (
-                <div key="workspace" className="workspace-row">
-                  <ResizableGroup
-                    groupRef={workspaceGroup}
-                    id="clinical-workspace"
-                    orientation="horizontal"
-                    className="workspace-resizable"
-                    defaultLayout={workspaceDefaultLayout}
-                    onLayoutChanged={(layout) => {
-                      if (!workspaceAccessoryVisible || workspaceAccessoryMode === 'document')
-                        return;
-                      try {
-                        window.localStorage.setItem(
-                          DRIVE_LAYOUT_KEY,
-                          JSON.stringify({
-                            main: Math.min(72, Math.max(58, layout.main ?? 68)),
-                            accessory: Math.min(40, Math.max(28, layout.accessory ?? 32)),
-                          }),
-                        );
-                      } catch {
-                        // Storage is optional; the live layout still works.
-                      }
-                    }}
+              <div key="workspace" className="workspace-row">
+                <ResizableGroup
+                  groupRef={workspaceGroup}
+                  id="clinical-workspace"
+                  orientation="horizontal"
+                  className="workspace-resizable"
+                  defaultLayout={workspaceDefaultLayout}
+                  onLayoutChanged={(layout) => {
+                    if (!workspaceAccessoryVisible || workspaceAccessoryMode === 'document') return;
+                    try {
+                      window.localStorage.setItem(
+                        DRIVE_LAYOUT_KEY,
+                        JSON.stringify({
+                          main: Math.min(72, Math.max(58, layout.main ?? 68)),
+                          accessory: Math.min(40, Math.max(28, layout.accessory ?? 32)),
+                        }),
+                      );
+                    } catch {
+                      // Storage is optional; the live layout still works.
+                    }
+                  }}
+                >
+                  <ResizablePanel
+                    id="main"
+                    defaultSize={workspaceAccessoryVisible ? '68' : '100'}
+                    minSize={workspaceAccessoryMode === 'document' ? '52' : '58'}
+                    className="workspace-panel-main"
                   >
-                    <ResizablePanel
-                      id="main"
-                      defaultSize={workspaceAccessoryVisible ? '68' : '100'}
-                      minSize={workspaceAccessoryMode === 'document' ? '52' : '58'}
-                      className="workspace-panel-main"
-                    >
-                      {children}
-                    </ResizablePanel>
-                    <ResizableHandle
-                      className={`workspace-resize-handle${workspaceAccessoryVisible ? '' : ' workspace-resize-handle-closed'}`}
-                    />
-                    <ResizablePanel
-                      id="accessory"
-                      defaultSize={workspaceAccessoryVisible ? '32' : '0'}
-                      minSize={
-                        workspaceAccessoryVisible
-                          ? workspaceAccessoryMode === 'document'
-                            ? '32'
-                            : '28'
-                          : '0'
-                      }
-                      maxSize={workspaceAccessoryMode === 'document' ? '48' : '40'}
-                      className="workspace-panel-accessory"
-                    >
-                      {workspaceAccessoryVisible ? workspaceAccessory : null}
-                    </ResizablePanel>
-                  </ResizableGroup>
-                </div>
-              )
+                    {children}
+                  </ResizablePanel>
+                  <ResizableHandle
+                    className={`workspace-resize-handle${workspaceAccessoryVisible ? '' : ' workspace-resize-handle-closed'}`}
+                  />
+                  <ResizablePanel
+                    id="accessory"
+                    defaultSize={workspaceAccessoryVisible ? '32' : '0'}
+                    minSize={
+                      workspaceAccessoryVisible
+                        ? workspaceAccessoryMode === 'document'
+                          ? '32'
+                          : '28'
+                        : '0'
+                    }
+                    maxSize={workspaceAccessoryMode === 'document' ? '48' : '40'}
+                    className="workspace-panel-accessory"
+                  >
+                    {workspaceAccessoryVisible ? workspaceAccessory : null}
+                  </ResizablePanel>
+                </ResizableGroup>
+              </div>
             ) : (
               <Fragment key="workspace">{children}</Fragment>
             )}

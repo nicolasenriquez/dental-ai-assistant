@@ -35,7 +35,13 @@ interface ClinicalAssistantAreaProps {
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
 }
 
-type QueuedEntry = { id: string; content: string; patientId: string | null; patientName: string };
+type QueuedEntry = {
+  id: string;
+  content: string;
+  contextItems: ComposerContextItem[];
+  patientId: string | null;
+  patientName: string;
+};
 
 export function ClinicalAssistantArea({
   threadId,
@@ -198,7 +204,7 @@ export function ClinicalAssistantArea({
     const next = queued[0];
     if (assistant.runtime !== 'idle' || voiceInFlight || !next || next.patientId !== patientId)
       return;
-    void assistant.send(next.content).then((accepted) => {
+    void assistant.send(next.content, next.contextItems).then((accepted) => {
       if (accepted) updateQueue((current) => current.filter((item) => item.id !== next.id));
     });
   }, [
@@ -214,10 +220,6 @@ export function ClinicalAssistantArea({
   const send = () => {
     if (!value.trim() || voiceInFlight) return;
     const instruction = value.trim();
-    const sources = contextItems
-      .map((item) => `Fuente: Google Drive · ${item.sourceName}\n${item.content}`)
-      .join('\n\n');
-    const message = sources ? `${instruction}\n\n${sources}` : instruction;
     const queueable = assistant.runtime === 'streaming' || assistant.runtime === 'stopping';
     if (assistant.runtime === 'saving' || assistant.runtime === 'awaiting_approval') return;
     if (queueable) {
@@ -232,7 +234,8 @@ export function ClinicalAssistantArea({
         ...current,
         {
           id: crypto.randomUUID(),
-          content: message,
+          content: instruction,
+          contextItems,
           patientId: assistant.thread?.active_patient?.id ?? null,
           patientName: assistant.thread?.active_patient
             ? `${assistant.thread.active_patient.first_name} ${assistant.thread.active_patient.last_name}`
@@ -244,16 +247,19 @@ export function ClinicalAssistantArea({
     setQueueError(null);
     setValue('');
     setContextByThread((current) => ({ ...current, [threadId]: [] }));
-    void assistant.send(message).then((ok) => {
-      if (!ok) setValue((current) => current || message);
-      else onThreadStateChanged?.();
+    void assistant.send(instruction, contextItems).then((ok) => {
+      if (!ok) {
+        setValue((current) => current || instruction);
+        setContextByThread((current) => ({ ...current, [threadId]: contextItems }));
+      } else onThreadStateChanged?.();
     });
   };
 
   const onDraftChange = (id: string, draft: ClinicalDraft) => assistant.updateDraft(id, draft);
   const editQueued = useCallback(
-    (id: string, content: string) => {
+    (id: string, content: string, items: ComposerContextItem[]) => {
       setValue(content);
+      setContextByThread((current) => ({ ...current, [threadId]: items }));
       updateQueue((current) => current.filter((item) => item.id !== id));
       textareaRef.current?.focus();
     },
@@ -422,7 +428,10 @@ export function ClinicalAssistantArea({
                   <span>{entry.content}</span>
                   <small>{entry.patientName}</small>
                   <div className="clinical-queue-actions">
-                    <button type="button" onClick={() => editQueued(entry.id, entry.content)}>
+                    <button
+                      type="button"
+                      onClick={() => editQueued(entry.id, entry.content, entry.contextItems)}
+                    >
                       Editar
                     </button>
                     <button

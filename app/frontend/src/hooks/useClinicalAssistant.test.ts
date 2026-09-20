@@ -5,6 +5,7 @@ import {
   type ClinicalPatient,
   type ClinicalThread,
   getClinicalThread,
+  resolveClinicalPatientSwitch,
   setClinicalActivePatient,
   updateClinicalArtifact,
 } from '../lib/api';
@@ -15,6 +16,7 @@ vi.mock('../lib/api', async () => {
   return {
     ...actual,
     getClinicalThread: vi.fn(),
+    resolveClinicalPatientSwitch: vi.fn(),
     setClinicalActivePatient: vi.fn(),
     updateClinicalArtifact: vi.fn(),
   };
@@ -125,6 +127,129 @@ describe('useClinicalAssistant active patient persistence', () => {
 
     expect(getClinicalThread).not.toHaveBeenCalled();
     expect(result.current.thread?.id).toBe('thread-2');
+  });
+
+  it('hydrates structured Drive provenance on user messages', async () => {
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(null),
+      messages: [
+        {
+          id: 'message-1',
+          thread_id: 'thread-1',
+          turn_id: 'turn-1',
+          role: 'user',
+          content: 'Actualizar evolución',
+          created_at: '2026-01-01T00:00:00Z',
+          context_items: [
+            {
+              id: 'context-1',
+              kind: 'drive_selection',
+              source_id: 'drive-file-1',
+              source_name: 'Evaluación.md',
+              content: 'Control en seis meses',
+            },
+          ],
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+
+    expect(result.current.items[0]).toMatchObject({
+      type: 'user',
+      content: 'Actualizar evolución',
+      contextItems: [{ sourceName: 'Evaluación.md', content: 'Control en seis meses' }],
+    });
+  });
+
+  it('hydrates a resolved patient switch without resending the turn', async () => {
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(patientB),
+      messages: [
+        {
+          id: 'message-1',
+          thread_id: 'thread-1',
+          turn_id: 'turn-1',
+          role: 'user',
+          content: 'Actualizar a Bruno',
+          created_at: '2026-01-01T00:00:00Z',
+          patient_switch: {
+            item_id: 'switch-1',
+            current_patient: patientA,
+            detected_patient: patientB,
+            resolution: 'changed_patient',
+          },
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    expect(result.current.items[1]).toMatchObject({
+      id: 'switch-1',
+      type: 'patient_switch',
+      status: 'completed',
+      resolution: 'changed_patient',
+    });
+  });
+
+  it('keeps a patient switch pending until keep-current persistence succeeds', async () => {
+    const pendingThread: ClinicalThread = {
+      ...thread(patientA),
+      messages: [
+        {
+          id: 'message-1',
+          thread_id: 'thread-1',
+          turn_id: 'turn-1',
+          role: 'user',
+          content: 'Actualizar a Bruno',
+          created_at: '2026-01-01T00:00:00Z',
+          patient_switch: {
+            item_id: 'switch-1',
+            current_patient: patientA,
+            detected_patient: patientB,
+            resolution: 'pending',
+          },
+        },
+      ],
+    };
+    const response = deferred<ClinicalThread>();
+    vi.mocked(getClinicalThread).mockResolvedValue(pendingThread);
+    vi.mocked(resolveClinicalPatientSwitch).mockReturnValue(response.promise);
+
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    act(() => {
+      void result.current.cancelPatientSwitch('switch-1');
+    });
+    expect(result.current.items[1]).toMatchObject({ resolution: 'pending', status: 'pending' });
+
+    await act(async () => {
+      response.resolve({
+        ...pendingThread,
+        messages: [
+          {
+            ...pendingThread.messages[0],
+            patient_switch: {
+              item_id: 'switch-1',
+              current_patient: patientA,
+              detected_patient: patientB,
+              resolution: 'kept_current',
+            },
+          },
+        ],
+      });
+      await response.promise;
+    });
+
+    expect(resolveClinicalPatientSwitch).toHaveBeenCalledWith('thread-1', 'turn-1', 'keep_current');
+    expect(result.current.items[1]).toMatchObject({
+      resolution: 'kept_current',
+      status: 'completed',
+    });
   });
 
   it('serializes autosaves for the same artifact', async () => {

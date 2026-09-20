@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ClinicalAssistantController,
@@ -70,6 +70,7 @@ function createThread(activePatient: ClinicalPatient | null): ClinicalThread {
 describe('ClinicalAssistantArea queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    send.mockResolvedValue(true);
     runtime.value = 'streaming';
     assistantState.thread = createThread(null);
     vi.mocked(getPatients).mockResolvedValue([]);
@@ -137,6 +138,37 @@ describe('ClinicalAssistantArea queue', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Detener' }));
     expect(assistant.stop).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
+  });
+
+  it('sends Drive context separately from the instruction', () => {
+    runtime.value = 'idle';
+    let insertContext: ((item: import('../../lib/api').ComposerContextItem) => void) | undefined;
+    render(
+      <ClinicalAssistantArea
+        threadId="thread-1"
+        assistant={createAssistant()}
+        onComposerInsertReady={(insert) => {
+          insertContext = insert;
+        }}
+      />,
+    );
+    act(() => {
+      insertContext?.({
+        id: 'context-1',
+        kind: 'drive_selection',
+        sourceId: 'drive-file-1',
+        sourceName: 'Evaluación.md',
+        content: 'Control en seis meses',
+      });
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Actualizar evolución' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+
+    expect(send).toHaveBeenCalledWith('Actualizar evolución', [
+      expect.objectContaining({ sourceName: 'Evaluación.md', content: 'Control en seis meses' }),
+    ]);
   });
 
   it('shows selection progress, preserves the previous patient, and retries failures', async () => {

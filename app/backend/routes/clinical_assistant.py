@@ -20,6 +20,7 @@ from backend.clinical_assistant.schemas import (
     ClinicalThreadResponse,
     ClinicalThreadUpdate,
     ClinicalTurnRequest,
+    PatientSwitchResolution,
     PrepareSaveRequest,
     RegenerateDraftRequest,
 )
@@ -103,6 +104,22 @@ async def set_active_patient(
     return updated
 
 
+@router.patch(
+    "/clinical-threads/{thread_id}/turns/{turn_id}/patient-switch",
+    response_model=ClinicalThreadResponse,
+)
+async def resolve_patient_switch(
+    thread_id: UUID,
+    turn_id: UUID,
+    request: PatientSwitchResolution,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ClinicalThreadResponse:
+    updated = await service.resolve_patient_switch(_user_id(user), thread_id, turn_id, request)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Decisión de paciente no encontrada")
+    return updated
+
+
 @router.post("/clinical-threads/{thread_id}/turns")
 async def start_turn(
     thread_id: UUID,
@@ -112,7 +129,11 @@ async def start_turn(
     async def body():
         try:
             async for chunk in service.stream_turn(
-                _user_id(user), thread_id, request.turn_id, request.content
+                _user_id(user),
+                thread_id,
+                request.turn_id,
+                request.content,
+                request.context_items,
             ):
                 yield chunk
         except service.TurnAlreadyRunningError:

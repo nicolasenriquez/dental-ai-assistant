@@ -3,6 +3,7 @@ import type {
   ClinicalPatient,
   ClinicalPendingAction,
   ClinicalTurnArtifact,
+  ComposerContextItem,
 } from '../lib/api';
 
 export type ClinicalItemStatus = 'pending' | 'running' | 'completed' | 'failed' | 'declined';
@@ -17,6 +18,7 @@ export interface ClinicalBaseItem {
 export interface ClinicalUserItem extends ClinicalBaseItem {
   type: 'user';
   content: string;
+  contextItems?: ComposerContextItem[];
 }
 
 export interface ClinicalAssistantItem extends ClinicalBaseItem {

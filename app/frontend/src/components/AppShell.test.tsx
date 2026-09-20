@@ -60,14 +60,15 @@ function MountProbe({ onUnmount }: { onUnmount: () => void }) {
 }
 
 describe('AppShell mobile sidebar', () => {
-  it('keeps workspace content mounted when crossing the mobile breakpoint', () => {
+  it('keeps workspace content mounted across responsive breakpoints', () => {
     let mobile = false;
+    let compact = true;
     const listeners = new Set<() => void>();
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({
         get matches() {
-          return query.includes('767') ? mobile : true;
+          return query.includes('767') ? mobile : compact;
         },
         addEventListener: (_event: string, listener: () => void) => listeners.add(listener),
         removeEventListener: (_event: string, listener: () => void) => listeners.delete(listener),
@@ -82,6 +83,7 @@ describe('AppShell mobile sidebar', () => {
     );
 
     mobile = true;
+    compact = false;
     act(() => {
       for (const listener of listeners) listener();
     });
@@ -114,7 +116,7 @@ describe('AppShell mobile sidebar', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders the compact workspace without the desktop split group', () => {
+  it('keeps the compact workspace in the stable split group', () => {
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({
@@ -130,9 +132,10 @@ describe('AppShell mobile sidebar', () => {
       </AppShell>,
     );
 
-    expect(container.querySelector('.workspace-mobile-stack')).toBeInTheDocument();
-    expect(container.querySelector('.workspace-row')).not.toBeInTheDocument();
-    expect(container.querySelector('.workspace-resize-handle')).not.toBeInTheDocument();
+    expect(container.querySelector('.workspace-row')).toBeInTheDocument();
+    expect(container.querySelector('.workspace-resizable')).toBeInTheDocument();
+    expect(container.querySelector('.workspace-resize-handle')).toBeInTheDocument();
+    expect(container.querySelector('.workspace-mobile-stack')).not.toBeInTheDocument();
 
     vi.unstubAllGlobals();
   });

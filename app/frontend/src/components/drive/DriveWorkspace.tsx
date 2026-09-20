@@ -548,9 +548,12 @@ export function DriveWorkspace({
         setErrorMessage(null);
         return true;
       } catch (error) {
-        setConflictOpen(false);
-        setUnknownWrite(!(error instanceof ApiError) || error.status >= 500);
-        setErrorMessage('No se pudo confirmar el guardado. Tu trabajo local se conserva.');
+        const conflict = error instanceof ApiError && error.status === 409;
+        setConflictOpen(conflict);
+        setUnknownWrite(!conflict && (!(error instanceof ApiError) || error.status >= 500));
+        setErrorMessage(
+          conflict ? null : 'No se pudo confirmar el guardado. Tu trabajo local se conserva.',
+        );
         return false;
       } finally {
         setSaving(false);

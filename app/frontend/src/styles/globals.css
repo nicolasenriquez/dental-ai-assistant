@@ -4490,13 +4490,6 @@ body,
   min-height: 0;
 }
 
-.workspace-mobile-stack {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-}
-
 .workspace-panel-main,
 .workspace-panel-accessory {
   display: flex;
@@ -5644,13 +5637,28 @@ body,
 }
 
 @media (max-width: 1024px) {
-  .workspace-mobile-stack {
-    overflow: hidden;
+  .workspace-resizable {
+    flex-flow: column !important;
   }
 
-  .workspace-mobile-stack > :first-child {
+  .workspace-resizable > [data-panel][id="main"] {
+    width: 100% !important;
+    height: auto !important;
+    min-width: 0;
     min-height: 0;
-    flex: 1;
+    flex: 1 1 auto !important;
+  }
+
+  .workspace-resizable > [data-panel][id="accessory"] {
+    width: 100% !important;
+    height: auto !important;
+    min-width: 0;
+    min-height: 0;
+    flex: 0 0 auto !important;
+  }
+
+  .workspace-resize-handle {
+    display: none;
   }
 }
 

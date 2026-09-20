@@ -4,10 +4,12 @@ import {
   type ClinicalDraft,
   type ClinicalPatient,
   type ClinicalThread,
+  type ComposerContextItem,
   getClinicalThread,
   prepareClinicalSave,
   regenerateClinicalDraft,
   resolveClinicalAction,
+  resolveClinicalPatientSwitch,
   retryClinicalDriveExport,
   returnClinicalActionToEditing,
   setClinicalActivePatient,
@@ -77,14 +79,42 @@ function apiErrorCode(error: unknown): string | null {
 }
 
 function messageItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
-  return thread.messages.map((message) => ({
-    id: message.id,
-    turnId: message.turn_id,
-    status: 'completed',
-    createdAt: message.created_at,
-    type: message.role,
-    content: message.content,
-  }));
+  return thread.messages.flatMap((message): ClinicalTranscriptItem[] => {
+    const items: ClinicalTranscriptItem[] = [
+      {
+        id: message.id,
+        turnId: message.turn_id,
+        status: 'completed',
+        createdAt: message.created_at,
+        type: message.role,
+        content: message.content,
+        ...(message.role === 'user' && message.context_items
+          ? {
+              contextItems: message.context_items.map((item) => ({
+                id: item.id,
+                kind: item.kind,
+                sourceId: item.source_id,
+                sourceName: item.source_name,
+                content: item.content,
+              })),
+            }
+          : {}),
+      },
+    ];
+    if (message.role === 'user' && message.patient_switch) {
+      items.push({
+        id: message.patient_switch.item_id,
+        turnId: message.turn_id,
+        status: message.patient_switch.resolution === 'pending' ? 'pending' : 'completed',
+        createdAt: message.created_at,
+        type: 'patient_switch',
+        current: message.patient_switch.current_patient,
+        detected: message.patient_switch.detected_patient,
+        resolution: message.patient_switch.resolution,
+      });
+    }
+    return items;
+  });
 }
 
 function actionItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
@@ -214,7 +244,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
 
   const send = useCallback(
-    async (content: string): Promise<boolean> => {
+    async (content: string, contextItems: ComposerContextItem[] = []): Promise<boolean> => {
       const currentThreadId = threadId;
       if (!currentThreadId || !content.trim()) return false;
       const turnId = crypto.randomUUID();
@@ -235,6 +265,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           createdAt,
           type: 'user',
           content: redactIdentifiers(content),
+          contextItems,
         },
       });
       const controller = new AbortController();
@@ -242,7 +273,17 @@ export function useClinicalAssistant(threadId: string | undefined) {
       try {
         const response = await streamClinicalTurn(
           currentThreadId,
-          { turn_id: turnId, content },
+          {
+            turn_id: turnId,
+            content,
+            context_items: contextItems.map((item) => ({
+              id: item.id,
+              kind: item.kind,
+              source_id: item.sourceId,
+              source_name: item.sourceName,
+              content: item.content,
+            })),
+          },
           controller.signal,
         );
         await consumeSse(
@@ -622,25 +663,42 @@ export function useClinicalAssistant(threadId: string | undefined) {
       );
       const content =
         turnInputRef.current[turnId] ?? (userItem?.type === 'user' ? userItem.content : undefined);
-      if (content) void send(content);
+      const contextItems = userItem?.type === 'user' ? (userItem.contextItems ?? []) : [];
+      if (content) void send(content, contextItems);
     },
     [clinicalState.items, send],
   );
 
-  const cancelPatientSwitch = useCallback((itemId: string) => {
-    patientSwitchItemsRef.current = patientSwitchItemsRef.current.map((item) =>
-      item.id === itemId ? { ...item, status: 'completed', resolution: 'kept_current' } : item,
-    );
-    dispatch({ type: 'resolvePatientSwitch', itemId, resolution: 'kept_current' });
-    setError(null);
-    setRuntime('idle');
-  }, []);
+  const cancelPatientSwitch = useCallback(
+    async (itemId: string) => {
+      const item = clinicalState.items.find(
+        (candidate) => candidate.id === itemId && candidate.type === 'patient_switch',
+      );
+      if (!threadId || !item || item.type !== 'patient_switch') return;
+      try {
+        const updated = await resolveClinicalPatientSwitch(threadId, item.turnId, 'keep_current');
+        setThread(updated);
+        patientSwitchItemsRef.current = patientSwitchItemsRef.current.map((candidate) =>
+          candidate.id === itemId
+            ? { ...candidate, status: 'completed', resolution: 'kept_current' }
+            : candidate,
+        );
+        dispatch({ type: 'resolvePatientSwitch', itemId, resolution: 'kept_current' });
+        setError(null);
+        setRuntime('idle');
+      } catch {
+        setError('No pudimos guardar la decisión de paciente.');
+      }
+    },
+    [clinicalState.items, threadId],
+  );
 
   const confirmPatientSwitch = useCallback(
     async (item: ClinicalPatientSwitchItem) => {
       if (!threadId) return;
       try {
-        await setActivePatient(item.detected.id);
+        const updated = await resolveClinicalPatientSwitch(threadId, item.turnId, 'change_patient');
+        setThread(updated);
         patientSwitchItemsRef.current = patientSwitchItemsRef.current.map((candidate) =>
           candidate.id === item.id
             ? { ...candidate, status: 'completed', resolution: 'changed_patient' }
@@ -653,7 +711,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         setError('No pudimos cambiar el paciente activo.');
       }
     },
-    [setActivePatient, threadId],
+    [threadId],
   );
 
   return {

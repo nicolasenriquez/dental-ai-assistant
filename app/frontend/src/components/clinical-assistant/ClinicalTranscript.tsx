@@ -218,7 +218,26 @@ export function ClinicalTranscript({
             >
               {group.map((item, index) => {
                 if (item.type === 'user')
-                  return <Message key={item.id} role={item.type} content={item.content} />;
+                  return (
+                    <div key={item.id}>
+                      {item.contextItems && item.contextItems.length > 0 && (
+                        <div
+                          className="mb-2 flex flex-wrap justify-end gap-2"
+                          aria-label="Fuentes adjuntas"
+                        >
+                          {item.contextItems.map((context) => (
+                            <span
+                              key={context.id}
+                              className="rounded-md bg-[var(--surface-2)] px-2 py-1 text-xs text-[var(--text-secondary)]"
+                            >
+                              {context.sourceName} · selección
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <Message role={item.type} content={item.content} />
+                    </div>
+                  );
                 if (item.type === 'assistant')
                   return (
                     <Message
