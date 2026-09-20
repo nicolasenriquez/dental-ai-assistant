@@ -130,17 +130,18 @@ def test_provider_payload_redacts_ruts_from_note_and_history() -> None:
     from backend.services.clinical_evolutions import _provider_messages
 
     messages = _provider_messages(
-        "Nota 12.345.678-5 y 123456785",
+        "Nota 12.345.678-5, 12.345.678 5, 123456785 y dosis 1200000 UI",
         [{"evolution_at": datetime.now(UTC), "final_text": "Paciente 12.345.678-5 estable"}],
     )
 
     content = messages[1]["content"]
     assert isinstance(content, str)
     payload = json.loads(content)
-    for forbidden in ("12.345.678-5", "123456785"):
+    for forbidden in ("12.345.678-5", "12.345.678 5", "123456785"):
         assert forbidden not in payload["CURRENT_RAW_NOTE"]
     assert "12.345.678-5" not in payload["PREVIOUS_EVOLUTIONS"][0]["final_text"]
     assert "[RUT_REDACTED]" in payload["CURRENT_RAW_NOTE"]
+    assert "1200000 UI" in payload["CURRENT_RAW_NOTE"]
 
 
 def test_generation_service_is_owner_scoped_and_does_not_accept_current_time_or_identity() -> None:
@@ -268,6 +269,38 @@ async def test_provider_boundary_is_bounded_ordered_and_identity_free(monkeypatc
     ):
         assert forbidden not in payload
     assert result.treatment == ""
+
+
+async def test_empty_provider_draft_preserves_domain_error(monkeypatch) -> None:
+    from backend.services import clinical_evolutions
+
+    async def get_patient(*_args):
+        return {"id": "patient"}
+
+    async def get_history(*_args, **_kwargs):
+        return []
+
+    async def complete(*_args):
+        return json.dumps(
+            {
+                "context": "",
+                "findings": "",
+                "assessment": "",
+                "treatment": "",
+                "follow_up": "",
+                "review_flags": [],
+            }
+        )
+
+    monkeypatch.setattr(clinical_evolutions, "CLINICAL_EXTERNAL_LLM_ENABLED", True)
+    monkeypatch.setattr(clinical_evolutions.patients_repo, "get_patient", get_patient)
+    monkeypatch.setattr(
+        clinical_evolutions.patients_repo, "get_recent_approved_evolutions", get_history
+    )
+    monkeypatch.setattr(clinical_evolutions, "create_structured_completion", complete)
+
+    with pytest.raises(clinical_evolutions.EmptyClinicalDraftError):
+        await clinical_evolutions.generate_draft("owner", "patient", "nota")
 
 
 async def test_disabled_gate_prevents_repository_and_provider_calls(monkeypatch) -> None:

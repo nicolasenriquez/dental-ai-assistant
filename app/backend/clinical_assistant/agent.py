@@ -149,6 +149,7 @@ async def run_clinical_agent(
             tools=CLINICAL_TOOLS,
             tool_executor=execute,
             max_tool_calls=MAX_CLINICAL_TOOL_CALLS,
+            buffer_text=True,
             cap_message=(
                 "Alcanzaste el límite de herramientas. Responde ahora en español con los "
                 "resultados disponibles y sin intentar otra operación."

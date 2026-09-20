@@ -11,7 +11,12 @@ from typing import Any
 from uuid import UUID
 
 from backend.db import patients_repo
-from backend.patients.rut import RUT_CANDIDATE_RE, mask_rut, normalize_rut
+from backend.patients.rut import (
+    RUT_CANDIDATE_RE,
+    is_valid_compact_rut,
+    mask_rut,
+    normalize_rut,
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,11 @@ async def sanitize_content(owner_user_id: UUID | str, content: str) -> Sanitized
         display_parts.append(content[cursor : match.start()])
         model_parts.append(content[cursor : match.start()])
         candidate = match.group(0)
+        if match.group("compact") and not is_valid_compact_rut(candidate):
+            display_parts.append(candidate)
+            model_parts.append(candidate)
+            cursor = match.end()
+            continue
         if "•" in candidate:
             display_parts.append(candidate)
             model_parts.append("[RUT_REDACTED]")

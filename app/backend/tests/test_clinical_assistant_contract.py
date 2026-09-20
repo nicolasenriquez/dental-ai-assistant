@@ -67,6 +67,24 @@ async def test_rut_sanitizer_never_returns_raw_identifier(monkeypatch) -> None:
     assert result.masked_ruts == ("••.•••.678-5",)
 
 
+async def test_rut_sanitizer_accepts_whitespace_before_check_digit(monkeypatch) -> None:
+    from backend.clinical_assistant.sensitive_input import sanitize_content
+
+    async def owned_patient(_owner, rut_body):
+        return {"id": UUID(int=8), "rut_number": rut_body, "rut_dv": "5"}
+
+    monkeypatch.setattr(
+        "backend.clinical_assistant.sensitive_input.patients_repo.get_patient_by_rut",
+        owned_patient,
+    )
+
+    result = await sanitize_content(UUID(int=1), "Nota 12.345.678 5")
+
+    assert "12.345.678 5" not in result.display_text
+    assert "12.345.678 5" not in result.model_text
+    assert result.masked_ruts == ("••.•••.678-5",)
+
+
 async def test_recent_evolutions_are_sanitized_before_model_use(monkeypatch) -> None:
     from backend.clinical_assistant import service
     from backend.clinical_assistant.policy import ClinicalTurnContext
@@ -166,7 +184,7 @@ async def test_compact_rut_is_redacted(monkeypatch) -> None:
     assert result.masked_ruts == ("••.•••.678-5",)
 
 
-async def test_invalid_compact_rut_is_redacted_without_lookup(monkeypatch) -> None:
+async def test_invalid_compact_number_is_left_untouched_without_lookup(monkeypatch) -> None:
     from backend.clinical_assistant.sensitive_input import sanitize_content
 
     async def no_patient(owner, rut_body):
@@ -177,10 +195,9 @@ async def test_invalid_compact_rut_is_redacted_without_lookup(monkeypatch) -> No
         no_patient,
     )
     result = await sanitize_content(UUID(int=1), "Nota 123456789")
-    assert "123456789" not in result.display_text
-    assert "123456789" not in result.model_text
-    assert result.display_text == "Nota [RUT no válido]"
-    assert result.invalid_candidates == 1
+    assert result.display_text == "Nota 123456789"
+    assert result.model_text == "Nota 123456789"
+    assert result.invalid_candidates == 0
 
 
 async def test_compact_non_rut_number_is_left_untouched(monkeypatch) -> None:
@@ -193,9 +210,9 @@ async def test_compact_non_rut_number_is_left_untouched(monkeypatch) -> None:
         "backend.clinical_assistant.sensitive_input.patients_repo.get_patient_by_rut",
         no_patient,
     )
-    result = await sanitize_content(UUID(int=1), "El control 20253 arrojó")
-    assert result.display_text == "El control 20253 arrojó"
-    assert result.model_text == "El control 20253 arrojó"
+    result = await sanitize_content(UUID(int=1), "Penicilina 1200000 UI")
+    assert result.display_text == "Penicilina 1200000 UI"
+    assert result.model_text == "Penicilina 1200000 UI"
     assert result.invalid_candidates == 0
 
 
@@ -492,6 +509,74 @@ async def test_clinical_turn_can_answer_without_active_patient(monkeypatch) -> N
     assert chunks[-1].startswith("event: turn.completed")
 
 
+async def test_drive_context_sends_only_text_to_agent(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.agent import ClinicalAgentOutput
+    from backend.clinical_assistant.schemas import ClinicalContextItem
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    captured: dict[str, object] = {}
+    context_item = ClinicalContextItem(
+        id=UUID(int=4),
+        kind="drive_selection",
+        source_id="drive-file",
+        source_name="Ficha.md",
+        content="Dolor en pieza 1.6",
+    )
+
+    async def sanitize(_owner, content):
+        return type(
+            "Sanitized",
+            (),
+            {
+                "display_text": content,
+                "model_text": content,
+                "invalid_candidates": 0,
+                "unresolved_candidates": 0,
+                "patient_ids": (),
+            },
+        )()
+
+    async def claim(*args):
+        captured["stored_context"] = args[-1]
+        return {"replay": False, "active_patient_id": None}
+
+    async def stored(*_args):
+        return {"messages": [{"role": "user", "content": "Usa ficha"}], "artifacts": []}
+
+    async def agent(*, context, messages, handlers):
+        captured["messages"] = messages
+        yield ClinicalAgentOutput(kind="assistant", content="Listo")
+
+    async def append(*_args):
+        return {"id": UUID(int=5)}
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.repository, "claim_turn", claim)
+    monkeypatch.setattr(service.repository, "get_thread", stored)
+    monkeypatch.setattr(service.repository, "append_message", append)
+    monkeypatch.setattr(service.repository, "finish_turn", no_op)
+    monkeypatch.setattr(service, "_set_contextual_title", no_op)
+    monkeypatch.setattr(service, "run_clinical_agent", agent)
+    monkeypatch.setattr(service.clinical_evolutions, "CLINICAL_EXTERNAL_LLM_ENABLED", True)
+
+    _ = [
+        chunk
+        async for chunk in service.stream_turn(owner, thread, turn, "Usa ficha", [context_item])
+    ]
+
+    model_content = captured["messages"][-1]["content"]
+    assert model_content == "Usa ficha\n\nDolor en pieza 1.6"
+    assert "Fuente: Google Drive" not in model_content
+    assert "Ficha.md" not in model_content
+    assert "model_content" not in captured["stored_context"][0]
+
+
 async def test_patient_switch_is_persisted_before_event(monkeypatch) -> None:
     from backend.clinical_assistant import service
 
@@ -621,6 +706,110 @@ async def test_clinical_update_tool_reopens_pending_artifact(monkeypatch) -> Non
     assert reopened == [action_id]
     assert result.payload["draft"]["treatment"] == "Texto breve"
     assert result.effect and result.effect["item_id"] == str(artifact_id)
+
+
+async def test_active_draft_fields_are_included_in_agent_messages() -> None:
+    from backend.clinical_assistant import service
+
+    artifact_id = UUID(int=5)
+    stored = {
+        "messages": [{"role": "user", "content": "Agrega control en seis meses"}],
+        "artifacts": [
+            {
+                "id": artifact_id,
+                "draft": {
+                    "context": "Control preventivo",
+                    "findings": "Sin caries",
+                    "assessment": "",
+                    "treatment": "Profilaxis",
+                    "follow_up": "",
+                    "review_flags": [],
+                },
+            }
+        ],
+    }
+
+    messages = await service._conversation_messages(
+        UUID(int=1), stored, "Agrega control en seis meses", artifact_id
+    )
+
+    payload = json.loads(messages[-1]["content"])
+    assert payload["USER_REQUEST"] == "Agrega control en seis meses"
+    assert payload["CURRENT_DRAFT"]["treatment"] == "Profilaxis"
+    assert payload["CURRENT_DRAFT"]["context"] == "Control preventivo"
+
+
+async def test_regeneration_reuses_originating_drive_context(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.schemas import ClinicalDraft
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    turn = UUID(int=3)
+    patient = UUID(int=4)
+    artifact_id = UUID(int=5)
+    captured: dict[str, str] = {}
+    draft = ClinicalDraft(
+        context="Control",
+        findings="",
+        assessment="",
+        treatment="",
+        follow_up="",
+        review_flags=[],
+    )
+
+    async def get_artifact(*_args):
+        return {
+            "id": artifact_id,
+            "turn_id": turn,
+            "patient_id": patient,
+            "source_note": "Redacta una evolución con este documento",
+            "evolution_at": datetime.now(UTC),
+        }
+
+    async def get_patient(*_args):
+        return {"id": patient}
+
+    async def get_thread(*_args):
+        return {
+            "messages": [
+                {
+                    "turn_id": turn,
+                    "role": "user",
+                    "context_items": [
+                        {
+                            "source_name": "Ficha.md",
+                            "content": "Dolor en pieza 1.6",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    async def sanitize(_owner, content):
+        return type("Sanitized", (), {"display_text": content, "model_text": content})()
+
+    async def generate(_owner, _patient, raw_note):
+        captured["raw_note"] = raw_note
+        return draft
+
+    async def update(*_args, **_kwargs):
+        return {"id": artifact_id}
+
+    monkeypatch.setattr(service.repository, "get_artifact", get_artifact)
+    monkeypatch.setattr(service.repository, "get_thread", get_thread)
+    monkeypatch.setattr(service.repository, "update_artifact", update)
+    monkeypatch.setattr(service.patients_repo, "get_patient", get_patient)
+    monkeypatch.setattr(service, "sanitize_content", sanitize)
+    monkeypatch.setattr(service.clinical_evolutions, "generate_draft", generate)
+    monkeypatch.setattr(service.clinical_evolutions, "CLINICAL_EXTERNAL_LLM_ENABLED", True)
+
+    await service.regenerate_draft(owner, thread, artifact_id)
+
+    assert "Redacta una evolución con este documento" in captured["raw_note"]
+    assert "Dolor en pieza 1.6" in captured["raw_note"]
+    assert "Fuente: Google Drive" not in captured["raw_note"]
+    assert "Ficha.md" not in captured["raw_note"]
 
 
 @pytest.mark.parametrize(

@@ -123,6 +123,8 @@ async def generate_draft(
             _provider_messages(raw_note, history), ClinicalDraft.model_json_schema()
         )
         return ClinicalDraft.validate_meaningful(ClinicalDraft.model_validate_json(content))
+    except EmptyClinicalDraftError:
+        raise
     except (ValidationError, RuntimeError) as exc:
         logger.warning("Clinical generation failed category=%s", type(exc).__name__)
         raise ClinicalGenerationError("No pudimos redactar la evolucion") from exc

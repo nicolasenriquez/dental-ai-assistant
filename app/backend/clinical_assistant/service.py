@@ -318,7 +318,30 @@ def _active_artifact_id(stored: dict[str, Any], patient_id: UUID | None) -> UUID
     return UUID(str(candidates[-1]["id"]))
 
 
-def _conversation_messages(stored: dict[str, Any], model_text: str) -> list[dict]:
+async def _conversation_messages(
+    owner: UUID,
+    stored: dict[str, Any],
+    model_text: str,
+    active_artifact_id: UUID | None,
+) -> list[dict]:
+    if active_artifact_id is not None:
+        artifact = next(
+            (
+                item
+                for item in stored.get("artifacts", [])
+                if UUID(str(item["id"])) == active_artifact_id
+            ),
+            None,
+        )
+        if artifact is not None:
+            current_draft = ClinicalDraft.model_validate(artifact["draft"])
+            fields = {
+                key: (await sanitize_content(owner, getattr(current_draft, key))).model_text
+                for key, _ in _FIELDS
+            }
+            model_text = json.dumps(
+                {"USER_REQUEST": model_text, "CURRENT_DRAFT": fields}, ensure_ascii=False
+            )
     messages = [
         {"role": message["role"], "content": str(message["content"])}
         for message in stored.get("messages", [])[-12:]
@@ -527,7 +550,6 @@ async def _stream_turn(
                     "source_name": safe_name.display_text,
                     "content": safe_content.display_text,
                     "model_content": safe_content.model_text,
-                    "model_source_name": safe_name.model_text,
                 }
             )
     except Exception:
@@ -543,11 +565,7 @@ async def _stream_turn(
         )
         return
     stored_context = [
-        {
-            key: value
-            for key, value in item.items()
-            if key not in {"model_content", "model_source_name"}
-        }
+        {key: value for key, value in item.items() if key != "model_content"}
         for item in sanitized_context
     ]
     claimed = await repository.claim_turn(
@@ -730,10 +748,7 @@ async def _stream_turn(
         raise LookupError("Thread not found")
     model_text = sanitized.model_text
     if sanitized_context:
-        sources = "\n\n".join(
-            f"Fuente: Google Drive · {item['model_source_name']}\n{item['model_content']}"
-            for item in sanitized_context
-        )
+        sources = "\n\n".join(item["model_content"] for item in sanitized_context)
         model_text = f"{model_text}\n\n{sources}"
     context = ClinicalTurnContext(
         user_id=owner,
@@ -742,6 +757,7 @@ async def _stream_turn(
         patient_id=patient_id,
         active_artifact_id=_active_artifact_id(stored, patient_id),
     )
+    messages = await _conversation_messages(owner, stored, model_text, context.active_artifact_id)
 
     try:
         if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
@@ -750,7 +766,7 @@ async def _stream_turn(
         produced_artifact = False
         async for output in run_clinical_agent(
             context=context,
-            messages=_conversation_messages(stored, model_text),
+            messages=messages,
             handlers=_clinical_tool_handlers(context, sanitized.display_text, model_text),
         ):
             if output.kind == "heartbeat":
@@ -938,10 +954,30 @@ async def regenerate_draft(
     patient_id = UUID(str(artifact["patient_id"]))
     if await patients_repo.get_patient(owner, patient_id) is None:
         raise LookupError("Patient not found")
+    stored = await repository.get_thread(owner, thread)
+    if stored is None:
+        raise LookupError("Thread or patient not found")
     sanitized = await sanitize_content(owner, str(artifact["source_note"]))
+    context_items = next(
+        (
+            message.get("context_items") or []
+            for message in stored.get("messages", [])
+            if UUID(str(message["turn_id"])) == UUID(str(artifact["turn_id"]))
+            and message["role"] == "user"
+        ),
+        [],
+    )
+    sources = []
+    for item in context_items:
+        safe_content = await sanitize_content(owner, str(item["content"]))
+        sources.append(safe_content.model_text)
+    model_note = sanitized.model_text
+    if sources:
+        sources_text = "\n\n".join(sources)
+        model_note = f"{model_note}\n\n{sources_text}"
     if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
         raise clinical_evolutions.ClinicalGenerationDisabledError
-    draft = await clinical_evolutions.generate_draft(owner, patient_id, sanitized.model_text)
+    draft = await clinical_evolutions.generate_draft(owner, patient_id, model_note)
     evolution_at = datetime.fromisoformat(str(artifact["evolution_at"]))
     await repository.update_artifact(
         owner,

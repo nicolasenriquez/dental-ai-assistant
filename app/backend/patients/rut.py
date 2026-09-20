@@ -10,14 +10,30 @@ _RUT_PATTERN = re.compile(r"^([0-9]{1,8})([0-9K])$")
 # Boundary candidates for redaction: formatted, masked, and compact RUTs.
 # Compact bodies are 5-8 digits and must pass normalize_rut() before anything
 # is redacted, so plain numbers in prose are not corrupted.
-_FORMATTED_CANDIDATE = r"(?<!\d)(?:(?:[\d•]{1,2}(?:[.\s][\d•]{3}){1,2}|[\d•]{4,8})-[0-9kK])(?!\d)"
-_COMPACT_CANDIDATE = r"(?<![\d.])(\d{5,8})([0-9kK])(?!\d)"
+_FORMATTED_CANDIDATE = (
+    r"(?<!\d)(?:(?:[\d•]{1,2}(?:[.\s][\d•]{3}){1,2}|[\d•]{4,8})[-\s][0-9kK])(?!\d)"
+)
+_COMPACT_CANDIDATE = r"(?<![\d.])(?P<compact>\d{5,8}[0-9kK])(?!\d)"
 RUT_CANDIDATE_RE = re.compile(f"(?:{_FORMATTED_CANDIDATE}|{_COMPACT_CANDIDATE})")
 
 
 def redact_rut_candidates(text: str, replacement: str = "[RUT_REDACTED]") -> str:
     """Replace every RUT-like boundary candidate in text with `replacement`."""
-    return RUT_CANDIDATE_RE.sub(replacement, text)
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group("compact") and not is_valid_compact_rut(match.group(0)):
+            return match.group(0)
+        return replacement
+
+    return RUT_CANDIDATE_RE.sub(replace, text)
+
+
+def is_valid_compact_rut(value: str) -> bool:
+    try:
+        normalize_rut(value)
+    except ValueError:
+        return False
+    return True
 
 
 def normalize_rut(value: str) -> tuple[int, str]:

@@ -68,8 +68,38 @@ async def test_tool_round_text_is_not_streamed_before_final_round() -> None:
             tools=[{"type": "function"}],
             tool_executor=execute_tool,
             max_tool_calls=1,
+            buffer_text=True,
         )
     ]
 
     assert [event.text for event in events if event.kind == "text"] == ["Respuesta final"]
     assert events[-1].kind == "final"
+
+
+@pytest.mark.asyncio
+async def test_text_delta_is_emitted_before_provider_stream_finishes() -> None:
+    client = _Client(
+        [
+            _AsyncStream(
+                [
+                    _chunk(content="Respuesta "),
+                    _chunk(content="final"),
+                    _chunk(finish_reason="stop"),
+                ]
+            )
+        ]
+    )
+    events = stream_tool_loop(
+        client=client,
+        model="test-model",
+        system_content="system",
+        messages=[],
+    )
+
+    first = await anext(events)
+
+    assert first.kind == "text"
+    assert first.text == "Respuesta "
+    remaining = [event async for event in events]
+    assert [event.text for event in remaining if event.kind == "text"] == ["final"]
+    assert remaining[-1].text == "Respuesta final"

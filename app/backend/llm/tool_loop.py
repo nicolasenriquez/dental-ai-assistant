@@ -61,6 +61,7 @@ async def stream_tool_loop(
     cancel_event: asyncio.Event | None = None,
     heartbeat_interval_seconds: float = 5.0,
     tool_subject: ToolSubject | None = None,
+    buffer_text: bool = False,
     cap_message: str | None = None,
 ) -> AsyncGenerator[ToolLoopEvent, None]:
     """Run one bounded completion loop without imposing a transport format."""
@@ -116,6 +117,8 @@ async def stream_tool_loop(
                 finish_reason = choice.finish_reason
             if delta and delta.content:
                 assistant_text_parts.append(delta.content)
+                if not buffer_text:
+                    yield ToolLoopEvent(kind="text", text=delta.content)
                 last_heartbeat_at = time.monotonic()
             if delta and delta.tool_calls:
                 for tool_call in delta.tool_calls:
@@ -190,7 +193,7 @@ async def stream_tool_loop(
             continue
 
         final_text = "".join(assistant_text_parts)
-        if final_text:
+        if buffer_text and final_text:
             yield ToolLoopEvent(kind="text", text=final_text)
         yield ToolLoopEvent(
             kind="final",
