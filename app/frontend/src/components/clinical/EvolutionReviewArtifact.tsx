@@ -328,7 +328,7 @@ export function EvolutionReviewArtifact({
                 </button>
               )}
             </div>
-            {editingField === key ? (
+            {editingField === key && !readOnly ? (
               <>
                 <textarea
                   rows={isAssistant ? 2 : 3}
@@ -448,7 +448,7 @@ export function EvolutionReviewArtifact({
                   {editingSource ? 'Cerrar edición' : 'Editar nota original'}
                 </button>
               )}
-              {editingSource && sourceEditable && (
+              {editingSource && sourceEditable && !readOnly && (
                 <div className="clinical-source-editor">
                   <textarea
                     rows={3}

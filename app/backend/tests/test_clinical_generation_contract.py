@@ -130,16 +130,16 @@ def test_provider_payload_redacts_ruts_from_note_and_history() -> None:
     from backend.services.clinical_evolutions import _provider_messages
 
     messages = _provider_messages(
-        "Nota 12.345.678-5, 12.345.678 5, 123456785 y dosis 1200000 UI",
-        [{"evolution_at": datetime.now(UTC), "final_text": "Paciente 12.345.678-5 estable"}],
+        "Nota 12.345.678-5, 12.345.678 5, 12.345.6785, 123456785 y dosis 1200000 UI",
+        [{"evolution_at": datetime.now(UTC), "final_text": "Paciente 12.345.6785 estable"}],
     )
 
     content = messages[1]["content"]
     assert isinstance(content, str)
     payload = json.loads(content)
-    for forbidden in ("12.345.678-5", "12.345.678 5", "123456785"):
+    for forbidden in ("12.345.678-5", "12.345.678 5", "12.345.6785", "123456785"):
         assert forbidden not in payload["CURRENT_RAW_NOTE"]
-    assert "12.345.678-5" not in payload["PREVIOUS_EVOLUTIONS"][0]["final_text"]
+    assert "12.345.6785" not in payload["PREVIOUS_EVOLUTIONS"][0]["final_text"]
     assert "[RUT_REDACTED]" in payload["CURRENT_RAW_NOTE"]
     assert "1200000 UI" in payload["CURRENT_RAW_NOTE"]
 

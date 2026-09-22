@@ -42,7 +42,7 @@ export type {
 
 const now = () => new Date().toISOString();
 const RUT_CANDIDATE =
-  /(?<!\d)(?:(?:[\d•]{1,2}(?:[.\s]\d{3}){1,2}|[\d•]{4,8})-[0-9kK](?!\d)|(?<![\d.])(\d{5,8})([0-9kK])(?!\d))/g;
+  /(?<![\d.])(?:[\d•]{1,2}(?:[.\s][\d•]{3}){1,2}(?:\s*-\s*|\s*)|[\d•]{4,8}(?:\s*-\s*|\s+)|\d{5,8})[0-9kK](?!\d)/g;
 
 function redactIdentifiers(content: string): string {
   return content.replace(RUT_CANDIDATE, '••••');
@@ -169,6 +169,8 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const turnInputRef = useRef<Record<string, string>>({});
   const artifactTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const artifactSyncsRef = useRef<Record<string, Promise<void>>>({});
+  // ponytail: local exclusion; cross-session editing needs server-side conditional writes.
+  const busyArtifactsRef = useRef(new Set<string>());
   const recoveredExportsRef = useRef(new Set<string>());
   const patientSwitchItemsRef = useRef<ClinicalPatientSwitchItem[]>([]);
 
@@ -265,7 +267,11 @@ export function useClinicalAssistant(threadId: string | undefined) {
           createdAt,
           type: 'user',
           content: redactIdentifiers(content),
-          contextItems,
+          contextItems: contextItems.map((item) => ({
+            ...item,
+            sourceName: redactIdentifiers(item.sourceName),
+            content: redactIdentifiers(item.content),
+          })),
         },
       });
       const controller = new AbortController();
@@ -454,7 +460,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
       itemId: string,
       patch: { draft?: ClinicalDraft; sourceNote?: string; evolutionAt?: string },
     ) => {
-      if (!threadId) return;
+      if (!threadId || busyArtifactsRef.current.has(itemId)) return;
       const current = clinicalState.items.find(
         (item) => item.id === itemId && item.type === 'draft',
       );
@@ -466,6 +472,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
       if (previousTimer) clearTimeout(previousTimer);
       setArtifactSyncState((state) => ({ ...state, [itemId]: 'saving' }));
       artifactTimersRef.current[itemId] = setTimeout(() => {
+        delete artifactTimersRef.current[itemId];
         const previous = artifactSyncsRef.current[itemId] ?? Promise.resolve();
         artifactSyncsRef.current[itemId] = previous
           .catch(() => undefined)
@@ -487,6 +494,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const updateDraft = useCallback(
     (itemId: string, draft: ClinicalDraft) => {
+      if (busyArtifactsRef.current.has(itemId)) return;
       dispatch({ type: 'updateDraft', itemId, draft });
       scheduleArtifactSync(itemId, { draft });
     },
@@ -495,11 +503,16 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const updateDraftSource = useCallback(
     async (itemId: string, sourceNote: string): Promise<boolean> => {
-      if (!threadId) return false;
+      if (!threadId || busyArtifactsRef.current.has(itemId)) return false;
       const current = clinicalState.items.find(
         (item) => item.id === itemId && item.type === 'draft',
       );
       if (!current || current.type !== 'draft') return false;
+      busyArtifactsRef.current.add(itemId);
+      dispatch({ type: 'setDraftBusy', itemId, busy: true });
+      clearTimeout(artifactTimersRef.current[itemId]);
+      delete artifactTimersRef.current[itemId];
+      setArtifactSyncState((state) => ({ ...state, [itemId]: 'saving' }));
       dispatch({ type: 'updateSource', itemId, sourceNote });
       try {
         const previous = artifactSyncsRef.current[itemId] ?? Promise.resolve();
@@ -513,11 +526,17 @@ export function useClinicalAssistant(threadId: string | undefined) {
             }),
           );
         artifactSyncsRef.current[itemId] = sync.then(() => undefined);
+        void artifactSyncsRef.current[itemId].catch(() => undefined);
         await sync;
+        setArtifactSyncState((state) => ({ ...state, [itemId]: 'saved' }));
         setError(null);
         return true;
       } catch {
+        setArtifactSyncState((state) => ({ ...state, [itemId]: 'error' }));
         return false;
+      } finally {
+        busyArtifactsRef.current.delete(itemId);
+        dispatch({ type: 'setDraftBusy', itemId, busy: false });
       }
     },
     [clinicalState.items, threadId],
@@ -525,6 +544,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const updateDraftDate = useCallback(
     (itemId: string, evolutionAt: string) => {
+      if (busyArtifactsRef.current.has(itemId)) return;
       dispatch({ type: 'updateDate', itemId, evolutionAt });
       scheduleArtifactSync(itemId, { evolutionAt });
     },
@@ -533,14 +553,32 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const regenerateDraft = useCallback(
     async (item: ClinicalDraftItem) => {
-      if (!threadId) return;
+      if (!threadId || busyArtifactsRef.current.has(item.id)) return;
+      busyArtifactsRef.current.add(item.id);
+      dispatch({ type: 'setDraftBusy', itemId: item.id, busy: true });
+      setArtifactSyncState((state) => ({ ...state, [item.id]: 'saving' }));
+      let persisted = false;
       try {
+        clearTimeout(artifactTimersRef.current[item.id]);
+        delete artifactTimersRef.current[item.id];
+        await artifactSyncsRef.current[item.id];
+        await updateClinicalArtifact(threadId, item.id, {
+          source_note: item.sourceNote,
+          draft: item.draft,
+          evolution_at: item.evolutionAt,
+        });
+        persisted = true;
+        setArtifactSyncState((state) => ({ ...state, [item.id]: 'saved' }));
         const draft = await regenerateClinicalDraft(threadId, item.id);
         dispatch({ type: 'replaceDraft', itemId: item.id, draft });
         setError(null);
       } catch {
+        if (!persisted) setArtifactSyncState((state) => ({ ...state, [item.id]: 'error' }));
         setError(safeError('CLINICAL_MODEL_UNAVAILABLE'));
         setRuntime('failed');
+      } finally {
+        busyArtifactsRef.current.delete(item.id);
+        dispatch({ type: 'setDraftBusy', itemId: item.id, busy: false });
       }
     },
     [threadId],
@@ -548,7 +586,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const prepareDraft = useCallback(
     async (item: ClinicalDraftItem): Promise<ClinicalApprovalItem | null> => {
-      if (!threadId || item.stale) return null;
+      if (!threadId || item.stale || busyArtifactsRef.current.has(item.id)) return null;
+      busyArtifactsRef.current.add(item.id);
+      dispatch({ type: 'setDraftBusy', itemId: item.id, busy: true });
       try {
         const syncTimer = artifactTimersRef.current[item.id];
         if (syncTimer) clearTimeout(syncTimer);
@@ -579,6 +619,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
         setError(safeError(code));
         setRuntime(code === 'CLINICAL_PENDING_ACTION_EXISTS' ? 'awaiting_approval' : 'failed');
         return null;
+      } finally {
+        busyArtifactsRef.current.delete(item.id);
+        dispatch({ type: 'setDraftBusy', itemId: item.id, busy: false });
       }
     },
     [threadId],

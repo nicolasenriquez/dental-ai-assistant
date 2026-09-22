@@ -1,14 +1,18 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type ClinicalDraft,
   type ClinicalPatient,
   type ClinicalThread,
   getClinicalThread,
+  prepareClinicalSave,
+  regenerateClinicalDraft,
   resolveClinicalPatientSwitch,
   setClinicalActivePatient,
+  streamClinicalTurn,
   updateClinicalArtifact,
 } from '../lib/api';
+import type { ClinicalDraftItem } from './clinicalRuntime';
 import { useClinicalAssistant } from './useClinicalAssistant';
 
 vi.mock('../lib/api', async () => {
@@ -16,11 +20,16 @@ vi.mock('../lib/api', async () => {
   return {
     ...actual,
     getClinicalThread: vi.fn(),
+    prepareClinicalSave: vi.fn(),
+    regenerateClinicalDraft: vi.fn(),
+    streamClinicalTurn: vi.fn(),
     resolveClinicalPatientSwitch: vi.fn(),
     setClinicalActivePatient: vi.fn(),
     updateClinicalArtifact: vi.fn(),
   };
 });
+
+afterEach(() => vi.useRealTimers());
 
 const patientA: ClinicalPatient = {
   id: 'patient-a',
@@ -71,6 +80,234 @@ const draft: ClinicalDraft = {
   follow_up: 'follow-up',
   review_flags: [],
 };
+
+const artifact = {
+  id: 'artifact-1',
+  owner_user_id: 'user-1',
+  thread_id: 'thread-1',
+  turn_id: 'turn-1',
+  patient_id: 'patient-a',
+  artifact_type: 'clinical_draft' as const,
+  status: 'draft' as const,
+  source_note: 'note',
+  generated_draft: draft,
+  draft,
+  evolution_at: '2026-09-17T12:00:00Z',
+  created_at: '2026-09-17T12:00:00Z',
+  updated_at: '2026-09-17T12:00:00Z',
+};
+
+describe('clinical redaction and artifact ordering', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(getClinicalThread).mockResolvedValue({ ...thread(null), artifacts: [artifact] });
+    vi.mocked(updateClinicalArtifact).mockResolvedValue(artifact);
+    vi.mocked(regenerateClinicalDraft).mockResolvedValue(draft);
+  });
+
+  it.each(['12.345.6785', '12.345.678 5', '12 345 678 - 5', '123456785'])(
+    'redacts %s optimistically and accepts server sanitization without hydration',
+    async (rut) => {
+      const response = deferred<Response>();
+      vi.mocked(streamClinicalTurn).mockReturnValue(response.promise);
+      const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+      await waitFor(() => expect(result.current.thread).not.toBeNull());
+      vi.mocked(getClinicalThread).mockRejectedValue(new Error('offline'));
+      let sending!: Promise<boolean>;
+      act(() => {
+        sending = result.current.send(`Nota ${rut}`, [
+          {
+            id: 'context-1',
+            kind: 'drive_selection',
+            sourceId: 'file-1',
+            sourceName: rut,
+            content: `Contexto ${rut}`,
+          },
+        ]);
+      });
+      expect(JSON.stringify(result.current.items)).not.toContain(rut);
+      const turnId = vi.mocked(streamClinicalTurn).mock.calls[0][1].turn_id;
+      await act(async () => {
+        response.resolve(
+          new Response(
+            `event: turn.started\ndata: ${JSON.stringify({
+              schema_version: 1,
+              event_id: 'event-1',
+              sequence: 1,
+              thread_id: 'thread-1',
+              turn_id: turnId,
+              item_id: `user:${turnId}`,
+              item_type: 'user_message',
+              status: 'completed',
+              data: { user_content: 'Nota [RUT no encontrado]' },
+            })}\n\n`,
+          ),
+        );
+        await sending;
+      });
+      expect(result.current.items.find((item) => item.type === 'user')).toMatchObject({
+        content: 'Nota [RUT no encontrado]',
+        contextItems: [{ sourceId: 'file-1', sourceName: '••••', content: 'Contexto ••••' }],
+      });
+    },
+  );
+
+  it.each([false, true])(
+    'preserves a corrected source with an in-flight autosave: %s',
+    async (inFlight) => {
+      const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+      await waitFor(() => expect(result.current.items).toHaveLength(1));
+      vi.useFakeTimers();
+      const first = deferred<typeof artifact>();
+      if (inFlight) vi.mocked(updateClinicalArtifact).mockReturnValueOnce(first.promise);
+      act(() => result.current.updateDraft(artifact.id, { ...draft, context: 'edited' }));
+      act(() => result.current.updateDraftDate(artifact.id, '2026-09-18T12:00:00Z'));
+      if (inFlight) await act(async () => vi.advanceTimersByTimeAsync(300));
+      let saving!: Promise<boolean>;
+      act(() => {
+        saving = result.current.updateDraftSource(artifact.id, 'corrected');
+      });
+      await act(async () => {
+        first.resolve(artifact);
+        expect(await saving).toBe(true);
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(updateClinicalArtifact).toHaveBeenCalledTimes(inFlight ? 2 : 1);
+      expect(vi.mocked(updateClinicalArtifact).mock.lastCall?.[2]).toEqual({
+        source_note: 'corrected',
+        draft: { ...draft, context: 'edited' },
+        evolution_at: '2026-09-18T12:00:00Z',
+      });
+    },
+  );
+
+  it('excludes regeneration during source persistence and edits during regeneration', async () => {
+    const save = deferred<typeof artifact>();
+    const generation = deferred<ClinicalDraft>();
+    vi.mocked(updateClinicalArtifact).mockReturnValueOnce(save.promise);
+    vi.mocked(regenerateClinicalDraft).mockReturnValueOnce(generation.promise);
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    let saving!: Promise<boolean>;
+    act(() => {
+      saving = result.current.updateDraftSource(artifact.id, 'corrected');
+    });
+    await act(async () => {
+      await result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    expect(regenerateClinicalDraft).not.toHaveBeenCalled();
+    expect(result.current.items[0].status).toBe('running');
+    await act(async () => {
+      save.resolve(artifact);
+      await saving;
+    });
+    let generating!: Promise<void>;
+    act(() => {
+      generating = result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    await waitFor(() => expect(regenerateClinicalDraft).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      expect(await result.current.updateDraftSource(artifact.id, 'conflict')).toBe(false);
+      result.current.updateDraft(artifact.id, { ...draft, context: 'conflict' });
+      result.current.updateDraftDate(artifact.id, '2027-01-01T12:00:00Z');
+      await result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+      expect(
+        await result.current.prepareDraft(result.current.items[0] as ClinicalDraftItem),
+      ).toBeNull();
+    });
+    expect(prepareClinicalSave).not.toHaveBeenCalled();
+    expect(regenerateClinicalDraft).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(updateClinicalArtifact).mock.lastCall?.[2].source_note).toBe('corrected');
+    await act(async () => {
+      generation.resolve({ ...draft, context: 'regenerated' });
+      await generating;
+    });
+    expect(result.current.items[0]).toMatchObject({
+      status: 'completed',
+      sourceNote: 'corrected',
+      stale: false,
+      evolutionAt: artifact.evolution_at,
+      draft: { context: 'regenerated' },
+    });
+  });
+
+  it('waits for an in-flight autosave before persisting and regenerating', async () => {
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    vi.useFakeTimers();
+    const save = deferred<typeof artifact>();
+    vi.mocked(updateClinicalArtifact).mockReturnValueOnce(save.promise);
+    act(() => result.current.updateDraftDate(artifact.id, '2026-09-18T12:00:00Z'));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    let generating!: Promise<void>;
+    act(() => {
+      generating = result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    expect(regenerateClinicalDraft).not.toHaveBeenCalled();
+    expect(updateClinicalArtifact).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      save.resolve(artifact);
+      await generating;
+    });
+    expect(updateClinicalArtifact).toHaveBeenCalledTimes(2);
+    expect(regenerateClinicalDraft).toHaveBeenCalledTimes(1);
+    expect(result.current.artifactSyncState[artifact.id]).toBe('saved');
+  });
+
+  it('keeps a failed source save stale and blocks regeneration until persistence is retried', async () => {
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    vi.mocked(updateClinicalArtifact).mockRejectedValueOnce(new Error('offline'));
+    await act(async () => {
+      expect(await result.current.updateDraftSource(artifact.id, 'corrected')).toBe(false);
+    });
+    await act(async () => {
+      await result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    expect(regenerateClinicalDraft).not.toHaveBeenCalled();
+    expect(result.current.items[0]).toMatchObject({
+      status: 'completed',
+      sourceNote: 'corrected',
+      stale: true,
+    });
+    expect(result.current.artifactSyncState[artifact.id]).toBe('error');
+    await act(async () => {
+      expect(await result.current.updateDraftSource(artifact.id, 'corrected')).toBe(true);
+    });
+    await act(async () => {
+      await result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    expect(regenerateClinicalDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it('flushes pending edits before regeneration and releases the lock on failure', async () => {
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    vi.useFakeTimers();
+    act(() => result.current.updateDraftDate(artifact.id, '2026-09-18T12:00:00Z'));
+    vi.mocked(updateClinicalArtifact).mockRejectedValueOnce(new Error('offline'));
+    await act(async () => {
+      await result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    expect(regenerateClinicalDraft).not.toHaveBeenCalled();
+    expect(result.current.items[0].status).toBe('completed');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(updateClinicalArtifact).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(updateClinicalArtifact).mock.lastCall?.[2].evolution_at).toBe(
+      '2026-09-18T12:00:00Z',
+    );
+    vi.mocked(regenerateClinicalDraft).mockRejectedValueOnce(new Error('model unavailable'));
+    await act(async () => {
+      await result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    expect(result.current.items[0]).toMatchObject({ status: 'completed', draft });
+    await act(async () => {
+      expect(await result.current.updateDraftSource(artifact.id, 'retry')).toBe(true);
+    });
+  });
+});
 
 describe('useClinicalAssistant active patient persistence', () => {
   beforeEach(() => {

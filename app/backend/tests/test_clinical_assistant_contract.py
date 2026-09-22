@@ -43,7 +43,10 @@ def test_turn_request_validates_structured_drive_context() -> None:
     assert request.context_items[0].source_name == "Evaluación.md"
 
 
-async def test_rut_sanitizer_never_returns_raw_identifier(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "rut", ["12.345.678-5", "12.345.6785", "12.345.678 5", "12 345 678 - 5", "123456785"]
+)
+async def test_rut_sanitizer_never_returns_raw_identifier(monkeypatch, rut: str) -> None:
     from backend.clinical_assistant.sensitive_input import sanitize_content
 
     async def owned_patient(owner, rut_body):
@@ -60,9 +63,9 @@ async def test_rut_sanitizer_never_returns_raw_identifier(monkeypatch) -> None:
         "backend.clinical_assistant.sensitive_input.patients_repo.get_patient_by_rut",
         owned_patient,
     )
-    result = await sanitize_content(UUID(int=1), "Nota 12.345.678-5")
-    assert "12.345.678-5" not in result.display_text
-    assert "12.345.678-5" not in result.model_text
+    result = await sanitize_content(UUID(int=1), f"Nota {rut}")
+    assert rut not in result.display_text
+    assert rut not in result.model_text
     assert str(UUID(int=8)) in result.model_text
     assert result.masked_ruts == ("••.•••.678-5",)
 

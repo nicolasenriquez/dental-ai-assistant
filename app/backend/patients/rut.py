@@ -11,7 +11,8 @@ _RUT_PATTERN = re.compile(r"^([0-9]{1,8})([0-9K])$")
 # Compact bodies are 5-8 digits and must pass normalize_rut() before anything
 # is redacted, so plain numbers in prose are not corrupted.
 _FORMATTED_CANDIDATE = (
-    r"(?<!\d)(?:(?:[\d•]{1,2}(?:[.\s][\d•]{3}){1,2}|[\d•]{4,8})[-\s][0-9kK])(?!\d)"
+    r"(?<![\d.])(?:[\d•]{1,2}(?:[.\s][\d•]{3}){1,2}(?:\s*-\s*|\s*)"
+    r"|[\d•]{4,8}(?:\s*-\s*|\s+))[0-9kK](?!\d)"
 )
 _COMPACT_CANDIDATE = r"(?<![\d.])(?P<compact>\d{5,8}[0-9kK])(?!\d)"
 RUT_CANDIDATE_RE = re.compile(f"(?:{_FORMATTED_CANDIDATE}|{_COMPACT_CANDIDATE})")

@@ -249,6 +249,7 @@ export type ClinicalReducerAction =
   | { type: 'updateSource'; itemId: string; sourceNote: string }
   | { type: 'updateDate'; itemId: string; evolutionAt: string }
   | { type: 'replaceDraft'; itemId: string; draft: ClinicalDraft }
+  | { type: 'setDraftBusy'; itemId: string; busy: boolean }
   | { type: 'upsertApproval'; item: ClinicalApprovalItem }
   | {
       type: 'resolveApproval';
@@ -298,7 +299,7 @@ function upsertStreamItem(
         : item,
     );
   }
-  if (terminalStatuses.has(current.status)) return items;
+  if (current.type !== 'user' && terminalStatuses.has(current.status)) return items;
   return items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...incoming } : item));
 }
 
@@ -474,6 +475,16 @@ export function clinicalReducer(
               draft: action.draft,
               edited: JSON.stringify(action.draft) !== JSON.stringify(item.baseline),
             }
+          : item,
+      ),
+    };
+  }
+  if (action.type === 'setDraftBusy') {
+    return {
+      ...state,
+      items: state.items.map((item) =>
+        item.id === action.itemId && item.type === 'draft'
+          ? { ...item, status: action.busy ? 'running' : 'completed' }
           : item,
       ),
     };
