@@ -155,6 +155,8 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
   let loginAttempts = 0;
   let conversationLoadAttempts = 0;
   let streamAttempts = 0;
+  let clinicalStreamAttempts = 0;
+  const cancelledClinicalTurns = new Set<string>();
   let releaseHeldStream: (() => void) | null = null;
   let resolveClinicalStreamEntered: (() => void) | null = null;
   const clinicalStreamEntered = new Promise<void>((resolve) => {
@@ -381,7 +383,24 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       await route.fulfill(json(currentClinicalThread));
       return;
     }
+    if (path.startsWith(`/api/clinical-threads/${threadId}/turns/`) && path.endsWith('/cancel') && method === 'POST') {
+      const turn = path.split('/').at(-2) ?? '';
+      cancelledClinicalTurns.add(turn);
+      currentClinicalThread = {
+        ...currentClinicalThread,
+        active_turn_id: null,
+        messages: (currentClinicalThread.messages as Array<Record<string, unknown>>).map((message) =>
+          message.turn_id === turn && message.role === 'user'
+            ? { ...message, turn_status: 'failed', turn_error_code: 'CLINICAL_TURN_CANCELLED' }
+            : message,
+        ),
+      };
+      releaseHeldStream?.();
+      await route.fulfill(json({ status: 'cancelled' }));
+      return;
+    }
     if (path === `/api/clinical-threads/${threadId}/turns` && method === 'POST') {
+      clinicalStreamAttempts += 1;
       const body = request.postDataJSON() as { content?: string; turn_id?: string };
       const turn = body.turn_id ?? 'turn-qa';
       const artifact = {
@@ -403,8 +422,9 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       };
       const messages = currentClinicalThread.messages as Array<Record<string, unknown>>;
       const artifacts = currentClinicalThread.artifacts as Array<Record<string, unknown>>;
-      currentClinicalThread = {
+      const completedClinicalThread = {
         ...currentClinicalThread,
+        active_turn_id: null,
         messages: [
           ...messages,
           {
@@ -413,15 +433,8 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
             turn_id: turn,
             role: 'user',
             content: body.content ?? '',
+            turn_status: 'completed',
             created_at: '2026-01-15T12:00:58Z',
-          },
-          {
-            id: `assistant-${turn}`,
-            thread_id: threadId,
-            turn_id: turn,
-            role: 'assistant',
-            content: 'Preparé un borrador para revisión.',
-            created_at: '2026-01-15T12:01:01Z',
           },
         ],
         artifacts: [...artifacts, artifact],
@@ -450,26 +463,36 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
           },
           turn,
         ),
-        clinicalEvent(
-          'item.completed',
-          3,
-          'assistant-qa',
-          'assistant_message',
-          {
-            content: 'Preparé un borrador para revisión.',
-            created_at: '2026-01-15T12:01:01Z',
-          },
-          turn,
-        ),
-        clinicalEvent('turn.completed', 4, 'turn-complete', 'turn', {}, turn),
+        clinicalEvent('turn.completed', 3, 'turn-complete', 'turn', {}, turn),
       ].join('');
-      if (options.holdClinicalStream) {
+      if (options.holdClinicalStream && clinicalStreamAttempts === 1) {
+        currentClinicalThread = {
+          ...currentClinicalThread,
+          active_turn_id: turn,
+          messages: [
+            ...messages,
+            {
+              id: `user-${turn}`,
+              thread_id: threadId,
+              turn_id: turn,
+              role: 'user',
+              content: body.content ?? '',
+              turn_status: 'running',
+              created_at: '2026-01-15T12:00:58Z',
+            },
+          ],
+        };
         await new Promise<void>((resolve) => {
           releaseHeldStream = resolve;
           resolveClinicalStreamEntered?.();
         });
       }
-      await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
+      if (!cancelledClinicalTurns.has(turn)) currentClinicalThread = completedClinicalThread;
+      try {
+        await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
+      } catch {
+        // The browser may have left before the detached worker completed.
+      }
       return;
     }
     if (path === `/api/clinical-threads/${threadId}/artifacts/draft-qa` && method === 'PATCH') {
@@ -1054,7 +1077,7 @@ test('clinical assistant exposes the review lifecycle and Drive surface', async 
 
   await page.getByLabel('Nota clínica').fill('Nota clínica QA.');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
-  await expect(page.getByText('Preparé un borrador para revisión.')).toBeVisible();
+  await expect(page.getByText('Preparé un borrador para revisión.')).toHaveCount(0);
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
   const reviewOpener = page.getByRole('button', { name: 'Revisar y guardar' });
   await reviewOpener.click();
@@ -1097,14 +1120,56 @@ test('clinical stream survives closing Drive', async ({ page }) => {
     await input.fill('Nota durante stream clínico QA.');
     await page.getByRole('button', { name: 'Enviar mensaje' }).click();
     await controls.clinicalStreamEntered;
-    await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Detener', exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Cerrar Google Drive' }).click();
     await expect(page.getByRole('button', { name: 'Abrir Google Drive' })).toBeVisible();
 
     controls.releaseHeldStream();
-    await expect(page.getByText('Preparé un borrador para revisión.')).toBeVisible();
+    await expect(page.getByText('Preparé un borrador para revisión.')).toHaveCount(0);
     await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
+  } finally {
+    controls.releaseHeldStream();
+  }
+});
+
+test('clinical turn finishes after navigation and reconciles on return and reload', async ({ page }) => {
+  const controls = await installQaRoutes(page, { holdClinicalStream: true });
+  try {
+    await page.goto(`/a/${threadId}`);
+    await page.getByLabel('Nota clínica').fill('Nota durante navegación QA.');
+    await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+    await controls.clinicalStreamEntered;
+    await expect(page.getByRole('button', { name: 'Detener', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Poner mensaje en cola' })).toBeVisible();
+
+    await page.goto('/patients');
+    controls.releaseHeldStream();
+    await page.goto(`/a/${threadId}`);
+    await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(1);
+    await expect(page.getByText('Preparé un borrador para revisión.')).toHaveCount(0);
+    await page.reload();
+    await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(1);
+  } finally {
+    controls.releaseHeldStream();
+  }
+});
+
+test('clinical Stop preserves the note and retry creates one artifact', async ({ page }) => {
+  const controls = await installQaRoutes(page, { holdClinicalStream: true });
+  try {
+    await page.goto(`/a/${threadId}`);
+    await page.getByLabel('Nota clínica').fill('Nota detenida QA.');
+    await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+    await controls.clinicalStreamEntered;
+    await page.getByRole('button', { name: 'Detener', exact: true }).click();
+    await expect(page.getByText('Respuesta detenida. Tu nota se conserva y puedes reintentar.')).toBeVisible();
+    await page.getByRole('button', { name: 'Reintentar' }).click();
+    await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(1);
+    await page.setViewportSize({ width: 768, height: 900 });
+    await assertNoHorizontalOverflow(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await assertNoHorizontalOverflow(page);
   } finally {
     controls.releaseHeldStream();
   }

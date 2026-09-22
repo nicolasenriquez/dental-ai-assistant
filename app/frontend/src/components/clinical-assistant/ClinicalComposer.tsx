@@ -30,6 +30,7 @@ interface ClinicalComposerProps {
   onRemoveContext?: (id: string) => void;
   voice: ClinicalVoiceControls;
   submitDisabled?: boolean;
+  queueing?: boolean;
 }
 
 export function ClinicalComposer({
@@ -44,6 +45,7 @@ export function ClinicalComposer({
   onRemoveContext,
   voice,
   submitDisabled = false,
+  queueing = false,
 }: ClinicalComposerProps) {
   const [focused, setFocused] = useState(false);
   const voiceInFlight = isVoiceInFlight(voice.state);
@@ -143,8 +145,8 @@ export function ClinicalComposer({
         className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}
         onClick={onSubmit}
         disabled={!value.trim() || submitDisabled || voiceInFlight}
-        aria-label="Enviar mensaje"
-        title="Enviar"
+        aria-label={queueing ? 'Poner mensaje en cola' : 'Enviar mensaje'}
+        title={queueing ? 'Poner en cola' : 'Enviar'}
       >
         {voice.state === 'stopping' || voice.state === 'transcribing' ? (
           <span aria-hidden="true" className="spinner" />

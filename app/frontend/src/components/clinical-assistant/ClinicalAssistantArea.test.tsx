@@ -79,7 +79,7 @@ describe('ClinicalAssistantArea queue', () => {
   it('keeps the fourth draft when three messages are already queued', () => {
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
     const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
-    const submit = screen.getByRole('button', { name: 'Enviar mensaje' });
+    const submit = screen.getByRole('button', { name: 'Poner mensaje en cola' });
 
     for (const message of ['Uno', 'Dos', 'Tres']) {
       fireEvent.change(composer, { target: { value: message } });

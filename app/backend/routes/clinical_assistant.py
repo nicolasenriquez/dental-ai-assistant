@@ -10,8 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from backend import config
 from backend.auth.dependencies import get_current_user
-from backend.clinical_assistant import service
-from backend.clinical_assistant.events import event
+from backend.clinical_assistant import service, turn_runner
 from backend.clinical_assistant.schemas import (
     ActionResolutionRequest,
     ActivePatientUpdate,
@@ -126,82 +125,32 @@ async def start_turn(
     request: ClinicalTurnRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> StreamingResponse:
-    async def body():
-        try:
-            async for chunk in service.stream_turn(
-                _user_id(user),
-                thread_id,
-                request.turn_id,
-                request.content,
-                request.context_items,
-            ):
-                yield chunk
-        except service.TurnAlreadyRunningError:
-            yield event(
-                "turn.failed",
-                {
-                    "thread_id": str(thread_id),
-                    "turn_id": str(request.turn_id),
-                    "item_id": str(request.turn_id),
-                    "error_code": "TURN_ALREADY_RUNNING",
-                },
-            )
-        except service.TurnIdempotencyConflictError:
-            yield event(
-                "turn.failed",
-                {
-                    "thread_id": str(thread_id),
-                    "turn_id": str(request.turn_id),
-                    "item_id": str(request.turn_id),
-                    "error_code": "TURN_IDEMPOTENCY_CONFLICT",
-                },
-            )
-        except service.ClinicalRateLimitError:
-            yield event(
-                "turn.failed",
-                {
-                    "thread_id": str(thread_id),
-                    "turn_id": str(request.turn_id),
-                    "item_id": str(request.turn_id),
-                    "error_code": "CLINICAL_RATE_LIMIT_EXCEEDED",
-                },
-            )
-        except service.StaleClinicalTurnError:
-            yield event(
-                "turn.failed",
-                {
-                    "thread_id": str(thread_id),
-                    "turn_id": str(request.turn_id),
-                    "item_id": str(request.turn_id),
-                    "error_code": "CLINICAL_TURN_STALE",
-                },
-            )
-        except LookupError:
-            yield event(
-                "turn.failed",
-                {
-                    "thread_id": str(thread_id),
-                    "turn_id": str(request.turn_id),
-                    "item_id": str(request.turn_id),
-                    "error_code": "THREAD_NOT_FOUND",
-                },
-            )
-        except Exception:
-            yield event(
-                "turn.failed",
-                {
-                    "thread_id": str(thread_id),
-                    "turn_id": str(request.turn_id),
-                    "item_id": str(request.turn_id),
-                    "error_code": "CLINICAL_RUNTIME_FAILED",
-                },
-            )
-
     return StreamingResponse(
-        body(),
+        turn_runner.start(
+            _user_id(user), thread_id, request.turn_id, request.content, request.context_items
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/clinical-threads/{thread_id}/turns/{turn_id}/cancel")
+async def cancel_turn(
+    thread_id: UUID,
+    turn_id: UUID,
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    _require_same_origin(request)
+    owner = _user_id(user)
+    thread = await repository.get_thread(owner, thread_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
+    if thread["active_turn_id"] not in (None, turn_id) or not await turn_runner.cancel(
+        owner, thread_id, turn_id
+    ):
+        raise HTTPException(status_code=409, detail="El turno ya no está activo")
+    return {"status": "cancelled"}
 
 
 @router.post("/clinical-threads/{thread_id}/prepare-save")

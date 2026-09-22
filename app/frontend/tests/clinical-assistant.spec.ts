@@ -768,7 +768,6 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     const body = route.request().postDataJSON() as { turn_id: string; content: string };
     turnCount += 1;
     const draftId = `draft-${turnCount}`;
-    const assistantId = `assistant-${turnCount}`;
     const artifact = {
       id: draftId,
       owner_user_id: '55555555-5555-4555-8555-555555555555',
@@ -796,13 +795,6 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
           role: 'user',
           content: body.content,
           created_at: '2026-01-15T12:00:58Z',
-        },
-        {
-          id: assistantId,
-          turn_id: body.turn_id,
-          role: 'assistant',
-          content: 'Preparé un borrador para tu revisión.',
-          created_at: '2026-01-15T12:01:01Z',
         },
       ],
       artifacts: [...threadState.artifacts, artifact],
@@ -841,16 +833,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
         },
         'completed',
       ),
-      sseEvent(
-        'item.completed',
-        4,
-        body.turn_id,
-        assistantId,
-        'assistant_message',
-        { content: 'Preparé un borrador para tu revisión.', created_at: '2026-01-15T12:01:01Z' },
-        'completed',
-      ),
-      sseEvent('turn.completed', 5, body.turn_id, `complete-${turnCount}`, 'turn', {}, 'completed'),
+      sseEvent('turn.completed', 4, body.turn_id, `complete-${turnCount}`, 'turn', {}, 'completed'),
     ].join('');
     await new Promise((resolve) => setTimeout(resolve, 150));
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: payload });
@@ -1049,9 +1032,9 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   ).toBeVisible();
   await expect(page.getByText('Pensando…')).toHaveCount(0);
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
-  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
+  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(0);
   await expect(page.getByRole('article', { name: 'Tú' })).toBeVisible();
-  await expect(page.getByRole('article', { name: 'Asistente' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Asistente' })).toHaveCount(0);
   const liveArtifact = page.getByRole('article', { name: 'Evolución clínica' });
   await liveArtifact.evaluate((element) => element.setAttribute('data-e2e-mounted', 'true'));
   await expect(page.locator('.clinical-artifact')).toHaveCount(1);
@@ -1085,7 +1068,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(page.locator('[data-clinical-stage="draft"]')).toBeVisible();
   await page.getByRole('button', { name: 'Regenerar', exact: true }).click();
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
-  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(1);
+  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Revisar y guardar' }).click();
   await expect(liveArtifact).toHaveAttribute('data-clinical-stage', 'review');
@@ -1127,7 +1110,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await composer.fill('Segundo control independiente.');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(2);
-  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(2);
+  await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(0);
   await settleClinicalItem(page, page.locator('[aria-label="Evolución clínica"]').last());
   await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(2);
   await page.getByRole('button', { name: 'Revisar y guardar' }).last().click();

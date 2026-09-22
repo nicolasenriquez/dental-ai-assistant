@@ -1,9 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ApiError,
   type ClinicalDraft,
   type ClinicalPatient,
   type ClinicalThread,
+  cancelClinicalTurn,
   getClinicalThread,
   prepareClinicalSave,
   regenerateClinicalDraft,
@@ -19,6 +21,7 @@ vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof import('../lib/api')>('../lib/api');
   return {
     ...actual,
+    cancelClinicalTurn: vi.fn(),
     getClinicalThread: vi.fn(),
     prepareClinicalSave: vi.fn(),
     regenerateClinicalDraft: vi.fn(),
@@ -103,6 +106,101 @@ describe('clinical redaction and artifact ordering', () => {
     vi.mocked(getClinicalThread).mockResolvedValue({ ...thread(null), artifacts: [artifact] });
     vi.mocked(updateClinicalArtifact).mockResolvedValue(artifact);
     vi.mocked(regenerateClinicalDraft).mockResolvedValue(draft);
+    vi.mocked(cancelClinicalTurn).mockResolvedValue({ status: 'cancelled' });
+  });
+
+  it('rehydrates a running turn and stops it through the explicit endpoint', async () => {
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(patientA),
+      active_turn_id: 'turn-running',
+      messages: [
+        {
+          id: 'user-running',
+          thread_id: 'thread-1',
+          turn_id: 'turn-running',
+          role: 'user',
+          content: 'Nota pendiente',
+          turn_status: 'running',
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+    });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.runtime).toBe('streaming'));
+    await act(async () => result.current.stop());
+    expect(cancelClinicalTurn).toHaveBeenCalledWith('thread-1', 'turn-running');
+  });
+
+  it('retries Stop when cancellation arrives before the server claims the turn', async () => {
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(patientA),
+      active_turn_id: 'turn-running',
+    });
+    vi.mocked(cancelClinicalTurn)
+      .mockRejectedValueOnce(new ApiError(409, { detail: 'not active yet' }))
+      .mockResolvedValue({ status: 'cancelled' });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.runtime).toBe('streaming'));
+    act(() => result.current.stop());
+    await waitFor(() => expect(cancelClinicalTurn).toHaveBeenCalledTimes(2));
+  });
+
+  it('reconciles a completed artifact after reconnecting', async () => {
+    const running = {
+      ...thread(patientA),
+      active_turn_id: 'turn-1',
+      messages: [
+        {
+          id: 'user-1',
+          thread_id: 'thread-1',
+          turn_id: 'turn-1',
+          role: 'user' as const,
+          content: 'Control',
+          turn_status: 'running' as const,
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+    };
+    vi.mocked(getClinicalThread)
+      .mockResolvedValueOnce(running)
+      .mockResolvedValue({
+        ...running,
+        active_turn_id: null,
+        messages: [{ ...running.messages[0], turn_status: 'completed' }],
+        artifacts: [artifact],
+      });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.runtime).toBe('streaming'));
+    await waitFor(() => expect(result.current.runtime).toBe('idle'), { timeout: 4000 });
+    expect(result.current.items.filter((item) => item.type === 'draft')).toHaveLength(1);
+  });
+
+  it('shows a persisted failed turn with its note and retry action', async () => {
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(patientA),
+      messages: [
+        {
+          id: 'user-failed',
+          thread_id: 'thread-1',
+          turn_id: 'turn-failed',
+          role: 'user',
+          content: 'Nota conservada',
+          turn_status: 'failed',
+          turn_error_code: 'CLINICAL_TURN_CANCELLED',
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+    });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    expect(result.current.items).toMatchObject([
+      { type: 'user', content: 'Nota conservada' },
+      { type: 'error', code: 'CLINICAL_TURN_CANCELLED' },
+    ]);
+    vi.mocked(streamClinicalTurn).mockResolvedValue(new Response(''));
+    act(() => result.current.retryTurn('turn-failed'));
+    await waitFor(() => expect(streamClinicalTurn).toHaveBeenCalled());
+    expect(vi.mocked(streamClinicalTurn).mock.calls[0][1].content).toBe('Nota conservada');
   });
 
   it.each(['12.345.6785', '12.345.678 5', '12 345 678 - 5', '123456785'])(

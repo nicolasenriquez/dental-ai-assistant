@@ -218,6 +218,29 @@ async def delete_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> boo
 async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[str, Any] | None:
     thread_uuid = _uuid(thread_id)
     async with get_pg_pool().acquire() as conn:
+        async with conn.transaction():
+            active = await conn.fetchrow(
+                """SELECT active_turn_id, updated_at FROM clinical_threads
+                   WHERE id = $1 AND owner_user_id = $2 FOR UPDATE""",
+                thread_uuid,
+                _uuid(owner_user_id),
+            )
+            if active and active["active_turn_id"] and _turn_is_stale(active["updated_at"]):
+                await conn.execute(
+                    """UPDATE clinical_messages
+                       SET turn_status = 'failed', turn_error_code = 'CLINICAL_TURN_STALE'
+                       WHERE thread_id = $1 AND turn_id = $2 AND role = 'user'
+                         AND turn_status = 'running'""",
+                    thread_uuid,
+                    active["active_turn_id"],
+                )
+                await conn.execute(
+                    """UPDATE clinical_threads SET active_turn_id = NULL, updated_at = now()
+                       WHERE id = $1 AND owner_user_id = $2 AND active_turn_id = $3""",
+                    thread_uuid,
+                    _uuid(owner_user_id),
+                    active["active_turn_id"],
+                )
         thread = await conn.fetchrow(
             """
             SELECT id, owner_user_id, title, active_patient_id, active_turn_id,
@@ -234,7 +257,8 @@ async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[s
             return None
         messages = await conn.fetch(
             """
-            SELECT id, thread_id, turn_id, role, content, context_items, patient_switch, created_at
+            SELECT id, thread_id, turn_id, role, content, context_items, patient_switch,
+                   turn_status, turn_error_code, created_at
             FROM clinical_messages WHERE thread_id = $1
             ORDER BY created_at ASC
             """,

@@ -141,6 +141,8 @@ export interface ClinicalMessage {
   turn_id: string;
   role: 'user' | 'assistant';
   content: string;
+  turn_status?: 'running' | 'completed' | 'failed' | null;
+  turn_error_code?: string | null;
   context_items?: ClinicalContextItem[] | null;
   patient_switch?: {
     item_id: string;
@@ -419,6 +421,10 @@ export const streamClinicalTurn = async (
   if (!res.ok) return parseApiError(res);
   return res;
 };
+export const cancelClinicalTurn = (threadId: string, turnId: string) =>
+  request<{ status: string }>(`/clinical-threads/${threadId}/turns/${turnId}/cancel`, {
+    method: 'POST',
+  });
 export const prepareClinicalSave = (
   threadId: string,
   body: {

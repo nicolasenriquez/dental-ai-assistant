@@ -5,6 +5,7 @@ import {
   type ClinicalPatient,
   type ClinicalThread,
   type ComposerContextItem,
+  cancelClinicalTurn,
   getClinicalThread,
   prepareClinicalSave,
   regenerateClinicalDraft,
@@ -56,6 +57,8 @@ function safeError(code: string): string {
     CLINICAL_MODEL_UNAVAILABLE: 'No pudimos preparar la evolución. Tu nota se conserva.',
     CLINICAL_PENDING_ACTION_EXISTS: 'Ya existe una confirmación pendiente en este hilo.',
     CLINICAL_RATE_LIMIT_EXCEEDED: 'Alcanzaste el límite diario del asistente clínico.',
+    CLINICAL_TURN_CANCELLED: 'Respuesta detenida. Tu nota se conserva y puedes reintentar.',
+    CLINICAL_TURN_STALE: 'La respuesta se interrumpió. Tu nota se conserva y puedes reintentar.',
     PATIENT_REFERENCE_AMBIGUOUS: 'Detecté más de un paciente. Selecciona uno antes de continuar.',
     PATIENT_SWITCH_REQUIRED: 'Revisa el cambio de paciente antes de continuar.',
     PROPOSAL_STALE: 'La propuesta cambió. Vuelve a prepararla antes de confirmar.',
@@ -113,6 +116,22 @@ function messageItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
         resolution: message.patient_switch.resolution,
       });
     }
+    if (
+      message.role === 'user' &&
+      message.turn_status === 'failed' &&
+      message.turn_error_code !== 'PATIENT_SWITCH_REQUIRED'
+    ) {
+      const code = message.turn_error_code ?? 'CLINICAL_TURN_FAILED';
+      items.push({
+        id: `error:${message.turn_id}`,
+        turnId: message.turn_id,
+        status: 'failed',
+        createdAt: message.created_at,
+        type: 'error',
+        code,
+        message: safeError(code),
+      });
+    }
     return items;
   });
 }
@@ -161,6 +180,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     Record<string, 'idle' | 'saving' | 'saved' | 'error'>
   >({});
   const abortRef = useRef<AbortController | null>(null);
+  const activeTurnRef = useRef<string | null>(null);
   const threadIdRef = useRef(threadId);
   threadIdRef.current = threadId;
   const turnFailedRef = useRef(false);
@@ -180,12 +200,17 @@ export function useClinicalAssistant(threadId: string | undefined) {
     const loaded = await getClinicalThread(threadId);
     if (seq !== loadSeqRef.current || threadIdRef.current !== threadId) return null;
     setThread(loaded);
+    activeTurnRef.current = loaded.active_turn_id;
     const actions = loaded.actions ?? [];
     const hydrated = hydrateItems({ ...loaded, actions });
     dispatch({ type: 'reset', items: hydrated });
     for (const item of patientSwitchItemsRef.current) dispatch({ type: 'append', item });
     setRuntime(
-      actions.some((action) => action.status === 'pending') ? 'awaiting_approval' : 'idle',
+      loaded.active_turn_id
+        ? 'streaming'
+        : actions.some((action) => action.status === 'pending')
+          ? 'awaiting_approval'
+          : 'idle',
     );
     for (const action of actions) {
       const exportState = action.drive_export;
@@ -234,6 +259,18 @@ export function useClinicalAssistant(threadId: string | undefined) {
     };
   }, [load, threadId]);
 
+  useEffect(() => {
+    if (!threadId || !thread?.active_turn_id || abortRef.current) return;
+    const timer = setInterval(() => {
+      void getClinicalThread(threadId)
+        .then((fresh) => {
+          if (!fresh.active_turn_id) void load();
+        })
+        .catch(() => setError('No pudimos actualizar este hilo clínico.'));
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [threadId, thread?.active_turn_id, load]);
+
   const setActivePatient = useCallback(
     async (patientId: string | null) => {
       if (!threadId) return;
@@ -250,6 +287,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
       const currentThreadId = threadId;
       if (!currentThreadId || !content.trim()) return false;
       const turnId = crypto.randomUUID();
+      activeTurnRef.current = turnId;
       const createdAt = now();
       // A slow initial hydration must not overwrite the optimistic user item
       // or the streamed artifact for the turn that is already in progress.
@@ -694,10 +732,33 @@ export function useClinicalAssistant(threadId: string | undefined) {
   }, []);
 
   const stop = useCallback(() => {
-    if (!abortRef.current) return;
+    const turnId = activeTurnRef.current;
+    if (!threadId || !turnId) return;
     setRuntime('stopping');
-    abortRef.current.abort();
-  }, []);
+    void (async () => {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          await cancelClinicalTurn(threadId, turnId);
+          abortRef.current?.abort();
+          await load();
+          return;
+        } catch (caught) {
+          if (caught instanceof ApiError && caught.status === 409) {
+            if (attempt < 7) {
+              // The Stop request can reach the server before the turn POST.
+              await new Promise((resolve) => setTimeout(resolve, 250));
+              continue;
+            }
+            await load();
+            return;
+          }
+          setError('No pudimos detener la respuesta. Intenta nuevamente.');
+          setRuntime('streaming');
+          return;
+        }
+      }
+    })();
+  }, [load, threadId]);
 
   const retryTurn = useCallback(
     (turnId: string) => {

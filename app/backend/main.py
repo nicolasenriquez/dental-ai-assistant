@@ -96,6 +96,9 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         logger.info("Shutting down.")
+        from backend.clinical_assistant import turn_runner
+
+        await turn_runner.shutdown()
         await whisper_adapter.close()
         await close_pg_pool()
 

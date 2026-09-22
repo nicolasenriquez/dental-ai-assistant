@@ -484,6 +484,7 @@ export function ClinicalAssistantArea({
             textareaRef={textareaRef}
             onChange={setValue}
             onSubmit={send}
+            queueing={assistant.runtime === 'streaming' || assistant.runtime === 'stopping'}
             patientStatusOpen={patientStatusOpen}
             onTogglePatientStatus={() => setPatientStatusOpen((open) => !open)}
             contextItems={contextItems}
