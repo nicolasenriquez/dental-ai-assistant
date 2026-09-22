@@ -253,6 +253,8 @@ async def regenerate_draft(
         raise HTTPException(
             status_code=502, detail={"code": "CLINICAL_MODEL_UNAVAILABLE"}
         ) from None
+    except ValueError:
+        raise HTTPException(status_code=409, detail={"code": "CLINICAL_ARTIFACT_LOCKED"}) from None
 
 
 @router.post("/clinical-actions/{action_id}/resolve")

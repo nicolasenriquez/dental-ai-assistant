@@ -378,7 +378,7 @@ def _clinical_tool_handlers(
         draft = await _draft_evolution(context, model_note)
         item_id = uuid4()
         evolution_at = datetime.now(UTC)
-        await repository.create_artifact(
+        artifact = await repository.create_artifact(
             context.user_id,
             context.thread_id,
             context.turn_id,
@@ -391,6 +391,7 @@ def _clinical_tool_handlers(
                 evolution_at=evolution_at,
             ),
         )
+        item_id = UUID(str(artifact["id"]))
         active_artifact["id"] = item_id
         draft_data = draft.model_dump(mode="json")
         return ClinicalToolResult(
@@ -951,6 +952,8 @@ async def regenerate_draft(
     artifact = await repository.get_artifact(owner, thread, artifact_id)
     if artifact is None:
         raise LookupError("Thread or patient not found")
+    if artifact["status"] not in {"draft", "stale"}:
+        raise ValueError("Artifact is no longer editable")
     patient_id = UUID(str(artifact["patient_id"]))
     if await patients_repo.get_patient(owner, patient_id) is None:
         raise LookupError("Patient not found")
@@ -979,7 +982,7 @@ async def regenerate_draft(
         raise clinical_evolutions.ClinicalGenerationDisabledError
     draft = await clinical_evolutions.generate_draft(owner, patient_id, model_note)
     evolution_at = datetime.fromisoformat(str(artifact["evolution_at"]))
-    await repository.update_artifact(
+    updated = await repository.update_artifact(
         owner,
         thread,
         artifact_id,
@@ -991,6 +994,8 @@ async def regenerate_draft(
         ),
         status="draft",
     )
+    if updated is None:
+        raise ValueError("Artifact is no longer editable")
     return draft
 
 

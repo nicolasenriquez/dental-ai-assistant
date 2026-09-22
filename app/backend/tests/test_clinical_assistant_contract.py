@@ -5,6 +5,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
@@ -742,7 +743,11 @@ async def test_active_draft_fields_are_included_in_agent_messages() -> None:
     assert payload["CURRENT_DRAFT"]["context"] == "Control preventivo"
 
 
-async def test_regeneration_reuses_originating_drive_context(monkeypatch) -> None:
+@pytest.mark.parametrize("status", ["draft", "stale"])
+@pytest.mark.parametrize("update_accepted", [True, False])
+async def test_regeneration_reuses_originating_drive_context(
+    monkeypatch, status: str, update_accepted: bool
+) -> None:
     from backend.clinical_assistant import service
     from backend.clinical_assistant.schemas import ClinicalDraft
 
@@ -768,6 +773,7 @@ async def test_regeneration_reuses_originating_drive_context(monkeypatch) -> Non
             "patient_id": patient,
             "source_note": "Redacta una evolución con este documento",
             "evolution_at": datetime.now(UTC),
+            "status": status,
         }
 
     async def get_patient(*_args):
@@ -797,7 +803,7 @@ async def test_regeneration_reuses_originating_drive_context(monkeypatch) -> Non
         return draft
 
     async def update(*_args, **_kwargs):
-        return {"id": artifact_id}
+        return {"id": artifact_id} if update_accepted else None
 
     monkeypatch.setattr(service.repository, "get_artifact", get_artifact)
     monkeypatch.setattr(service.repository, "get_thread", get_thread)
@@ -807,12 +813,90 @@ async def test_regeneration_reuses_originating_drive_context(monkeypatch) -> Non
     monkeypatch.setattr(service.clinical_evolutions, "generate_draft", generate)
     monkeypatch.setattr(service.clinical_evolutions, "CLINICAL_EXTERNAL_LLM_ENABLED", True)
 
-    await service.regenerate_draft(owner, thread, artifact_id)
+    if update_accepted:
+        assert await service.regenerate_draft(owner, thread, artifact_id) == draft
+    else:
+        with pytest.raises(ValueError, match="no longer editable"):
+            await service.regenerate_draft(owner, thread, artifact_id)
 
     assert "Redacta una evolución con este documento" in captured["raw_note"]
     assert "Dolor en pieza 1.6" in captured["raw_note"]
     assert "Fuente: Google Drive" not in captured["raw_note"]
     assert "Ficha.md" not in captured["raw_note"]
+
+
+@pytest.mark.parametrize("status", ["pending", "approved", "declined", "failed"])
+async def test_regeneration_rejects_locked_artifact_before_generation(monkeypatch, status) -> None:
+    from backend.clinical_assistant import service
+
+    generate = AsyncMock()
+    update = AsyncMock()
+    monkeypatch.setattr(
+        service.repository, "get_artifact", AsyncMock(return_value={"status": status})
+    )
+    monkeypatch.setattr(service.repository, "update_artifact", update)
+    monkeypatch.setattr(service.clinical_evolutions, "generate_draft", generate)
+
+    with pytest.raises(ValueError, match="no longer editable"):
+        await service.regenerate_draft(UUID(int=1), UUID(int=2), UUID(int=3))
+
+    generate.assert_not_awaited()
+    update.assert_not_awaited()
+
+
+async def test_regeneration_route_returns_conflict_for_locked_artifact(monkeypatch) -> None:
+    from fastapi import HTTPException
+
+    from backend.routes import clinical_assistant as routes
+
+    monkeypatch.setattr(
+        routes.service, "regenerate_draft", AsyncMock(side_effect=ValueError("no longer editable"))
+    )
+    with pytest.raises(HTTPException) as caught:
+        await routes.regenerate_draft(
+            UUID(int=2),
+            routes.RegenerateDraftRequest(artifact_id=UUID(int=3)),
+            {"id": UUID(int=1)},
+        )
+    assert caught.value.status_code == 409
+    assert caught.value.detail == {"code": "CLINICAL_ARTIFACT_LOCKED"}
+
+
+async def test_repeated_draft_creation_uses_persisted_id_for_events_and_save(monkeypatch) -> None:
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.policy import ClinicalTurnContext
+    from backend.clinical_assistant.schemas import ClinicalDraft
+
+    context = ClinicalTurnContext(UUID(int=1), UUID(int=2), UUID(int=3), UUID(int=4))
+    draft = ClinicalDraft(
+        context="Control", findings="", assessment="", treatment="", follow_up="", review_flags=[]
+    )
+    persisted: dict = {}
+
+    async def create(_owner, _thread, turn, patient, proposed_id, payload):
+        persisted.update(payload)
+        persisted.setdefault("id", proposed_id)
+        persisted.update(turn_id=turn, patient_id=patient)
+        return dict(persisted)
+
+    create_mock = AsyncMock(side_effect=create)
+    get_mock = AsyncMock(side_effect=lambda *_args: dict(persisted))
+    prepare = AsyncMock(return_value={"id": UUID(int=6)})
+    monkeypatch.setattr(service, "_draft_evolution", AsyncMock(return_value=draft))
+    monkeypatch.setattr(service.repository, "create_artifact", create_mock)
+    monkeypatch.setattr(service.repository, "get_artifact", get_mock)
+    monkeypatch.setattr(service, "prepare_save", prepare)
+    handlers = service._clinical_tool_handlers(context, "Note", "Note")
+
+    first = await handlers["create_evolution_draft"]({})
+    second = await handlers["create_evolution_draft"]({})
+    assert create_mock.call_args_list[0].args[4] != create_mock.call_args_list[1].args[4]
+    for result in (first, second):
+        assert result.payload["artifact_id"] == str(persisted["id"])
+        assert result.effect["item_id"] == str(persisted["id"])
+    await handlers["prepare_evolution_save"]({})
+    get_mock.assert_awaited_once_with(context.user_id, context.thread_id, persisted["id"])
+    assert prepare.call_args.args[2].artifact_id == persisted["id"]
 
 
 @pytest.mark.parametrize(

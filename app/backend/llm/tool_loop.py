@@ -175,8 +175,8 @@ async def stream_tool_loop(
                     except RunCancelled:
                         raise
                     except Exception as exc:
-                        logger.warning("tool executor raised: %s", exc, exc_info=True)
-                        payload = f"Error: tool execution failed: {exc}"
+                        logger.warning("tool executor failed: %s", type(exc).__name__)
+                        payload = "Error: tool execution failed"
                     yield ToolLoopEvent(kind="tool_done", tool_name=tool_name)
                 else:
                     payload = (
