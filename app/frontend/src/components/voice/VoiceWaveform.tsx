@@ -26,10 +26,10 @@ export function VoiceWaveform({ stream }: VoiceWaveformProps) {
     const context = new AudioContext();
     const analyser = context.createAnalyser();
     const source = context.createMediaStreamSource(stream);
-    const samples = new Uint8Array(analyser.frequencyBinCount);
     let frame = 0;
     let lastDraw = 0;
     analyser.fftSize = 64;
+    const samples = new Uint8Array(analyser.frequencyBinCount);
     analyser.smoothingTimeConstant = 0.82;
     source.connect(analyser);
 

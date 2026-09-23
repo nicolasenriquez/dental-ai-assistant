@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { VoiceWaveform } from './VoiceWaveform';
 
@@ -6,11 +6,24 @@ class FakeMediaStream {}
 
 describe('VoiceWaveform', () => {
   it('uses a calm 12-bar analyser driven by the provided stream', () => {
+    let fftSize = 2048;
+    let drawFrame: FrameRequestCallback | undefined;
     const analyser = {
-      frequencyBinCount: 32,
-      fftSize: 0,
+      get frequencyBinCount() {
+        return fftSize / 2;
+      },
+      get fftSize() {
+        return fftSize;
+      },
+      set fftSize(value: number) {
+        fftSize = value;
+      },
       smoothingTimeConstant: 0,
-      getByteFrequencyData: vi.fn(),
+      getByteFrequencyData: vi.fn((data: Uint8Array) => {
+        data.fill(0, 0, fftSize / 2);
+        data[0] = 255;
+        data[2] = 128;
+      }),
     };
     const source = { connect: vi.fn(), disconnect: vi.fn() };
     const audioContext = {
@@ -25,7 +38,10 @@ describe('VoiceWaveform', () => {
     );
     vi.stubGlobal(
       'requestAnimationFrame',
-      vi.fn(() => 1),
+      vi.fn((callback: FrameRequestCallback) => {
+        drawFrame = callback;
+        return 1;
+      }),
     );
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
 
@@ -37,6 +53,14 @@ describe('VoiceWaveform', () => {
       expect(analyser.fftSize).toBe(64);
       expect(analyser.smoothingTimeConstant).toBe(0.82);
       expect(audioContext.createMediaStreamSource).toHaveBeenCalledWith(stream);
+
+      act(() => {
+        drawFrame?.(34);
+      });
+      const bars = view.container.querySelectorAll('i');
+      expect((bars[0] as HTMLElement).style.transform).toBe('scaleY(1)');
+      expect((bars[1] as HTMLElement).style.transform).toBe('scaleY(0.5019607843137255)');
+
       view.unmount();
     } finally {
       vi.unstubAllGlobals();
