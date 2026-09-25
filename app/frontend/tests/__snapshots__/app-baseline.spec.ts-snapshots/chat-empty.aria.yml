@@ -28,10 +28,10 @@
   - text: Biblioteca de videos
 - heading "Pregunta sobre la biblioteca de videos" [level=1]
 - paragraph: Esta IA tiene acceso a las transcripciones de una colección seleccionada de videos de YouTube.
-- button "How do I use subagents in Claude Code?"
-- button "How should I structure an agent team?"
-- button "How does Cole's complete agentic coding workflow look end-to-end?"
-- button "How do I turn Claude Code into an engineering team?"
+- button "¿Cómo uso subagentes en Claude Code?"
+- button "¿Cómo debería estructurar un equipo de agentes?"
+- button "¿Cómo es el flujo completo de desarrollo agéntico de Cole?"
+- button "¿Cómo convierto Claude Code en un equipo de ingeniería?"
 - textbox "Pregunta sobre la biblioteca de videos":
   - /placeholder: Pregunta sobre la biblioteca de videos…
 - status:

@@ -86,3 +86,11 @@ scratch_build/
 EXAMPLE-CLAUDE.md
 .agents/
 .playwright-cli/
+
+# Canonical project-local verification skill; keep other local agent files ignored.
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/verify-dental-assistant/
+!.agents/skills/verify-dental-assistant/**

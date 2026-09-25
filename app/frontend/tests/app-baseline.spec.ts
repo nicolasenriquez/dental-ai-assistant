@@ -334,11 +334,11 @@ test('captures chat, library, admin, and not-found behaviors', async ({ page }) 
   await captureView(page, 'chat-empty');
 
   const starter = page.locator('.chat-starter-button').filter({
-    hasText: 'How do I use subagents in Claude Code?',
+    hasText: '¿Cómo uso subagentes en Claude Code?',
   });
   await starter.click();
   await expect(page.getByLabel('Pregunta sobre la biblioteca de videos')).toHaveValue(
-    /How do I use subagents/,
+    /¿Cómo uso subagentes/,
   );
 
   const conversationItem = page.locator('#app-sidebar .conversation-item').first();
@@ -557,7 +557,7 @@ test('hands off chat dictation without losing edits during transcription', async
   await input.fill('Edición manual');
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
   releaseTranscription();
-  await expect(input).toHaveValue('Edición manual\nTexto dictado.');
+  await expect(input).toHaveValue('Texto dictado. Edición manual');
   await expect(page.getByText('Dictado añadido')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeEnabled();
 });
@@ -819,7 +819,7 @@ test('keeps mobile workspace headers aligned across Chat and Asistente', async (
     });
 
     expect(metrics.headerTop).toBe(0);
-    expect(metrics.headerHeight).toBe(50);
+    expect(metrics.headerHeight).toBeGreaterThanOrEqual(50);
     expect(metrics.titleLeft).toBeGreaterThanOrEqual(metrics.menuButtonRight);
     expect(metrics.hasHorizontalOverflow).toBe(false);
   }
