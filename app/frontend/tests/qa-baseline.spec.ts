@@ -1127,7 +1127,9 @@ test('clinical stream survives closing Drive', async ({ page }) => {
 
     controls.releaseHeldStream();
     await expect(page.getByText('Preparé un borrador para revisión.')).toHaveCount(0);
-    await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
+    await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(1);
+    await page.reload();
+    await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(1);
   } finally {
     controls.releaseHeldStream();
   }

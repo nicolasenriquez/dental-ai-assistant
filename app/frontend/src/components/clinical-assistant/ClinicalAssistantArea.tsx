@@ -4,7 +4,6 @@ import type { ClinicalAssistantController } from '../../hooks/useClinicalAssista
 import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
 import {
   type ClinicalDraft,
-  type ClinicalPatient,
   type ComposerContextItem,
   type DriveJournalTarget,
   type Patient,
@@ -27,7 +26,6 @@ interface ClinicalAssistantAreaProps {
   assistant: ClinicalAssistantController;
   onThreadStateChanged?: () => void;
   guardTransition?: (continuation: () => void) => void;
-  onActivePatientChange?: (patient: ClinicalPatient | null) => void;
   onComposerInsertReady?: (insert: (item: ComposerContextItem) => void) => void;
   onSaveToDrive?: (seed: { name: string; content: string }) => void;
   driveOpen?: boolean;
@@ -48,7 +46,6 @@ export function ClinicalAssistantArea({
   assistant,
   onThreadStateChanged,
   guardTransition,
-  onActivePatientChange,
   onComposerInsertReady,
   onSaveToDrive,
   driveOpen = false,
@@ -175,10 +172,6 @@ export function ClinicalAssistantArea({
     },
     [threadId],
   );
-
-  useEffect(() => {
-    onActivePatientChange?.(activePatient);
-  }, [activePatient?.id, onActivePatientChange]);
 
   useEffect(() => {
     onComposerInsertReady?.(insertIntoComposer);

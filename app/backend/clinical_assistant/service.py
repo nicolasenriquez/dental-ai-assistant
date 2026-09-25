@@ -94,7 +94,7 @@ def _pre_resolve_terms(note: str, entries: list[dict[str, Any]]) -> TurnGroundin
     matched_aliases = [
         alias
         for alias in sorted(AUTO_GROUND_ALIASES)
-        if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", note)
+        if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", note, flags=re.IGNORECASE)
     ]
     if matched_aliases:
         for result in resolve_terms(matched_aliases, entries):
@@ -103,8 +103,19 @@ def _pre_resolve_terms(note: str, entries: list[dict[str, Any]]) -> TurnGroundin
 
 
 async def _new_turn_grounding(note: str) -> TurnGrounding:
-    if any(re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", note) for alias in AUTO_GROUND_ALIASES):
-        return _pre_resolve_terms(note, await terminology_repo.get_active_terms())
+    if any(
+        re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", note, flags=re.IGNORECASE)
+        for alias in AUTO_GROUND_ALIASES
+    ):
+        try:
+            entries = await terminology_repo.get_active_terms()
+        except (OSError, RuntimeError, asyncpg.PostgresError, asyncpg.InterfaceError):
+            logger.warning(
+                "clinical_grounding.pre_resolution_failed",
+                extra={"failure_class": "retrieval", "capability": "pre_resolve_terms"},
+            )
+            return TurnGrounding()
+        return _pre_resolve_terms(note, entries)
     return TurnGrounding()
 
 
@@ -441,7 +452,7 @@ def _clinical_tool_handlers(
             results = resolve_terms(arguments["terms"], entries)
         except ValueError:
             return ClinicalToolResult({"ok": False, "error": "INVALID_TOOL_ARGUMENTS"})
-        except (OSError, RuntimeError, asyncpg.PostgresError):
+        except (OSError, RuntimeError, asyncpg.PostgresError, asyncpg.InterfaceError):
             logger.warning(
                 "clinical_grounding.lookup_failed",
                 extra={"failure_class": "retrieval", "capability": "lookup_dental_terms"},

@@ -582,6 +582,68 @@ describe('useClinicalAssistant active patient persistence', () => {
     });
   });
 
+  it('keeps a streamed switch until persisted, then trusts the server resolution', async () => {
+    const initial = thread(patientA);
+    let turnId = '';
+    const persistedMessage = (resolution: 'pending' | 'changed_patient') => ({
+      id: 'user-1',
+      thread_id: 'thread-1',
+      turn_id: turnId,
+      role: 'user' as const,
+      content: 'Actualizar a Bruno',
+      created_at: '2026-01-01T00:00:00Z',
+      patient_switch: {
+        item_id: 'switch-1',
+        current_patient: patientA,
+        detected_patient: patientB,
+        resolution,
+      },
+    });
+    vi.mocked(getClinicalThread)
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(async () => ({
+        ...initial,
+        messages: [persistedMessage('pending')],
+      }))
+      .mockImplementation(async () => ({
+        ...thread(patientB),
+        messages: [persistedMessage('changed_patient')],
+      }));
+    vi.mocked(streamClinicalTurn).mockImplementation(async (_threadId, request) => {
+      turnId = request.turn_id;
+      return new Response(
+        `event: patient.switch_required\ndata: ${JSON.stringify({
+          schema_version: 1,
+          event_id: 'event-1',
+          sequence: 1,
+          thread_id: 'thread-1',
+          turn_id: turnId,
+          item_id: 'switch-1',
+          item_type: 'patient.switch_required',
+          status: 'pending',
+          data: { current_patient: patientA, detected_patient: patientB },
+        })}\n\n`,
+      );
+    });
+
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.thread).not.toBeNull());
+    await act(async () => {
+      await result.current.send('Actualizar a Bruno');
+    });
+    expect(result.current.items.find((item) => item.type === 'patient_switch')).toMatchObject({
+      resolution: 'pending',
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+
+    await act(async () => {
+      await result.current.reload();
+    });
+    expect(result.current.items.filter((item) => item.type === 'patient_switch')).toMatchObject([
+      { id: 'switch-1', status: 'completed', resolution: 'changed_patient' },
+    ]);
+  });
+
   it('keeps a patient switch pending until keep-current persistence succeeds', async () => {
     const pendingThread: ClinicalThread = {
       ...thread(patientA),

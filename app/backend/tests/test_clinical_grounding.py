@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import asyncpg
 import pytest
 
 from backend.clinical_assistant import service
@@ -31,6 +32,33 @@ def test_exact_allowlist_pre_resolution_uses_token_boundaries_and_unique_matches
         next(entry["id"] for entry in entries if "BOP" in entry["aliases"]),
     }
     assert not grounding.patient_evidence
+
+
+@pytest.mark.parametrize("failure", [OSError, asyncpg.InterfaceError])
+async def test_pre_resolution_catalog_failure_uses_empty_evidence(
+    monkeypatch, caplog, failure
+) -> None:
+    get_active = AsyncMock(side_effect=failure("private detail"))
+    monkeypatch.setattr(service.terminology_repo, "get_active_terms", get_active)
+    grounding = await service._new_turn_grounding("TAD en IZC")
+    assert grounding.for_generation().terminology_evidence == []
+    get_active.assert_awaited_once_with()
+    assert "private detail" not in caplog.text
+
+
+async def test_lowercase_allowlist_pre_resolves_only_whole_tokens(monkeypatch) -> None:
+    entries = load_bundled_catalog().entries
+    get_active = AsyncMock(return_value=entries)
+    monkeypatch.setattr(service.terminology_repo, "get_active_terms", get_active)
+    grounding = await service._new_turn_grounding("tad y tMj; xtad, tadx")
+    assert set(grounding.terminology_evidence) == {
+        "ortho.tad",
+        next(entry["id"] for entry in entries if "TMJ" in entry["aliases"]),
+    }
+    get_active.assert_awaited_once_with()
+    get_active.reset_mock()
+    assert not (await service._new_turn_grounding("xtad tadx")).terminology_evidence
+    get_active.assert_not_awaited()
 
 
 async def test_assistant_draft_with_explicit_empty_grounding_does_not_query_history(
@@ -110,11 +138,12 @@ async def test_other_owner_or_patient_cannot_supply_history(monkeypatch) -> None
     assert not grounding.patient_evidence
 
 
-async def test_terminology_lookup_failure_is_safe_and_clarifiable(monkeypatch) -> None:
+@pytest.mark.parametrize("failure", [OSError, asyncpg.InterfaceError])
+async def test_terminology_lookup_failure_is_safe_and_clarifiable(monkeypatch, failure) -> None:
     monkeypatch.setattr(
         service.terminology_repo,
         "get_active_terms",
-        AsyncMock(side_effect=OSError("sensitive provider detail")),
+        AsyncMock(side_effect=failure("sensitive provider detail")),
     )
     handlers = service._clinical_tool_handlers(_context(), "nota", "nota")
     result = await handlers["lookup_dental_terms"]({"terms": ["IZC"]})

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { ClinicalAssistantArea } from '../components/clinical-assistant/ClinicalAssistantArea';
@@ -17,7 +17,7 @@ import {
 } from '../components/ui/alert-dialog';
 import { useClinicalAssistant } from '../hooks/useClinicalAssistant';
 import { TransitionGuardProvider, useTransitionGuard } from '../hooks/useTransitionGuard';
-import type { ClinicalPatient, ComposerContextItem, DriveJournalTarget } from '../lib/api';
+import type { ComposerContextItem, DriveJournalTarget } from '../lib/api';
 import { acquireClinicalThread } from '../lib/api';
 
 export function ClinicalAssistant() {
@@ -36,19 +36,7 @@ function ClinicalAssistantContent() {
   const [threadListVersion, setThreadListVersion] = useState(0);
   const [creationFailed, setCreationFailed] = useState(false);
   const [createAttempt, setCreateAttempt] = useState(0);
-  const [drivePatient, setDrivePatient] = useState<DrivePatientContext | null>(null);
   const [driveSurface, setDriveSurface] = useState<'compact' | 'document'>('compact');
-  const onPatientChange = useCallback((patient: ClinicalPatient | null) => {
-    setDrivePatient(
-      patient
-        ? {
-            id: patient.id,
-            displayName: `${patient.first_name} ${patient.last_name}`,
-            rutMasked: patient.rut_masked,
-          }
-        : null,
-    );
-  }, []);
   const [driveOpen, setDriveOpen] = useState(false);
   const [driveInitialSection, setDriveInitialSection] = useState<'notes' | 'journals'>('notes');
   const [driveJournalTarget, setDriveJournalTarget] = useState<DriveJournalTarget | null>(null);
@@ -142,6 +130,14 @@ function ClinicalAssistantContent() {
 
   const activeId = threadId ?? createdThreadId;
   const assistant = useClinicalAssistant(activeId ?? undefined);
+  const patient = assistant.thread?.active_patient;
+  const drivePatient: DrivePatientContext | null = patient
+    ? {
+        id: patient.id,
+        displayName: `${patient.first_name} ${patient.last_name}`,
+        rutMasked: patient.rut_masked,
+      }
+    : null;
   return (
     <AppShell
       showConversations={false}
@@ -184,7 +180,6 @@ function ClinicalAssistantContent() {
             if (driveRef.current?.preservesPatientSwitch?.()) continuation();
             else transitionGuard.guardTransition(continuation);
           }}
-          onActivePatientChange={onPatientChange}
           onComposerInsertReady={(insert) => {
             composerInsertRef.current = insert;
           }}

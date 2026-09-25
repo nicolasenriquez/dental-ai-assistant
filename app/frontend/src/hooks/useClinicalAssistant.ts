@@ -204,6 +204,12 @@ export function useClinicalAssistant(threadId: string | undefined) {
     activeTurnRef.current = loaded.active_turn_id;
     const actions = loaded.actions ?? [];
     const hydrated = hydrateItems({ ...loaded, actions });
+    patientSwitchItemsRef.current = patientSwitchItemsRef.current.filter(
+      (item) =>
+        !hydrated.some(
+          (persisted) => persisted.type === 'patient_switch' && persisted.id === item.id,
+        ),
+    );
     dispatch({ type: 'reset', items: hydrated });
     for (const item of patientSwitchItemsRef.current) dispatch({ type: 'append', item });
     setRuntime(

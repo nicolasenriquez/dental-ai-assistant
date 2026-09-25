@@ -376,6 +376,28 @@ describe('Clinical Assistant Drive transfer', () => {
     await waitFor(() => expect(apiSeam.listDriveFiles).toHaveBeenCalledWith('p1', undefined));
   });
 
+  it('uses the current clinical thread patient when Drive stays open', async () => {
+    const view = renderAssistant();
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
+    await waitFor(() => expect(apiSeam.listDriveFiles).toHaveBeenCalledWith('p1', undefined));
+
+    mocks.thread.active_patient = {
+      id: 'p2',
+      first_name: 'Bruno',
+      last_name: 'Gómez',
+      rut_masked: '9.876.•••-1',
+      birth_date: null,
+    };
+    view.rerender(
+      <MemoryRouter initialEntries={['/a/t1']}>
+        <Routes>
+          <Route path="/a/:threadId" element={<ClinicalAssistant />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(apiSeam.listDriveFiles).toHaveBeenCalledWith('p2', undefined));
+  });
+
   it('opens a local Markdown draft from an assistant message without any write', async () => {
     renderAssistant();
 
