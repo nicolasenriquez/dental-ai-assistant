@@ -39,6 +39,8 @@ const mocks = vi.hoisted(() => {
   return {
     setActivePatient: vi.fn(),
     send: vi.fn(async () => true),
+    stop: vi.fn(),
+    runtime: 'idle' as 'idle' | 'streaming',
     thread: {
       id: 't1',
       owner_user_id: 'u1',
@@ -113,10 +115,10 @@ vi.mock('../hooks/useClinicalAssistant', () => ({
   useClinicalAssistant: () => ({
     thread: mocks.thread,
     items: mocks.items,
-    runtime: 'idle',
+    runtime: mocks.runtime,
     error: null,
     send: mocks.send,
-    stop: vi.fn(),
+    stop: mocks.stop,
     setActivePatient: mocks.setActivePatient,
     updateDraft: vi.fn(),
     updateDraftSource: vi.fn(async () => true),
@@ -211,6 +213,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.runtime = 'idle';
   mocks.thread.active_patient = {
     id: 'p1',
     first_name: 'Ana',
@@ -313,6 +316,15 @@ function dispatchBeforeUnload(): Event {
 }
 
 describe('Clinical Assistant Drive transfer', () => {
+  it('does not stop a clinical turn when Drive is closed and reopened', async () => {
+    mocks.runtime = 'streaming';
+    renderAssistant();
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar Google Drive' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
+    expect(mocks.stop).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Cerrar Google Drive' })).toBeVisible();
+  });
   it('places the single active-patient selector in the workspace header', () => {
     renderAssistant();
 

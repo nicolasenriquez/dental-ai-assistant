@@ -20,9 +20,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.auth.dependencies import get_current_admin, get_current_user
+from backend.clinical_assistant.terminology import load_bundled_catalog
 from backend.config import CORS_ORIGINS, FRONTEND_DIST
 from backend.data.seed import seed_if_empty
 from backend.db.postgres import close_pg_pool, init_pg_pool
+from backend.db.terminology_repo import sync_catalog
 from backend.transcription.whisper_adapter import WhisperHttpAdapter
 
 logging.basicConfig(level=logging.INFO)
@@ -70,6 +72,13 @@ async def lifespan(app: FastAPI):
     # Initialise the Postgres pool (used by all repository calls)
     await init_pg_pool()
     logger.info("Postgres pool initialised.")
+
+    try:
+        await sync_catalog(load_bundled_catalog())
+    except Exception:
+        await close_pg_pool()
+        raise
+    logger.info("Clinical terminology catalog ready.")
 
     logger.info("Checking seed data…")
     await seed_if_empty()

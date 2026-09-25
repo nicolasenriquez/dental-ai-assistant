@@ -180,6 +180,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     Record<string, 'idle' | 'saving' | 'saved' | 'error'>
   >({});
   const abortRef = useRef<AbortController | null>(null);
+  const stopInFlightRef = useRef<string | null>(null);
   const activeTurnRef = useRef<string | null>(null);
   const threadIdRef = useRef(threadId);
   threadIdRef.current = threadId;
@@ -482,6 +483,60 @@ export function useClinicalAssistant(threadId: string | undefined) {
             // The composer must remain usable even if reconciliation fails.
           }
         } else {
+          const started = Date.now();
+          try {
+            const reconciled = await load();
+            const savedTurn = reconciled?.messages.find((message) => message.turn_id === turnId);
+            const savedArtifact = reconciled?.artifacts?.some((item) => item.turn_id === turnId);
+            const savedAction = reconciled?.actions?.some((item) => item.turn_id === turnId);
+            const outcome =
+              savedArtifact || savedAction || savedTurn?.turn_status === 'completed'
+                ? 'completed'
+                : reconciled?.active_turn_id === turnId
+                  ? 'running'
+                  : savedTurn?.turn_status === 'failed'
+                    ? 'failed'
+                    : 'missing';
+            clinicalTrace('clinical.reconciliation.finished', {
+              thread_id: currentThreadId,
+              turn_id: turnId,
+              outcome,
+              attempt_count: 1,
+              latency_ms: Date.now() - started,
+              failure_class: 'transport',
+            });
+            if (outcome === 'completed' || outcome === 'running') {
+              setError(null);
+              return true;
+            }
+            if (outcome === 'failed') {
+              setError(safeError(savedTurn?.turn_error_code ?? 'CLINICAL_TURN_FAILED'));
+              setRuntime('failed');
+              return false;
+            }
+          } catch {
+            clinicalTrace('clinical.reconciliation.finished', {
+              thread_id: currentThreadId,
+              turn_id: turnId,
+              outcome: 'unavailable',
+              attempt_count: 1,
+              latency_ms: Date.now() - started,
+              failure_class: 'transport',
+            });
+          }
+          if (threadIdRef.current === currentThreadId) {
+            dispatch({
+              type: 'append',
+              item: {
+                id: `user:${turnId}`,
+                turnId,
+                status: 'completed',
+                createdAt,
+                type: 'user',
+                content: redactIdentifiers(content),
+              },
+            });
+          }
           setError(safeError('CLINICAL_TURN_FAILED'));
           setRuntime('failed');
         }
@@ -733,29 +788,59 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const stop = useCallback(() => {
     const turnId = activeTurnRef.current;
-    if (!threadId || !turnId) return;
+    if (!threadId || !turnId || stopInFlightRef.current === turnId) return;
+    stopInFlightRef.current = turnId;
+    const started = Date.now();
     setRuntime('stopping');
     void (async () => {
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        try {
-          await cancelClinicalTurn(threadId, turnId);
-          abortRef.current?.abort();
-          await load();
-          return;
-        } catch (caught) {
-          if (caught instanceof ApiError && caught.status === 409) {
-            if (attempt < 7) {
-              // The Stop request can reach the server before the turn POST.
-              await new Promise((resolve) => setTimeout(resolve, 250));
-              continue;
-            }
+      try {
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          try {
+            await cancelClinicalTurn(threadId, turnId);
+            abortRef.current?.abort();
             await load();
+            clinicalTrace('clinical.cancellation.finished', {
+              thread_id: threadId,
+              turn_id: turnId,
+              outcome: 'cancelled',
+              attempt_count: attempt + 1,
+              latency_ms: Date.now() - started,
+              failure_class: null,
+            });
+            return;
+          } catch (caught) {
+            if (caught instanceof ApiError && caught.status === 409) {
+              if (attempt < 7) {
+                // The Stop request can reach the server before the turn POST.
+                await new Promise((resolve) => setTimeout(resolve, 250));
+                continue;
+              }
+              await load();
+              clinicalTrace('clinical.cancellation.finished', {
+                thread_id: threadId,
+                turn_id: turnId,
+                outcome: 'already_terminal',
+                attempt_count: attempt + 1,
+                latency_ms: Date.now() - started,
+                failure_class: 'routing',
+              });
+              return;
+            }
+            setError('No pudimos detener la respuesta. Intenta nuevamente.');
+            setRuntime('streaming');
+            clinicalTrace('clinical.cancellation.finished', {
+              thread_id: threadId,
+              turn_id: turnId,
+              outcome: 'failed',
+              attempt_count: attempt + 1,
+              latency_ms: Date.now() - started,
+              failure_class: 'transport',
+            });
             return;
           }
-          setError('No pudimos detener la respuesta. Intenta nuevamente.');
-          setRuntime('streaming');
-          return;
         }
+      } finally {
+        if (stopInFlightRef.current === turnId) stopInFlightRef.current = null;
       }
     })();
   }, [load, threadId]);

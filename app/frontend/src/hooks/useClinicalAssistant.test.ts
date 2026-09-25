@@ -145,6 +145,23 @@ describe('clinical redaction and artifact ordering', () => {
     await waitFor(() => expect(cancelClinicalTurn).toHaveBeenCalledTimes(2));
   });
 
+  it('suppresses duplicate Stop requests for the same active turn', async () => {
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(patientA),
+      active_turn_id: 'turn-running',
+    });
+    const response = deferred<{ status: 'cancelled' }>();
+    vi.mocked(cancelClinicalTurn).mockReturnValue(response.promise);
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.runtime).toBe('streaming'));
+    act(() => {
+      result.current.stop();
+      result.current.stop();
+    });
+    expect(cancelClinicalTurn).toHaveBeenCalledTimes(1);
+    await act(async () => response.resolve({ status: 'cancelled' }));
+  });
+
   it('reconciles a completed artifact after reconnecting', async () => {
     const running = {
       ...thread(patientA),
@@ -173,6 +190,41 @@ describe('clinical redaction and artifact ordering', () => {
     await waitFor(() => expect(result.current.runtime).toBe('streaming'));
     await waitFor(() => expect(result.current.runtime).toBe('idle'), { timeout: 4000 });
     expect(result.current.items.filter((item) => item.type === 'draft')).toHaveLength(1);
+  });
+
+  it('hydrates persisted completion after unexpected stream failure', async () => {
+    let turnId = '';
+    vi.mocked(streamClinicalTurn).mockImplementation(async (_threadId, request) => {
+      turnId = request.turn_id;
+      throw new Error('reader failed');
+    });
+    vi.mocked(getClinicalThread)
+      .mockResolvedValueOnce(thread(patientA))
+      .mockImplementation(async () => ({
+        ...thread(patientA),
+        messages: [
+          {
+            id: 'user-persisted',
+            thread_id: 'thread-1',
+            turn_id: turnId,
+            role: 'user',
+            content: 'Control',
+            turn_status: 'completed',
+            created_at: '2026-09-17T12:00:00Z',
+          },
+        ],
+        artifacts: [{ ...artifact, turn_id: turnId }],
+      }));
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.thread).not.toBeNull());
+    let sent = false;
+    await act(async () => {
+      sent = await result.current.send('Control');
+    });
+    expect(sent).toBe(true);
+    expect(result.current.runtime).toBe('idle');
+    expect(result.current.error).toBeNull();
+    expect(result.current.items.some((item) => item.type === 'draft')).toBe(true);
   });
 
   it('shows a persisted failed turn with its note and retry action', async () => {

@@ -21,7 +21,7 @@ Clinical Assistant already protects patient ownership and approval-gated writes,
 ## What Changes
 
 - Add a versioned, checksummed dental terminology catalog whose schema preserves legitimate many-to-many normalized matches and deduplicates aliases only within one concept and language.
-- Add deterministic terminology resolution for at most eight raw terms per call, with exact preferred-term and alias matches, fuzzy candidates fixed at ratio `>= 0.88` and at most three concepts, and typed `matched`, `ambiguous`, or `not_found` outcomes.
+- Add deterministic terminology resolution for at most eight raw terms per call, with exact preferred-term and alias matches, fuzzy candidates fixed at ratio `>= 0.80` and at most three concepts, and typed `matched`, `ambiguous`, or `not_found` outcomes.
 - Add a cheap pre-agent scan limited to reviewed V1 aliases `TAD`, `TMJ`, `CBCT`, and `BOP` when they uniquely match exact token boundaries, plus a quiet batched `lookup_dental_terms` tool for additional model-selected resolution.
 - Make patient-history retrieval conditional: drafting receives only history selected during the current agent turn, rather than loading history unconditionally.
 - Define bounded per-turn grounding with capped, chronological, deduplicated patient evidence and matched-only, concept-deduplicated terminology evidence.
@@ -100,7 +100,7 @@ Clinical Assistant already protects patient ownership and approval-gated writes,
 - Prove terminology evidence cannot create patient facts and unknown or ambiguous terms remain non-authoritative.
 - Prove `TAD en IZC` yields a matched `TAD`, a `not_found` `IZC`, and no invented expansion; prove real normalized collisions return `ambiguous` without import failure.
 - Prove only explicitly reviewed, unique, token-boundary aliases auto-ground without spending tool budget; classification alone, generic aliases, ambiguous aliases, partial substrings, and non-allowlisted uppercase abbreviations do not.
-- Prove short or acronym-shaped input never enters fuzzy matching, ratio below `0.88` returns no fuzzy candidate, eligible fuzzy output contains at most three deterministic non-authoritative concepts, and fuzzy matching never returns `matched`.
+- Prove short or acronym-shaped input never enters fuzzy matching, ratio below `0.80` returns no fuzzy candidate, eligible fuzzy output contains at most three deterministic non-authoritative concepts, and fuzzy matching never returns `matched`.
 - Prove terminology batches accept at most eight raw terms and reject a ninth without truncation.
 - Prove canonical JSON hashing ignores whitespace/object-key order but preserves array order, removed concepts become lookup-ineligible inactive rows, reintroduced concepts reactivate, and allowlist/catalog divergence blocks startup.
 - Prove history + terminology + draft + save preparation fits the unchanged four-call cap and no documented V1 flow requires a hidden fifth call.

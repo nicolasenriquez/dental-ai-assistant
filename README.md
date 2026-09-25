@@ -17,6 +17,9 @@ This repository is the **running project for the Dynamous Agentic Engineering Co
 3. **Voice dictation** — short-lived audio is transcribed by the Whisper sidecar and returned as editable text. Audio is not persisted.
 4. **RAG chat** — the secondary library chat ingests YouTube and Dynamous transcripts, retrieves with hybrid RRF search, and streams cited answers.
 
+Clinical terminology grounding and its catalog release hold are documented in
+[clinical grounding operations](docs/clinical-grounding.md).
+
 ---
 
 ## Architecture

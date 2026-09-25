@@ -192,7 +192,7 @@ async def get_recent_approved_evolutions(
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT evolution_at, final_text
+            SELECT id, evolution_at, final_text
             FROM evolutions
             WHERE owner_user_id = $1 AND patient_id = $2
               AND btrim(final_text) <> ''

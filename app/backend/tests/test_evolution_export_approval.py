@@ -140,3 +140,47 @@ async def test_approval_without_connection_creates_no_export_intent(
         )
         is None
     )
+
+
+async def test_canonical_save_returns_before_any_external_drive_io(monkeypatch) -> None:
+    from backend.evolution_exports import service
+
+    calls: list[str] = []
+    owner, patient, evolution_id = uuid4(), uuid4(), uuid4()
+    saved = {"id": evolution_id, "final_text": "Aprobado"}
+
+    async def get_patient(_conn, _owner, _patient):
+        calls.append("patient")
+        return {"id": patient}
+
+    async def create_evolution(_conn, _owner, _patient, **_kwargs):
+        calls.append("canonical")
+        return saved
+
+    async def prepare_export(_conn, _owner, evolution, _patient, _approval_at):
+        assert evolution is saved
+        calls.append("intent")
+        return {"status": "pending"}
+
+    async def forbidden_drive_io(*_args, **_kwargs):
+        raise AssertionError("external Drive I/O cannot block canonical save")
+
+    monkeypatch.setattr(service.patients_repo, "get_patient_with_connection", get_patient)
+    monkeypatch.setattr(
+        service.evolutions_repo, "create_evolution_with_connection", create_evolution
+    )
+    monkeypatch.setattr(service, "persist_approval_export", prepare_export)
+    monkeypatch.setattr(service.google_drive, "create_file", forbidden_drive_io)
+    result = await service.persist_approved_evolution_with_connection(
+        object(),
+        owner,
+        patient,
+        evolution_id=evolution_id,
+        evolution_at=datetime.now(UTC),
+        raw_note="nota",
+        generated_text="borrador",
+        final_text="Aprobado",
+        approval_at=datetime.now(UTC),
+    )
+    assert result == (saved, {"status": "pending"})
+    assert calls == ["patient", "canonical", "intent"]

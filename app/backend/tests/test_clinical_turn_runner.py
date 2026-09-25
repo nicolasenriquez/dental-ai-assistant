@@ -96,6 +96,35 @@ async def test_explicit_cancel_waits_for_worker_cleanup(monkeypatch) -> None:
     assert (owner, thread, turn) not in turn_runner._tasks
 
 
+@pytest.mark.parametrize(
+    "capability", ["get_recent_evolutions", "lookup_dental_terms", "create_evolution_draft"]
+)
+async def test_stop_during_grounding_capability_cleans_detached_worker(
+    monkeypatch, capability
+) -> None:
+    owner, thread, turn = UUID(int=1), UUID(int=2), UUID(int=6)
+    entered = asyncio.Event()
+    cleaned = asyncio.Event()
+
+    async def run(*_args):
+        yield f"activity:{capability}"
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cleaned.set()
+
+    monkeypatch.setattr(turn_runner.service, "stream_turn", run)
+    stream = turn_runner.start(owner, thread, turn, "nota", [])
+    assert await anext(stream) == f"activity:{capability}"
+    await entered.wait()
+    assert await turn_runner.cancel(owner, thread, turn)
+    assert cleaned.is_set()
+    assert not await turn_runner.cancel(owner, thread, turn)
+    await stream.aclose()
+    assert (owner, thread, turn) not in turn_runner._tasks
+
+
 async def test_worker_error_ends_stream_and_releases_registry(monkeypatch) -> None:
     owner, thread, turn = UUID(int=1), UUID(int=2), UUID(int=5)
 

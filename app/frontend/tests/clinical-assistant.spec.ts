@@ -257,7 +257,9 @@ async function installDriveRoutes(
         status: file ? 200 : 404,
         contentType: 'application/json',
         body: JSON.stringify(
-          file ? { ...file, content: `Contenido remoto de ${file.name}.` } : { detail: 'Not found' },
+          file
+            ? { ...file, content: `Contenido remoto de ${file.name}.` }
+            : { detail: 'Not found' },
         ),
       });
       return;
@@ -1366,6 +1368,105 @@ test('clinical artifact deep link reads edited remote journal and preserves tran
   expect(await transcript.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
     true,
   );
+});
+
+test('quiet terminology support leaves only the clinical answer in the transcript', async ({
+  page,
+}) => {
+  const initial = thread();
+  await page.route(`**/api/clinical-threads/${threadId}/turns`, async (route) => {
+    const body = route.request().postDataJSON() as { turn_id: string; content: string };
+    harness.setThread({
+      ...initial,
+      messages: [
+        {
+          id: `user-${body.turn_id}`,
+          turn_id: body.turn_id,
+          role: 'user',
+          content: body.content,
+          created_at: '2026-01-15T12:01:00Z',
+        },
+        {
+          id: `assistant-${body.turn_id}`,
+          turn_id: body.turn_id,
+          role: 'assistant',
+          content: 'TAD es un dispositivo de anclaje temporal. IZC requiere aclaración.',
+          created_at: '2026-01-15T12:01:01Z',
+        },
+      ],
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: [
+        sseEvent(
+          'turn.started',
+          1,
+          body.turn_id,
+          'turn-quiet',
+          'turn',
+          {
+            user_content: body.content,
+          },
+          'running',
+        ),
+        sseEvent(
+          'item.completed',
+          2,
+          body.turn_id,
+          'answer-quiet',
+          'assistant_message',
+          {
+            content: 'TAD es un dispositivo de anclaje temporal. IZC requiere aclaración.',
+          },
+          'completed',
+        ),
+        sseEvent('turn.completed', 3, body.turn_id, 'complete-quiet', 'turn', {}, 'completed'),
+      ].join(''),
+    });
+  });
+  const harness = await setupClinicalHarness(page, initial);
+  await page.getByLabel('Nota clínica').fill('TAD en IZC');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await expect(page.getByRole('article', { name: 'Asistente' })).toContainText(
+    'IZC requiere aclaración',
+  );
+  await expect(page.locator('.clinical-processing')).toHaveCount(0);
+  await expect(page.getByText('Buscando terminología')).toHaveCount(0);
+});
+
+test('unexpected clinical stream loss hydrates the persisted draft', async ({ page }) => {
+  const initial = thread();
+  await page.route(`**/api/clinical-threads/${threadId}/turns`, async (route) => {
+    const body = route.request().postDataJSON() as { turn_id: string; content: string };
+    harness.setThread({
+      ...initial,
+      messages: [
+        {
+          id: `user-${body.turn_id}`,
+          turn_id: body.turn_id,
+          role: 'user',
+          content: body.content,
+          turn_status: 'completed',
+          created_at: '2026-01-15T12:01:00Z',
+        },
+      ],
+      artifacts: [
+        hydratedArtifact({
+          turn_id: body.turn_id,
+          source_note: body.content,
+        }),
+      ],
+    });
+    await route.abort('failed');
+  });
+  const harness = await setupClinicalHarness(page, initial);
+  await page.getByLabel('Nota clínica').fill('Control preventivo.');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await expect(page.getByRole('article', { name: 'Evolución clínica' })).toBeVisible();
+  await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
+  await expect(page.getByText('Pensando…')).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
 test('clinical streaming keeps history anchored and offers jump for large artifacts', async ({

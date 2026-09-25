@@ -148,7 +148,7 @@ def test_generation_service_is_owner_scoped_and_does_not_accept_current_time_or_
     from backend.services.clinical_evolutions import generate_draft
 
     params = set(inspect.signature(generate_draft).parameters)
-    assert params == {"owner_user_id", "patient_id", "raw_note"}
+    assert params == {"owner_user_id", "patient_id", "raw_note", "grounding"}
 
 
 def test_generation_constants_and_fail_closed_gate() -> None:

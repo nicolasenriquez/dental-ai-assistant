@@ -1,5 +1,4 @@
-import { Check, CircleX } from 'lucide-react';
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { motionSafeScrollBehavior, useChatAutoFollow } from '../../hooks/useChatAutoFollow';
@@ -69,45 +68,23 @@ interface ClinicalTranscriptProps {
 
 function ProcessingStatus({ items }: { items: ClinicalTranscriptItem[] }) {
   const activities = items.filter((item) => item.type === 'activity');
-  const status = activities[0]?.status ?? 'pending';
-  const active = activities.some((item) => item.status === 'running' || item.status === 'pending');
-  const activityList = (
-    <ul>
-      {activities.map((item) => (
-        <li key={item.id} className={`is-${item.status}`}>
-          {item.status === 'running' || item.status === 'pending' ? (
-            <Spinner />
-          ) : item.status === 'failed' || item.status === 'declined' ? (
-            <CircleX aria-hidden="true" size={14} />
-          ) : (
-            <Check aria-hidden="true" size={14} />
-          )}
-          <span>{item.label}</span>
-        </li>
-      ))}
-    </ul>
-  );
+  const active = activities.find((item) => item.status === 'running' || item.status === 'pending');
+  const [visibleId, setVisibleId] = useState<string | null>(null);
+  useEffect(() => {
+    setVisibleId(null);
+    if (!active) return;
+    const timer = setTimeout(() => setVisibleId(active.id), 300);
+    return () => clearTimeout(timer);
+  }, [active?.id]);
+  if (!active || visibleId !== active.id) return null;
   return (
     <section
-      className={`clinical-processing clinical-activity--${status === 'running' || status === 'pending' ? 'active' : status}`}
+      className="clinical-processing clinical-activity--active"
       role="status"
-      aria-label="Preparando evolución"
       aria-live="polite"
     >
-      {active ? (
-        <>
-          <strong>Preparando evolución…</strong>
-          {activityList}
-        </>
-      ) : (
-        <details>
-          <summary>
-            Preparado con {activities.length} {activities.length === 1 ? 'paso' : 'pasos'} · Ver
-            detalles
-          </summary>
-          {activityList}
-        </details>
-      )}
+      <Spinner />
+      <span>{active.label}</span>
     </section>
   );
 }

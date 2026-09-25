@@ -68,7 +68,7 @@ The system SHALL maintain a versioned and checksummed global dental terminology 
 - **THEN** catalog validation fails and application startup stops before serving clinical requests
 
 ### Requirement: Conservative batched terminology resolution
-The system SHALL resolve `1..8` raw dental expressions per call through deterministic normalization, exact preferred-term lookup, and exact alias lookup before considering fuzzy candidates. `MAX_TERMINOLOGY_TERMS` SHALL equal `8`; a ninth raw term SHALL be rejected rather than truncated. Only exact preferred-term or alias results SHALL be authoritative matches. Eligible fuzzy candidate generation SHALL use `FUZZY_MIN_RATIO=0.88` and return at most `FUZZY_MAX_CANDIDATES=3` deduplicated concepts.
+The system SHALL resolve `1..8` raw dental expressions per call through deterministic normalization, exact preferred-term lookup, and exact alias lookup before considering fuzzy candidates. `MAX_TERMINOLOGY_TERMS` SHALL equal `8`; a ninth raw term SHALL be rejected rather than truncated. Only exact preferred-term or alias results SHALL be authoritative matches. Eligible fuzzy candidate generation SHALL use `FUZZY_MIN_RATIO=0.80` and return at most `FUZZY_MAX_CANDIDATES=3` deduplicated concepts.
 
 #### Scenario: Preferred Spanish term matches
 - **WHEN** an input normalizes to one preferred Spanish term
@@ -87,7 +87,7 @@ The system SHALL resolve `1..8` raw dental expressions per call through determin
 - **THEN** deterministic normalization produces the same exact lookup key
 
 #### Scenario: Fuzzy candidates exist
-- **WHEN** no exact match exists for an eligible non-acronym input of at least five normalized characters and `SequenceMatcher(None, normalized_input, normalized_candidate).ratio()` is at least `0.88`
+- **WHEN** no exact match exists for an eligible non-acronym input of at least five normalized characters and `SequenceMatcher(None, normalized_input, normalized_candidate).ratio()` is at least `0.80`
 - **THEN** each active concept receives its maximum ratio across normalized preferred ES/EN and alias forms, and resolver returns up to three concept-deduplicated `ambiguous` candidates ordered by that ratio descending then stable concept ID ascending, without authoritative definition or automatic replacement
 
 #### Scenario: Short input is not fuzzy eligible
@@ -99,7 +99,7 @@ The system SHALL resolve `1..8` raw dental expressions per call through determin
 - **THEN** resolver uses exact preferred/alias lookup only regardless of normalized length
 
 #### Scenario: Longer misspelling has a candidate
-- **WHEN** eligible input such as `braquett`, `periodontitiss`, or `maloclusion` has no exact match but reaches ratio `0.88`
+- **WHEN** eligible input such as `braquett`, `periodontitiss`, or `maloclusion` has no exact match but reaches ratio `0.80`
 - **THEN** resolver may return `ambiguous` candidates but never `matched`
 
 #### Scenario: Term is absent

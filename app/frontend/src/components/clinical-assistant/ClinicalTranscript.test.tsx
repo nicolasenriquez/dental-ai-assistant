@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
@@ -186,7 +186,7 @@ function expectNoPeerCards(container: HTMLElement): void {
 }
 
 describe('ClinicalTranscript', () => {
-  it('shows thinking only while a busy user item is latest', () => {
+  it('shows thinking only while a busy user item is latest', async () => {
     const user: ClinicalTranscriptItem = {
       ...base,
       id: 'user-1',
@@ -219,7 +219,7 @@ describe('ClinicalTranscript', () => {
       </MemoryRouter>,
     );
     expect(screen.queryByText('Pensando…')).not.toBeInTheDocument();
-    expect(screen.getByText('Analizando exactamente')).toBeVisible();
+    await waitFor(() => expect(screen.getByText('Analizando exactamente')).toBeVisible());
   });
 
   it('does not show thinking when idle', () => {
@@ -230,26 +230,82 @@ describe('ClinicalTranscript', () => {
     expect(screen.queryByText('Pensando…')).not.toBeInTheDocument();
   });
 
-  it.each([
-    ['pending', 'clinical-activity--active'],
-    ['running', 'clinical-activity--active'],
-    ['completed', 'clinical-activity--completed'],
-    ['failed', 'clinical-activity--failed'],
-    ['declined', 'clinical-activity--declined'],
-  ] as const)('maps %s activity status without changing its label', (status, className) => {
-    renderTranscript([
-      { ...base, id: `activity-${status}`, type: 'activity', status, label: 'pensando literal' },
-    ]);
-    expect(screen.getByRole('status')).toHaveClass(className);
-    if (status === 'pending' || status === 'running') {
-      expect(screen.getByText('pensando literal')).toBeVisible();
-    } else {
-      expect(screen.getByText('Preparado con 1 paso · Ver detalles')).toBeVisible();
-      expect(screen.getByText('pensando literal')).not.toBeVisible();
-    }
+  it('suppresses completed internal activity when a draft is ready', () => {
+    const view = renderTranscript(
+      [
+        {
+          ...base,
+          id: 'activity-1',
+          type: 'activity',
+          status: 'completed',
+          label: 'Preparando borrador',
+        },
+        draftItem(),
+      ],
+      false,
+    );
+    expect(view.container.querySelector('.clinical-processing')).not.toBeInTheDocument();
+    expect(screen.getByText('Borrador')).toBeVisible();
   });
 
-  it('keeps assistant prose and processing unboxed beside one clinical artifact', () => {
+  it.each(['pending', 'running'] as const)(
+    'shows sustained %s activity without changing its label',
+    async (status) => {
+      renderTranscript([
+        { ...base, id: `activity-${status}`, type: 'activity', status, label: 'pensando literal' },
+      ]);
+      expect(screen.queryByText('pensando literal')).not.toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText('pensando literal')).toBeVisible());
+      expect(screen.getByRole('status')).toHaveClass('clinical-activity--active');
+    },
+  );
+
+  it('waits again before showing a different short activity', async () => {
+    const first: ClinicalTranscriptItem = {
+      ...base,
+      id: 'activity-first',
+      type: 'activity',
+      status: 'running',
+      label: 'Consultando evoluciones',
+    };
+    const view = renderTranscript([first]);
+    await waitFor(() => expect(screen.getByText('Consultando evoluciones')).toBeVisible());
+
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript
+          threadId="thread-1"
+          items={[
+            { ...first, status: 'completed' },
+            {
+              ...base,
+              id: 'activity-second',
+              type: 'activity',
+              status: 'running',
+              label: 'Preparando borrador',
+            },
+          ]}
+          busy
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('Consultando evoluciones')).not.toBeInTheDocument();
+    expect(screen.queryByText('Preparando borrador')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Preparando borrador')).toBeVisible());
+  });
+
+  it.each(['completed', 'failed', 'declined'] as const)(
+    'does not retain %s internal activity chrome',
+    (status) => {
+      renderTranscript([
+        { ...base, id: `activity-${status}`, type: 'activity', status, label: 'paso interno' },
+      ]);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    },
+  );
+
+  it('keeps assistant prose and processing unboxed beside one clinical artifact', async () => {
     const activity: ClinicalTranscriptItem = {
       ...base,
       id: 'activity-1',
@@ -260,7 +316,9 @@ describe('ClinicalTranscript', () => {
     const view = renderTranscript([assistantItem(), activity, draftItem()], false);
     const artifact = expectSingleHighEmphasisArtifact(view.container);
     const prose = screen.getByRole('article', { name: 'Asistente' });
-    const processing = screen.getByRole('status', { name: 'Preparando evolución' });
+    const processing = (await screen.findByText('Revisando antecedentes')).closest(
+      '.clinical-processing',
+    ) as HTMLElement;
     const stack = view.container.querySelector('.clinical-transcript-stack');
 
     expect(prose).toHaveTextContent('La evolución requiere control preventivo.');

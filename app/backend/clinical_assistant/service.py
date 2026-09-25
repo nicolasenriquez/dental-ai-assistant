@@ -6,13 +6,17 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 from collections.abc import AsyncIterator
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+import asyncpg
+
 from backend.db import clinical_assistant_repo as repository
-from backend.db import evolution_exports_repo, patients_repo
+from backend.db import evolution_exports_repo, patients_repo, terminology_repo
 from backend.evolution_exports.service import drive_export_state
 from backend.services import clinical_evolutions
 
@@ -28,6 +32,12 @@ from .schemas import (
     PrepareSaveRequest,
 )
 from .sensitive_input import safe_patient, sanitize_content
+from .terminology import (
+    AUTO_GROUND_ALIASES,
+    TermCandidate,
+    TermResolution,
+    resolve_terms,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +59,53 @@ ProposalStaleError = repository.ProposalStaleError
 ClinicalGenerationDisabledError = clinical_evolutions.ClinicalGenerationDisabledError
 EmptyClinicalDraftError = clinical_evolutions.EmptyClinicalDraftError
 ClinicalGenerationError = clinical_evolutions.ClinicalGenerationError
+
+
+@dataclass
+class TurnGrounding:
+    """Bounded evidence owned by one claimed Clinical Assistant turn."""
+
+    patient_evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
+    terminology_evidence: dict[str, TermCandidate] = field(default_factory=dict)
+
+    def add_patient_evidence(self, rows: list[dict[str, Any]]) -> None:
+        for row in rows:
+            evidence_id = str(row["id"])
+            if evidence_id not in self.patient_evidence and len(self.patient_evidence) < 3:
+                self.patient_evidence[evidence_id] = row
+
+    def add_terminology_result(self, result: TermResolution) -> None:
+        if result.status == "matched" and result.concept is not None:
+            self.terminology_evidence[result.concept.concept_id] = result.concept
+
+    def for_generation(self) -> clinical_evolutions.DraftGrounding:
+        return clinical_evolutions.DraftGrounding(
+            patient_evidence=sorted(
+                self.patient_evidence.values(), key=lambda row: row["evolution_at"]
+            ),
+            terminology_evidence=[
+                asdict(self.terminology_evidence[key]) for key in sorted(self.terminology_evidence)
+            ],
+        )
+
+
+def _pre_resolve_terms(note: str, entries: list[dict[str, Any]]) -> TurnGrounding:
+    grounding = TurnGrounding()
+    matched_aliases = [
+        alias
+        for alias in sorted(AUTO_GROUND_ALIASES)
+        if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", note)
+    ]
+    if matched_aliases:
+        for result in resolve_terms(matched_aliases, entries):
+            grounding.add_terminology_result(result)
+    return grounding
+
+
+async def _new_turn_grounding(note: str) -> TurnGrounding:
+    if any(re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", note) for alias in AUTO_GROUND_ALIASES):
+        return _pre_resolve_terms(note, await terminology_repo.get_active_terms())
+    return TurnGrounding()
 
 
 class ArtifactNotDraftError(RuntimeError):
@@ -174,6 +231,7 @@ async def _get_recent_evolutions(context: ClinicalTurnContext) -> dict[str, Any]
         "evolutions": [
             {
                 "evolution_at": row["evolution_at"],
+                "id": row.get("id"),
                 "final_text": (
                     await sanitize_content(context.user_id, row["final_text"])
                 ).model_text,
@@ -183,10 +241,14 @@ async def _get_recent_evolutions(context: ClinicalTurnContext) -> dict[str, Any]
     }
 
 
-async def _draft_evolution(context: ClinicalTurnContext, raw_note: str) -> ClinicalDraft:
+async def _draft_evolution(
+    context: ClinicalTurnContext, raw_note: str, grounding: TurnGrounding
+) -> ClinicalDraft:
     if context.patient_id is None:
         raise LookupError("Patient required")
-    return await clinical_evolutions.generate_draft(context.user_id, context.patient_id, raw_note)
+    return await clinical_evolutions.generate_draft(
+        context.user_id, context.patient_id, raw_note, grounding=grounding.for_generation()
+    )
 
 
 async def _set_contextual_title(
@@ -358,24 +420,41 @@ def _clinical_tool_handlers(
     context: ClinicalTurnContext,
     source_note: str,
     model_note: str,
+    *,
+    grounding: TurnGrounding | None = None,
 ) -> dict[str, Any]:
+    if grounding is None:
+        grounding = TurnGrounding()
     active_artifact = {"id": context.active_artifact_id}
 
-    async def patient_context(_arguments: dict[str, Any]) -> ClinicalToolResult:
-        if context.patient_id is None:
-            return ClinicalToolResult({"ok": False, "error": "PATIENT_REQUIRED"})
-        patient = await patients_repo.get_patient(context.user_id, context.patient_id)
-        if patient is None:
-            return ClinicalToolResult({"ok": False, "error": "PATIENT_NOT_FOUND"})
-        return ClinicalToolResult({"ok": True, "patient_selected": True})
-
     async def recent_evolutions(_arguments: dict[str, Any]) -> ClinicalToolResult:
-        return ClinicalToolResult(await _get_recent_evolutions(context))
+        result = await _get_recent_evolutions(context)
+        if result["ok"]:
+            grounding.add_patient_evidence(
+                [row for row in result["evolutions"] if row["id"] is not None]
+            )
+        return ClinicalToolResult(result)
+
+    async def lookup_dental_terms(arguments: dict[str, Any]) -> ClinicalToolResult:
+        try:
+            entries = await terminology_repo.get_active_terms()
+            results = resolve_terms(arguments["terms"], entries)
+        except ValueError:
+            return ClinicalToolResult({"ok": False, "error": "INVALID_TOOL_ARGUMENTS"})
+        except (OSError, RuntimeError, asyncpg.PostgresError):
+            logger.warning(
+                "clinical_grounding.lookup_failed",
+                extra={"failure_class": "retrieval", "capability": "lookup_dental_terms"},
+            )
+            return ClinicalToolResult({"ok": False, "error": "TERMINOLOGY_UNAVAILABLE"})
+        for result in results:
+            grounding.add_terminology_result(result)
+        return ClinicalToolResult({"ok": True, "results": [asdict(result) for result in results]})
 
     async def create_draft(_arguments: dict[str, Any]) -> ClinicalToolResult:
         if context.patient_id is None:
             return ClinicalToolResult({"ok": False, "error": "PATIENT_REQUIRED"})
-        draft = await _draft_evolution(context, model_note)
+        draft = await _draft_evolution(context, model_note, grounding)
         item_id = uuid4()
         evolution_at = datetime.now(UTC)
         artifact = await repository.create_artifact(
@@ -481,8 +560,8 @@ def _clinical_tool_handlers(
         )
 
     return {
-        "get_patient_context": patient_context,
         "get_recent_evolutions": recent_evolutions,
+        "lookup_dental_terms": lookup_dental_terms,
         "create_evolution_draft": create_draft,
         "update_evolution_draft": update_draft,
         "prepare_evolution_save": prepare_draft,
@@ -763,12 +842,15 @@ async def _stream_turn(
     try:
         if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
             raise clinical_evolutions.ClinicalGenerationDisabledError
+        grounding = await _new_turn_grounding(sanitized.model_text)
         activity_ids: dict[str, str] = {}
         produced_artifact = False
         async for output in run_clinical_agent(
             context=context,
             messages=messages,
-            handlers=_clinical_tool_handlers(context, sanitized.display_text, model_text),
+            handlers=_clinical_tool_handlers(
+                context, sanitized.display_text, model_text, grounding=grounding
+            ),
         ):
             if output.kind == "heartbeat":
                 yield ": keepalive\n\n"
@@ -980,7 +1062,12 @@ async def regenerate_draft(
         model_note = f"{model_note}\n\n{sources_text}"
     if not clinical_evolutions.CLINICAL_EXTERNAL_LLM_ENABLED:
         raise clinical_evolutions.ClinicalGenerationDisabledError
-    draft = await clinical_evolutions.generate_draft(owner, patient_id, model_note)
+    draft = await clinical_evolutions.generate_draft(
+        owner,
+        patient_id,
+        model_note,
+        grounding=(await _new_turn_grounding(sanitized.model_text)).for_generation(),
+    )
     evolution_at = datetime.fromisoformat(str(artifact["evolution_at"]))
     updated = await repository.update_artifact(
         owner,

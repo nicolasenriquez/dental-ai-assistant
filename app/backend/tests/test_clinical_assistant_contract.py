@@ -5,6 +5,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock
 from uuid import UUID
 
@@ -574,11 +575,11 @@ async def test_drive_context_sends_only_text_to_agent(monkeypatch) -> None:
         async for chunk in service.stream_turn(owner, thread, turn, "Usa ficha", [context_item])
     ]
 
-    model_content = captured["messages"][-1]["content"]
+    model_content = cast(list[dict[str, str]], captured["messages"])[-1]["content"]
     assert model_content == "Usa ficha\n\nDolor en pieza 1.6"
     assert "Fuente: Google Drive" not in model_content
     assert "Ficha.md" not in model_content
-    assert "model_content" not in captured["stored_context"][0]
+    assert "model_content" not in cast(list[dict[str, str]], captured["stored_context"])[0]
 
 
 async def test_patient_switch_is_persisted_before_event(monkeypatch) -> None:
@@ -798,8 +799,9 @@ async def test_regeneration_reuses_originating_drive_context(
     async def sanitize(_owner, content):
         return type("Sanitized", (), {"display_text": content, "model_text": content})()
 
-    async def generate(_owner, _patient, raw_note):
+    async def generate(_owner, _patient, raw_note, *, grounding):
         captured["raw_note"] = raw_note
+        captured["grounding"] = grounding
         return draft
 
     async def update(*_args, **_kwargs):
@@ -823,6 +825,10 @@ async def test_regeneration_reuses_originating_drive_context(
     assert "Dolor en pieza 1.6" in captured["raw_note"]
     assert "Fuente: Google Drive" not in captured["raw_note"]
     assert "Ficha.md" not in captured["raw_note"]
+    assert (
+        cast(service.clinical_evolutions.DraftGrounding, captured["grounding"]).patient_evidence
+        == []
+    )
 
 
 @pytest.mark.parametrize("status", ["pending", "approved", "declined", "failed"])

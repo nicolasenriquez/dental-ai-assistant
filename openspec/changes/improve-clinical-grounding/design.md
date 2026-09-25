@@ -101,7 +101,7 @@ The reviewed V1 allowlist from the supplied dataset is exactly `TAD`, `TMJ`, `CB
 
 Fuzzy search is ineligible when normalized input length is less than five characters or original input is acronym-shaped. Acronym-shaped means one compact uppercase token after removing only periods and hyphens, with at least two alphabetic characters; examples include `TAD`, `T.A.D.`, `TMJ`, `BOP`, and `PD`. Ineligible input uses exact preferred/alias lookup only.
 
-Eligible longer misspellings such as `braquett`, `periodontitiss`, or `maloclusion` may produce fuzzy candidates after exact lookup fails. V1 fixes `FUZZY_MIN_RATIO = 0.88` using `difflib.SequenceMatcher(None, normalized_input, normalized_candidate).ratio()` and `FUZZY_MAX_CANDIDATES = 3`. Candidate concepts are deduplicated, ranked by ratio descending then stable concept ID ascending, and truncated to three. The ratio is candidate-generation heuristic, not clinical confidence. Fuzzy results are always `ambiguous`, never `matched`, and expose no authoritative definition. Thus `TMD` cannot fuzzy-resolve to `TAD`, `TMJ` cannot fuzzy-resolve to `TMD`, and `PD` cannot fuzzy-resolve to `PS`.
+Eligible longer misspellings such as `braquett`, `periodontitiss`, or `maloclusion` may produce fuzzy candidates after exact lookup fails. V1 fixes `FUZZY_MIN_RATIO = 0.80` using `difflib.SequenceMatcher(None, normalized_input, normalized_candidate).ratio()` and `FUZZY_MAX_CANDIDATES = 3`. Candidate concepts are deduplicated, ranked by ratio descending then stable concept ID ascending, and truncated to three. The ratio is candidate-generation heuristic, not clinical confidence. Fuzzy results are always `ambiguous`, never `matched`, and expose no authoritative definition. Thus `TMD` cannot fuzzy-resolve to `TAD`, `TMJ` cannot fuzzy-resolve to `TMD`, and `PD` cannot fuzzy-resolve to `PS`.
 
 ## OpenSpec Ownership
 
@@ -161,7 +161,7 @@ Startup validation also requires every `AUTO_GROUND_ALIASES` value to exist as a
 
 4. Use standard-library normalization and matching.
 
-   Normalization applies Unicode case folding, accent removal, punctuation-to-space conversion, whitespace collapse, and trimming. Lookup collects active candidates across Spanish preferred terms, English preferred terms, and `und` aliases. Exactly one concept produces `matched`; multiple concepts produce `ambiguous`, even for exact text. After exact failure, each active concept's fuzzy score is the maximum `SequenceMatcher` ratio across its normalized preferred ES/EN and alias forms. At most three concepts with score `>= 0.88` are returned, only when normalized input has at least five characters and original input is not acronym-shaped. Fuzzy candidates produce `ambiguous`, never `matched`, in V1.
+   Normalization applies Unicode case folding, accent removal, punctuation-to-space conversion, whitespace collapse, and trimming. Lookup collects active candidates across Spanish preferred terms, English preferred terms, and `und` aliases. Exactly one concept produces `matched`; multiple concepts produce `ambiguous`, even for exact text. After exact failure, each active concept's fuzzy score is the maximum `SequenceMatcher` ratio across its normalized preferred ES/EN and alias forms. At most three concepts with score `>= 0.80` are returned, only when normalized input has at least five characters and original input is not acronym-shaped. Fuzzy candidates produce `ambiguous`, never `matched`, in V1.
 
    Rationale: 161 concepts do not justify embeddings, another dependency, or another database. Conservative fuzzy handling avoids declaring an unevaluated score clinically authoritative.
 
@@ -361,7 +361,7 @@ Rollback removes runtime use first. Catalog tables may remain inert during appli
 - [Concurrent replicas race during synchronization] -> serialize by stable transaction-scoped PostgreSQL advisory lock and compare schema version plus checksum under that lock.
 - [Legitimate alias collision rejected or flattened] -> use concept-scoped uniqueness and return `ambiguous` whenever one normalized expression maps to multiple concepts.
 - [Generic or uppercase alias false activation] -> automatic scan requires the reviewed allowlist plus unique exact token-boundary mapping; descriptive abbreviation classification grants no permission.
-- [Short-token fuzzy false positive] -> inputs shorter than five normalized characters and acronym-shaped originals skip fuzzy matching; eligible candidates require ratio `>= 0.88`, cap at three, and remain non-authoritative.
+- [Short-token fuzzy false positive] -> inputs shorter than five normalized characters and acronym-shaped originals skip fuzzy matching; eligible candidates require ratio `>= 0.80`, cap at three, and remain non-authoritative.
 - [Removed concept remains resolvable] -> absent reviewed entries become inactive, all lookup paths filter active status, and stable identity/provenance remain for audit and reactivation.
 - [Allowlist drifts from catalog] -> startup requires every allowlisted value to resolve as one exact `und` alias of one active concept.
 - [Model skips needed history tool] -> strengthen tool descriptions and routing fixtures; do not compensate by unconditional retrieval.
@@ -378,7 +378,7 @@ Rollback removes runtime use first. Catalog tables may remain inert during appli
 
 ## Verification Strategy
 
-- Resolver unit tests cover normalization, preferred terms, `und` aliases, within-concept dedupe, real cross-concept collisions, eight-term rejection boundary, reviewed allowlist scanning, token boundaries, non-allowlisted uppercase/generic exclusions, short/acronym fuzzy exclusions, `0.88` threshold, three-candidate deterministic order, and unknown terms.
+- Resolver unit tests cover normalization, preferred terms, `und` aliases, within-concept dedupe, real cross-concept collisions, eight-term rejection boundary, reviewed allowlist scanning, token boundaries, non-allowlisted uppercase/generic exclusions, short/acronym fuzzy exclusions, `0.80` threshold, three-candidate deterministic order, and unknown terms.
 - Repository/synchronization tests prove exact canonical JSON bytes, digest mismatch failure, advisory locking, checksum/version skip, transactional synchronization, inactive/reactivation semantics, allowlist validation, concept-scoped alias uniqueness, and non-unique cross-concept lookup indexes; live tests prove catalog constraints.
 - Golden routing fixture `TAD en IZC` proves `TAD=matched`, `IZC=not_found`, no invented `IZC` expansion, and no false all-or-nothing lookup behavior.
 - Agent tests prove `1..8` batched schema, sole presentation-map quiet behavior, visible normal clarification path, unchanged artifact prose suppression, and the four-call compound budget.
