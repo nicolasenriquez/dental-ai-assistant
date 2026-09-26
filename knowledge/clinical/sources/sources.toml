@@ -1,0 +1,121 @@
+schema_version = "1.0.0"
+
+[[source]]
+id = "ADA_GLOSSARY"
+name = "American Dental Association — Glossary of Dental Clinical Terms"
+organization = "American Dental Association (ADA)"
+type = "professional_association"
+url = "https://www.ada.org/publications/cdt/glossary-dental-terms"
+scope = "Terminología clínica odontológica general."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "AAO_GLOSSARY"
+name = "American Association of Orthodontists — Glossary of Orthodontic Terms"
+organization = "American Association of Orthodontists (AAO)"
+type = "professional_association"
+url = "https://aaoinfo.org/resources/glossary-of-orthodontic-terms/"
+scope = "Terminología de ortodoncia y aparatología."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "NIDCR_CARIES"
+name = "NIDCR — Tooth Decay"
+organization = "National Institute of Dental and Craniofacial Research (NIH)"
+type = "government_health"
+url = "https://www.nidcr.nih.gov/health-info/tooth-decay"
+scope = "Caries, desmineralización, cavidad y prevención."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "NIDCR_PERIODONTAL"
+name = "NIDCR — Periodontal (Gum) Disease"
+organization = "National Institute of Dental and Craniofacial Research (NIH)"
+type = "government_health"
+url = "https://www.nidcr.nih.gov/health-info/gum-disease"
+scope = "Placa, cálculo, gingivitis, periodontitis y tejidos de soporte."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "NIDCR_DRY_MOUTH"
+name = "NIDCR — Dry Mouth"
+organization = "National Institute of Dental and Craniofacial Research (NIH)"
+type = "government_health"
+url = "https://www.nidcr.nih.gov/health-info/dry-mouth"
+scope = "Xerostomía y función salival."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "NIDCR_BRUXISM"
+name = "NIDCR — Bruxism"
+organization = "National Institute of Dental and Craniofacial Research (NIH)"
+type = "government_health"
+url = "https://www.nidcr.nih.gov/health-info/bruxism"
+scope = "Bruxismo y manifestaciones asociadas."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "NIDCR_TMD"
+name = "NIDCR — Temporomandibular Disorders"
+organization = "National Institute of Dental and Craniofacial Research (NIH)"
+type = "government_health"
+url = "https://www.nidcr.nih.gov/health-info/tmd"
+scope = "Articulación temporomandibular y trastornos temporomandibulares."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "MINSAL_GUIDES"
+name = "MINSAL Chile — Guías Clínicas de Salud Bucal"
+organization = "Ministerio de Salud de Chile (MINSAL / DIPRECE)"
+type = "government_health"
+url = "https://diprece.minsal.cl/programas-de-salud/salud-bucal/informacion-al-profesional-salud-bucal/guias-clinicas/"
+scope = "Terminología y práctica clínica usada en el sistema de salud chileno."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "MINSAL_ORTHO_2026"
+name = "MINSAL Chile — Criterios técnicos 2026 para actividades odontológicas"
+organization = "Ministerio de Salud de Chile"
+type = "government_health"
+url = "https://www.minsal.cl/wp-content/uploads/2026/09/10-RPE-Criterios-tecnicos-para-la-programacion-de-actividades-odontologicas-en-APS-y-Especialidades.pdf"
+scope = "Uso vigente de Ortodoncia Preventiva e Interceptiva y prestaciones odontológicas en Chile."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "MINSAL_FHIR_SPECIALTIES"
+name = "MINSAL Chile — Especialidades y Subespecialidades Odontológicas"
+organization = "Ministerio de Salud de Chile — Guía de Estándares de Información de Salud"
+type = "government_standard"
+url = "https://interoperabilidad.minsal.cl/fhir/ig/eis/CodeSystem-eis-especialidades-odontologicas-cs.html"
+scope = "Nombres oficiales/computables de especialidades odontológicas en Chile."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "ISO_3950"
+name = "ISO 3950:2016 — Dentistry — Designation system for teeth and areas of the oral cavity"
+organization = "International Organization for Standardization (ISO)"
+type = "international_standard"
+url = "https://www.iso.org/standard/68292.html"
+scope = "Sistema de dos dígitos para designación dentaria y áreas de la cavidad oral."
+license_status = "unresolved"
+review_status = "unreviewed"
+
+[[source]]
+id = "ISO_1942"
+name = "ISO 1942:2020 — Dentistry — Vocabulary"
+organization = "International Organization for Standardization (ISO)"
+type = "international_standard"
+url = "https://www.iso.org/standard/72249.html"
+scope = "Referencia internacional de vocabulario odontológico."
+license_status = "unresolved"
+review_status = "unreviewed"
