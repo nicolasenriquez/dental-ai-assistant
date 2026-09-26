@@ -83,10 +83,10 @@ export function AddVideoModal({ open, onClose, onSubmit }: AddVideoModalProps) {
       aria-modal="true"
       aria-label="Agregar video por URL"
       onClick={onClose}
+      className="bg-black/60"
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.6)',
         zIndex: 1000,
         display: 'flex',
         alignItems: 'center',

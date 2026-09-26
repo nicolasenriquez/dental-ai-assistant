@@ -15,6 +15,7 @@ import {
   validateRut,
 } from '../lib/rut';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Button } from './ui/Button';
 
 export interface PatientFormValues {
   first_name: string;
@@ -300,9 +301,9 @@ export function PatientFormModal({
               >
                 Cancelar
               </button>
-              <button type="button" onClick={() => onSuccess(duplicate)} className="primary-button">
+              <Button variant="primary" onClick={() => onSuccess(duplicate)}>
                 Abrir paciente
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -510,7 +511,7 @@ export function PatientFormModal({
               >
                 Cancelar
               </button>
-              <button type="submit" disabled={submitting} className="primary-button">
+              <Button type="submit" variant="primary" disabled={submitting}>
                 {submitting
                   ? mode === 'create'
                     ? 'Creando...'
@@ -518,7 +519,7 @@ export function PatientFormModal({
                   : mode === 'create'
                     ? 'Crear paciente'
                     : 'Guardar cambios'}
-              </button>
+              </Button>
             </div>
           </>
         )}

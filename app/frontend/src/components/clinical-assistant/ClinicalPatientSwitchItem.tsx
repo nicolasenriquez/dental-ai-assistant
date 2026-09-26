@@ -1,4 +1,5 @@
 import type { ClinicalPatientSwitchItem as PatientSwitchItem } from '../../hooks/useClinicalAssistant';
+import { Button } from '../ui/Button';
 
 interface ClinicalPatientSwitchItemProps {
   item: PatientSwitchItem;
@@ -30,19 +31,19 @@ export function ClinicalPatientSwitchItem({
         </span>
       </div>
       {resolved ? (
-        <p className="text-xs text-[var(--text-secondary)]">
+        <p className="text-xs text-muted">
           {item.resolution === 'changed_patient'
             ? `Paciente cambiado a ${item.detected.first_name} ${item.detected.last_name}.`
             : `Se mantuvo ${item.current.first_name} ${item.current.last_name}.`}
         </p>
       ) : (
         <div className="clinical-artifact-actions">
-          <button type="button" className="clinical-secondary-button" onClick={onKeep}>
+          <Button variant="clinicalSecondary" onClick={onKeep}>
             Mantener {item.current.first_name}
-          </button>
-          <button type="button" className="clinical-primary-button" onClick={onChange}>
+          </Button>
+          <Button variant="clinical" onClick={onChange}>
             Cambiar a {item.detected.first_name}
-          </button>
+          </Button>
         </div>
       )}
     </section>

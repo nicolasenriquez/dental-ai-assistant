@@ -16,6 +16,7 @@ import {
 } from '../../lib/composerSelection';
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
+import { EmptyState } from '../patterns/EmptyState';
 import { ClinicalComposer } from './ClinicalComposer';
 import { ClinicalPatientPicker, type ClinicalPatientSelectionState } from './ClinicalPatientPicker';
 import { ClinicalTranscript } from './ClinicalTranscript';
@@ -307,11 +308,12 @@ export function ClinicalAssistantArea({
         activeTurn={activeTurn}
         busy={queueAvailable || assistant.runtime === 'saving'}
         emptyState={
-          <section className="chat-empty-state clinical-empty-state">
-            <Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />
-            <h1>Trabaja más rápido con tus evoluciones</h1>
-            <p>Pregunta algo o selecciona un paciente para trabajar con su ficha.</p>
-          </section>
+          <EmptyState
+            className="clinical-empty-state"
+            icon={<Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />}
+            title="Trabaja más rápido con tus evoluciones"
+            description="Pregunta algo o selecciona un paciente para trabajar con su ficha."
+          />
         }
         onDraftChange={onDraftChange}
         onDraftSourceChange={assistant.updateDraftSource}

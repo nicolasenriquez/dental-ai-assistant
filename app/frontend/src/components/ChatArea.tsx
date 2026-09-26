@@ -25,9 +25,17 @@ import { ChatInput, type ChatInputHandle } from './ChatInput';
 import { CitationModal } from './CitationModal';
 import { Message } from './Message';
 import { WorkspaceHeader } from './WorkspaceHeader';
+import { EmptyState } from './patterns/EmptyState';
 
 const NEW_CHAT_KEY = '__new_chat__';
 const pendingNewConversationMessages = new Map<string, string>();
+
+const CHAT_STARTERS = [
+  '¿Cómo uso subagentes en Claude Code?',
+  '¿Cómo debería estructurar un equipo de agentes?',
+  '¿Cómo es el flujo completo de desarrollo agéntico de Cole?',
+  '¿Cómo convierto Claude Code en un equipo de ingeniería?',
+];
 
 function getPendingNavigationMessage(state: unknown): string | null {
   if (!state || typeof state !== 'object') return null;
@@ -62,54 +70,6 @@ function SkeletonMessages() {
         </div>
       ))}
     </>
-  );
-}
-
-interface EmptyStateProps {
-  onStarterClick: (text: string) => void;
-}
-
-function EmptyState({ onStarterClick }: EmptyStateProps) {
-  const starters = [
-    '¿Cómo uso subagentes en Claude Code?',
-    '¿Cómo debería estructurar un equipo de agentes?',
-    '¿Cómo es el flujo completo de desarrollo agéntico de Cole?',
-    '¿Cómo convierto Claude Code en un equipo de ingeniería?',
-  ];
-
-  return (
-    <div className="chat-empty-state">
-      <svg
-        width="56"
-        height="56"
-        viewBox="0 0 56 56"
-        fill="none"
-        className="text-[var(--accent)]"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        aria-hidden="true"
-      >
-        <circle cx="28" cy="28" r="24" />
-        <path d="M18,22 L38,22 M18,28 L34,28 M18,34 L30,34" strokeLinecap="round" />
-      </svg>
-      <h1>Pregunta sobre la biblioteca de videos</h1>
-      <p>
-        Esta IA tiene acceso a las transcripciones de una colección seleccionada de videos de
-        YouTube.
-      </p>
-      <div className="chat-starter-list">
-        {starters.map((question) => (
-          <button
-            key={question}
-            type="button"
-            onClick={() => onStarterClick(question)}
-            className="chat-starter-button min-h-11 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-          >
-            {question}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -619,6 +579,42 @@ export function ChatArea({
     chatInputRef.current?.focus();
   }, []);
 
+  const emptyStateNode = (
+    <EmptyState
+      icon={
+        <svg
+          width="56"
+          height="56"
+          viewBox="0 0 56 56"
+          fill="none"
+          className="text-primary"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <circle cx="28" cy="28" r="24" />
+          <path d="M18,22 L38,22 M18,28 L34,28 M18,34 L30,34" strokeLinecap="round" />
+        </svg>
+      }
+      title="Pregunta sobre la biblioteca de videos"
+      description="Esta IA tiene acceso a las transcripciones de una colección seleccionada de videos de YouTube."
+      action={
+        <div className="chat-starter-list">
+          {CHAT_STARTERS.map((question) => (
+            <button
+              key={question}
+              type="button"
+              onClick={() => handleStarterClick(question)}
+              className="chat-starter-button min-h-11 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+            >
+              {question}
+            </button>
+          ))}
+        </div>
+      }
+    />
+  );
+
   const showEmpty = !conversationId;
   const showError = !loading && !!error && !showEmpty;
   const showMessages = !showEmpty;
@@ -674,7 +670,7 @@ export function ChatArea({
         }
       />
       <div ref={scrollContainerRef} onScroll={onScroll} className="chat-message-scroll">
-        {showEmpty && <EmptyState onStarterClick={handleStarterClick} />}
+        {showEmpty && emptyStateNode}
 
         {showMessages && (
           <div className="chat-message-stack">
@@ -686,7 +682,7 @@ export function ChatArea({
                 onRetry={() => void reload()}
               />
             ) : messages.length === 0 && !runtimeError ? (
-              <EmptyState onStarterClick={handleStarterClick} />
+              emptyStateNode
             ) : (
               messages.map((message) => (
                 <Message

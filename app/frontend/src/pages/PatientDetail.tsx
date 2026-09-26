@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PatientFormModal, type PatientFormValues } from '../components/PatientFormModal';
 import { PatientIdentity } from '../components/PatientIdentity';
 import { PatientWorkspace, type PatientWorkspaceDetailError } from '../components/PatientWorkspace';
+import { buttonVariants } from '../components/ui/Button';
 import { useToast } from '../hooks/useToast';
 import {
   ApiError,
@@ -166,7 +167,10 @@ export function PatientDetail() {
                 >
                   Editar paciente
                 </button>
-                <Link to={`/patients/${patient.id}/evolutions/new`} className="primary-button">
+                <Link
+                  to={`/patients/${patient.id}/evolutions/new`}
+                  className={buttonVariants({ variant: 'primary' })}
+                >
                   + Nueva evolución
                 </Link>
               </div>

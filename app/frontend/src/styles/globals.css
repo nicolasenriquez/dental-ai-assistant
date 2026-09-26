@@ -16,6 +16,7 @@
   --user-bubble: #2563eb;
   --success: #10b981;
   --danger: #ef4444;
+  --error: #fca5a5;
   --warning: #f59e0b;
   --warning-bg: rgba(245, 158, 11, 0.12);
   --warning-border: rgba(245, 158, 11, 0.35);
@@ -1032,7 +1033,7 @@ body,
   min-width: 0;
 }
 
-.primary-button {
+.btn-primary {
   display: inline-flex;
   align-items: center;
   min-height: 42px;
@@ -1047,12 +1048,12 @@ body,
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.primary-button:hover {
+.btn-primary:hover {
   border-color: #60a5fa;
   background: #2563eb;
 }
 
-.primary-button:focus-visible,
+.btn-primary:focus-visible,
 .patient-workspace a:focus-visible,
 .patient-workspace button:focus-visible {
   outline: 2px solid var(--accent);
@@ -1475,7 +1476,7 @@ body,
     gap: 16px;
   }
 
-  .primary-button {
+  .btn-primary {
     justify-content: center;
   }
 
@@ -5645,14 +5646,14 @@ body,
   background: var(--text-tertiary);
 }
 
-.drive-dialog-overlay {
+.dialog-overlay {
   position: fixed;
   inset: 0;
   z-index: 70;
   background: rgba(0, 0, 0, 0.62);
 }
 
-.drive-dialog-content {
+.dialog-content {
   position: fixed;
   left: 50%;
   top: 50%;
@@ -5668,27 +5669,27 @@ body,
   gap: 10px;
 }
 
-.drive-dialog-header {
+.dialog-header {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.drive-dialog-title {
+.dialog-title {
   margin: 0;
   color: var(--text-primary);
   font-size: 15px;
   font-weight: 600;
 }
 
-.drive-dialog-description {
+.dialog-description {
   margin: 0;
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
 }
 
-.drive-dialog-footer {
+.dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -5960,7 +5961,7 @@ body,
   flex-wrap: wrap;
   gap: 8px;
   margin: 0;
-  color: var(--error, #fca5a5);
+  color: var(--error);
   font-size: 12px;
 }
 

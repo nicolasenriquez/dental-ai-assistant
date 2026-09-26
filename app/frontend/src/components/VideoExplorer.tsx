@@ -392,13 +392,14 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
                 height="32"
                 viewBox="0 0 32 32"
                 fill="none"
-                stroke="#ef4444"
+                className="text-[var(--danger)]"
+                stroke="currentColor"
                 strokeWidth="1.5"
                 strokeLinecap="round"
               >
                 <circle cx="16" cy="16" r="14" />
                 <line x1="16" y1="9" x2="16" y2="17" />
-                <circle cx="16" cy="22" r="1" fill="#ef4444" stroke="none" />
+                <circle cx="16" cy="22" r="1" fill="currentColor" stroke="none" />
               </svg>
               <p className="m-0 text-[var(--danger)] text-sm">{error}</p>
               <button

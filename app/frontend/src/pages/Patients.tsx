@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PatientFormModal } from '../components/PatientFormModal';
+import { Button } from '../components/ui/Button';
 import { getPatientAge } from '../lib/age';
 import { type Patient, createPatient, getPatients, searchPatients } from '../lib/api';
 import { formatClinicalDateTime } from '../lib/clinicalDate';
@@ -145,13 +146,9 @@ export function Patients() {
                   <p className="mt-2 text-sm">
                     Crea una ficha para comenzar a registrar evoluciones.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(true)}
-                    className="primary-button mt-4"
-                  >
+                  <Button variant="primary" className="mt-4" onClick={() => setModalOpen(true)}>
                     + Nuevo paciente
-                  </button>
+                  </Button>
                 </>
               )}
             </div>

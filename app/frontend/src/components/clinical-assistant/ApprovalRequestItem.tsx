@@ -147,11 +147,11 @@ export function ApprovalRequestItem({
           </span>
           {embedded ? (
             <div className="clinical-evolution-approval-actions">
-              <button type="button" className="clinical-primary-button" onClick={openDialog}>
-                Confirmar guardado
-              </button>
               <button type="button" className="clinical-secondary-button" onClick={onBackToEdit}>
                 Seguir editando
+              </button>
+              <button type="button" className="clinical-primary-button" onClick={openDialog}>
+                Confirmar guardado
               </button>
             </div>
           ) : (

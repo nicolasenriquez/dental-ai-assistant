@@ -12,7 +12,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
   <SheetPrimitive.Overlay
     ref={ref}
-    className={`drive-dialog-overlay ${className}`.trim()}
+    className={`dialog-overlay ${className}`.trim()}
     {...props}
   />
 ));

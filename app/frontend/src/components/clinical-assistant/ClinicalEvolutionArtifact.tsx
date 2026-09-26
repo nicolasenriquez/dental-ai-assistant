@@ -9,6 +9,7 @@ import {
   EvolutionReviewArtifact,
 } from '../clinical/EvolutionReviewArtifact';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
+import { buttonVariants } from '../ui/Button';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 
 interface ClinicalEvolutionArtifactProps {
@@ -304,7 +305,7 @@ export function ClinicalEvolutionArtifact({
           <div className="clinical-artifact-terminal-actions">
             {resourceId && resourcePatientId && (
               <Link
-                className="clinical-primary-button"
+                className={buttonVariants({ variant: 'clinical' })}
                 to={`/patients/${resourcePatientId}/evolutions/${resourceId}`}
               >
                 Ver en ficha <ChevronRight aria-hidden="true" size={15} />

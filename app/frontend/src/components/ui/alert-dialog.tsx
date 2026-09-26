@@ -11,7 +11,7 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     ref={ref}
-    className={`drive-dialog-overlay ${className}`.trim()}
+    className={`dialog-overlay ${className}`.trim()}
     {...props}
   />
 ));
@@ -26,7 +26,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       role="dialog"
-      className={`drive-dialog-content ${className}`.trim()}
+      className={`dialog-content ${className}`.trim()}
       {...props}
     />
   </AlertDialogPortal>
@@ -34,22 +34,18 @@ const AlertDialogContent = React.forwardRef<
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName;
 
 function AlertDialogHeader({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={`drive-dialog-header ${className}`.trim()} {...props} />;
+  return <div className={`dialog-header ${className}`.trim()} {...props} />;
 }
 
 function AlertDialogFooter({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={`drive-dialog-footer ${className}`.trim()} {...props} />;
+  return <div className={`dialog-footer ${className}`.trim()} {...props} />;
 }
 
 const AlertDialogTitle = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>
 >(({ className = '', ...props }, ref) => (
-  <AlertDialogPrimitive.Title
-    ref={ref}
-    className={`drive-dialog-title ${className}`.trim()}
-    {...props}
-  />
+  <AlertDialogPrimitive.Title ref={ref} className={`dialog-title ${className}`.trim()} {...props} />
 ));
 AlertDialogTitle.displayName = AlertDialogPrimitive.Title.displayName;
 
@@ -59,7 +55,7 @@ const AlertDialogDescription = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
-    className={`drive-dialog-description ${className}`.trim()}
+    className={`dialog-description ${className}`.trim()}
     {...props}
   />
 ));
