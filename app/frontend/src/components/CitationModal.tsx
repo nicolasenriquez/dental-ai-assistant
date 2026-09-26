@@ -69,20 +69,22 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
       aria-label="Cita de video"
     >
       <div
-        className="bg-slate-800 border border-white/10 rounded-xl p-6 w-[640px] max-w-[calc(100vw-48px)] max-h-[90vh] flex flex-col shadow-2xl"
+        className="bg-[var(--surface-2)] border border-white/10 rounded-xl p-6 w-[640px] max-w-[calc(100vw-48px)] max-h-[90vh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h3 className="text-slate-100 text-base font-semibold m-0">{citation.video_title}</h3>
-            <p className="text-slate-400 text-xs m-0 mt-0.5">
+            <h3 className="text-[var(--text-primary)] text-base font-semibold m-0">
+              {citation.video_title}
+            </h3>
+            <p className="text-[var(--text-secondary)] text-xs m-0 mt-0.5">
               en {formatTimestamp(citation.start_seconds)} – {formatTimestamp(citation.end_seconds)}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="bg-none border-none text-slate-400 cursor-pointer text-xl leading-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+            className="bg-none border-none text-[var(--text-secondary)] cursor-pointer text-xl leading-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
             aria-label="Cerrar cita"
           >
             ×
@@ -127,7 +129,7 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
               href={externalUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="min-h-11 flex items-center gap-1 text-xs text-slate-400 transition-colors hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              className="min-h-11 flex items-center gap-1 text-xs text-[var(--text-secondary)] transition-colors hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             >
               {externalLabel}
               <svg

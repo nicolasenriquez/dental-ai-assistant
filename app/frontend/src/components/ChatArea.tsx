@@ -84,7 +84,8 @@ function EmptyState({ onStarterClick }: EmptyStateProps) {
         height="56"
         viewBox="0 0 56 56"
         fill="none"
-        stroke="#3b82f6"
+        className="text-[var(--accent)]"
+        stroke="currentColor"
         strokeWidth="1.5"
         aria-hidden="true"
       >
@@ -140,14 +141,15 @@ function InlineError({ message, onRetry }: InlineErrorProps) {
         height="16"
         viewBox="0 0 16 16"
         fill="none"
-        stroke="#ef4444"
+        className="text-[var(--danger)]"
+        stroke="currentColor"
         strokeWidth="1.8"
         strokeLinecap="round"
         aria-hidden="true"
       >
         <circle cx="8" cy="8" r="7" />
         <line x1="8" y1="5" x2="8" y2="8.5" />
-        <circle cx="8" cy="11" r="0.5" fill="#ef4444" stroke="none" />
+        <circle cx="8" cy="11" r="0.5" fill="currentColor" stroke="none" />
       </svg>
       <p>{message}</p>
       {onRetry && (

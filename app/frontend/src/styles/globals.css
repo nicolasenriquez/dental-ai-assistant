@@ -14,12 +14,12 @@
   --text-secondary: #94a3b8;
   --text-tertiary: #7f8ea3;
   --user-bubble: #2563eb;
-  --assistant-bubble: #1e293b;
   --success: #10b981;
   --danger: #ef4444;
   --warning: #f59e0b;
   --warning-bg: rgba(245, 158, 11, 0.12);
   --warning-border: rgba(245, 158, 11, 0.35);
+  --code-surface: #0d1117;
   --conversation-content-width: 860px;
   --conversation-gutter: 24px;
   --conversation-composer-radius: 12px;
@@ -71,7 +71,8 @@ body,
   }
 }
 
-.skeleton {
+.skeleton,
+.conversation-skeleton {
   background: linear-gradient(90deg, #1e293b 25%, #2a3a52 50%, #1e293b 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
@@ -180,20 +181,6 @@ body,
   animation-delay: 0.4s;
 }
 
-/* ── Chat input focus glow ──────────────────────────────────────── */
-.chat-textarea:focus {
-  outline: none;
-}
-
-.chat-textarea:focus ~ * {
-  /* sibling trick — actual focus ring on the wrapper */
-}
-
-/* Focus ring is on the parent wrapper via :focus-within */
-.chat-input-wrapper:focus-within {
-  box-shadow: 0 0 0 2px #3b82f6;
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -294,7 +281,7 @@ body,
   margin: 0.75em 0;
   border-radius: 8px;
   overflow: hidden;
-  background: #0d1117;
+  background: var(--code-surface);
 }
 
 .code-block-header {
@@ -3515,15 +3502,13 @@ body,
   flex: 0 0 auto;
   padding-top: 0;
   overflow: visible;
-  background: #111827;
+  background: var(--surface-1);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
-  border-right-color: rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-container.collapsed {
   width: 56px;
   min-width: 56px;
-  border-right-color: rgba(255, 255, 255, 0.08);
 }
 
 .hamburger-btn {
@@ -3538,7 +3523,7 @@ body,
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  background: #1e293b;
+  background: var(--surface-2);
   color: var(--text-primary);
   cursor: pointer;
   padding: 8px;
@@ -4031,9 +4016,6 @@ body,
 .conversation-skeleton {
   height: 34px;
   border-radius: 7px;
-  background: linear-gradient(90deg, #1e293b 25%, #2a3a52 50%, #1e293b 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite linear;
 }
 
 .conversation-empty {

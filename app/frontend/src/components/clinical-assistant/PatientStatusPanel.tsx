@@ -11,7 +11,7 @@ export function PatientStatusPanel({ patient, onClose, onChangePatient }: Patien
     <section
       id="patient-status-panel"
       aria-labelledby="patient-status-title"
-      className="mb-2 w-full rounded-[var(--conversation-composer-radius)] border border-[var(--border)] bg-[#111827] p-4 shadow-[0_10px_28px_rgb(0_0_0/18%)]"
+      className="mb-2 w-full rounded-[var(--conversation-composer-radius)] border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-[0_10px_28px_rgb(0_0_0/18%)]"
     >
       <header className="mb-4 flex items-center justify-between gap-3">
         <h2 id="patient-status-title" className="text-sm font-semibold text-[var(--text-primary)]">

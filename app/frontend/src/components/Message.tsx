@@ -146,7 +146,7 @@ export function Message({
         </div>
         {isStreaming && !content ? (
           streamingStatus ? (
-            <div className="text-slate-400 text-[13px] italic">
+            <div className="text-[var(--text-secondary)] text-[13px] italic">
               {streamingStatus.subject ? `Buscando: ${streamingStatus.subject}…` : 'Procesando…'}
             </div>
           ) : (

@@ -6,9 +6,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   const isError = toast.type === 'error';
   const isSuccess = toast.type === 'success';
 
-  const bgColor = isError ? '#111827' : isSuccess ? '#111827' : '#111827';
-  const borderColor = isError ? '#ef4444' : isSuccess ? '#10b981' : '#3b82f6';
-  const iconColor = isError ? '#ef4444' : isSuccess ? '#10b981' : '#3b82f6';
+  const toneColor = isError ? 'var(--danger)' : isSuccess ? 'var(--success)' : 'var(--accent)';
 
   return (
     <div
@@ -17,8 +15,8 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         display: 'flex',
         alignItems: 'flex-start',
         gap: 12,
-        background: bgColor,
-        border: `1px solid ${borderColor}`,
+        background: 'var(--surface-1)',
+        border: `1px solid ${toneColor}`,
         borderRadius: 10,
         padding: '12px 14px',
         minWidth: 280,
@@ -28,7 +26,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       }}
     >
       {/* Icon */}
-      <div style={{ flexShrink: 0, marginTop: 1, color: iconColor }}>
+      <div style={{ flexShrink: 0, marginTop: 1, color: toneColor }}>
         {isError ? (
           <svg
             width="16"
@@ -80,7 +78,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
           flex: 1,
           margin: 0,
           fontSize: 14,
-          color: '#f1f5f9',
+          color: 'var(--text-primary)',
           lineHeight: 1.5,
         }}
       >
@@ -96,7 +94,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
           background: 'transparent',
           border: 'none',
           cursor: 'pointer',
-          color: '#94a3b8',
+          color: 'var(--text-secondary)',
           padding: 2,
           borderRadius: 4,
           display: 'flex',
@@ -105,8 +103,8 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
           marginTop: -1,
           transition: 'color 0.15s',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = '#f1f5f9')}
-        onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
       >
         <svg
           width="14"

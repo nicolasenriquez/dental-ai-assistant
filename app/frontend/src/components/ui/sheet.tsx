@@ -3,9 +3,8 @@ import { X } from 'lucide-react';
 import * as React from 'react';
 
 export const Sheet = SheetPrimitive.Root;
-export const SheetTrigger = SheetPrimitive.Trigger;
-export const SheetClose = SheetPrimitive.Close;
-export const SheetPortal = SheetPrimitive.Portal;
+
+const SheetPortal = SheetPrimitive.Portal;
 
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Overlay>,
@@ -43,10 +42,6 @@ function SheetHeader({ className = '', ...props }: React.HTMLAttributes<HTMLDivE
   return <div className={`drive-sheet-header ${className}`.trim()} {...props} />;
 }
 
-function SheetFooter({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={`drive-sheet-footer ${className}`.trim()} {...props} />;
-}
-
 const SheetTitle = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Title>
@@ -55,16 +50,4 @@ const SheetTitle = React.forwardRef<
 ));
 SheetTitle.displayName = SheetPrimitive.Title.displayName;
 
-const SheetDescription = React.forwardRef<
-  React.ElementRef<typeof SheetPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Description>
->(({ className = '', ...props }, ref) => (
-  <SheetPrimitive.Description
-    ref={ref}
-    className={`drive-sheet-description ${className}`.trim()}
-    {...props}
-  />
-));
-SheetDescription.displayName = SheetPrimitive.Description.displayName;
-
-export { SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetOverlay, SheetTitle };
+export { SheetContent, SheetHeader, SheetTitle };

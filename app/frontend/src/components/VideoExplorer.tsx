@@ -24,7 +24,7 @@ function highlightMatch(title: string, query: string): string | React.ReactEleme
 // ── Skeleton card ────────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div className="bg-slate-800 border border-white/10 rounded-lg p-3.5">
+    <div className="bg-[var(--surface-2)] border border-white/10 rounded-lg p-3.5">
       <div className="skeleton h-3.5 w-3/5 mb-2.5" />
       <div className="skeleton h-2.5 w-9/10 mb-1.5" />
       <div className="skeleton h-2.5 w-3/4" />
@@ -36,22 +36,22 @@ function SkeletonCard() {
 function VideoCard({ video, query = '' }: { video: Video; query?: string }) {
   return (
     <div
-      className="bg-slate-800 border border-white/10 rounded-lg p-3.5 transition-colors duration-150"
+      className="bg-[var(--surface-2)] border border-white/10 rounded-lg p-3.5 transition-colors duration-150"
       onMouseEnter={(e) => e.currentTarget.classList.add('video-card-hover')}
       onMouseLeave={(e) => e.currentTarget.classList.remove('video-card-hover')}
     >
       {/* Title */}
-      <p className="text-sm font-semibold text-slate-100 mb-1.5 leading-tight">
+      <p className="text-sm font-semibold text-[var(--text-primary)] mb-1.5 leading-tight">
         {highlightMatch(video.title, query)}
       </p>
 
       {/* Description / channel attribution */}
       {video.channel_title ? (
-        <p className="text-xs text-slate-400 mb-2 leading-relaxed">
+        <p className="text-xs text-[var(--text-secondary)] mb-2 leading-relaxed">
           Sincronizado desde {video.channel_title}
         </p>
       ) : video.description ? (
-        <p className="text-xs text-slate-400 mb-2 leading-relaxed">
+        <p className="text-xs text-[var(--text-secondary)] mb-2 leading-relaxed">
           {video.description.length > 120
             ? video.description.slice(0, 117) + '…'
             : video.description}
@@ -65,7 +65,7 @@ function VideoCard({ video, query = '' }: { video: Video; query?: string }) {
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Ver ${video.title} en YouTube`}
-          className="inline-flex items-center gap-1 text-xs text-blue-500 no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          className="inline-flex items-center gap-1 text-xs text-[var(--accent)] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
           <svg
             width="11"
@@ -311,16 +311,19 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
         aria-labelledby="video-library-title"
         aria-modal="true"
         onKeyDown={handlePanelKeyDown}
-        className="video-library-panel fixed top-0 right-0 z-40 flex h-full w-[380px] max-w-[90vw] flex-col border-l border-white/10 bg-gray-900 shadow-[-8px_0_32px_rgba(0,0,0,0.4)]"
+        className="video-library-panel fixed top-0 right-0 z-40 flex h-full w-[380px] max-w-[90vw] flex-col border-l border-white/10 bg-[var(--surface-1)] shadow-[-8px_0_32px_rgba(0,0,0,0.4)]"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 flex-shrink-0">
           <div>
-            <h2 id="video-library-title" className="m-0 text-base font-semibold text-slate-100">
+            <h2
+              id="video-library-title"
+              className="m-0 text-base font-semibold text-[var(--text-primary)]"
+            >
               Biblioteca de videos
             </h2>
             {!loading && videos.length > 0 && (
-              <p className="mt-0.5 text-xs text-slate-400">
+              <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
                 {q
                   ? `${filteredVideos.length} de ${videos.length} videos`
                   : `${videos.length} videos en la base de conocimiento`}
@@ -331,7 +334,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
             onClick={onClose}
             data-close-video-library
             aria-label="Cerrar biblioteca de videos"
-            className="mr-2 flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-transparent p-2 text-slate-400 transition-colors duration-150 hover:bg-slate-800 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="mr-2 flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-transparent p-2 text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
             <svg
               width="14"
@@ -349,7 +352,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
           {user?.is_admin && (
             <button
               onClick={() => setIngestOpen(true)}
-              className="min-h-11 cursor-pointer rounded-md border-none bg-blue-500 px-3 py-1.5 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              className="min-h-11 cursor-pointer rounded-md border-none bg-[var(--accent)] px-3 py-1.5 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               title="Agregar video"
             >
               + Agregar video
@@ -365,7 +368,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
               placeholder="Buscar videos…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-2 bg-slate-900 border border-white/10 rounded-md text-slate-100 text-sm box-border outline-none focus:border-blue-500 transition-colors"
+              className="w-full p-2 bg-slate-900 border border-white/10 rounded-md text-[var(--text-primary)] text-sm box-border outline-none focus:border-[var(--accent)] transition-colors"
               aria-label="Buscar videos"
             />
           </div>
@@ -397,10 +400,10 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
                 <line x1="16" y1="9" x2="16" y2="17" />
                 <circle cx="16" cy="22" r="1" fill="#ef4444" stroke="none" />
               </svg>
-              <p className="m-0 text-red-500 text-sm">{error}</p>
+              <p className="m-0 text-[var(--danger)] text-sm">{error}</p>
               <button
                 onClick={fetchVideos}
-                className="min-h-11 rounded-lg border border-white/10 bg-slate-800 px-5 py-2 text-sm text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                className="min-h-11 rounded-lg border border-white/10 bg-[var(--surface-2)] px-5 py-2 text-sm text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 Reintentar
               </button>
@@ -435,10 +438,13 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
               aria-modal="true"
               aria-labelledby="ingest-video-title"
               onKeyDown={handleIngestDialogKeyDown}
-              className="w-[420px] max-w-[calc(100vw-48px)] rounded-xl border border-white/10 bg-slate-800 p-6 shadow-2xl"
+              className="w-[420px] max-w-[calc(100vw-48px)] rounded-xl border border-white/10 bg-[var(--surface-2)] p-6 shadow-2xl"
             >
               <div className="flex justify-between items-center mb-4">
-                <h3 id="ingest-video-title" className="text-slate-100 text-base font-semibold m-0">
+                <h3
+                  id="ingest-video-title"
+                  className="text-[var(--text-primary)] text-base font-semibold m-0"
+                >
                   Agregar video
                 </h3>
                 <button
@@ -446,7 +452,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
                   ref={ingestCloseRef}
                   onClick={closeDialog}
                   aria-label="Cerrar formulario de video"
-                  className="min-h-11 min-w-11 cursor-pointer border-none bg-none text-lg text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  className="min-h-11 min-w-11 cursor-pointer border-none bg-none text-lg text-[var(--text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 >
                   ×
                 </button>
@@ -458,7 +464,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
               )}
               {INGEST_FIELDS.map(({ key, label, placeholder, type }) => (
                 <div key={key} className="mb-3">
-                  <label htmlFor={key} className="block text-slate-400 text-xs mb-1">
+                  <label htmlFor={key} className="block text-[var(--text-secondary)] text-xs mb-1">
                     {label}
                   </label>
                   {type === 'textarea' ? (
@@ -468,7 +474,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
                       onChange={(e) => setIngestForm({ ...ingestForm, [key]: e.target.value })}
                       placeholder={placeholder}
                       rows={4}
-                      className="w-full p-2 bg-slate-900 border border-white/10 rounded-md text-slate-100 text-sm box-border resize-y"
+                      className="w-full p-2 bg-slate-900 border border-white/10 rounded-md text-[var(--text-primary)] text-sm box-border resize-y"
                     />
                   ) : (
                     <input
@@ -477,7 +483,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
                       value={ingestForm[key as keyof typeof ingestForm]}
                       onChange={(e) => setIngestForm({ ...ingestForm, [key]: e.target.value })}
                       placeholder={placeholder}
-                      className="w-full p-2 bg-slate-900 border border-white/10 rounded-md text-slate-100 text-sm box-border"
+                      className="w-full p-2 bg-slate-900 border border-white/10 rounded-md text-[var(--text-primary)] text-sm box-border"
                     />
                   )}
                 </div>
@@ -485,14 +491,14 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
               <div className="flex gap-2 justify-end mt-4">
                 <button
                   onClick={closeDialog}
-                  className="min-h-11 cursor-pointer rounded-md border border-white/20 bg-transparent px-4 py-2 text-sm text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  className="min-h-11 cursor-pointer rounded-md border border-white/20 bg-transparent px-4 py-2 text-sm text-[var(--text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleIngest}
                   disabled={ingesting}
-                  className="min-h-11 cursor-pointer rounded-md border-none bg-blue-500 px-4 py-2 text-sm text-white disabled:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  className="min-h-11 cursor-pointer rounded-md border-none bg-[var(--accent)] px-4 py-2 text-sm text-white disabled:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 >
                   {ingesting ? 'Agregando…' : 'Agregar video'}
                 </button>

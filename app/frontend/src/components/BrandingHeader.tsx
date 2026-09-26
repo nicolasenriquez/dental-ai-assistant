@@ -4,7 +4,7 @@ export function BrandingHeader() {
   return (
     <div className="flex flex-col items-center mb-4">
       <span
-        className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#3b82f6] text-white"
+        className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent)] text-white"
         aria-hidden="true"
       >
         <DentalToothIcon className="size-6" />
