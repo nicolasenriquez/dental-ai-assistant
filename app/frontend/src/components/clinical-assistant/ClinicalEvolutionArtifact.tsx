@@ -76,7 +76,6 @@ function DriveExportRow({
       aria-live="polite"
     >
       <span className="clinical-drive-row__statuses">
-        <span className="clinical-drive-row__clinical-state">Guardada en ficha</span>
         <span>{copy}</span>
       </span>
       {navigable && onOpen && (
@@ -85,7 +84,7 @@ function DriveExportRow({
           className="clinical-secondary-button"
           onClick={() => onOpen(navigable)}
         >
-          Abrir
+          Ver en Drive
         </button>
       )}
       {connectionRequired && onReconnect && (
@@ -293,7 +292,9 @@ export function ClinicalEvolutionArtifact({
             />
           ) : onSaveToDrive ? (
             <div className="clinical-drive-row" data-drive-export="manual" role="status">
-              <span>Drive</span>
+              <span className="clinical-drive-row__statuses">
+                <span>Drive: copia pendiente</span>
+              </span>
               <button
                 type="button"
                 className="clinical-secondary-button"

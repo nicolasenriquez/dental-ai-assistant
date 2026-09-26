@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
@@ -270,7 +270,7 @@ describe('Sidebar handleNewChat', () => {
 });
 
 describe('Sidebar clinical variant', () => {
-  it('puts the clinical thread controls before secondary navigation without a duplicate assistant link', () => {
+  it('keeps common navigation above the clinical thread controls', () => {
     render(
       <MemoryRouter initialEntries={['/assistant']}>
         <Sidebar
@@ -286,10 +286,34 @@ describe('Sidebar clinical variant', () => {
     const sidebar = document.querySelector('#app-sidebar');
     expect(sidebar).toHaveClass('is-clinical');
     expect(screen.getByRole('button', { name: 'Nueva conversación' })).toBeVisible();
-    expect(screen.queryByRole('link', { name: 'Asistente' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Asistente' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Pacientes' })).toBeVisible();
     expect(screen.getByRole('link', { name: 'Chat' })).toBeVisible();
+    expect(sidebar?.textContent?.indexOf('Chat')).toBeLessThan(
+      sidebar?.textContent?.indexOf('Nueva conversación') ?? 0,
+    );
     expect(sidebar?.textContent).not.toMatch(/Dental AI Assistant.*Dental AI Assistant/s);
+  });
+});
+
+describe('Sidebar common navigation', () => {
+  it('puts the Chat creation action after the three destinations', () => {
+    render(
+      <MemoryRouter initialEntries={['/chat']}>
+        <Sidebar isOpen onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    const navigation = screen.getByRole('navigation', { name: 'Navegación principal' });
+    expect(
+      within(navigation)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['Pacientes', 'Asistente', 'Chat']);
+    expect(
+      within(navigation).queryByRole('button', { name: 'Nuevo chat' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nuevo chat' })).toBeVisible();
   });
 });
 

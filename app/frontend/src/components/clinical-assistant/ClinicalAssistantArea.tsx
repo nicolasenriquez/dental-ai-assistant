@@ -20,7 +20,6 @@ import { EmptyState } from '../patterns/EmptyState';
 import { ClinicalComposer } from './ClinicalComposer';
 import { ClinicalPatientPicker, type ClinicalPatientSelectionState } from './ClinicalPatientPicker';
 import { ClinicalTranscript } from './ClinicalTranscript';
-import { PatientStatusPanel } from './PatientStatusPanel';
 
 interface ClinicalAssistantAreaProps {
   threadId: string;
@@ -65,7 +64,6 @@ export function ClinicalAssistantArea({
   const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [contextByThread, setContextByThread] = useState<Record<string, ComposerContextItem[]>>({});
-  const [patientStatusOpen, setPatientStatusOpen] = useState(false);
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
@@ -111,9 +109,6 @@ export function ClinicalAssistantArea({
         phase: assistant.runtime === 'stopping' ? ('stopping' as const) : ('running' as const),
       }
     : null;
-  useEffect(() => {
-    setPatientStatusOpen(false);
-  }, [threadId, activePatient?.id]);
   useEffect(() => {
     patientChangeRequestRef.current += 1;
     lastPatientChangeRef.current = undefined;
@@ -311,8 +306,32 @@ export function ClinicalAssistantArea({
           <EmptyState
             className="clinical-empty-state"
             icon={<Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />}
-            title="Trabaja más rápido con tus evoluciones"
-            description="Pregunta algo o selecciona un paciente para trabajar con su ficha."
+            title={activePatient ? 'Prepara una evolución clínica' : '¿Qué necesitas hacer?'}
+            description={
+              activePatient
+                ? 'Escribe o dicta la nota; revisarás el borrador antes de guardarlo.'
+                : 'Selecciona un paciente para consultar su ficha o preparar una evolución. También puedes hacer una consulta general.'
+            }
+            action={
+              <div className="clinical-empty-actions">
+                {!activePatient && (
+                  <button
+                    type="button"
+                    className="clinical-primary-button"
+                    onClick={() => setPatientPickerOpen(true)}
+                  >
+                    Seleccionar paciente
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="clinical-secondary-button"
+                  onClick={() => textareaRef.current?.focus()}
+                >
+                  {activePatient ? 'Escribir nota clínica' : 'Escribir consulta general'}
+                </button>
+              </div>
+            }
           />
         }
         onDraftChange={onDraftChange}
@@ -386,15 +405,7 @@ export function ClinicalAssistantArea({
           {queueError}
         </p>
       )}
-      <div
-        className="chat-input-dock clinical-composer-dock"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && patientStatusOpen && !voiceInFlight) {
-            event.preventDefault();
-            setPatientStatusOpen(false);
-          }
-        }}
-      >
+      <div className="chat-input-dock clinical-composer-dock">
         <div className="chat-input-dock-inner">
           {assistant.runtime === 'saving' && (
             <p className="clinical-composer-lock" role="status">
@@ -454,16 +465,6 @@ export function ClinicalAssistantArea({
               )}
             </div>
           )}
-          {patientStatusOpen && activePatient && (
-            <PatientStatusPanel
-              patient={activePatient}
-              onClose={() => setPatientStatusOpen(false)}
-              onChangePatient={() => {
-                setPatientStatusOpen(false);
-                setPatientPickerOpen(true);
-              }}
-            />
-          )}
           <ClinicalComposer
             patient={assistant.thread?.active_patient ?? null}
             value={value}
@@ -480,14 +481,6 @@ export function ClinicalAssistantArea({
             onPrimaryAction={queueAvailable ? assistant.stop : send}
             queueAvailable={queueAvailable}
             onQueue={send}
-            patientStatusOpen={patientStatusOpen}
-            onTogglePatientStatus={() => {
-              if (activePatient) setPatientStatusOpen((open) => !open);
-              else setPatientPickerOpen(true);
-            }}
-            onOpenDrive={() => {
-              if (!driveOpen) onToggleDrive?.();
-            }}
             contextItems={contextItems}
             onRemoveContext={(id) =>
               setContextByThread((current) => ({

@@ -316,6 +316,27 @@ describe('EvolutionReviewArtifact', () => {
     expect(screen.queryByText('Dolor ocasional')).not.toBeInTheDocument();
   });
 
+  it('describes a saved review flag as an observation with correct singular wording', () => {
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={flaggedDraft}
+        generatedDraft={flaggedDraft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited={false}
+        lifecycleStage="saved"
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: '1 observación' })).toBeVisible();
+    expect(screen.getByLabelText('1 observación')).toBeVisible();
+    expect(screen.getByText('Guardada en ficha')).toBeVisible();
+    expect(screen.queryByRole('button', { name: '1 por revisar' })).not.toBeInTheDocument();
+  });
+
   it('buffers source edits, cancels locally, and applies once', async () => {
     const onSourceChange = vi.fn().mockResolvedValue(true);
     render(

@@ -10,7 +10,6 @@ interface SidebarNavigationProps {
   creatingNew: boolean;
   onClose: () => void;
   onNewChat: () => void;
-  clinicalVariant?: boolean;
 }
 
 interface NavigationItemProps {
@@ -39,7 +38,6 @@ export function SidebarNavigation({
   creatingNew,
   onClose,
   onNewChat,
-  clinicalVariant = false,
 }: SidebarNavigationProps) {
   const location = useLocation();
   const patientsActive = location.pathname.startsWith('/patients');
@@ -65,22 +63,20 @@ export function SidebarNavigation({
           </Link>
         </NavigationItem>
 
-        {!clinicalVariant && (
-          <NavigationItem active={assistantActive}>
-            <Link
-              to="/assistant"
-              onClick={onClose}
-              aria-current={assistantActive ? 'page' : undefined}
-              className="sidebar-nav-button"
-              aria-label={isCollapsed ? 'Asistente' : undefined}
-              title={isCollapsed ? 'Asistente' : undefined}
-              data-tooltip={isCollapsed ? 'Asistente' : undefined}
-            >
-              <Stethoscope aria-hidden="true" size={16} strokeWidth={1.7} />
-              <span className="sidebar-label">Asistente</span>
-            </Link>
-          </NavigationItem>
-        )}
+        <NavigationItem active={assistantActive}>
+          <Link
+            to="/assistant"
+            onClick={onClose}
+            aria-current={assistantActive ? 'page' : undefined}
+            className="sidebar-nav-button"
+            aria-label={isCollapsed ? 'Asistente' : undefined}
+            title={isCollapsed ? 'Asistente' : undefined}
+            data-tooltip={isCollapsed ? 'Asistente' : undefined}
+          >
+            <Stethoscope aria-hidden="true" size={16} strokeWidth={1.7} />
+            <span className="sidebar-label">Asistente</span>
+          </Link>
+        </NavigationItem>
 
         <NavigationItem active={chatActive}>
           <Link
@@ -96,24 +92,21 @@ export function SidebarNavigation({
             <span className="sidebar-label">Chat</span>
           </Link>
         </NavigationItem>
-
-        {showConversations && (
-          <NavigationItem active={false}>
-            <button
-              type="button"
-              className="sidebar-nav-button sidebar-new-chat"
-              onClick={onNewChat}
-              disabled={creatingNew}
-              aria-label={isCollapsed ? 'Nuevo chat' : undefined}
-              title={isCollapsed ? 'Nuevo chat' : undefined}
-              data-tooltip={isCollapsed ? 'Nuevo chat' : undefined}
-            >
-              <SquarePen aria-hidden="true" size={16} strokeWidth={1.7} />
-              <span className="sidebar-label">{creatingNew ? 'Creando…' : 'Nuevo chat'}</span>
-            </button>
-          </NavigationItem>
-        )}
       </nav>
+      {showConversations && (
+        <button
+          type="button"
+          className="sidebar-nav-button sidebar-new-chat"
+          onClick={onNewChat}
+          disabled={creatingNew}
+          aria-label={isCollapsed ? 'Nuevo chat' : undefined}
+          title={isCollapsed ? 'Nuevo chat' : undefined}
+          data-tooltip={isCollapsed ? 'Nuevo chat' : undefined}
+        >
+          <SquarePen aria-hidden="true" size={16} strokeWidth={1.7} />
+          <span className="sidebar-label">{creatingNew ? 'Creando…' : 'Nuevo chat'}</span>
+        </button>
+      )}
     </LayoutGroup>
   );
 }

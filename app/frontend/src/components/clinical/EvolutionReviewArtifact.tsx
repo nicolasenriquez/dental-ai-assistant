@@ -11,7 +11,7 @@ const lifecycleStageLabels: Record<ClinicalArtifactStage, string> = {
   draft: 'Borrador',
   review: 'Revisión',
   saving: 'Guardando…',
-  saved: 'Guardada',
+  saved: 'Guardada en ficha',
 };
 
 interface EvolutionReviewArtifactProps {
@@ -231,8 +231,8 @@ export function EvolutionReviewArtifact({
                 aria-controls={flagsPanelId}
                 onClick={() => setFlagsOpen((current) => !current)}
               >
-                {draft.review_flags.length === 1
-                  ? '1 por revisar'
+                {visibleStage === 'saved'
+                  ? `${draft.review_flags.length} ${draft.review_flags.length === 1 ? 'observación' : 'observaciones'}`
                   : `${draft.review_flags.length} por revisar`}
               </button>
             )}
@@ -404,7 +404,9 @@ export function EvolutionReviewArtifact({
               </span>
             </span>
             <span className="clinical-review-flags__meta">
-              <span aria-label={`${draft.review_flags.length} observaciones`}>
+              <span
+                aria-label={`${draft.review_flags.length} ${draft.review_flags.length === 1 ? 'observación' : 'observaciones'}`}
+              >
                 {draft.review_flags.length}
               </span>
               <ChevronDown

@@ -1,4 +1,4 @@
-import { Plus, Square } from 'lucide-react';
+import { Square } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useState } from 'react';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
@@ -28,9 +28,6 @@ interface ClinicalComposerProps {
   onPrimaryAction: () => void;
   queueAvailable?: boolean;
   onQueue?: () => void;
-  patientStatusOpen?: boolean;
-  onTogglePatientStatus?: () => void;
-  onOpenDrive?: () => void;
   contextItems?: ComposerContextItem[];
   onRemoveContext?: (id: string) => void;
   voice: ClinicalVoiceControls;
@@ -47,9 +44,6 @@ export function ClinicalComposer({
   onPrimaryAction,
   queueAvailable = false,
   onQueue,
-  patientStatusOpen = false,
-  onTogglePatientStatus,
-  onOpenDrive,
   contextItems = [],
   onRemoveContext,
   voice,
@@ -86,13 +80,17 @@ export function ClinicalComposer({
       }}
     >
       {contextItems.length > 0 && (
-        <div className="col-span-full flex w-full flex-wrap gap-2" aria-label="Contexto adjunto">
+        <div
+          className="col-span-full flex w-full flex-wrap gap-2"
+          role="group"
+          aria-label="Documentos adjuntos"
+        >
           {contextItems.map((item) => (
             <span
               key={item.id}
               className="inline-flex max-w-full items-center gap-2 rounded-md bg-surface-raised px-2 py-1 text-xs text-muted"
             >
-              <span className="truncate">{item.sourceName} · selección</span>
+              <span className="truncate">{item.sourceName} · Google Drive</span>
               <button
                 type="button"
                 aria-label={`Quitar ${item.sourceName}`}
@@ -114,35 +112,13 @@ export function ClinicalComposer({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         rows={1}
-        aria-label="Nota clínica"
-        placeholder={patient ? 'Escribe o dicta una indicación clínica…' : 'Escribe un mensaje…'}
+        aria-label={patient ? 'Nota clínica' : 'Consulta al asistente'}
+        placeholder={patient ? 'Escribe o dicta la nota clínica…' : 'Escribe una consulta general…'}
         className="chat-composer-input clinical-composer-input"
         aria-busy={voice.state === 'transcribing'}
       />
       <div className="clinical-composer-toolbar">
         <div className="clinical-composer-tools">
-          {onOpenDrive && (
-            <button
-              type="button"
-              className="clinical-composer-tool"
-              onClick={onOpenDrive}
-              aria-label="Añadir contexto desde Drive"
-              title="Abrir Google Drive"
-            >
-              <Plus aria-hidden="true" size={17} />
-            </button>
-          )}
-          {onTogglePatientStatus && (
-            <button
-              type="button"
-              className="clinical-composer-tool"
-              onClick={onTogglePatientStatus}
-              aria-expanded={patient ? patientStatusOpen : undefined}
-              aria-controls={patient ? 'patient-status-panel' : undefined}
-            >
-              Contexto
-            </button>
-          )}
           <VoiceDictationStatus
             voiceState={voice.state}
             voiceElapsed={voice.elapsed}

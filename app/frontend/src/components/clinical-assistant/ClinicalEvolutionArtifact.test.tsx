@@ -280,7 +280,7 @@ describe('ClinicalEvolutionArtifact', () => {
     );
 
     expect(screen.getByText('Guardado en Drive')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ver en Drive' }));
     expect(open).toHaveBeenCalledWith({
       evolutionId: 'evolution-1',
       journal: { period_type: 'weekly', period_key: '2026-W37', journal_part: 2 },

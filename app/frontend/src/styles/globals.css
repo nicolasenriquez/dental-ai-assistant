@@ -24,6 +24,8 @@
   --conversation-content-width: 860px;
   --conversation-gutter: 24px;
   --conversation-composer-radius: 12px;
+  --conversation-composer-border: rgb(255 255 255 / 10%);
+  --conversation-composer-shadow: 0 10px 28px rgb(0 0 0 / 18%);
   --conversation-dock-bottom-padding: 20px;
   --conversation-focus-ring: var(--accent-glow);
 }
@@ -413,7 +415,8 @@ body,
 
 .workspace-header__context {
   min-width: 0;
-  flex: 1 1 240px;
+  max-width: 350px;
+  flex: 0 1 350px;
 }
 
 .workspace-header__context .clinical-patient-context {
@@ -489,12 +492,12 @@ body,
   align-items: center;
   gap: 8px;
   min-height: 56px;
-  border: 1px solid rgb(255 255 255 / 10%);
+  border: 1px solid var(--conversation-composer-border);
   border-radius: var(--conversation-composer-radius);
-  background: #111827;
+  background: var(--surface-1);
   padding: 6px 12px;
   transition: opacity 200ms ease, box-shadow 150ms ease;
-  box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
+  box-shadow: var(--conversation-composer-shadow);
 }
 
 .chat-composer.is-focused:not(.is-disabled) {
@@ -1579,6 +1582,13 @@ body,
   margin: 0 0 24px;
 }
 
+.clinical-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
 .clinical-transcript {
   position: relative;
   display: flex;
@@ -2332,11 +2342,6 @@ body,
   gap: 3px;
 }
 
-.clinical-drive-row__clinical-state {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
 .clinical-artifact .clinical-secondary-button {
   border-color: transparent;
 }
@@ -2783,24 +2788,23 @@ body,
 }
 
 .clinical-composer {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   min-height: 56px;
   margin: 0;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 15px;
-  background: rgba(18, 23, 32, 0.96);
-  box-shadow: 0 14px 40px rgb(0 0 0 / 28%);
+  border: 1px solid var(--conversation-composer-border);
+  border-radius: var(--conversation-composer-radius);
+  background: var(--surface-1);
+  box-shadow: var(--conversation-composer-shadow);
   pointer-events: auto;
   transition: opacity 200ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .clinical-composer.is-focused:not(.is-disabled) {
-  border-color: rgba(92, 129, 255, 0.58);
-  box-shadow: 0 0 0 2px rgba(79, 124, 255, 0.13), 0 14px 40px rgb(0 0 0 / 28%);
+  box-shadow: 0 0 0 2px var(--conversation-focus-ring);
 }
 
 .clinical-composer-actions {
@@ -2820,33 +2824,8 @@ body,
 }
 
 .clinical-composer-toolbar {
-  justify-content: space-between;
-}
-
-.clinical-composer-tool {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-secondary);
-  padding: 0 8px;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.clinical-composer-tool:hover,
-.clinical-composer-tool[aria-expanded="true"] {
-  background: var(--surface-2);
-  color: var(--text-primary);
-}
-
-.clinical-composer-tool:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .clinical-composer .voice-composer-status {
@@ -2854,6 +2833,7 @@ body,
 }
 
 .clinical-composer.is-voice-active .clinical-composer-toolbar {
+  grid-column: 1 / -1;
   flex-wrap: wrap;
 }
 
@@ -2895,16 +2875,12 @@ body,
 
 .clinical-patient-context {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   min-height: 40px;
   padding: 6px 12px;
   gap: 8px;
   border-bottom: 1px solid var(--border);
-}
-
-.clinical-patient-context .clinical-patient-label {
-  white-space: nowrap;
 }
 
 .clinical-patient-picker {
@@ -2940,6 +2916,20 @@ body,
 
 .clinical-patient-trigger span {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinical-patient-trigger__copy {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.clinical-patient-trigger__copy strong {
+  overflow: hidden;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3074,7 +3064,7 @@ body,
   outline: 0;
   background: transparent;
   color: #f1f5f9;
-  padding: 10px 14px 4px;
+  padding: 9px 2px;
   font: inherit;
   line-height: 1.5;
   resize: none;
@@ -3254,10 +3244,6 @@ body,
 @media (max-width: 640px) {
   .clinical-patient-context {
     grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .clinical-patient-label {
-    grid-column: 1 / -1;
   }
 
   .clinical-artifact {
@@ -3719,15 +3705,19 @@ body,
     padding-bottom: 8px;
   }
 
+  .workspace-header__copy {
+    flex: 1 1 0;
+  }
+
   .workspace-header__context {
     order: 2;
+    max-width: none;
     flex-basis: 100%;
   }
 
   .workspace-header__actions {
-    order: 3;
-    flex: 0 0 100%;
-    justify-content: flex-start;
+    order: 1;
+    flex: 0 0 auto;
   }
 
   .workspace-header__context .clinical-patient-context {
@@ -3741,15 +3731,7 @@ body,
     grid-template-columns: 1fr auto;
   }
   .clinical-patient-context .clinical-patient-label {
-    grid-column: 1 / -1;
-  }
-  .clinical-patient-context .clinical-patient-picker {
-    grid-column: 1;
-    grid-row: 2;
-  }
-  .clinical-patient-context .clinical-patient-clear {
-    grid-column: 2;
-    grid-row: 2;
+    white-space: nowrap;
   }
   .evolution-review-artifact__wide {
     grid-column: auto;
@@ -4028,12 +4010,18 @@ body,
 }
 
 .sidebar-new-chat {
+  width: calc(100% - 16px);
+  min-height: 36px;
+  margin: 4px 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-1));
   color: var(--text-primary);
+  padding: 0 10px;
 }
 
 .sidebar-new-chat:hover {
-  background: rgba(59, 130, 246, 0.12);
-  color: #bfdbfe;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-1));
 }
 
 .sidebar-search-region {

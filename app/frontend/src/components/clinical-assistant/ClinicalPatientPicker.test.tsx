@@ -36,7 +36,7 @@ describe('ClinicalPatientPicker', () => {
     const onPatientChange = vi.fn();
     renderPicker(onPatientChange);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente activo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente' }));
     const search = screen.getByRole('combobox', { name: 'Buscar paciente por nombre o RUT' });
     fireEvent.change(search, { target: { value: 'Ana' } });
     fireEvent.keyDown(search, { key: 'Enter' });
@@ -46,7 +46,7 @@ describe('ClinicalPatientPicker', () => {
 
   it('keeps empty results stable and closes on outside click', () => {
     renderPicker();
-    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente activo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente' }));
     const search = screen.getByRole('combobox', { name: 'Buscar paciente por nombre o RUT' });
     fireEvent.change(search, { target: { value: 'Nadie' } });
     fireEvent.keyDown(search, { key: 'ArrowDown' });
@@ -67,7 +67,7 @@ describe('ClinicalPatientPicker', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toHaveTextContent(
+    expect(screen.getByRole('button', { name: 'Cambiar paciente activo' })).toHaveTextContent(
       'Ana Pérez · 12.345.•••-6',
     );
     fireEvent.click(screen.getByRole('button', { name: 'Quitar paciente activo' }));
@@ -78,7 +78,7 @@ describe('ClinicalPatientPicker', () => {
     renderPicker(vi.fn(), 'saving');
 
     expect(screen.getByRole('status')).toHaveTextContent('Guardando paciente…');
-    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Seleccionar paciente' })).toBeDisabled();
   });
 
   it('shows a selection error with a retry action', () => {
@@ -93,7 +93,7 @@ describe('ClinicalPatientPicker', () => {
 
   it('returns focus to the trigger after an outside click', async () => {
     renderPicker();
-    const trigger = screen.getByRole('button', { name: 'Seleccionar paciente activo' });
+    const trigger = screen.getByRole('button', { name: 'Seleccionar paciente' });
 
     fireEvent.click(trigger);
     fireEvent.pointerDown(document.body);

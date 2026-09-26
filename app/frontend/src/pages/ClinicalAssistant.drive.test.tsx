@@ -305,7 +305,7 @@ function composer() {
 }
 
 function choosePatient(name: string) {
-  fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente activo' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cambiar paciente activo' }));
   fireEvent.click(screen.getByRole('option', { name: new RegExp(name) }));
 }
 
@@ -330,11 +330,11 @@ describe('Clinical Assistant Drive transfer', () => {
 
     const header = screen.getByRole('banner');
     expect(
-      within(header).getByRole('button', { name: 'Seleccionar paciente activo' }),
+      within(header).getByRole('button', { name: 'Cambiar paciente activo' }),
     ).toHaveTextContent('Ana Pérez · 12.345.•••-6');
     expect(
       within(screen.getByTestId('clinical-composer')).queryByRole('button', {
-        name: 'Seleccionar paciente activo',
+        name: 'Cambiar paciente activo',
       }),
     ).not.toBeInTheDocument();
   });
@@ -342,7 +342,7 @@ describe('Clinical Assistant Drive transfer', () => {
   it('changes the hook-owned patient through the header selector', async () => {
     renderAssistant();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente activo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar paciente activo' }));
     fireEvent.click(await screen.findByRole('option', { name: /Bruno/ }));
 
     expect(mocks.setActivePatient).toHaveBeenCalledWith('p2');
@@ -432,7 +432,7 @@ describe('Clinical Assistant Drive transfer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
 
     expect(composer()).toHaveValue('nota previa');
-    expect(screen.getByText('Respuesta del asistente.txt · selección')).toBeVisible();
+    expect(screen.getByText('Respuesta del asistente.txt · Google Drive')).toBeVisible();
     expect(composer()).toHaveFocus();
     expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeVisible();
     expect(mocks.send).not.toHaveBeenCalled();
@@ -529,7 +529,7 @@ describe('Clinical Assistant Drive transfer', () => {
 
     try {
       renderAssistant();
-      fireEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Ver en Drive' }));
 
       expect(await screen.findByText('Contenido remoto del diario')).toBeInTheDocument();
       expect(apiSeam.getDriveJournalDetail).toHaveBeenCalledWith('weekly', '2026-W37', 2);

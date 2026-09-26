@@ -251,21 +251,15 @@ export function Sidebar({
         />
 
         <div className="sidebar-content">
-          {clinicalVariant && secondaryContent && (
-            <div className="sidebar-secondary-scroll">{secondaryContent}</div>
-          )}
           <SidebarNavigation
             isCollapsed={isCollapsed}
-            clinicalVariant={clinicalVariant}
             showConversations={showConversations}
             creatingNew={creatingNew}
             onClose={onClose}
             onNewChat={() => guardTransition(() => void handleNewChat())}
           />
 
-          {!clinicalVariant && secondaryContent && (
-            <div className="sidebar-secondary-scroll">{secondaryContent}</div>
-          )}
+          {secondaryContent && <div className="sidebar-secondary-scroll">{secondaryContent}</div>}
 
           {showConversations && (
             <>

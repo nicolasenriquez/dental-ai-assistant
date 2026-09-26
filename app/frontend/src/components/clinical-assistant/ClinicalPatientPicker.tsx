@@ -113,15 +113,12 @@ export function ClinicalPatientPicker({
 
   return (
     <div className="clinical-patient-context">
-      <span className="clinical-patient-label">
-        {patient ? 'Paciente' : 'Selecciona un paciente'}
-      </span>
       <div ref={pickerRef} className="clinical-patient-picker">
         <button
           ref={triggerRef}
           type="button"
           className="clinical-patient-trigger"
-          aria-label="Seleccionar paciente activo"
+          aria-label={patient ? 'Cambiar paciente activo' : 'Seleccionar paciente'}
           aria-haspopup="listbox"
           aria-expanded={open && !isSaving}
           aria-busy={isSaving}
@@ -129,10 +126,16 @@ export function ClinicalPatientPicker({
           disabled={interactionDisabled}
           onClick={() => setOpen((current) => !current)}
         >
-          <span title={patient ? `${patient.first_name} ${patient.last_name}` : undefined}>
-            {patient
-              ? `${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`
-              : 'Seleccionar paciente'}
+          <span
+            className="clinical-patient-trigger__copy"
+            title={patient ? `${patient.first_name} ${patient.last_name}` : undefined}
+          >
+            <span className="clinical-patient-label">Paciente</span>
+            <strong>
+              {patient
+                ? `${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`
+                : 'Seleccionar paciente'}
+            </strong>
           </span>
           <ChevronsUpDown aria-hidden="true" size={15} />
         </button>

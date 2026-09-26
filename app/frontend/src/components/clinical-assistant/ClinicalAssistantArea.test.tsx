@@ -79,7 +79,7 @@ describe('ClinicalAssistantArea queue', () => {
 
   it('keeps the fourth draft when three messages are already queued', () => {
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
-    const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
     for (const message of ['Uno', 'Dos', 'Tres']) {
       fireEvent.change(composer, { target: { value: message } });
       fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
@@ -95,7 +95,7 @@ describe('ClinicalAssistantArea queue', () => {
   it('preserves composer text but blocks submission while approval is pending', () => {
     runtime.value = 'awaiting_approval';
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
-    const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
 
     fireEvent.change(composer, { target: { value: 'Siguiente nota' } });
 
@@ -105,7 +105,7 @@ describe('ClinicalAssistantArea queue', () => {
     expect(screen.queryByText(/mensaje.*en cola/)).not.toBeInTheDocument();
   });
 
-  it('shows patient status only for an active patient and reuses the header picker', async () => {
+  it('shows the active patient in the header and changes it there', async () => {
     const patient: ClinicalPatient = {
       id: 'patient-1',
       first_name: 'Ana',
@@ -117,21 +117,21 @@ describe('ClinicalAssistantArea queue', () => {
     runtime.value = 'idle';
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
 
-    const statusTrigger = screen.getByRole('button', { name: 'Contexto' });
-    fireEvent.click(statusTrigger);
-    const region = screen.getByRole('region', { name: 'Paciente' });
-    expect(within(region).getByText('12.345.•••-6')).toBeVisible();
-    expect(region).not.toHaveTextContent('patient-1');
-
-    fireEvent.click(within(region).getByRole('button', { name: 'Cambiar paciente' }));
-    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
+    const trigger = screen.getByRole('button', { name: 'Cambiar paciente activo' });
+    expect(trigger).toHaveTextContent('Ana Pérez · 12.345.•••-6');
+    expect(screen.getByText('Prepara una evolución clínica')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Nota clínica' })).toHaveAttribute(
+      'placeholder',
+      'Escribe o dicta la nota clínica…',
     );
+    expect(screen.queryByRole('button', { name: 'Contexto' })).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('opens the header patient picker or Drive from the composer tools', () => {
+  it('offers state-specific empty actions and uses the header for Drive', () => {
     const onToggleDrive = vi.fn();
+    runtime.value = 'idle';
     render(
       <ClinicalAssistantArea
         threadId="thread-1"
@@ -140,13 +140,28 @@ describe('ClinicalAssistantArea queue', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Contexto' }));
-    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toHaveAttribute(
+    expect(screen.getByText('¿Qué necesitas hacer?')).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Consulta al asistente' })).toHaveAttribute(
+      'placeholder',
+      'Escribe una consulta general…',
+    );
+    const header = document.querySelector('.workspace-header') as HTMLElement;
+    fireEvent.click(
+      within(document.querySelector('.clinical-empty-actions') as HTMLElement).getByRole('button', {
+        name: 'Seleccionar paciente',
+      }),
+    );
+    expect(within(header).getByRole('button', { name: 'Seleccionar paciente' })).toHaveAttribute(
       'aria-expanded',
       'true',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Añadir contexto desde Drive' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
     expect(onToggleDrive).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole('button', { name: 'Añadir contexto desde Drive' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Escribir consulta general' }));
+    expect(screen.getByRole('textbox', { name: 'Consulta al asistente' })).toHaveFocus();
   });
 
   it('keeps agent Stop outside the voice controls', () => {
@@ -161,7 +176,7 @@ describe('ClinicalAssistantArea queue', () => {
   it('keeps the next message draft when Stop is pressed', () => {
     const assistant = createAssistant();
     render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
-    const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
     fireEvent.change(composer, { target: { value: 'Siguiente indicación' } });
     fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta' }));
     expect(assistant.stop).toHaveBeenCalledOnce();
@@ -213,7 +228,10 @@ describe('ClinicalAssistantArea queue', () => {
         content: 'Control en seis meses',
       });
     });
-    fireEvent.change(screen.getByRole('textbox', { name: 'Nota clínica' }), {
+    expect(screen.getByRole('group', { name: 'Documentos adjuntos' })).toHaveTextContent(
+      'Evaluación.md · Google Drive',
+    );
+    fireEvent.change(screen.getByRole('textbox', { name: 'Consulta al asistente' }), {
       target: { value: 'Actualizar evolución' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
@@ -221,6 +239,34 @@ describe('ClinicalAssistantArea queue', () => {
     expect(send).toHaveBeenCalledWith('Actualizar evolución', [
       expect.objectContaining({ sourceName: 'Evaluación.md', content: 'Control en seis meses' }),
     ]);
+  });
+
+  it('removes a Drive attachment without clearing the typed consultation', () => {
+    runtime.value = 'idle';
+    let insertContext: ((item: import('../../lib/api').ComposerContextItem) => void) | undefined;
+    render(
+      <ClinicalAssistantArea
+        threadId="thread-1"
+        assistant={createAssistant()}
+        onComposerInsertReady={(insert) => {
+          insertContext = insert;
+        }}
+      />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    fireEvent.change(composer, { target: { value: 'Mi consulta' } });
+    act(() => {
+      insertContext?.({
+        id: 'context-1',
+        kind: 'drive_selection',
+        sourceId: 'drive-file-1',
+        sourceName: 'Evaluación.md',
+        content: 'Control en seis meses',
+      });
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar Evaluación.md' }));
+    expect(screen.queryByRole('group', { name: 'Documentos adjuntos' })).not.toBeInTheDocument();
+    expect(composer).toHaveValue('Mi consulta');
   });
 
   it('shows selection progress, preserves the previous patient, and retries failures', async () => {
@@ -244,7 +290,10 @@ describe('ClinicalAssistantArea queue', () => {
 
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
 
-    const trigger = screen.getByRole('button', { name: 'Seleccionar paciente activo' });
+    const trigger = within(document.querySelector('.workspace-header') as HTMLElement).getByRole(
+      'button',
+      { name: 'Seleccionar paciente' },
+    );
     fireEvent.click(trigger);
     fireEvent.click(await screen.findByRole('option', { name: /Ana Pérez/ }));
 
