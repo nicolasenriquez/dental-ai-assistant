@@ -52,6 +52,42 @@ describe('NewEvolution generation states', () => {
     vi.restoreAllMocks();
   });
 
+  it('uses Chilean date and 24-hour time before generating a draft', async () => {
+    renderNewEvolution();
+    await enterNote();
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar fecha y hora' }));
+
+    let date = screen.getByRole('textbox', { name: 'Fecha de evolución' });
+    let time = screen.getByRole('textbox', { name: 'Hora de evolución' });
+    expect(date).toHaveAttribute('placeholder', 'dd/mm/aaaa');
+    expect(time).toHaveAttribute('placeholder', 'HH:mm');
+
+    fireEvent.change(date, { target: { value: '31/02/2020' } });
+    expect(screen.getByRole('button', { name: 'Generar borrador con IA' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Ingresa una fecha no futura');
+    expect(screen.getByLabelText('Nota clínica')).toHaveValue(
+      'Paciente refiere sensibilidad al frío.',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar fecha y hora' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar fecha y hora' }));
+    date = screen.getByRole('textbox', { name: 'Fecha de evolución' });
+    time = screen.getByRole('textbox', { name: 'Hora de evolución' });
+    expect(date).not.toHaveValue('31/02/2020');
+
+    fireEvent.change(date, { target: { value: '01/01/2999' } });
+    expect(screen.getByRole('button', { name: 'Generar borrador con IA' })).toBeDisabled();
+
+    fireEvent.change(date, { target: { value: '01/01/2020' } });
+    fireEvent.change(time, { target: { value: '2530' } });
+    expect(screen.getByRole('button', { name: 'Generar borrador con IA' })).toBeDisabled();
+
+    fireEvent.change(time, { target: { value: '1530' } });
+    expect(time).toHaveValue('15:30');
+    expect(screen.getByText('01 ene 2020 · 15:30')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Generar borrador con IA' })).toBeEnabled();
+  });
+
   it('renders the success state and enables saving', async () => {
     vi.spyOn(api, 'generateEvolution').mockResolvedValue(draft);
     renderNewEvolution();

@@ -10,6 +10,7 @@ Dental AI Assistant and Chat share the dark workspace shell. The visual source o
 
 ## Clinical wording
 
+- Evolution date and time fields display dd/mm/aaaa and HH:mm regardless of browser locale.
 - Without an active patient, the composer is a general consultation. With one, it is a clinical note. Empty-state copy and the field label follow that distinction.
 - A Drive selection is displayed as a named, removable document attachment. The word “contexto” does not label a patient action or an empty attachment slot.
 - An approved evolution says “Guardada en ficha”. Drive sync is shown separately. Review flags on a saved evolution are “observaciones”; before approval they are “por revisar”.

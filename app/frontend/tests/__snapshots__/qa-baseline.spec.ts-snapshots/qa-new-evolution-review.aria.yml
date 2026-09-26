@@ -9,7 +9,6 @@
     - link "Chat":
       - /url: /chat
   - button "Abrir menú de usuario para qa@example.com"
-  - text: Dental AI Assistant
 - main:
   - link "‹ Volver a Ana Pérez":
     - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
@@ -17,8 +16,14 @@
   - strong: Ana Pérez
   - text: /\d+ años Nacimiento \d+\/\d+\/\d+ RUT \d+\.\d+\.•••-6 \d+ ene \d+ · \d+:\d+/
   - button "Cambiar fecha y hora" [expanded]
-  - textbox "Fecha de evolución": /\d+-\d+-\d+/
-  - textbox "Hora de evolución": /\d+:\d+/
+  - text: Fecha de evolución
+  - textbox "Fecha de evolución":
+    - /placeholder: dd/mm/aaaa
+    - text: /\d+\/\d+\/\d+/
+  - text: Hora de evolución
+  - textbox "Hora de evolución":
+    - /placeholder: HH:mm
+    - text: /\d+:\d+/
   - list "Progreso de la evolución":
     - listitem: 1. Capturar
     - listitem: 2. Revisar

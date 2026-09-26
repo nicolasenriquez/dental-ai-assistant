@@ -19,7 +19,13 @@ import {
   getPatientEvolutions,
   saveEvolution,
 } from '../lib/api';
-import { formatClinicalDateTime } from '../lib/clinicalDate';
+import {
+  formatClinicalDate,
+  formatClinicalDateTime,
+  formatClinicalTime,
+  normalizeClinicalDateInput,
+  parseClinicalDateInput,
+} from '../lib/clinicalDate';
 
 const MAX_RAW_NOTE_LENGTH = 40000;
 const SHOW_COUNT_AT = 35000;
@@ -46,6 +52,20 @@ function localInputParts(value: Date) {
   return { date: local.slice(0, 10), time: local.slice(11) };
 }
 
+function normalizeTimeInput(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  return digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+function parseEvolutionDateTime(date: string, time: string): Date | null {
+  const isoDate = parseClinicalDateInput(date);
+  if (!isoDate || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
+  const value = new Date(`${isoDate}T${time}`);
+  if (Number.isNaN(value.getTime())) return null;
+  const parts = localInputParts(value);
+  return parts.date === isoDate && parts.time === time ? value : null;
+}
+
 function toOffsetISOString(value: Date) {
   const offsetMinutes = -value.getTimezoneOffset();
   const sign = offsetMinutes >= 0 ? '+' : '-';
@@ -66,7 +86,13 @@ export function NewEvolution() {
   const [generationOutcome, setGenerationOutcome] = useState<GenerationOutcome>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmRegeneration, setConfirmRegeneration] = useState(false);
-  const [evolutionAt, setEvolutionAt] = useState(() => new Date());
+  const [evolutionAt, setEvolutionAt] = useState(() => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    return now;
+  });
+  const [dateInput, setDateInput] = useState(() => formatClinicalDate(evolutionAt));
+  const [timeInput, setTimeInput] = useState(() => formatClinicalTime(evolutionAt));
   const [showDateTime, setShowDateTime] = useState(false);
   const [saveId] = useState(() => crypto.randomUUID());
   const [saving, setSaving] = useState(false);
@@ -89,29 +115,33 @@ export function NewEvolution() {
 
   const sourceLength = rawNote.trim().length;
   const overLimit = sourceLength > MAX_RAW_NOTE_LENGTH;
+  const dateTimeValid = parseEvolutionDateTime(dateInput, timeInput) !== null;
   const isDraftStale = generatedDraft !== null && rawNote !== generatedRawNote;
   const hasClinicalContent = draftHasClinicalContent(draft);
   const hasHumanEdits = generatedDraft
     ? fields.some(({ key }) => draft[key] !== generatedDraft[key])
     : false;
   const canGenerate =
+    dateTimeValid &&
     sourceLength > 0 &&
     !overLimit &&
     !patientLoading &&
     !patientError &&
     workspace !== 'generating';
   const canSave =
+    dateTimeValid &&
     Boolean(generatedDraft) &&
     hasClinicalContent &&
     !isDraftStale &&
     !saving &&
     workspace === 'reviewing';
-  const dateTime = localInputParts(evolutionAt);
   const activeWorkflowStep = confirmSaveOpen ? 2 : workspace === 'reviewing' ? 1 : 0;
   const isDirty =
     rawNote.trim().length > 0 ||
     generatedDraft !== null ||
     hasHumanEdits ||
+    dateInput !== formatClinicalDate(initialEvolutionAt.current) ||
+    timeInput !== formatClinicalTime(initialEvolutionAt.current) ||
     evolutionAt.getTime() !== initialEvolutionAt.current.getTime();
   const blocker = useBlocker(isDirty && !saving && !navigationAllowed);
 
@@ -284,8 +314,8 @@ export function NewEvolution() {
   };
 
   const changeDateTime = (date: string, time: string) => {
-    if (!date || !time) return;
-    setEvolutionAt(new Date(`${date}T${time}`));
+    const value = parseEvolutionDateTime(date, time);
+    if (value) setEvolutionAt(value);
   };
 
   const handleShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -371,7 +401,13 @@ export function NewEvolution() {
             <span>{formatClinicalDateTime(evolutionAt)}</span>
             <button
               type="button"
-              onClick={() => setShowDateTime((shown) => !shown)}
+              onClick={() => {
+                if (showDateTime && !dateTimeValid) {
+                  setDateInput(formatClinicalDate(evolutionAt));
+                  setTimeInput(formatClinicalTime(evolutionAt));
+                }
+                setShowDateTime(!showDateTime);
+              }}
               aria-expanded={showDateTime}
               aria-controls="evolution-datetime-controls"
               className="text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
@@ -380,23 +416,52 @@ export function NewEvolution() {
             </button>
           </div>
           {showDateTime && (
-            <div id="evolution-datetime-controls" className="mt-3 flex flex-wrap gap-3">
-              <input
-                aria-label="Fecha de evolución"
-                lang="es-CL"
-                type="date"
-                value={dateTime.date}
-                onChange={(event) => changeDateTime(event.target.value, dateTime.time)}
-                className="rounded border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-              />
-              <input
-                aria-label="Hora de evolución"
-                lang="es-CL"
-                type="time"
-                value={dateTime.time}
-                onChange={(event) => changeDateTime(dateTime.date, event.target.value)}
-                className="rounded border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-              />
+            <div id="evolution-datetime-controls" className="mt-3 flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
+                Fecha de evolución
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="dd/mm/aaaa"
+                  value={dateInput}
+                  onChange={(event) => {
+                    const date = normalizeClinicalDateInput(event.currentTarget.value);
+                    setDateInput(date);
+                    changeDateTime(date, timeInput);
+                  }}
+                  aria-invalid={!dateTimeValid}
+                  aria-describedby={!dateTimeValid ? 'evolution-datetime-error' : undefined}
+                  className="rounded border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
+                Hora de evolución
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  placeholder="HH:mm"
+                  value={timeInput}
+                  onChange={(event) => {
+                    const time = normalizeTimeInput(event.currentTarget.value);
+                    setTimeInput(time);
+                    changeDateTime(dateInput, time);
+                  }}
+                  aria-invalid={!dateTimeValid}
+                  aria-describedby={!dateTimeValid ? 'evolution-datetime-error' : undefined}
+                  className="rounded border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                />
+              </label>
+              {!dateTimeValid && (
+                <p
+                  id="evolution-datetime-error"
+                  role="alert"
+                  className="w-full text-sm text-[var(--danger)]"
+                >
+                  Ingresa una fecha no futura (dd/mm/aaaa) y una hora válida (HH:mm).
+                </p>
+              )}
             </div>
           )}
         </header>
