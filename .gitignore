@@ -94,3 +94,8 @@ EXAMPLE-CLAUDE.md
 .agents/skills/*
 !.agents/skills/verify-dental-assistant/
 !.agents/skills/verify-dental-assistant/**
+
+# Impeccable — shared config and surface briefs are tracked; machine-local
+# overrides and live sessions are not.
+.impeccable/config.local.json
+.impeccable/live/

@@ -116,6 +116,8 @@ ai-tutor/
 - New RAG pipeline steps → `app/backend/rag/`. Keep chunker, embeddings, and retriever as separate modules.
 - New content sources → `app/backend/ingest/`, one module per source.
 - New React components → `app/frontend/src/components/`, one component per file, named exports matching filename.
+- New shared UI primitives → `app/frontend/src/components/ui/`. Only allowlisted primitives (see `app/frontend/src/__tests__/drivePrimitiveAllowlist.test.ts`); do not add a component library.
+- New cross-domain interaction patterns → `app/frontend/src/components/patterns/`. Domain components stay in their feature folder.
 - New React hooks → `app/frontend/src/hooks/`, prefix with `use`.
 - New API client functions → `app/frontend/src/lib/api.ts` or `app/frontend/src/lib/authApi.ts` for auth. Keep ordinary API fetches in typed clients; stream transport stays in its feature hook and uses `src/lib/sse.ts`. Never fetch inline in UI components.
 
@@ -236,6 +238,21 @@ bun run test
 - **Event handlers:** typed callbacks (`(e: React.ChangeEvent<HTMLInputElement>) => void`), not `any`.
 - **State:** React built-ins (`useState`, `useReducer`, Context) only. Do not add Redux, Zustand, or Jotai.
 - **SSE parsing:** all SSE byte framing goes through `app/frontend/src/lib/sse.ts`. RAG state remains in `useStreamingResponse`; feature-specific stream hooks may interpret their own event protocol only through the shared framing helper.
+
+---
+
+## Frontend Design Contract
+
+Before changing frontend UI:
+
+1. Read `PRODUCT.md`, `DESIGN.md`, and `docs/design/UX_PRINCIPLES.md` when they exist; read the applicable surface brief under `.impeccable/surfaces/` if one exists.
+2. Search for an existing primitive (`components/ui/`) or pattern (`components/patterns/`) before creating a component. Repeated intent — not repetition alone — justifies a shared abstraction.
+3. Use semantic tokens (`text-foreground`, `bg-surface`, `border-border`, …) over raw values or `var()` arbitrary classes.
+4. Preserve the incumbent visual language unless the task explicitly asks for a redesign.
+5. Durable visual decisions update `DESIGN.md`; surface-specific decisions go in that surface's brief, never in `DESIGN.md`.
+6. Verify rendered behavior (tests, and snapshots where they exist) before declaring UI work done.
+
+Layer direction is one-way: page → domain → pattern → primitive → token. Never the reverse. Full model: `docs/design/frontend-architecture.md`.
 
 ---
 
