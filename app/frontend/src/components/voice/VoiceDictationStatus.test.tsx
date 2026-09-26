@@ -53,6 +53,7 @@ describe('VoiceDictationStatus', () => {
       act(() => vi.advanceTimersByTime(6_000));
       expect(screen.getByText('Sigue transcribiendo…')).toBeVisible();
       expect(screen.getByText('Puedes seguir editando.')).toBeVisible();
+      expect(screen.getByText('00:10')).toHaveAttribute('aria-hidden', 'true');
       expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();

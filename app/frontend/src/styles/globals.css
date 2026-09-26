@@ -1545,6 +1545,7 @@ body,
 }
 
 .clinical-assistant-area {
+  --conversation-content-width: 820px;
   position: relative;
   display: flex;
   min-height: 0;
@@ -1588,7 +1589,17 @@ body,
 }
 
 .clinical-transcript .message-row.is-assistant .message-content {
-  width: 100%;
+  width: min(100%, 760px);
+}
+
+.clinical-transcript .message-row.is-user .message-content {
+  max-width: min(74%, 680px);
+}
+
+@media (max-width: 767px) {
+  .clinical-transcript .message-row.is-user .message-content {
+    max-width: 92%;
+  }
 }
 
 .clinical-turn-group {
@@ -1617,11 +1628,11 @@ body,
 .clinical-turn-progress {
   width: fit-content;
   max-width: 100%;
-  border-left: 1px solid var(--border);
-  padding: 3px 0 3px 13px;
+  padding: 3px 0;
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.45;
+  animation: clinical-item-enter 180ms ease-out both;
 }
 
 .clinical-turn-progress__heading {
@@ -1637,9 +1648,8 @@ body,
   height: 7px;
   flex: none;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 17%, transparent);
-  animation: clinical-progress-pulse 1.8s ease-in-out infinite;
+  background: var(--text-secondary);
+  animation: clinical-progress-pulse 1.4s ease-in-out infinite;
 }
 
 .clinical-turn-progress__elapsed {
@@ -1648,19 +1658,69 @@ body,
   font-variant-numeric: tabular-nums;
 }
 
+.clinical-turn-progress__divider {
+  height: 1px;
+  margin: 9px 0 8px;
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+
 .clinical-turn-progress__label {
-  margin: 5px 0 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.clinical-turn-progress__dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.clinical-turn-progress__dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: clinical-dot-bounce 1.2s infinite;
+}
+
+.clinical-turn-progress__dots i:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.clinical-turn-progress__dots i:nth-child(3) {
+  animation-delay: 300ms;
 }
 
 .clinical-turn-progress.is-compact {
-  border-color: transparent;
   padding-top: 0;
   padding-bottom: 0;
 }
 
 @keyframes clinical-progress-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.86);
+  }
+
   50% {
-    opacity: 0.42;
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes clinical-dot-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
   }
 }
 
@@ -3101,6 +3161,11 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .clinical-turn-progress,
+  .clinical-turn-progress__pulse,
+  .clinical-turn-progress__dots i {
+    animation: none;
+  }
   .clinical-turn-progress__pulse,
   .chat-composer-input {
     transition: none;
@@ -3253,6 +3318,10 @@ body,
   height: 7px;
   border-radius: 999px;
   background: var(--warning);
+}
+
+.workspace-thread-list__pending-dot.is-offset {
+  right: 17px;
 }
 
 .workspace-thread-list__custom-item {
@@ -4569,6 +4638,30 @@ body,
   overflow: hidden;
   background: var(--surface-1);
   border-left: 1px solid var(--border);
+}
+
+@media (min-width: 1025px) {
+  .workspace-mode .workspace-panel-accessory > .drive-workspace {
+    animation: drive-content-enter 200ms cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+
+@keyframes drive-content-enter {
+  from {
+    opacity: 0.5;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-mode .workspace-panel-accessory > .drive-workspace {
+    animation: none;
+  }
 }
 
 .drive-browser,

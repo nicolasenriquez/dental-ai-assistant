@@ -117,6 +117,7 @@ export function ClinicalThreadList({
         ariaLabel="Hilos del asistente clínico"
         title="Asistente"
         isCollapsed={isCollapsed}
+        running={activeTurnRunning}
         items={threads.map((thread) => ({
           id: thread.id,
           title: thread.title,

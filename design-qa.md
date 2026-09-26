@@ -2,6 +2,20 @@
 
 Reference: supplied Codex-inspired Clinical Assistant visual contract and the existing Dental AI Assistant shell.
 
+## Interaction and layout refinement — 2026-09-26
+
+Scope: clinical content width capped at 820 px inside `/assistant` only; turn progress gained the divider/dots treatment with a neutral pulse; elapsed stays at 0 s until the matching user turn is hydrated and hides while stopping; clinical user bubbles use the 74 % / 92 % widths; the Drive accessory content enters with a 200 ms opacity/translate motion; the collapsed clinical rail exposes the running indicator beside the pending dot; the dictation transcription timer is hidden from live announcements; the Drive separator regression now resizes with keyboard and pointer while a turn is streaming.
+
+| Evidence source | Result | Scope |
+| --- | --- | --- |
+| Vitest | 540/540 passed | Progress elapsed/hydration/stopping, dwell, composer matrix, queue rules, collapsed rail indicator, dictation timer |
+| `bun run type-check` | passed | Frontend |
+| Biome (`bun run lint`, changed files) | passed | All touched TS/TSX files; the repo-wide run still reports the pre-existing CRLF checkout drift on ten untouched files |
+| Playwright `clinical` project against the isolated Docker app on `localhost:8001` | 26/26 passed | Mocked clinical routes and browser-streamed SSE: retained turn through Drive open/close/resize (keyboard `ArrowLeft` plus 48 px pointer drag), history scroll, reduced motion at 1440 × 1000, 1024 × 900 and 390 × 844 |
+| Desktop win32 snapshots | 3 refreshed, 6 unchanged | `assistant-draft/review/saved-desktop` refreshed for the intentional 820 px geometry; `drive-conflict`/`drive-error` passed unchanged once the Drive entrance animation stopped using `animation-fill-mode: both`, which had kept a composited layer and shifted text anti-aliasing during capture |
+
+The Playwright actions above are **mocked browser** evidence on an isolated local stack. The shared Google-mode instance on `localhost:8000` was not rebuilt and is not claimed for this pass; no live clinical write was performed. Linux variants of the three refreshed snapshots do not exist in the repository, so only the win32 baselines were updated.
+
 ## Demo-state visual check — 2026-09-26
 
 The HTML contains five prototype controls (`Respuesta`, `Esperando`, `Card clínica`, `Dictado`, `Vacío`). They are not a mode switcher in `/assistant`; the app shows the corresponding states through the clinical workflow. The approved scope used the HTML for behavior and hierarchy while retaining the app's own components and tokens.

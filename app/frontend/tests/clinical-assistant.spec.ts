@@ -1713,6 +1713,27 @@ test('closing Drive during a retained clinical SSE keeps the turn alive', async 
   expect(widths.rule).toBe('1px');
   await divider.focus();
   await expect(divider).toBeFocused();
+  const accessory = page.locator('.workspace-panel-accessory');
+  const accessoryWidth = () =>
+    accessory.evaluate((element) => element.getBoundingClientRect().width);
+  const widthBeforeResize = await accessoryWidth();
+  await divider.press('ArrowLeft');
+  await expect.poll(accessoryWidth).not.toBe(widthBeforeResize);
+  const widthAfterKeyboard = await accessoryWidth();
+  const dividerBounds = await divider.boundingBox();
+  if (!dividerBounds) throw new Error('Drive separator is not visible');
+  await page.mouse.move(
+    dividerBounds.x + dividerBounds.width / 2,
+    dividerBounds.y + dividerBounds.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    dividerBounds.x + dividerBounds.width / 2 + 48,
+    dividerBounds.y + dividerBounds.height / 2,
+  );
+  await page.mouse.up();
+  await expect.poll(accessoryWidth).toBeLessThan(widthAfterKeyboard);
+  await expect(page.locator('[data-turn-progress]')).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar Google Drive' }).click();
   await expect(page.getByRole('button', { name: 'Abrir Google Drive' })).toBeFocused();
   await expect(page.locator('[data-turn-progress]')).toBeVisible();

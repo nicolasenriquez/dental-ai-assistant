@@ -11,7 +11,7 @@ const items = [
   },
 ];
 
-function renderList(isCollapsed = false, onRequestExpand = vi.fn()) {
+function renderList(isCollapsed = false, onRequestExpand = vi.fn(), running = false) {
   return {
     onRequestExpand,
     ...render(
@@ -20,6 +20,7 @@ function renderList(isCollapsed = false, onRequestExpand = vi.fn()) {
         title="Asistente"
         items={items}
         isCollapsed={isCollapsed}
+        running={running}
         onRequestExpand={onRequestExpand}
         onCreate={vi.fn()}
         onSelect={vi.fn()}
@@ -49,6 +50,16 @@ describe('WorkspaceThreadList', () => {
     expect(history).toBeVisible();
     fireEvent.click(history);
     expect(onRequestExpand).toHaveBeenCalledOnce();
+  });
+
+  it('shows the mounted turn progress in the collapsed rail beside the pending dot', () => {
+    renderList(true, vi.fn(), true);
+
+    const history = screen.getByRole('button', {
+      name: 'Abrir historial de asistente; respuesta en progreso; hay una aprobación pendiente',
+    });
+    expect(history.querySelector('.conversation-progress-indicator')).toBeInTheDocument();
+    expect(history.querySelector('.workspace-thread-list__pending-dot.is-offset')).toBeVisible();
   });
 
   it('uses the shared search affordance and clears its query', () => {

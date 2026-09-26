@@ -25,9 +25,11 @@ function activityLabel(items: ClinicalTranscriptItem[]): string {
 
 export function ClinicalTurnProgress({ turn, items }: ClinicalTurnProgressProps) {
   const userCreatedAt = items.find((item) => item.type === 'user')?.createdAt;
-  const fallbackStart = useRef(Date.now());
-  const startedAt = userCreatedAt ? Date.parse(userCreatedAt) : fallbackStart.current;
-  const elapsed = () => Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const startedAt = userCreatedAt ? Date.parse(userCreatedAt) : null;
+  const elapsed = () =>
+    startedAt === null || !Number.isFinite(startedAt)
+      ? 0
+      : Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
   const [seconds, setSeconds] = useState(elapsed);
   const candidate = activityLabel(items);
   const [visibleLabel, setVisibleLabel] = useState(DEFAULT_LABEL);
@@ -40,6 +42,7 @@ export function ClinicalTurnProgress({ turn, items }: ClinicalTurnProgressProps)
 
   useEffect(() => {
     setSeconds(elapsed());
+    if (startedAt === null || !Number.isFinite(startedAt)) return;
     const interval = window.setInterval(() => setSeconds(elapsed()), 1000);
     return () => window.clearInterval(interval);
   }, [startedAt]);
@@ -69,9 +72,21 @@ export function ClinicalTurnProgress({ turn, items }: ClinicalTurnProgressProps)
         <div className="clinical-turn-progress__heading">
           <span className="clinical-turn-progress__pulse" />
           <span>{stopping ? 'Deteniendo respuesta…' : 'Trabajando'}</span>
-          <span className="clinical-turn-progress__elapsed">· {seconds} s</span>
+          {!stopping && <span className="clinical-turn-progress__elapsed">· {seconds} s</span>}
         </div>
-        {!compact && !stopping && <div className="clinical-turn-progress__label">{label}</div>}
+        {!compact && !stopping && (
+          <>
+            <div className="clinical-turn-progress__divider" />
+            <div className="clinical-turn-progress__label">
+              {label}
+              <span className="clinical-turn-progress__dots">
+                <i />
+                <i />
+                <i />
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </section>
   );

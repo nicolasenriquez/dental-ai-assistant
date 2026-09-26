@@ -30,6 +30,8 @@ describe('ClinicalTurnProgress', () => {
       <ClinicalTurnProgress turn={{ turnId: 'turn-1', phase: 'running' }} items={[user]} />,
     );
     expect(view.container).toHaveTextContent('· 0 s');
+    expect(view.container.querySelector('.clinical-turn-progress__divider')).toBeInTheDocument();
+    expect(view.container.querySelectorAll('.clinical-turn-progress__dots i')).toHaveLength(3);
     act(() => vi.advanceTimersByTime(2000));
     expect(view.container).toHaveTextContent('· 2 s');
     act(() => vi.advanceTimersByTime(3000));
@@ -43,8 +45,10 @@ describe('ClinicalTurnProgress', () => {
     const turn = { turnId: 'turn-1', phase: 'running' as const };
     const view = render(<ClinicalTurnProgress turn={turn} items={[]} />);
     expect(view.container).toHaveTextContent('· 0 s');
+    act(() => vi.advanceTimersByTime(2000));
+    expect(view.container).toHaveTextContent('· 0 s');
     view.rerender(<ClinicalTurnProgress turn={turn} items={[user]} />);
-    expect(view.container).toHaveTextContent('· 5 s');
+    expect(view.container).toHaveTextContent('· 7 s');
   });
 
   it('keeps each visible label for 300 ms and coalesces rapid changes', () => {
@@ -90,6 +94,9 @@ describe('ClinicalTurnProgress', () => {
       'Deteniendo respuesta…',
     );
     expect(view.container.querySelector('.clinical-turn-progress__label')).not.toBeInTheDocument();
+    expect(
+      view.container.querySelector('.clinical-turn-progress__elapsed'),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Deteniendo respuesta…');
     view.rerender(
       <ClinicalTurnProgress

@@ -18,6 +18,7 @@ interface WorkspaceThreadListProps {
   title: string;
   items: WorkspaceThreadItem[];
   isCollapsed?: boolean;
+  running?: boolean;
   loading?: boolean;
   error?: boolean;
   query?: string;
@@ -63,6 +64,7 @@ export function WorkspaceThreadList({
   title,
   items,
   isCollapsed = false,
+  running = false,
   loading = false,
   error = false,
   query = '',
@@ -102,9 +104,13 @@ export function WorkspaceThreadList({
     }));
   }, [filteredItems]);
   const hasPending = items.some((item) => item.statusLabel);
-  const historyLabel = hasPending
-    ? `Abrir historial de ${title.toLocaleLowerCase()}; hay una aprobación pendiente`
-    : `Abrir historial de ${title.toLocaleLowerCase()}`;
+  const historyNotes = [
+    ...(running ? ['respuesta en progreso'] : []),
+    ...(hasPending ? ['hay una aprobación pendiente'] : []),
+  ];
+  const historyLabel = `Abrir historial de ${title.toLocaleLowerCase()}${
+    historyNotes.length ? `; ${historyNotes.join('; ')}` : ''
+  }`;
 
   return (
     <section
@@ -148,7 +154,13 @@ export function WorkspaceThreadList({
           title={historyLabel}
         >
           <History aria-hidden="true" size={17} strokeWidth={1.7} />
-          {hasPending && <span className="workspace-thread-list__pending-dot" aria-hidden="true" />}
+          {running && <span className="conversation-progress-indicator" aria-hidden="true" />}
+          {hasPending && (
+            <span
+              className={`workspace-thread-list__pending-dot${running ? ' is-offset' : ''}`}
+              aria-hidden="true"
+            />
+          )}
         </button>
       )}
       {onQueryChange && !isCollapsed && (
