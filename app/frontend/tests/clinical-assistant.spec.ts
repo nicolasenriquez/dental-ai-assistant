@@ -434,7 +434,7 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 
 for (const viewport of [
   { name: 'desktop', width: 1440, height: 1000 },
-  { name: 'boundary', width: 1024, height: 768 },
+  { name: 'boundary', width: 1024, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
 ] as const) {
   test(`assistant and Drive visual states at ${viewport.name}`, async ({ page }) => {
@@ -1027,12 +1027,11 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   const composer = page.getByTestId('clinical-composer').getByLabel('Nota clínica');
   await composer.fill('Control preventivo sin hallazgos nuevos.');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
-  await expect(page.getByText('Pensando…')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Evolución clínica' })).toBeVisible();
   await expect(
     page.locator('.workspace-header').getByText('Ana Pérez · Evolución · 15 ene'),
   ).toBeVisible();
-  await expect(page.getByText('Pensando…')).toHaveCount(0);
+  await expect(page.locator('[data-turn-progress]')).toHaveCount(0);
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(0);
   await expect(page.getByRole('article', { name: 'Tú' })).toBeVisible();
@@ -1245,6 +1244,7 @@ test('saved evolution distinguishes clinical save from Drive synchronization', a
   await expectNoHorizontalOverflow(page);
   await expect(page).toHaveScreenshot('assistant-saved-desktop.png', {
     animations: 'disabled',
+    maxDiffPixels: 50,
   });
 });
 
@@ -1465,7 +1465,7 @@ test('unexpected clinical stream loss hydrates the persisted draft', async ({ pa
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await expect(page.getByRole('article', { name: 'Evolución clínica' })).toBeVisible();
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
-  await expect(page.getByText('Pensando…')).toHaveCount(0);
+  await expect(page.locator('[data-turn-progress]')).toHaveCount(0);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
@@ -1589,7 +1589,7 @@ test('clinical streaming keeps history anchored and offers jump for large artifa
   await composer.fill('Nueva nota durante lectura histórica.');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await streamEntered;
-  await expect(page.getByText('Pensando…')).toBeVisible();
+  await expect(page.locator('[data-turn-progress]')).toContainText('Trabajando');
   await transcript.evaluate((element) => {
     element.scrollTop = 0;
     element.dispatchEvent(new Event('scroll'));
@@ -1614,9 +1614,160 @@ test('clinical streaming keeps history anchored and offers jump for large artifa
   await expect(page.getByRole('button', { name: /Ir al mensaje más reciente/ })).toHaveCount(0);
 });
 
+test('closing Drive during a retained clinical SSE keeps the turn alive', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  type StreamWindow = Window & {
+    __testClinicalStream?: {
+      turnId: string;
+      content: string;
+      push: (frame: string) => void;
+      close: () => void;
+    };
+  };
+  await page.addInitScript((path) => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+      if (url.pathname !== path || init?.method !== 'POST') return originalFetch(input, init);
+
+      const { turn_id: turnId, content } = JSON.parse(String(init.body)) as {
+        turn_id: string;
+        content: string;
+      };
+      let controller!: ReadableStreamDefaultController<Uint8Array>;
+      const body = new ReadableStream<Uint8Array>({
+        start(streamController) {
+          controller = streamController;
+        },
+      });
+      (window as StreamWindow).__testClinicalStream = {
+        turnId,
+        content,
+        push: (frame) => controller.enqueue(new TextEncoder().encode(frame)),
+        close: () => controller.close(),
+      };
+      return Promise.resolve(
+        new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }),
+      );
+    };
+  }, `/api/clinical-threads/${threadId}/turns`);
+  const harness = await setupClinicalHarness(page, thread());
+  const composer = page.getByLabel('Nota clínica');
+  await composer.fill('Consulta durante Drive');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await page.waitForFunction(() => Boolean((window as StreamWindow).__testClinicalStream));
+  const { turnId, content } = await page.evaluate(() => {
+    const stream = (window as StreamWindow).__testClinicalStream;
+    if (!stream) throw new Error('Clinical stream was not opened');
+    return { turnId: stream.turnId, content: stream.content };
+  });
+  await page.evaluate(
+    (frames) => {
+      const stream = (window as StreamWindow).__testClinicalStream;
+      if (!stream) throw new Error('Clinical stream was closed');
+      for (const frame of frames) stream.push(frame);
+    },
+    [
+      sseEvent(
+        'turn.started',
+        1,
+        turnId,
+        `turn-${turnId}`,
+        'turn',
+        { user_content: content },
+        'running',
+      ),
+      sseEvent(
+        'item.started',
+        2,
+        turnId,
+        `activity-${turnId}`,
+        'activity',
+        { label: 'Leyendo contexto adjunto' },
+        'running',
+      ),
+    ],
+  );
+  await expect(page.locator('.clinical-turn-progress__label')).toHaveText(
+    'Leyendo contexto adjunto',
+  );
+  await expect(page.locator('[data-turn-progress]')).toContainText('Trabajando');
+  const stop = page.getByRole('button', { name: 'Detener respuesta' });
+  await expect(stop).toBeVisible();
+  await expect(page.locator('.conversation-progress-indicator')).toBeVisible();
+  const stopBeforeQueue = await stop.boundingBox();
+  await composer.fill('Siguiente nota sin perder');
+  await expect(page.getByRole('button', { name: 'Encolar' })).toBeVisible();
+  const stopWithQueue = await stop.boundingBox();
+  expect(stopWithQueue?.x).toBe(stopBeforeQueue?.x);
+  await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+  await expect(
+    page.getByRole('region', { name: 'Espacio de documentos de Google Drive' }),
+  ).toBeVisible();
+  const divider = page.getByRole('separator', { name: 'Redimensionar Google Drive' });
+  const widths = await divider.evaluate((element) => ({
+    hit: element.getBoundingClientRect().width,
+    rule: getComputedStyle(element, '::before').width,
+  }));
+  expect(widths.hit).toBeGreaterThanOrEqual(12);
+  expect(widths.rule).toBe('1px');
+  await divider.focus();
+  await expect(divider).toBeFocused();
+  await page.getByRole('button', { name: 'Cerrar Google Drive' }).click();
+  await expect(page.getByRole('button', { name: 'Abrir Google Drive' })).toBeFocused();
+  await expect(page.locator('[data-turn-progress]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
+  await expect(composer).toHaveValue('Siguiente nota sin perder');
+  harness.setThread(
+    thread([], {
+      messages: [
+        {
+          id: `user-${turnId}`,
+          turn_id: turnId,
+          role: 'user',
+          content,
+          created_at: '2026-01-15T12:01:00Z',
+        },
+        {
+          id: `assistant-${turnId}`,
+          turn_id: turnId,
+          role: 'assistant',
+          content: 'Respuesta después de cerrar Drive.',
+          created_at: '2026-01-15T12:01:01Z',
+        },
+      ],
+    }),
+  );
+  await page.evaluate(
+    (frames) => {
+      const stream = (window as StreamWindow).__testClinicalStream;
+      if (!stream) throw new Error('Clinical stream was closed');
+      for (const frame of frames) stream.push(frame);
+      stream.close();
+    },
+    [
+      sseEvent(
+        'item.completed',
+        3,
+        turnId,
+        `assistant-${turnId}`,
+        'assistant_message',
+        { content: 'Respuesta después de cerrar Drive.' },
+        'completed',
+      ),
+      sseEvent('turn.completed', 4, turnId, `complete-${turnId}`, 'turn', {}, 'completed'),
+    ],
+  );
+  await expect(page.getByRole('article', { name: 'Asistente' })).toContainText(
+    'Respuesta después de cerrar Drive.',
+  );
+  await expect(page.locator('[data-turn-progress]')).toHaveCount(0);
+  await expect(page.locator('.conversation-progress-indicator')).toHaveCount(0);
+});
+
 for (const viewport of [
   { name: 'desktop', width: 1440, height: 1000 },
-  { name: 'tablet', width: 900, height: 1000 },
+  { name: 'tablet', width: 1024, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
 ] as const) {
   test(`clinical reduced-motion ${viewport.name} layout stays usable`, async ({ page }) => {

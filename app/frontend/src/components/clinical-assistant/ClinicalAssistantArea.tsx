@@ -103,6 +103,13 @@ export function ClinicalAssistantArea({
   const voice = useVoiceDictation(voiceScope, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
   const activePatient = assistant.thread?.active_patient ?? null;
+  const queueAvailable = assistant.runtime === 'streaming' || assistant.runtime === 'stopping';
+  const activeTurn = assistant.activeTurnId
+    ? {
+        turnId: assistant.activeTurnId,
+        phase: assistant.runtime === 'stopping' ? ('stopping' as const) : ('running' as const),
+      }
+    : null;
   useEffect(() => {
     setPatientStatusOpen(false);
   }, [threadId, activePatient?.id]);
@@ -213,9 +220,8 @@ export function ClinicalAssistantArea({
   const send = () => {
     if (!value.trim() || voiceInFlight) return;
     const instruction = value.trim();
-    const queueable = assistant.runtime === 'streaming' || assistant.runtime === 'stopping';
     if (assistant.runtime === 'saving' || assistant.runtime === 'awaiting_approval') return;
-    if (queueable) {
+    if (queueAvailable) {
       if (queued.length >= 3) {
         setQueueError('Ya tienes 3 mensajes pendientes.');
         return;
@@ -298,7 +304,8 @@ export function ClinicalAssistantArea({
       <ClinicalTranscript
         threadId={threadId}
         items={assistant.items}
-        busy={assistant.runtime === 'streaming' || assistant.runtime === 'saving'}
+        activeTurn={activeTurn}
+        busy={queueAvailable || assistant.runtime === 'saving'}
         emptyState={
           <section className="chat-empty-state clinical-empty-state">
             <Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />
@@ -387,22 +394,6 @@ export function ClinicalAssistantArea({
         }}
       >
         <div className="chat-input-dock-inner">
-          {(assistant.runtime === 'streaming' || assistant.runtime === 'stopping') && (
-            <div
-              className="mb-2 flex items-center justify-between gap-3 text-xs text-[var(--text-secondary)]"
-              role="status"
-            >
-              <span>Assistant trabajando · los mensajes nuevos quedarán pendientes</span>
-              <button
-                type="button"
-                className="clinical-secondary-button"
-                onClick={assistant.stop}
-                disabled={assistant.runtime === 'stopping'}
-              >
-                {assistant.runtime === 'stopping' ? 'Deteniendo…' : 'Detener'}
-              </button>
-            </div>
-          )}
           {assistant.runtime === 'saving' && (
             <p className="clinical-composer-lock" role="status">
               Espera mientras guardamos la evolución.
@@ -477,7 +468,16 @@ export function ClinicalAssistantArea({
             textareaRef={textareaRef}
             onChange={setValue}
             onSubmit={send}
-            queueing={assistant.runtime === 'streaming' || assistant.runtime === 'stopping'}
+            primaryAction={
+              assistant.runtime === 'stopping'
+                ? 'stopping'
+                : assistant.runtime === 'streaming'
+                  ? 'stop'
+                  : 'send'
+            }
+            onPrimaryAction={queueAvailable ? assistant.stop : send}
+            queueAvailable={queueAvailable}
+            onQueue={send}
             patientStatusOpen={patientStatusOpen}
             onTogglePatientStatus={() => setPatientStatusOpen((open) => !open)}
             contextItems={contextItems}

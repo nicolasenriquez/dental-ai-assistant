@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { motionSafeScrollBehavior, useChatAutoFollow } from '../../hooks/useChatAutoFollow';
@@ -10,10 +10,10 @@ import type {
 import { useConversationViewportCache } from '../../hooks/useConversationViewportCache';
 import type { ClinicalDraft, ClinicalPatient, DriveJournalTarget } from '../../lib/api';
 import { Message } from '../Message';
-import { Spinner } from '../Spinner';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 import { ClinicalDraftItem } from './ClinicalDraftItem';
 import { ClinicalPatientSwitchItem } from './ClinicalPatientSwitchItem';
+import { type ActiveClinicalTurn, ClinicalTurnProgress } from './ClinicalTurnProgress';
 
 type ResultItemData = Extract<ClinicalTranscriptItem, { type: 'result' }>;
 
@@ -50,6 +50,7 @@ interface ClinicalTranscriptProps {
   onBackToEdit: (item: ApprovalItemData) => void;
   onRetry: (turnId: string) => void;
   busy?: boolean;
+  activeTurn?: ActiveClinicalTurn | null;
   preparingDraftId?: string | null;
   autoOpenApprovalId?: string | null;
   artifactSyncState?: Record<string, 'idle' | 'saving' | 'saved' | 'error'>;
@@ -64,29 +65,6 @@ interface ClinicalTranscriptProps {
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
   onKeepPatient?: (itemId: string) => void;
   onChangePatient?: (item: Extract<ClinicalTranscriptItem, { type: 'patient_switch' }>) => void;
-}
-
-function ProcessingStatus({ items }: { items: ClinicalTranscriptItem[] }) {
-  const activities = items.filter((item) => item.type === 'activity');
-  const active = activities.find((item) => item.status === 'running' || item.status === 'pending');
-  const [visibleId, setVisibleId] = useState<string | null>(null);
-  useEffect(() => {
-    setVisibleId(null);
-    if (!active) return;
-    const timer = setTimeout(() => setVisibleId(active.id), 300);
-    return () => clearTimeout(timer);
-  }, [active?.id]);
-  if (!active || visibleId !== active.id) return null;
-  return (
-    <section
-      className="clinical-processing clinical-activity--active"
-      role="status"
-      aria-live="polite"
-    >
-      <Spinner />
-      <span>{active.label}</span>
-    </section>
-  );
 }
 
 function groupByTurn(items: ClinicalTranscriptItem[]): ClinicalTranscriptItem[][] {
@@ -112,6 +90,7 @@ export function ClinicalTranscript({
   onBackToEdit,
   onRetry,
   busy = false,
+  activeTurn = null,
   preparingDraftId = null,
   autoOpenApprovalId = null,
   artifactSyncState = {},
@@ -135,18 +114,20 @@ export function ClinicalTranscript({
   });
   const { restoreViewport } = viewport;
 
-  const latestItem = items[items.length - 1];
-  const showThinking = busy && latestItem?.type === 'user';
+  // Activity labels and the progress clock are presentation-only. They must not
+  // change the revision that drives transcript auto-follow.
+  const followItems = items.filter((item) => item.type !== 'activity');
+  const latestItem = followItems[followItems.length - 1];
+  const groups = groupByTurn(items);
+  const activeGroupExists = groups.some((group) => group[0]?.turnId === activeTurn?.turnId);
   const latestContentRevision =
     latestItem?.type === 'assistant'
       ? latestItem.content.length
-      : latestItem?.type === 'activity'
-        ? latestItem.label
-        : latestItem?.type === 'result' || latestItem?.type === 'error'
-          ? latestItem.message
-          : '';
+      : latestItem?.type === 'result' || latestItem?.type === 'error'
+        ? latestItem.message
+        : '';
   const followRevision = [
-    items.length,
+    followItems.length,
     latestItem?.id ?? '',
     latestItem?.status ?? '',
     latestContentRevision,
@@ -183,17 +164,21 @@ export function ClinicalTranscript({
       aria-label="Transcripción clínica"
       aria-busy={busy}
     >
-      {items.length === 0 && emptyState ? (
+      {items.length === 0 && !activeTurn && emptyState ? (
         emptyState
       ) : (
         <div className="chat-message-stack clinical-transcript-stack">
-          {groupByTurn(items).map((group) => (
+          {groups.map((group) => (
             <section
               key={group[0]?.turnId}
               className="clinical-turn-group"
               data-turn-id={group[0]?.turnId}
             >
-              {group.map((item, index) => {
+              {activeTurn?.turnId === group[0]?.turnId &&
+                !group.some((item) => item.type === 'user') && (
+                  <ClinicalTurnProgress key={activeTurn.turnId} turn={activeTurn} items={group} />
+                )}
+              {group.map((item) => {
                 if (item.type === 'user')
                   return (
                     <div key={item.id}>
@@ -213,6 +198,13 @@ export function ClinicalTranscript({
                         </div>
                       )}
                       <Message role={item.type} content={item.content} />
+                      {activeTurn?.turnId === item.turnId && (
+                        <ClinicalTurnProgress
+                          key={activeTurn.turnId}
+                          turn={activeTurn}
+                          items={group}
+                        />
+                      )}
                     </div>
                   );
                 if (item.type === 'assistant')
@@ -229,11 +221,7 @@ export function ClinicalTranscript({
                       saveToDriveDisabled={driveTransferDisabled}
                     />
                   );
-                if (item.type === 'activity') {
-                  if (group.slice(0, index).some((candidate) => candidate.type === 'activity'))
-                    return null;
-                  return <ProcessingStatus key={item.id} items={group} />;
-                }
+                if (item.type === 'activity') return null;
                 if (item.type === 'patient_switch') {
                   return (
                     <ClinicalPatientSwitchItem
@@ -326,15 +314,10 @@ export function ClinicalTranscript({
               })}
             </section>
           ))}
-          {showThinking && (
-            <div
-              className="clinical-thinking"
-              role="status"
-              aria-live="polite"
-              aria-label="El asistente está preparando una respuesta"
-            >
-              Pensando…
-            </div>
+          {activeTurn && !activeGroupExists && (
+            <section className="clinical-turn-group" data-turn-id={activeTurn.turnId}>
+              <ClinicalTurnProgress key={activeTurn.turnId} turn={activeTurn} items={[]} />
+            </section>
           )}
         </div>
       )}

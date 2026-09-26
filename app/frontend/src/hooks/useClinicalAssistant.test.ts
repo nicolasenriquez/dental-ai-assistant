@@ -127,6 +127,7 @@ describe('clinical redaction and artifact ordering', () => {
     });
     const { result } = renderHook(() => useClinicalAssistant('thread-1'));
     await waitFor(() => expect(result.current.runtime).toBe('streaming'));
+    expect(result.current.activeTurnId).toBe('turn-running');
     await act(async () => result.current.stop());
     expect(cancelClinicalTurn).toHaveBeenCalledWith('thread-1', 'turn-running');
   });
@@ -223,6 +224,7 @@ describe('clinical redaction and artifact ordering', () => {
     });
     expect(sent).toBe(true);
     expect(result.current.runtime).toBe('idle');
+    expect(result.current.activeTurnId).toBeNull();
     expect(result.current.error).toBeNull();
     expect(result.current.items.some((item) => item.type === 'draft')).toBe(true);
   });
@@ -277,6 +279,7 @@ describe('clinical redaction and artifact ordering', () => {
       });
       expect(JSON.stringify(result.current.items)).not.toContain(rut);
       const turnId = vi.mocked(streamClinicalTurn).mock.calls[0][1].turn_id;
+      expect(result.current.activeTurnId).toBe(turnId);
       await act(async () => {
         response.resolve(
           new Response(

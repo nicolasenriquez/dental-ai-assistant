@@ -146,6 +146,7 @@ function ClinicalAssistantContent() {
       secondarySidebarContent={(isCollapsed, onRequestExpand) => (
         <ClinicalThreadList
           activeThreadId={activeId ?? undefined}
+          activeTurnRunning={assistant.activeTurnId !== null}
           isCollapsed={isCollapsed}
           refreshKey={threadListVersion}
           onRequestExpand={onRequestExpand}

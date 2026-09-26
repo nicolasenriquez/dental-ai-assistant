@@ -14,6 +14,7 @@ import { WorkspaceThreadList } from '../sidebar/WorkspaceThreadList';
 
 interface ClinicalThreadListProps {
   activeThreadId?: string;
+  activeTurnRunning?: boolean;
   isCollapsed?: boolean;
   refreshKey?: number;
   onRequestExpand?: () => void;
@@ -21,6 +22,7 @@ interface ClinicalThreadListProps {
 
 export function ClinicalThreadList({
   activeThreadId,
+  activeTurnRunning = false,
   isCollapsed = false,
   refreshKey = 0,
   onRequestExpand,
@@ -144,6 +146,7 @@ export function ClinicalThreadList({
             }}
             query={query}
             isActive={Boolean(item.active)}
+            isRunning={Boolean(item.active && activeTurnRunning)}
             statusLabel={item.statusLabel}
             onSelect={() => guardTransition(() => navigate(`/a/${item.id}`))}
             onDeleteRequest={() => requestRemove(item.id)}

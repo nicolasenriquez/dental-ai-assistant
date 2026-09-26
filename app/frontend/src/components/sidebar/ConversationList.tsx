@@ -41,6 +41,7 @@ export interface ConversationRowProps {
   query: string;
   isActive: boolean;
   runtime?: ConversationRuntime;
+  isRunning?: boolean;
   statusLabel?: string;
   onSelect: () => void;
   onDeleteRequest: () => void;
@@ -104,6 +105,7 @@ export function ConversationRow({
   query,
   isActive,
   runtime,
+  isRunning = false,
   statusLabel,
   onSelect,
   onDeleteRequest,
@@ -237,9 +239,9 @@ export function ConversationRow({
           }}
           aria-label={conversation.title}
           aria-current={isActive ? 'page' : undefined}
-          aria-busy={runtime?.status === 'running'}
+          aria-busy={isRunning || runtime?.status === 'running'}
           title={
-            runtime?.status === 'running'
+            isRunning || runtime?.status === 'running'
               ? `${conversation.title} · Respuesta en progreso`
               : runtime?.status === 'error'
                 ? `${conversation.title} · Error en la respuesta`
@@ -252,7 +254,7 @@ export function ConversationRow({
           <span className="conversation-title-label">
             {highlightMatch(conversation.title, query)}
           </span>
-          {runtime?.status === 'running' && (
+          {(isRunning || runtime?.status === 'running') && (
             <span
               className="conversation-progress-indicator"
               role="status"

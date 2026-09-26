@@ -2,6 +2,32 @@
 
 Reference: supplied Codex-inspired Clinical Assistant visual contract and the existing Dental AI Assistant shell.
 
+## Demo-state visual check — 2026-09-26
+
+The HTML contains five prototype controls (`Respuesta`, `Esperando`, `Card clínica`, `Dictado`, `Vacío`). They are not a mode switcher in `/assistant`; the app shows the corresponding states through the clinical workflow. The approved scope used the HTML for behavior and hierarchy while retaining the app's own components and tokens.
+
+| Prototype state | Isolated app evidence (Playwright CLI, mocked clinical routes) | Native browser evidence | Visual difference |
+| --- | --- | --- | --- |
+| Vacío | Empty assistant capture at 1440 × 1000 | Shared Google app and signed-in isolated app both showed the empty assistant | Heading and helper copy differ; prototype's safety line is not present |
+| Respuesta | `.playwright-cli/assistant-answer-qa.png` | Existing shared conversation showed assistant prose | App uses its own prose/actions presentation |
+| Esperando | `.playwright-cli/assistant-waiting-qa.png` showed `Trabajando · 5 s`, activity label, sidebar glyph and stable Stop/Encolar controls | Not exercised on the shared app | App uses the implemented progress block; prototype's timed sample labels are illustrative |
+| Card clínica | `.playwright-cli/assistant-draft-qa.png` showed a structured draft without duplicate assistant prose | Existing shared conversation showed a saved clinical artifact | App keeps the five-field artifact, review workflow and current styling, rather than the prototype card layout/copy |
+| Dictado | `.playwright-cli/assistant-dictation-qa.png` showed recording controls with a simulated microphone | Not exercised on the shared app | App's recording/transcription status follows its own voice workflow |
+
+The native browser inspected the shared Google app **read only** (empty, response, saved artifact and Drive split); that instance was not rebuilt from the current checkout. The signed-in isolated app was also opened in the native browser for the empty state. Playwright CLI rendered the current isolated build with mocked clinical routes for the active and draft states, and a simulated `MediaRecorder` for dictation. The `.playwright-cli/` captures are local, ignored QA artifacts. These captures prove state presentation, not live clinical persistence or real microphone permissions. The HTML was inspected as source; automatic approval review rejected opening its local `file://` URL after the browser policy blocked it, so no rendered pixel-parity claim is made.
+
+## Interaction polish verification — 2026-09-25
+
+| Evidence source | Result | Scope |
+| --- | --- | --- |
+| Vitest with fake timers and component/hook tests | 539/539 passed | Elapsed `0 → 2 → 5 s`, 300 ms label dwell, hydration, active-turn and terminal state, composer controls, queue cap and patient conflict, Stop draft preservation, no progress-label auto-follow |
+| Playwright `clinical` project against isolated Docker app on `localhost:8001` | 26/26 passed with isolated local auth setup; SSE rechecked 2026-09-26 | Mocked clinical API and browser-streamed SSE: turn start and activity observed before Drive open/close, response afterward; history scroll and jump, focus return, reduced motion, 1440 × 1000, 1024 × 900 and 390 × 844 |
+| Desktop visual snapshots | 7 refreshed and passed | The 12 px Drive divider intentionally shifts the accessory panel a few pixels; its visible rule measured 1 px in the browser |
+| Native browser on shared Google app | Read-only inspection before this code was built | Confirmed existing shell and Drive behavior only; no post-change or real clinical-write pass is claimed |
+| Attached HTML | Source inspected; `file://` access blocked by native browser policy | Used for behavior and hierarchy, without a rendered pixel comparison |
+
+The Playwright clinical actions above use mocked routes and a browser-side SSE stream in an isolated local app. They do not verify the shared Google instance or live clinical persistence. The historical observations below belong to earlier QA passes and retain their original evidence labels.
+
 Primary viewport: 1440 × 1000 (Playwright clinical project). Additional viewports: 1024 × 900 and 390 × 844. Native Codex browser: 561 × 898 CSS px at device scale 1.5.
 
 | State | Screenshot | Expected behavior | Observed behavior | Difference | Severity | Fix |

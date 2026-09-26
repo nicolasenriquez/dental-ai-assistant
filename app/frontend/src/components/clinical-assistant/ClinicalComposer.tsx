@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Square } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useState } from 'react';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
@@ -24,13 +24,16 @@ interface ClinicalComposerProps {
   textareaRef: RefObject<HTMLTextAreaElement>;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  primaryAction: 'send' | 'stop' | 'stopping';
+  onPrimaryAction: () => void;
+  queueAvailable?: boolean;
+  onQueue?: () => void;
   patientStatusOpen?: boolean;
   onTogglePatientStatus?: () => void;
   contextItems?: ComposerContextItem[];
   onRemoveContext?: (id: string) => void;
   voice: ClinicalVoiceControls;
   submitDisabled?: boolean;
-  queueing?: boolean;
 }
 
 export function ClinicalComposer({
@@ -39,13 +42,16 @@ export function ClinicalComposer({
   textareaRef,
   onChange,
   onSubmit,
+  primaryAction,
+  onPrimaryAction,
+  queueAvailable = false,
+  onQueue,
   patientStatusOpen = false,
   onTogglePatientStatus,
   contextItems = [],
   onRemoveContext,
   voice,
   submitDisabled = false,
-  queueing = false,
 }: ClinicalComposerProps) {
   const [focused, setFocused] = useState(false);
   const voiceInFlight = isVoiceInFlight(voice.state);
@@ -140,33 +146,58 @@ export function ClinicalComposer({
           )}
         </button>
       )}
-      <button
-        type="button"
-        className={`chat-send-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${!value.trim() ? ' is-disabled' : ''}`}
-        onClick={onSubmit}
-        disabled={!value.trim() || submitDisabled || voiceInFlight}
-        aria-label={queueing ? 'Poner mensaje en cola' : 'Enviar mensaje'}
-        title={queueing ? 'Poner en cola' : 'Enviar'}
-      >
-        {voice.state === 'stopping' || voice.state === 'transcribing' ? (
-          <span aria-hidden="true" className="spinner" />
-        ) : (
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+      <div className="clinical-composer-actions">
+        {queueAvailable && value.trim() && (
+          <button
+            type="button"
+            className="clinical-queue-button"
+            onClick={onQueue}
+            disabled={submitDisabled || voiceInFlight}
           >
-            <line x1="8" y1="14" x2="8" y2="3" />
-            <polyline points="3,8 8,3 13,8" />
-          </svg>
+            Encolar
+          </button>
         )}
-      </button>
+        <button
+          type="button"
+          className={`${primaryAction === 'send' ? 'chat-send-button' : 'chat-stop-button'} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${primaryAction === 'send' && !value.trim() ? ' is-disabled' : ''}`}
+          onClick={onPrimaryAction}
+          disabled={
+            primaryAction === 'stopping' ||
+            (primaryAction === 'send' && (!value.trim() || submitDisabled || voiceInFlight))
+          }
+          aria-label={
+            primaryAction === 'send'
+              ? 'Enviar mensaje'
+              : primaryAction === 'stop'
+                ? 'Detener respuesta'
+                : 'Deteniendo respuesta'
+          }
+          title={primaryAction === 'send' ? 'Enviar' : 'Detener respuesta'}
+        >
+          {primaryAction === 'stopping' ||
+          (primaryAction === 'send' &&
+            (voice.state === 'stopping' || voice.state === 'transcribing')) ? (
+            <span aria-hidden="true" className="spinner" />
+          ) : primaryAction === 'stop' ? (
+            <Square aria-hidden="true" size={14} fill="currentColor" />
+          ) : (
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="8" y1="14" x2="8" y2="3" />
+              <polyline points="3,8 8,3 13,8" />
+            </svg>
+          )}
+        </button>
+      </div>
     </ComposerShell>
   );
 }

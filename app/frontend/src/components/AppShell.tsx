@@ -248,6 +248,7 @@ export function AppShell({
                     {children}
                   </ResizablePanel>
                   <ResizableHandle
+                    aria-label="Redimensionar Google Drive"
                     className={`workspace-resize-handle${workspaceAccessoryVisible ? '' : ' workspace-resize-handle-closed'}`}
                   />
                   <ResizablePanel

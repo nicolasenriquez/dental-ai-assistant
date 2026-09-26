@@ -9,6 +9,7 @@ import type {
 } from '../../hooks/useClinicalAssistant';
 import type { ClinicalDraft, ClinicalPatient, ClinicalPendingAction } from '../../lib/api';
 import { ClinicalTranscript } from './ClinicalTranscript';
+import type { ActiveClinicalTurn } from './ClinicalTurnProgress';
 
 const base = { turnId: 'turn-1', createdAt: '2026-09-10T12:00:00Z' };
 const patient: ClinicalPatient = {
@@ -149,6 +150,7 @@ function renderTranscript(
   threadId = 'thread-1',
   options: {
     onSaveDraftToDrive?: (item: ClinicalDraftItem) => void;
+    activeTurn?: ActiveClinicalTurn | null;
   } = {},
 ) {
   return render(
@@ -186,7 +188,7 @@ function expectNoPeerCards(container: HTMLElement): void {
 }
 
 describe('ClinicalTranscript', () => {
-  it('shows thinking only while a busy user item is latest', async () => {
+  it('places one progress block beside the matching optimistic user', () => {
     const user: ClinicalTranscriptItem = {
       ...base,
       id: 'user-1',
@@ -194,40 +196,103 @@ describe('ClinicalTranscript', () => {
       status: 'completed',
       content: 'Control preventivo',
     };
-    const view = renderTranscript([user]);
+    const other = { ...user, id: 'user-2', turnId: 'turn-2', content: 'Otra consulta' };
+    const view = renderTranscript([user, other], true, 'thread-1', {
+      activeTurn: { turnId: 'turn-1', phase: 'running' },
+    });
+    expect(view.container.querySelectorAll('[data-turn-progress]')).toHaveLength(1);
     expect(
-      screen.getByRole('status', { name: 'El asistente está preparando una respuesta' }),
-    ).toHaveTextContent('Pensando…');
+      view.container.querySelector('[data-turn-progress]')?.closest('[data-turn-id]'),
+    ).toHaveAttribute('data-turn-id', 'turn-1');
+    expect(view.container.querySelector('[data-turn-progress]')).toHaveTextContent('Trabajando');
+  });
 
+  it('does not schedule auto-follow when only an activity label changes', () => {
+    const user: ClinicalTranscriptItem = {
+      ...base,
+      id: 'user-1',
+      type: 'user',
+      status: 'completed',
+      content: 'Control',
+    };
+    const activity: ClinicalTranscriptItem = {
+      ...base,
+      id: 'activity-1',
+      type: 'activity',
+      status: 'running',
+      label: 'Revisando ficha',
+    };
+    const frame = vi.spyOn(window, 'requestAnimationFrame');
+    const activeTurn = { turnId: 'turn-1', phase: 'running' as const };
+    const view = renderTranscript([user, activity], true, 'thread-1', { activeTurn });
+    const scheduled = frame.mock.calls.length;
     view.rerender(
       <MemoryRouter>
         <ClinicalTranscript
           threadId="thread-1"
-          items={[
-            user,
-            {
-              ...base,
-              id: 'activity-1',
-              type: 'activity',
-              status: 'running',
-              label: 'Analizando exactamente',
-            },
-          ]}
+          items={[user, { ...activity, label: 'Preparando evolución' }]}
+          activeTurn={activeTurn}
           busy
           {...callbacks}
         />
       </MemoryRouter>,
     );
-    expect(screen.queryByText('Pensando…')).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Analizando exactamente')).toBeVisible());
+    expect(frame).toHaveBeenCalledTimes(scheduled);
+    frame.mockRestore();
   });
 
-  it('does not show thinking when idle', () => {
+  it('moves progress to a new turn and removes it at terminal state', () => {
+    const first: ClinicalTranscriptItem = {
+      ...base,
+      id: 'user-1',
+      type: 'user',
+      status: 'completed',
+      content: 'Primero',
+    };
+    const second: ClinicalTranscriptItem = {
+      ...first,
+      id: 'user-2',
+      turnId: 'turn-2',
+      content: 'Segundo',
+    };
+    const view = renderTranscript([first, second], true, 'thread-1', {
+      activeTurn: { turnId: 'turn-1', phase: 'running' },
+    });
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript
+          threadId="thread-1"
+          items={[first, second]}
+          activeTurn={{ turnId: 'turn-2', phase: 'running' }}
+          busy
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+    expect(view.container.querySelector('[data-turn-progress]')).toHaveAttribute(
+      'data-turn-progress',
+      'turn-2',
+    );
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript
+          threadId="thread-1"
+          items={[first, second]}
+          activeTurn={null}
+          busy={false}
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+    expect(view.container.querySelector('[data-turn-progress]')).not.toBeInTheDocument();
+  });
+
+  it('does not show progress when inactive', () => {
     renderTranscript(
       [{ ...base, id: 'user-1', type: 'user', status: 'completed', content: 'Control' }],
       false,
     );
-    expect(screen.queryByText('Pensando…')).not.toBeInTheDocument();
+    expect(screen.queryByText('Trabajando')).not.toBeInTheDocument();
   });
 
   it('suppresses completed internal activity when a draft is ready', () => {
@@ -244,55 +309,8 @@ describe('ClinicalTranscript', () => {
       ],
       false,
     );
-    expect(view.container.querySelector('.clinical-processing')).not.toBeInTheDocument();
+    expect(view.container.querySelector('[data-turn-progress]')).not.toBeInTheDocument();
     expect(screen.getByText('Borrador')).toBeVisible();
-  });
-
-  it.each(['pending', 'running'] as const)(
-    'shows sustained %s activity without changing its label',
-    async (status) => {
-      renderTranscript([
-        { ...base, id: `activity-${status}`, type: 'activity', status, label: 'pensando literal' },
-      ]);
-      expect(screen.queryByText('pensando literal')).not.toBeInTheDocument();
-      await waitFor(() => expect(screen.getByText('pensando literal')).toBeVisible());
-      expect(screen.getByRole('status')).toHaveClass('clinical-activity--active');
-    },
-  );
-
-  it('waits again before showing a different short activity', async () => {
-    const first: ClinicalTranscriptItem = {
-      ...base,
-      id: 'activity-first',
-      type: 'activity',
-      status: 'running',
-      label: 'Consultando evoluciones',
-    };
-    const view = renderTranscript([first]);
-    await waitFor(() => expect(screen.getByText('Consultando evoluciones')).toBeVisible());
-
-    view.rerender(
-      <MemoryRouter>
-        <ClinicalTranscript
-          threadId="thread-1"
-          items={[
-            { ...first, status: 'completed' },
-            {
-              ...base,
-              id: 'activity-second',
-              type: 'activity',
-              status: 'running',
-              label: 'Preparando borrador',
-            },
-          ]}
-          busy
-          {...callbacks}
-        />
-      </MemoryRouter>,
-    );
-    expect(screen.queryByText('Consultando evoluciones')).not.toBeInTheDocument();
-    expect(screen.queryByText('Preparando borrador')).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Preparando borrador')).toBeVisible());
   });
 
   it.each(['completed', 'failed', 'declined'] as const)(
@@ -305,7 +323,7 @@ describe('ClinicalTranscript', () => {
     },
   );
 
-  it('keeps assistant prose and processing unboxed beside one clinical artifact', async () => {
+  it('keeps assistant prose beside one clinical artifact without terminal progress', () => {
     const activity: ClinicalTranscriptItem = {
       ...base,
       id: 'activity-1',
@@ -316,15 +334,11 @@ describe('ClinicalTranscript', () => {
     const view = renderTranscript([assistantItem(), activity, draftItem()], false);
     const artifact = expectSingleHighEmphasisArtifact(view.container);
     const prose = screen.getByRole('article', { name: 'Asistente' });
-    const processing = (await screen.findByText('Revisando antecedentes')).closest(
-      '.clinical-processing',
-    ) as HTMLElement;
     const stack = view.container.querySelector('.clinical-transcript-stack');
 
     expect(prose).toHaveTextContent('La evolución requiere control preventivo.');
     expect(prose.closest('[data-artifact-id]')).toBeNull();
-    expect(processing).toHaveTextContent('Revisando antecedentes');
-    expect(processing.closest('[data-artifact-id]')).toBeNull();
+    expect(view.container.querySelector('[data-turn-progress]')).not.toBeInTheDocument();
     expect(stack).toHaveClass('chat-message-stack');
     expect(prose.parentElement).toBe(artifact.parentElement);
 

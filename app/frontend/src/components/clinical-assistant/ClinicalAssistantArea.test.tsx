@@ -29,6 +29,7 @@ function createAssistant(): ClinicalAssistantController {
     thread: assistantState.thread,
     items: [],
     runtime: runtime.value,
+    activeTurnId: runtime.value === 'streaming' || runtime.value === 'stopping' ? 'turn-1' : null,
     error: null,
     send,
     stop: vi.fn(),
@@ -79,14 +80,12 @@ describe('ClinicalAssistantArea queue', () => {
   it('keeps the fourth draft when three messages are already queued', () => {
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
     const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
-    const submit = screen.getByRole('button', { name: 'Poner mensaje en cola' });
-
     for (const message of ['Uno', 'Dos', 'Tres']) {
       fireEvent.change(composer, { target: { value: message } });
-      fireEvent.click(submit);
+      fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
     }
     fireEvent.change(composer, { target: { value: 'Cuatro' } });
-    fireEvent.click(submit);
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
 
     expect(composer).toHaveValue('Cuatro');
     expect(screen.getByRole('alert')).toHaveTextContent('Ya tienes 3 mensajes pendientes.');
@@ -135,9 +134,43 @@ describe('ClinicalAssistantArea queue', () => {
     const assistant = createAssistant();
     render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Detener' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta' }));
     expect(assistant.stop).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
+  });
+
+  it('keeps the next message draft when Stop is pressed', () => {
+    const assistant = createAssistant();
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+    const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
+    fireEvent.change(composer, { target: { value: 'Siguiente indicación' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta' }));
+    expect(assistant.stop).toHaveBeenCalledOnce();
+    expect(composer).toHaveValue('Siguiente indicación');
+    expect(screen.getByRole('button', { name: 'Encolar' })).toBeVisible();
+  });
+
+  it('keeps queued messages with their original patient after a patient change', () => {
+    const patientA = { id: 'patient-a', first_name: 'Ana', last_name: 'Pérez', rut_masked: '••••' };
+    const patientB = {
+      id: 'patient-b',
+      first_name: 'Bruno',
+      last_name: 'Ríos',
+      rut_masked: '••••',
+    };
+    assistantState.thread = createThread(patientA);
+    const view = render(
+      <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />,
+    );
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Para Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    assistantState.thread = createThread(patientB);
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    expect(screen.getByText(/Este mensaje fue escrito para Ana Pérez/)).toBeVisible();
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('sends Drive context separately from the instruction', () => {

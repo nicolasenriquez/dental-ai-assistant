@@ -909,10 +909,20 @@ export function useClinicalAssistant(threadId: string | undefined) {
     [threadId],
   );
 
+  // Stop keeps using the operational ref. Presentation only sees it while the
+  // current thread has a live turn; reconciliation may leave the ref set briefly.
+  const activeTurnId =
+    threadId &&
+    (runtime === 'streaming' || runtime === 'stopping') &&
+    (!thread || thread.id === threadId)
+      ? activeTurnRef.current
+      : null;
+
   return {
     thread,
     items: clinicalState.items,
     runtime,
+    activeTurnId,
     error,
     send,
     stop,

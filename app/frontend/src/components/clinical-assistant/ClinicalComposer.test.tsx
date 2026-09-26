@@ -20,6 +20,8 @@ function renderComposer(value = '') {
       textareaRef={createRef<HTMLTextAreaElement>()}
       onChange={vi.fn()}
       onSubmit={vi.fn()}
+      primaryAction="send"
+      onPrimaryAction={vi.fn()}
       voice={{
         state: 'idle',
         elapsed: 0,
@@ -53,6 +55,8 @@ describe('ClinicalComposer', () => {
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
         onSubmit={onSubmit}
+        primaryAction="send"
+        onPrimaryAction={onSubmit}
         voice={{
           state: 'idle',
           elapsed: 0,
@@ -72,6 +76,43 @@ describe('ClinicalComposer', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps Stop fixed while Enter and Encolar queue the next message', () => {
+    const onSubmit = vi.fn();
+    const onStop = vi.fn();
+    render(
+      <ClinicalComposer
+        patient={patient}
+        value="Siguiente nota"
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onSubmit={onSubmit}
+        primaryAction="stop"
+        onPrimaryAction={onStop}
+        queueAvailable
+        onQueue={onSubmit}
+        voice={{
+          state: 'idle',
+          elapsed: 0,
+          error: null,
+          canRetry: false,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onCancel: vi.fn(),
+          onRetry: vi.fn(),
+        }}
+      />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
+    fireEvent.keyDown(composer, { key: 'Enter', shiftKey: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.keyDown(composer, { key: 'Enter' });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta' }));
+    expect(onStop).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Enviar mensaje' })).not.toBeInTheDocument();
+  });
+
   it('keeps note editable but locks submit controls during transcription', () => {
     const onChange = vi.fn();
     const onSubmit = vi.fn();
@@ -82,6 +123,8 @@ describe('ClinicalComposer', () => {
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={onChange}
         onSubmit={onSubmit}
+        primaryAction="send"
+        onPrimaryAction={onSubmit}
         voice={{
           state: 'transcribing',
           elapsed: 0,
@@ -119,6 +162,8 @@ describe('ClinicalComposer', () => {
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
+        primaryAction="send"
+        onPrimaryAction={vi.fn()}
         voice={{
           state: 'recording',
           elapsed: 14_000,
@@ -150,6 +195,8 @@ describe('ClinicalComposer', () => {
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
         onSubmit={onSubmit}
+        primaryAction="send"
+        onPrimaryAction={onSubmit}
         voice={{
           state: 'recording',
           elapsed: 0,
@@ -178,6 +225,8 @@ describe('ClinicalComposer', () => {
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
+        primaryAction="send"
+        onPrimaryAction={vi.fn()}
         voice={{
           state: 'recording',
           elapsed: 0,

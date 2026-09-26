@@ -1627,53 +1627,53 @@ body,
   color: var(--text-secondary);
 }
 
-.clinical-processing {
-  display: grid;
-  gap: 10px;
-  padding: 2px 0;
-  animation: clinical-item-enter 180ms ease-out both;
+.clinical-turn-progress {
+  width: fit-content;
+  max-width: 100%;
+  border-left: 1px solid var(--border);
+  padding: 3px 0 3px 13px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
-.clinical-processing > strong {
-  color: var(--text-primary);
-  font-size: 14px;
-}
-
-.clinical-processing ul {
-  display: grid;
-  gap: 7px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.clinical-processing li {
+.clinical-turn-progress__heading {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
+  gap: 6px;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
-.clinical-thinking {
-  color: var(--text-secondary);
-  background: linear-gradient(
-    90deg,
-    var(--text-secondary),
-    var(--text-primary),
-    var(--text-secondary)
-  );
-  background-clip: text;
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-size: 13px;
-  animation: clinical-thinking-shimmer 1.8s linear infinite;
+.clinical-turn-progress__pulse {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 17%, transparent);
+  animation: clinical-progress-pulse 1.8s ease-in-out infinite;
 }
 
-@keyframes clinical-thinking-shimmer {
-  to {
-    background-position: -200% center;
+.clinical-turn-progress__elapsed {
+  color: var(--text-tertiary);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.clinical-turn-progress__label {
+  margin: 5px 0 0 13px;
+}
+
+.clinical-turn-progress.is-compact {
+  border-color: transparent;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+@keyframes clinical-progress-pulse {
+  50% {
+    opacity: 0.42;
   }
 }
 
@@ -2620,6 +2620,44 @@ body,
   box-shadow: 0 0 0 2px var(--conversation-focus-ring);
 }
 
+.clinical-composer-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.clinical-composer.chat-composer--voice-layout > .clinical-composer-actions {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+}
+
+.clinical-queue-button {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.clinical-queue-button:hover {
+  border-color: var(--accent);
+}
+.clinical-queue-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.clinical-queue-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .clinical-patient-context {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -3076,6 +3114,7 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .clinical-turn-progress__pulse,
   .chat-composer-input {
     transition: none;
   }
@@ -4505,22 +4544,33 @@ body,
 }
 
 .workspace-resize-handle {
-  width: 6px;
+  position: relative;
+  width: 12px;
   flex-shrink: 0;
-  background: var(--surface-2);
-  transition: background 150ms ease;
+  background: transparent;
   cursor: col-resize;
   outline: none;
 }
 
-.workspace-resize-handle:hover,
-.workspace-resize-handle[data-resize-handle-active] {
+.workspace-resize-handle::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: var(--border);
+  content: "";
+}
+
+.workspace-resize-handle:hover::before,
+.workspace-resize-handle[data-resize-handle-active]::before,
+.workspace-resize-handle:focus-visible::before {
   background: var(--accent);
 }
 
 .workspace-resize-handle:focus-visible {
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .workspace-resize-handle-closed {
