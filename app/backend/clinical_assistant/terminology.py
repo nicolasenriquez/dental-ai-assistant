@@ -89,7 +89,8 @@ def _nonempty(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-def _validate_catalog(data: Any) -> dict[str, Any]:
+def validate_catalog(data: Any) -> dict[str, Any]:
+    """Validate a parsed catalog document against the runtime schema."""
     if not isinstance(data, dict) or data.get("schema_version") != SUPPORTED_SCHEMA_VERSION:
         raise CatalogValidationError("Unsupported catalog schema version")
     if (
@@ -154,7 +155,7 @@ def load_catalog(path: Path, expected_digest: str) -> Catalog:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise CatalogValidationError("Bundled catalog is not valid UTF-8 JSON") from exc
-    validated = _validate_catalog(data)
+    validated = validate_catalog(data)
     checksum = canonical_digest(validated)
     if checksum != expected_digest:
         raise CatalogValidationError("Bundled catalog checksum mismatch")
