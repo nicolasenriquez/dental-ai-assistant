@@ -1556,6 +1556,13 @@ body,
   background: var(--bg);
 }
 
+@media (min-width: 768px) {
+  .clinical-assistant-area .workspace-header {
+    min-height: 52px;
+    flex: 0 0 52px;
+  }
+}
+
 .clinical-empty-state p,
 .clinical-approval > p,
 .clinical-result {
@@ -2776,19 +2783,24 @@ body,
 }
 
 .clinical-composer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   width: 100%;
   min-height: 56px;
   margin: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--conversation-composer-radius);
-  background: #111827;
-  box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 15px;
+  background: rgba(18, 23, 32, 0.96);
+  box-shadow: 0 14px 40px rgb(0 0 0 / 28%);
   pointer-events: auto;
-  transition: opacity 200ms ease, box-shadow 150ms ease;
+  transition: opacity 200ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .clinical-composer.is-focused:not(.is-disabled) {
-  box-shadow: 0 0 0 2px var(--conversation-focus-ring);
+  border-color: rgba(92, 129, 255, 0.58);
+  box-shadow: 0 0 0 2px rgba(79, 124, 255, 0.13), 0 14px 40px rgb(0 0 0 / 28%);
 }
 
 .clinical-composer-actions {
@@ -2799,10 +2811,62 @@ body,
   margin-left: auto;
 }
 
-.clinical-composer.chat-composer--voice-layout > .clinical-composer-actions {
-  grid-column: 2;
-  grid-row: 2;
-  justify-self: end;
+.clinical-composer-toolbar,
+.clinical-composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.clinical-composer-toolbar {
+  justify-content: space-between;
+}
+
+.clinical-composer-tool {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.clinical-composer-tool:hover,
+.clinical-composer-tool[aria-expanded="true"] {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.clinical-composer-tool:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.clinical-composer .voice-composer-status {
+  min-height: 36px;
+}
+
+.clinical-composer.is-voice-active .clinical-composer-toolbar {
+  flex-wrap: wrap;
+}
+
+.clinical-composer.is-voice-active .clinical-composer-tools {
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .clinical-composer-tools {
+    flex: 1;
+    gap: 2px;
+  }
 }
 
 .clinical-queue-button {
@@ -3431,7 +3495,8 @@ body,
   display: none;
 }
 
-.workspace-thread-list__history {
+.workspace-thread-list__history,
+.workspace-thread-list__compact-search {
   position: relative;
   display: inline-flex;
   width: 34px;
@@ -3447,7 +3512,9 @@ body,
 }
 
 .workspace-thread-list__history:hover,
-.workspace-thread-list__history:focus-visible {
+.workspace-thread-list__history:focus-visible,
+.workspace-thread-list__compact-search:hover,
+.workspace-thread-list__compact-search:focus-visible {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
 }
@@ -3724,6 +3791,49 @@ body,
 .sidebar-container.collapsed {
   width: 56px;
   min-width: 56px;
+}
+
+.sidebar-container.is-clinical:not(.collapsed) {
+  min-width: 244px;
+}
+
+.sidebar-container.is-clinical .sidebar-brand-mark {
+  width: 25px;
+  height: 25px;
+  flex-basis: 25px;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #6790ff, #315fe7);
+  box-shadow: 0 6px 18px rgba(49, 95, 231, 0.24);
+}
+
+.sidebar-container.is-clinical .sidebar-navigation {
+  border-top: 1px solid var(--border);
+}
+
+.clinical-sidebar-create {
+  display: flex;
+  width: calc(100% - 16px);
+  min-height: 36px;
+  align-items: center;
+  gap: 9px;
+  margin: 10px 8px 4px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-1));
+  color: var(--text-primary);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.clinical-sidebar-create:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-1));
+}
+
+.clinical-sidebar-create:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .hamburger-btn {
@@ -4112,6 +4222,20 @@ body,
   white-space: nowrap;
 }
 
+.conversation-title-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conversation-title-copy small {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
 .conversation-progress-indicator {
   width: 14px;
   height: 14px;
@@ -4490,6 +4614,10 @@ body,
   display: none;
 }
 
+.sidebar-container.collapsed .conversation-title-copy {
+  display: none;
+}
+
 .sidebar-container.collapsed .conversation-title-icon {
   display: inline-flex;
 }
@@ -4536,6 +4664,10 @@ body,
 }
 
 .sidebar-container.collapsed .workspace-thread-list__history {
+  display: inline-flex;
+}
+
+.sidebar-container.collapsed .workspace-thread-list__compact-search {
   display: inline-flex;
 }
 
@@ -4647,6 +4779,10 @@ body,
     width: min(260px, calc(100vw - 24px));
     min-width: min(260px, calc(100vw - 24px));
     border-right-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .sidebar-container.is-clinical:not(.collapsed) {
+    min-width: min(260px, calc(100vw - 24px));
   }
 
   .sidebar-container.collapsed {

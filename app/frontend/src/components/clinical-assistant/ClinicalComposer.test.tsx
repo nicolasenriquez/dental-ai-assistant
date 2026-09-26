@@ -142,7 +142,7 @@ describe('ClinicalComposer', () => {
     expect(screen.getByRole('textbox', { name: 'Nota clínica' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
     expect(screen.getByText('Transcribiendo dictado…')).toBeVisible();
-    expect(screen.getByTestId('clinical-composer')).toHaveClass('chat-composer--voice-layout');
+    expect(screen.getByTestId('clinical-composer')).toHaveClass('is-voice-active');
     fireEvent.change(screen.getByRole('textbox', { name: 'Nota clínica' }), {
       target: { value: 'Nota editada' },
     });

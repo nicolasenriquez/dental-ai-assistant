@@ -33,7 +33,6 @@ import { normalizeDriveFileName, serializeToPlainText } from '../../lib/driveDoc
 import { type AuthoringRepresentation, isDriveDocumentDirty } from '../../lib/driveDocument';
 import { openDrivePicker } from '../../lib/drivePicker';
 import { Spinner } from '../Spinner';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +44,7 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
+import { DriveAlert, DriveAlertDescription, DriveAlertTitle } from './DriveAlert';
 import { DriveDocumentView, type DriveDocumentViewModel } from './DriveDocumentView';
 import { DriveDocumentWorkspace } from './DriveDocumentWorkspace';
 import { DriveFileBrowser } from './DriveFileBrowser';
@@ -773,13 +773,13 @@ export function DriveWorkspace({
   if (!driveStatus) {
     if (statusLoading) return null;
     return (
-      <Alert>
-        <AlertTitle>Google Drive no está disponible</AlertTitle>
-        <AlertDescription>{errorMessage}</AlertDescription>
+      <DriveAlert>
+        <DriveAlertTitle>Google Drive no está disponible</DriveAlertTitle>
+        <DriveAlertDescription>{errorMessage}</DriveAlertDescription>
         <button type="button" className="drive-btn drive-btn-primary" onClick={loadDriveStatus}>
           Reintentar
         </button>
-      </Alert>
+      </DriveAlert>
     );
   }
 
@@ -824,10 +824,12 @@ export function DriveWorkspace({
   switch (driveStatus.status) {
     case 'unconfigured':
       connectionContent = (
-        <Alert>
-          <AlertTitle>Google Drive no está disponible</AlertTitle>
-          <AlertDescription>La integración no está configurada en este entorno.</AlertDescription>
-        </Alert>
+        <DriveAlert>
+          <DriveAlertTitle>Google Drive no está disponible</DriveAlertTitle>
+          <DriveAlertDescription>
+            La integración no está configurada en este entorno.
+          </DriveAlertDescription>
+        </DriveAlert>
       );
       break;
     case 'disconnected':
@@ -859,12 +861,12 @@ export function DriveWorkspace({
       break;
     case 'revoked':
       connectionContent = (
-        <Alert>
-          <AlertTitle>Vuelve a conectar Google Drive</AlertTitle>
-          <AlertDescription>
+        <DriveAlert>
+          <DriveAlertTitle>Vuelve a conectar Google Drive</DriveAlertTitle>
+          <DriveAlertDescription>
             El acceso al workspace dejó de estar disponible. Tu sesión de Dental AI Assistant
             continúa activa.
-          </AlertDescription>
+          </DriveAlertDescription>
           <button
             type="button"
             className="drive-btn drive-btn-primary"
@@ -879,16 +881,16 @@ export function DriveWorkspace({
               'Reconectar'
             )}
           </button>
-        </Alert>
+        </DriveAlert>
       );
       break;
     case 'workspace_missing':
       connectionContent = (
-        <Alert>
-          <AlertTitle>Workspace no disponible</AlertTitle>
-          <AlertDescription>
+        <DriveAlert>
+          <DriveAlertTitle>Workspace no disponible</DriveAlertTitle>
+          <DriveAlertDescription>
             La carpeta administrada anteriormente no se puede verificar.
-          </AlertDescription>
+          </DriveAlertDescription>
           <button
             type="button"
             className="drive-btn drive-btn-primary"
@@ -896,17 +898,17 @@ export function DriveWorkspace({
           >
             Ver opciones
           </button>
-        </Alert>
+        </DriveAlert>
       );
       break;
     case 'workspace_recovery_pending':
       connectionContent = (
-        <Alert>
-          <AlertTitle>Revisión del workspace pendiente</AlertTitle>
-          <AlertDescription>
+        <DriveAlert>
+          <DriveAlertTitle>Revisión del workspace pendiente</DriveAlertTitle>
+          <DriveAlertDescription>
             Google Drive podría haber creado una carpeta que Dental AI Assistant todavía no puede
             verificar. Revisa las opciones antes de crear otra.
-          </AlertDescription>
+          </DriveAlertDescription>
           <button
             type="button"
             className="drive-btn drive-btn-primary"
@@ -914,18 +916,18 @@ export function DriveWorkspace({
           >
             Ver opciones
           </button>
-        </Alert>
+        </DriveAlert>
       );
       break;
     case 'unavailable':
       connectionContent = (
-        <Alert>
-          <AlertTitle>Google Drive no está disponible</AlertTitle>
-          <AlertDescription>Intenta nuevamente en unos minutos.</AlertDescription>
+        <DriveAlert>
+          <DriveAlertTitle>Google Drive no está disponible</DriveAlertTitle>
+          <DriveAlertDescription>Intenta nuevamente en unos minutos.</DriveAlertDescription>
           <button type="button" className="drive-btn drive-btn-primary" onClick={loadDriveStatus}>
             Reintentar
           </button>
-        </Alert>
+        </DriveAlert>
       );
       break;
     case 'connected':
@@ -986,11 +988,11 @@ export function DriveWorkspace({
   };
 
   const conflictView = conflictOpen ? (
-    <Alert>
-      <AlertTitle>El documento cambió</AlertTitle>
-      <AlertDescription>
+    <DriveAlert>
+      <DriveAlertTitle>El documento cambió</DriveAlertTitle>
+      <DriveAlertDescription>
         Otra versión del documento se guardó en Google Drive. Tu texto local se conserva.
-      </AlertDescription>
+      </DriveAlertDescription>
       <div className="drive-alert-actions">
         <button
           type="button"
@@ -1007,7 +1009,7 @@ export function DriveWorkspace({
           Ver versión actual
         </button>
       </div>
-    </Alert>
+    </DriveAlert>
   ) : null;
 
   const workspaceContent = (
@@ -1024,21 +1026,23 @@ export function DriveWorkspace({
         />
       )}
       {errorMessage && !conflictOpen && (
-        <Alert>
-          <AlertTitle>
+        <DriveAlert>
+          <DriveAlertTitle>
             {sourceDoc ? 'No se pudo guardar el documento' : 'No se pudo completar la acción'}
-          </AlertTitle>
-          <AlertDescription>
+          </DriveAlertTitle>
+          <DriveAlertDescription>
             {debugErrorMessage
               ? `Google Drive: ${debugErrorMessage}`
               : errorMessage === 'No se pudo completar la acción'
                 ? 'Tu trabajo local se conserva.'
                 : errorMessage}
-          </AlertDescription>
+          </DriveAlertDescription>
           {unknownWrite && (
-            <AlertDescription>Actualiza la lista antes de volver a guardar.</AlertDescription>
+            <DriveAlertDescription>
+              Actualiza la lista antes de volver a guardar.
+            </DriveAlertDescription>
           )}
-        </Alert>
+        </DriveAlert>
       )}
       {insertionFeedback && (
         <p

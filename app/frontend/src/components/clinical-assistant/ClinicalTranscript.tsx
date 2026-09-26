@@ -190,7 +190,7 @@ export function ClinicalTranscript({
                           {item.contextItems.map((context) => (
                             <span
                               key={context.id}
-                              className="rounded-md bg-[var(--surface-2)] px-2 py-1 text-xs text-[var(--text-secondary)]"
+                              className="rounded-md bg-surface-raised px-2 py-1 text-xs text-muted"
                             >
                               {context.sourceName} · selección
                             </span>

@@ -481,7 +481,13 @@ export function ClinicalAssistantArea({
             queueAvailable={queueAvailable}
             onQueue={send}
             patientStatusOpen={patientStatusOpen}
-            onTogglePatientStatus={() => setPatientStatusOpen((open) => !open)}
+            onTogglePatientStatus={() => {
+              if (activePatient) setPatientStatusOpen((open) => !open);
+              else setPatientPickerOpen(true);
+            }}
+            onOpenDrive={() => {
+              if (!driveOpen) onToggleDrive?.();
+            }}
             contextItems={contextItems}
             onRemoveContext={(id) =>
               setContextByThread((current) => ({

@@ -52,7 +52,12 @@ interface AppShellProps {
   showConversations?: boolean;
   conversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
   runtimeByConversationId?: RuntimeByConversationId;
-  secondarySidebarContent?: (isCollapsed: boolean, onRequestExpand: () => void) => ReactNode;
+  secondarySidebarContent?: (
+    isCollapsed: boolean,
+    onRequestExpand: () => void,
+    onClose: () => void,
+  ) => ReactNode;
+  clinicalSidebar?: boolean;
   workspaceMode?: boolean;
   utilities?: AppShellUtility[];
   workspaceAccessory?: ReactNode;
@@ -66,6 +71,7 @@ export function AppShell({
   conversationsRef: suppliedConversationsRef,
   runtimeByConversationId,
   secondarySidebarContent,
+  clinicalSidebar = false,
   workspaceMode = false,
   utilities = [],
   workspaceAccessory,
@@ -188,9 +194,12 @@ export function AppShell({
             isCollapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
             runtimeByConversationId={runtimeByConversationId}
-            secondaryContent={secondarySidebarContent?.(sidebarCollapsed, () =>
-              setSidebarCollapsed(false),
+            secondaryContent={secondarySidebarContent?.(
+              sidebarCollapsed,
+              () => setSidebarCollapsed(false),
+              () => setSidebarOpen(false),
             )}
+            clinicalVariant={clinicalSidebar}
             sidebarRef={sidebarRef}
             onKeyDown={handleSidebarKeyDown}
             utilities={utilities}

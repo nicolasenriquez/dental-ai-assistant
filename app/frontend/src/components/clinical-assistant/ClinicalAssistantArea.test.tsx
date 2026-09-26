@@ -117,7 +117,7 @@ describe('ClinicalAssistantArea queue', () => {
     runtime.value = 'idle';
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
 
-    const statusTrigger = screen.getByRole('button', { name: 'Ana Pérez' });
+    const statusTrigger = screen.getByRole('button', { name: 'Contexto' });
     fireEvent.click(statusTrigger);
     const region = screen.getByRole('region', { name: 'Paciente' });
     expect(within(region).getByText('12.345.•••-6')).toBeVisible();
@@ -128,6 +128,25 @@ describe('ClinicalAssistantArea queue', () => {
       'aria-expanded',
       'true',
     );
+  });
+
+  it('opens the header patient picker or Drive from the composer tools', () => {
+    const onToggleDrive = vi.fn();
+    render(
+      <ClinicalAssistantArea
+        threadId="thread-1"
+        assistant={createAssistant()}
+        onToggleDrive={onToggleDrive}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Contexto' }));
+    expect(screen.getByRole('button', { name: 'Seleccionar paciente activo' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Añadir contexto desde Drive' }));
+    expect(onToggleDrive).toHaveBeenCalledOnce();
   });
 
   it('keeps agent Stop outside the voice controls', () => {

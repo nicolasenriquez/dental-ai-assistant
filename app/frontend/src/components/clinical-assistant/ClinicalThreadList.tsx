@@ -1,3 +1,4 @@
+import { SquarePen } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
@@ -18,6 +19,23 @@ interface ClinicalThreadListProps {
   isCollapsed?: boolean;
   refreshKey?: number;
   onRequestExpand?: () => void;
+  onNavigate?: () => void;
+}
+
+function formatClinicalUpdatedAt(value: string): string {
+  const updated = new Date(value);
+  if (!Number.isFinite(updated.getTime())) return '';
+  const now = new Date();
+  const day = (date: Date) =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const daysAgo = Math.round((day(now) - day(updated)) / 86_400_000);
+  if (daysAgo === 0) {
+    const minutes = Math.floor((now.getTime() - updated.getTime()) / 60_000);
+    if (minutes >= 0 && minutes < 60) return minutes < 1 ? 'Ahora' : `Hace ${minutes} min`;
+    return updated.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (daysAgo === 1) return 'Ayer';
+  return updated.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 }
 
 export function ClinicalThreadList({
@@ -26,6 +44,7 @@ export function ClinicalThreadList({
   isCollapsed = false,
   refreshKey = 0,
   onRequestExpand,
+  onNavigate,
 }: ClinicalThreadListProps) {
   const navigate = useNavigate();
   const transitionGuard = useOptionalTransitionGuard();
@@ -65,6 +84,7 @@ export function ClinicalThreadList({
       const { thread } = await acquireClinicalThread();
       setQuery('');
       navigate(`/a/${thread.id}`);
+      onNavigate?.();
       await refresh();
     } finally {
       setCreating(false);
@@ -113,9 +133,20 @@ export function ClinicalThreadList({
 
   return (
     <>
+      {!isCollapsed && (
+        <button
+          type="button"
+          className="clinical-sidebar-create"
+          onClick={() => guardTransition(() => void create())}
+          disabled={creating}
+        >
+          <SquarePen aria-hidden="true" size={16} strokeWidth={1.7} />
+          {creating ? 'Creando…' : 'Nueva conversación'}
+        </button>
+      )}
       <WorkspaceThreadList
         ariaLabel="Hilos del asistente clínico"
-        title="Asistente"
+        title="Conversaciones"
         isCollapsed={isCollapsed}
         running={activeTurnRunning}
         items={threads.map((thread) => ({
@@ -130,13 +161,20 @@ export function ClinicalThreadList({
         query={query}
         onQueryChange={setQuery}
         onCreate={() => guardTransition(() => void create())}
-        onSelect={(id) => guardTransition(() => navigate(`/a/${id}`))}
+        onSelect={(id) =>
+          guardTransition(() => {
+            navigate(`/a/${id}`);
+            onNavigate?.();
+          })
+        }
         creating={creating}
         onRetry={() => void refresh()}
         onRequestExpand={onRequestExpand}
-        createLabel="Nueva evolución"
+        createLabel="Nueva conversación"
+        showHeaderTitle={false}
+        showHeaderCreate={false}
         emptyMessage="Aún no hay conversaciones"
-        emptyActionLabel="Nueva evolución"
+        emptyActionLabel="Nueva conversación"
         renderItem={(item) => (
           <ConversationRow
             conversation={{
@@ -149,7 +187,13 @@ export function ClinicalThreadList({
             isActive={Boolean(item.active)}
             isRunning={Boolean(item.active && activeTurnRunning)}
             statusLabel={item.statusLabel}
-            onSelect={() => guardTransition(() => navigate(`/a/${item.id}`))}
+            secondaryLabel={formatClinicalUpdatedAt(item.updatedAt)}
+            onSelect={() =>
+              guardTransition(() => {
+                navigate(`/a/${item.id}`);
+                onNavigate?.();
+              })
+            }
             onDeleteRequest={() => requestRemove(item.id)}
             onRename={(title) => void rename(item.id, title)}
           />

@@ -412,7 +412,7 @@ describe('Clinical Assistant Drive transfer', () => {
     renderAssistant();
 
     const artifact = screen.getByRole('article', { name: 'Evolución clínica' });
-    fireEvent.click(within(artifact).getByText('Más acciones'));
+    fireEvent.click(within(artifact).getByLabelText('Más acciones de la evolución'));
     fireEvent.click(within(artifact).getByRole('button', { name: 'Guardar copia en Drive' }));
 
     const editor = await screen.findByRole('textbox', { name: 'Contenido del documento' });

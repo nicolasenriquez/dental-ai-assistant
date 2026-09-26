@@ -269,6 +269,30 @@ describe('Sidebar handleNewChat', () => {
   });
 });
 
+describe('Sidebar clinical variant', () => {
+  it('puts the clinical thread controls before secondary navigation without a duplicate assistant link', () => {
+    render(
+      <MemoryRouter initialEntries={['/assistant']}>
+        <Sidebar
+          clinicalVariant
+          isOpen
+          onClose={vi.fn()}
+          showConversations={false}
+          secondaryContent={<button type="button">Nueva conversación</button>}
+        />
+      </MemoryRouter>,
+    );
+
+    const sidebar = document.querySelector('#app-sidebar');
+    expect(sidebar).toHaveClass('is-clinical');
+    expect(screen.getByRole('button', { name: 'Nueva conversación' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Asistente' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Pacientes' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Chat' })).toBeVisible();
+    expect(sidebar?.textContent).not.toMatch(/Dental AI Assistant.*Dental AI Assistant/s);
+  });
+});
+
 describe('Sidebar logout', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Square } from 'lucide-react';
+import { Plus, Square } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useState } from 'react';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
@@ -30,6 +30,7 @@ interface ClinicalComposerProps {
   onQueue?: () => void;
   patientStatusOpen?: boolean;
   onTogglePatientStatus?: () => void;
+  onOpenDrive?: () => void;
   contextItems?: ComposerContextItem[];
   onRemoveContext?: (id: string) => void;
   voice: ClinicalVoiceControls;
@@ -48,6 +49,7 @@ export function ClinicalComposer({
   onQueue,
   patientStatusOpen = false,
   onTogglePatientStatus,
+  onOpenDrive,
   contextItems = [],
   onRemoveContext,
   voice,
@@ -73,7 +75,7 @@ export function ClinicalComposer({
 
   return (
     <ComposerShell
-      className={`clinical-composer${voiceStatusLayout ? ' chat-composer--voice-layout' : ''}`}
+      className={`clinical-composer${voiceStatusLayout ? ' is-voice-active' : ''}`}
       focused={focused}
       testId="clinical-composer"
       onKeyDown={(event) => {
@@ -88,7 +90,7 @@ export function ClinicalComposer({
           {contextItems.map((item) => (
             <span
               key={item.id}
-              className="inline-flex max-w-full items-center gap-2 rounded-md bg-[var(--surface-2)] px-2 py-1 text-xs text-[var(--text-secondary)]"
+              className="inline-flex max-w-full items-center gap-2 rounded-md bg-surface-raised px-2 py-1 text-xs text-muted"
             >
               <span className="truncate">{item.sourceName} · selección</span>
               <button
@@ -117,86 +119,94 @@ export function ClinicalComposer({
         className="chat-composer-input clinical-composer-input"
         aria-busy={voice.state === 'transcribing'}
       />
-      <VoiceDictationStatus
-        voiceState={voice.state}
-        voiceElapsed={voice.elapsed}
-        voiceError={voice.error}
-        canRetry={voice.canRetry}
-        stream={voice.stream ?? null}
-        onStartVoice={voice.onStart}
-        onStopVoice={voice.onStop}
-        onCancelVoice={voice.onCancel}
-        onRetryVoice={voice.onRetry}
-      />
-      {patient && onTogglePatientStatus && (
-        <button
-          type="button"
-          className="flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-          onClick={onTogglePatientStatus}
-          aria-expanded={patientStatusOpen}
-          aria-controls="patient-status-panel"
-        >
-          <span className="truncate">
-            {patient.first_name} {patient.last_name}
-          </span>
-          {patientStatusOpen ? (
-            <ChevronUp aria-hidden="true" size={14} />
-          ) : (
-            <ChevronDown aria-hidden="true" size={14} />
+      <div className="clinical-composer-toolbar">
+        <div className="clinical-composer-tools">
+          {onOpenDrive && (
+            <button
+              type="button"
+              className="clinical-composer-tool"
+              onClick={onOpenDrive}
+              aria-label="Añadir contexto desde Drive"
+              title="Abrir Google Drive"
+            >
+              <Plus aria-hidden="true" size={17} />
+            </button>
           )}
-        </button>
-      )}
-      <div className="clinical-composer-actions">
-        {queueAvailable && value.trim() && (
+          {onTogglePatientStatus && (
+            <button
+              type="button"
+              className="clinical-composer-tool"
+              onClick={onTogglePatientStatus}
+              aria-expanded={patient ? patientStatusOpen : undefined}
+              aria-controls={patient ? 'patient-status-panel' : undefined}
+            >
+              Contexto
+            </button>
+          )}
+          <VoiceDictationStatus
+            voiceState={voice.state}
+            voiceElapsed={voice.elapsed}
+            voiceError={voice.error}
+            canRetry={voice.canRetry}
+            stream={voice.stream ?? null}
+            onStartVoice={voice.onStart}
+            onStopVoice={voice.onStop}
+            onCancelVoice={voice.onCancel}
+            onRetryVoice={voice.onRetry}
+          />
+        </div>
+        <div className="clinical-composer-actions">
+          {queueAvailable && value.trim() && (
+            <button
+              type="button"
+              className="clinical-queue-button"
+              onClick={onQueue}
+              disabled={submitDisabled || voiceInFlight}
+            >
+              Encolar
+            </button>
+          )}
           <button
             type="button"
-            className="clinical-queue-button"
-            onClick={onQueue}
-            disabled={submitDisabled || voiceInFlight}
+            className={`${primaryAction === 'send' ? 'chat-send-button' : 'chat-stop-button'} active:brightness-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none${primaryAction === 'send' && !value.trim() ? ' is-disabled' : ''}`}
+            onClick={onPrimaryAction}
+            disabled={
+              primaryAction === 'stopping' ||
+              (primaryAction === 'send' && (!value.trim() || submitDisabled || voiceInFlight))
+            }
+            aria-label={
+              primaryAction === 'send'
+                ? 'Enviar mensaje'
+                : primaryAction === 'stop'
+                  ? 'Detener respuesta'
+                  : 'Deteniendo respuesta'
+            }
+            title={primaryAction === 'send' ? 'Enviar' : 'Detener respuesta'}
           >
-            Encolar
+            {primaryAction === 'stopping' ||
+            (primaryAction === 'send' &&
+              (voice.state === 'stopping' || voice.state === 'transcribing')) ? (
+              <span aria-hidden="true" className="spinner" />
+            ) : primaryAction === 'stop' ? (
+              <Square aria-hidden="true" size={14} fill="currentColor" />
+            ) : (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="8" y1="14" x2="8" y2="3" />
+                <polyline points="3,8 8,3 13,8" />
+              </svg>
+            )}
           </button>
-        )}
-        <button
-          type="button"
-          className={`${primaryAction === 'send' ? 'chat-send-button' : 'chat-stop-button'} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none${primaryAction === 'send' && !value.trim() ? ' is-disabled' : ''}`}
-          onClick={onPrimaryAction}
-          disabled={
-            primaryAction === 'stopping' ||
-            (primaryAction === 'send' && (!value.trim() || submitDisabled || voiceInFlight))
-          }
-          aria-label={
-            primaryAction === 'send'
-              ? 'Enviar mensaje'
-              : primaryAction === 'stop'
-                ? 'Detener respuesta'
-                : 'Deteniendo respuesta'
-          }
-          title={primaryAction === 'send' ? 'Enviar' : 'Detener respuesta'}
-        >
-          {primaryAction === 'stopping' ||
-          (primaryAction === 'send' &&
-            (voice.state === 'stopping' || voice.state === 'transcribing')) ? (
-            <span aria-hidden="true" className="spinner" />
-          ) : primaryAction === 'stop' ? (
-            <Square aria-hidden="true" size={14} fill="currentColor" />
-          ) : (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="8" y1="14" x2="8" y2="3" />
-              <polyline points="3,8 8,3 13,8" />
-            </svg>
-          )}
-        </button>
+        </div>
       </div>
     </ComposerShell>
   );

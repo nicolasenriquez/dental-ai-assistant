@@ -98,6 +98,7 @@ export interface SidebarProps {
   sidebarRef?: RefObject<HTMLElement>;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
   secondaryContent?: ReactNode;
+  clinicalVariant?: boolean;
   utilities?: SidebarUtility[];
 }
 
@@ -114,6 +115,7 @@ export function Sidebar({
   sidebarRef,
   onKeyDown,
   secondaryContent,
+  clinicalVariant = false,
   utilities = [],
 }: SidebarProps) {
   const navigate = useNavigate();
@@ -222,11 +224,17 @@ export function Sidebar({
         id="app-sidebar"
         ref={sidebarRef}
         onKeyDown={onKeyDown}
-        className={`sidebar-container${isOpen ? ' open' : ''}${isCollapsed ? ' collapsed' : ''}`}
+        className={`sidebar-container${isOpen ? ' open' : ''}${isCollapsed ? ' collapsed' : ''}${clinicalVariant ? ' is-clinical' : ''}`}
         aria-hidden={isMobile && !isOpen ? true : undefined}
         initial={false}
         animate={{
-          width: isMobile ? 'min(260px, calc(100vw - 24px))' : isCollapsed ? 56 : 260,
+          width: isMobile
+            ? 'min(260px, calc(100vw - 24px))'
+            : isCollapsed
+              ? 56
+              : clinicalVariant
+                ? 244
+                : 260,
           x: isMobile && !isOpen ? '-100%' : 0,
         }}
         transition={
@@ -243,15 +251,21 @@ export function Sidebar({
         />
 
         <div className="sidebar-content">
+          {clinicalVariant && secondaryContent && (
+            <div className="sidebar-secondary-scroll">{secondaryContent}</div>
+          )}
           <SidebarNavigation
             isCollapsed={isCollapsed}
+            clinicalVariant={clinicalVariant}
             showConversations={showConversations}
             creatingNew={creatingNew}
             onClose={onClose}
             onNewChat={() => guardTransition(() => void handleNewChat())}
           />
 
-          {secondaryContent && <div className="sidebar-secondary-scroll">{secondaryContent}</div>}
+          {!clinicalVariant && secondaryContent && (
+            <div className="sidebar-secondary-scroll">{secondaryContent}</div>
+          )}
 
           {showConversations && (
             <>
@@ -356,7 +370,9 @@ export function Sidebar({
               onLogout={() => guardTransition(() => void handleLogout())}
             />
           )}
-          <span className="sidebar-footer-brand sidebar-label">Dental AI Assistant</span>
+          {!clinicalVariant && (
+            <span className="sidebar-footer-brand sidebar-label">Dental AI Assistant</span>
+          )}
         </div>
       </motion.aside>
 

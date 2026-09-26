@@ -5,6 +5,7 @@ import { ClinicalAssistantArea } from '../components/clinical-assistant/Clinical
 import { ClinicalThreadList } from '../components/clinical-assistant/ClinicalThreadList';
 import { DriveWorkspace, type DriveWorkspaceHandle } from '../components/drive/DriveWorkspace';
 import type { DrivePatientContext } from '../components/drive/editors/types';
+import { Button } from '../components/ui/Button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -141,15 +142,17 @@ function ClinicalAssistantContent() {
   return (
     <AppShell
       showConversations={false}
+      clinicalSidebar
       workspaceMode
       workspaceAccessoryMode={driveSurface}
-      secondarySidebarContent={(isCollapsed, onRequestExpand) => (
+      secondarySidebarContent={(isCollapsed, onRequestExpand, onClose) => (
         <ClinicalThreadList
           activeThreadId={activeId ?? undefined}
           activeTurnRunning={assistant.activeTurnId !== null}
           isCollapsed={isCollapsed}
           refreshKey={threadListVersion}
           onRequestExpand={onRequestExpand}
+          onNavigate={onClose}
         />
       )}
       workspaceAccessory={
@@ -203,13 +206,9 @@ function ClinicalAssistantContent() {
           {creationFailed && (
             <section className="clinical-empty-state" role="alert">
               <h2>No pudimos abrir un hilo clínico</h2>
-              <button
-                type="button"
-                className="clinical-primary-button"
-                onClick={() => setCreateAttempt((attempt) => attempt + 1)}
-              >
+              <Button variant="clinical" onClick={() => setCreateAttempt((attempt) => attempt + 1)}>
                 Reintentar
-              </button>
+              </Button>
             </section>
           )}
         </main>

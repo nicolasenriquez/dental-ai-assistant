@@ -1,6 +1,6 @@
-import { History, MessageCircle } from 'lucide-react';
+import { History, MessageCircle, Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Spinner } from '../Spinner';
 import { SidebarSearch } from './SidebarSearch';
 import { SIDEBAR_MOTION } from './sidebarMotion';
@@ -32,6 +32,7 @@ interface WorkspaceThreadListProps {
   emptyActionLabel?: string;
   createLabel?: string;
   showHeaderCreate?: boolean;
+  showHeaderTitle?: boolean;
   showCompactCreate?: boolean;
   renderItem?: (item: WorkspaceThreadItem) => ReactNode;
 }
@@ -77,6 +78,7 @@ export function WorkspaceThreadList({
   emptyActionLabel = 'Nuevo hilo',
   createLabel = 'Nuevo hilo',
   showHeaderCreate = true,
+  showHeaderTitle = true,
   showCompactCreate = true,
   onRequestExpand,
   renderItem,
@@ -87,6 +89,19 @@ export function WorkspaceThreadList({
     Anteriores: true,
   });
   const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    if (!isCollapsed || !onQueryChange || !onRequestExpand) return;
+    const openSearch = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        if (document.querySelector('#app-sidebar[aria-hidden="true"]')) return;
+        event.preventDefault();
+        setSearchOpen(true);
+        onRequestExpand();
+      }
+    };
+    document.addEventListener('keydown', openSearch);
+    return () => document.removeEventListener('keydown', openSearch);
+  }, [isCollapsed, onQueryChange, onRequestExpand]);
   const filteredItems = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return items;
@@ -117,9 +132,9 @@ export function WorkspaceThreadList({
       className={`workspace-thread-list${isCollapsed ? ' is-collapsed' : ''}`}
       aria-label={ariaLabel}
     >
-      {!isCollapsed && (
+      {!isCollapsed && (showHeaderTitle || showHeaderCreate) && (
         <div className="workspace-thread-list__heading">
-          <span>{title}</span>
+          {showHeaderTitle && <span>{title}</span>}
           {showHeaderCreate && (
             <button
               type="button"
@@ -161,6 +176,20 @@ export function WorkspaceThreadList({
               aria-hidden="true"
             />
           )}
+        </button>
+      )}
+      {isCollapsed && onQueryChange && onRequestExpand && (
+        <button
+          type="button"
+          className="workspace-thread-list__compact-search"
+          onClick={() => {
+            setSearchOpen(true);
+            onRequestExpand();
+          }}
+          aria-label={`Buscar en ${title.toLocaleLowerCase()}`}
+          title={`Buscar en ${title.toLocaleLowerCase()}`}
+        >
+          <Search aria-hidden="true" size={17} strokeWidth={1.7} />
         </button>
       )}
       {onQueryChange && !isCollapsed && (

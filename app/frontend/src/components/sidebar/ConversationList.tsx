@@ -43,6 +43,7 @@ export interface ConversationRowProps {
   runtime?: ConversationRuntime;
   isRunning?: boolean;
   statusLabel?: string;
+  secondaryLabel?: string;
   onSelect: () => void;
   onDeleteRequest: () => void;
   onRename: (title: string) => void;
@@ -107,6 +108,7 @@ export function ConversationRow({
   runtime,
   isRunning = false,
   statusLabel,
+  secondaryLabel,
   onSelect,
   onDeleteRequest,
   onRename,
@@ -251,8 +253,11 @@ export function ConversationRow({
           <span className="conversation-title-icon" aria-hidden="true">
             <MessageCircle size={16} strokeWidth={1.7} />
           </span>
-          <span className="conversation-title-label">
-            {highlightMatch(conversation.title, query)}
+          <span className="conversation-title-copy">
+            <span className="conversation-title-label">
+              {highlightMatch(conversation.title, query)}
+            </span>
+            {secondaryLabel && <small>{secondaryLabel}</small>}
           </span>
           {(isRunning || runtime?.status === 'running') && (
             <span

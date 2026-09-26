@@ -201,7 +201,7 @@ export function ClinicalPatientPicker({
       {patient && (
         <button
           type="button"
-          className="clinical-patient-clear focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+          className="clinical-patient-clear focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
           onClick={clearPatient}
           disabled={interactionDisabled}
           aria-label="Quitar paciente activo"

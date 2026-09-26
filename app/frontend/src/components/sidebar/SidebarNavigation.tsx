@@ -10,6 +10,7 @@ interface SidebarNavigationProps {
   creatingNew: boolean;
   onClose: () => void;
   onNewChat: () => void;
+  clinicalVariant?: boolean;
 }
 
 interface NavigationItemProps {
@@ -38,6 +39,7 @@ export function SidebarNavigation({
   creatingNew,
   onClose,
   onNewChat,
+  clinicalVariant = false,
 }: SidebarNavigationProps) {
   const location = useLocation();
   const patientsActive = location.pathname.startsWith('/patients');
@@ -63,20 +65,22 @@ export function SidebarNavigation({
           </Link>
         </NavigationItem>
 
-        <NavigationItem active={assistantActive}>
-          <Link
-            to="/assistant"
-            onClick={onClose}
-            aria-current={assistantActive ? 'page' : undefined}
-            className="sidebar-nav-button"
-            aria-label={isCollapsed ? 'Asistente' : undefined}
-            title={isCollapsed ? 'Asistente' : undefined}
-            data-tooltip={isCollapsed ? 'Asistente' : undefined}
-          >
-            <Stethoscope aria-hidden="true" size={16} strokeWidth={1.7} />
-            <span className="sidebar-label">Asistente</span>
-          </Link>
-        </NavigationItem>
+        {!clinicalVariant && (
+          <NavigationItem active={assistantActive}>
+            <Link
+              to="/assistant"
+              onClick={onClose}
+              aria-current={assistantActive ? 'page' : undefined}
+              className="sidebar-nav-button"
+              aria-label={isCollapsed ? 'Asistente' : undefined}
+              title={isCollapsed ? 'Asistente' : undefined}
+              data-tooltip={isCollapsed ? 'Asistente' : undefined}
+            >
+              <Stethoscope aria-hidden="true" size={16} strokeWidth={1.7} />
+              <span className="sidebar-label">Asistente</span>
+            </Link>
+          </NavigationItem>
+        )}
 
         <NavigationItem active={chatActive}>
           <Link

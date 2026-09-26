@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkspaceThreadList } from './WorkspaceThreadList';
 
@@ -89,5 +90,43 @@ describe('WorkspaceThreadList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Limpiar búsqueda' }));
 
     expect(onQueryChange).toHaveBeenCalledWith('');
+  });
+
+  it('expands the collapsed rail and focuses search with Ctrl+K', () => {
+    function CollapsibleList() {
+      const [collapsed, setCollapsed] = useState(true);
+      return (
+        <WorkspaceThreadList
+          ariaLabel="Hilos del asistente clínico"
+          title="Conversaciones"
+          items={items}
+          isCollapsed={collapsed}
+          onRequestExpand={() => setCollapsed(false)}
+          onQueryChange={vi.fn()}
+          onCreate={vi.fn()}
+          onSelect={vi.fn()}
+        />
+      );
+    }
+    render(<CollapsibleList />);
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    expect(screen.getByRole('searchbox', { name: 'Buscar en conversaciones' })).toHaveFocus();
+  });
+
+  it('can hide the section title without losing search labels', () => {
+    render(
+      <WorkspaceThreadList
+        ariaLabel="Hilos del asistente clínico"
+        title="Conversaciones"
+        items={items}
+        showHeaderTitle={false}
+        onQueryChange={vi.fn()}
+        onCreate={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Conversaciones')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Buscar en conversaciones' })).toBeVisible();
   });
 });
