@@ -136,6 +136,75 @@ describe('EvolutionReviewArtifact', () => {
     expect(screen.queryByRole('textbox', { name: 'Hallazgos' })).not.toBeInTheDocument();
   });
 
+  it('moves focus into the field editor and back to its trigger', () => {
+    renderArtifact();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Hallazgos' }));
+    expect(screen.getByRole('textbox', { name: 'Hallazgos' })).toHaveFocus();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.getByRole('button', { name: 'Editar Hallazgos' })).toHaveFocus();
+  });
+
+  it('asks before replacing an edited stale draft and keeps cancellation local', () => {
+    const onRegenerate = vi.fn();
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={draft}
+        generatedDraft={draft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale
+        edited
+        onChange={vi.fn()}
+        onRegenerate={onRegenerate}
+        onPrepare={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText('La nota original cambió. Regenera antes de preparar el guardado.'),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerar' }));
+    expect(screen.getByText('Reemplazar el borrador editado')).toBeVisible();
+    expect(onRegenerate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByText('Reemplazar el borrador editado')).not.toBeInTheDocument();
+    expect(onRegenerate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerar' }));
+    expect(onRegenerate).toHaveBeenCalledOnce();
+  });
+
+  it('shows the sync error with retry and keeps the draft content', () => {
+    const onRetrySync = vi.fn();
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={draft}
+        generatedDraft={draft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited
+        syncState="error"
+        onRetrySync={onRetrySync}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText('No pudimos guardar estos cambios. Tu contenido sigue aquí.'),
+    ).toBeVisible();
+    expect(screen.getByText('Sin hallazgos nuevos.')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(onRetrySync).toHaveBeenCalledOnce();
+  });
+
   it('blocks saving until the active field edit is applied', () => {
     render(
       <EvolutionReviewArtifact
@@ -223,6 +292,27 @@ describe('EvolutionReviewArtifact', () => {
     expect(screen.getByText('Dolor ocasional')).toBeVisible();
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Dolor ocasional')).not.toBeInTheDocument();
+  });
+
+  it('toggles the review panel from the header chip', () => {
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={flaggedDraft}
+        generatedDraft={flaggedDraft}
+        evolutionAt="2026-09-08T23:23:00-04:00"
+        stale={false}
+        edited={false}
+        onChange={vi.fn()}
+      />,
+    );
+
+    const chip = screen.getByRole('button', { name: '1 por revisar' });
+    expect(chip).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText('Dolor ocasional')).not.toBeInTheDocument();
   });
 

@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
@@ -162,7 +162,9 @@ function ArtifactOverflow({
 
   return (
     <details className="clinical-artifact-overflow">
-      <summary>Más acciones</summary>
+      <summary aria-label="Más acciones de la evolución" title="Más acciones">
+        <MoreHorizontal aria-hidden="true" size={16} />
+      </summary>
       <div className="clinical-artifact-overflow__menu">
         <button type="button" onClick={() => void copy()}>
           {copyState === 'copied' ? 'Copiado' : 'Copiar'}

@@ -1,5 +1,5 @@
 import { ChevronDown, CircleAlert, Pencil } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalDateTime } from '../../lib/clinicalDate';
 import { Spinner } from '../Spinner';
@@ -97,8 +97,16 @@ export function EvolutionReviewArtifact({
   const [editingValue, setEditingValue] = useState('');
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [dateControls, setDateControls] = useState(showDateTime);
+  const dateFirstInputRef = useRef<HTMLInputElement>(null);
+  const dateControlsRef = useRef(dateControls);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [flagsOpen, setFlagsOpen] = useState(draft.review_flags.length === 1);
+  const flagsPanelId = useId();
+  const fieldEditButtonRefs = useRef<Partial<Record<ClinicalFieldKey, HTMLButtonElement | null>>>(
+    {},
+  );
+  const fieldTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const returnFocusFieldRef = useRef<ClinicalFieldKey | null>(null);
   const isAssistant = mode === 'assistant';
   const emptyDraft = !hasClinicalContent(draft);
   const visibleStage = lifecycleStage ?? 'draft';
@@ -120,6 +128,7 @@ export function EvolutionReviewArtifact({
     setEditingValue(draft[key]);
   };
   const cancelFieldEdit = () => {
+    returnFocusFieldRef.current = editingField;
     setEditingField(null);
     setEditingValue('');
   };
@@ -128,6 +137,22 @@ export function EvolutionReviewArtifact({
     onChange({ ...draft, [editingField]: editingValue });
     cancelFieldEdit();
   };
+
+  useEffect(() => {
+    if (editingField) {
+      fieldTextareaRef.current?.focus();
+      return;
+    }
+    const field = returnFocusFieldRef.current;
+    if (!field) return;
+    returnFocusFieldRef.current = null;
+    fieldEditButtonRefs.current[field]?.focus();
+  }, [editingField]);
+
+  useEffect(() => {
+    if (dateControls && !dateControlsRef.current) dateFirstInputRef.current?.focus();
+    dateControlsRef.current = dateControls;
+  }, [dateControls]);
   const startSourceEdit = () => {
     setSourceEditingValue(sourceNote);
     setSourceSaveState('idle');
@@ -166,6 +191,7 @@ export function EvolutionReviewArtifact({
         className={isAssistant ? 'clinical-artifact-heading' : 'evolution-review-artifact__heading'}
       >
         <div className={isAssistant ? 'clinical-artifact-heading__copy' : undefined}>
+          {isAssistant && <span className="clinical-artifact-kicker">Evolución clínica</span>}
           <h3>{isAssistant ? 'Evolución clínica' : 'Borrador para revisar'}</h3>
           <div className="clinical-artifact-metadata">
             {isAssistant && patient && (
@@ -197,51 +223,35 @@ export function EvolutionReviewArtifact({
         </div>
         {isAssistant && (
           <div className="clinical-artifact-statuses">
-            {assistantLifecycle !== lifecycleStageLabels[visibleStage] && (
-              <span className="clinical-artifact-status">{assistantLifecycle}</span>
+            {draft.review_flags.length > 0 && (
+              <button
+                type="button"
+                className="clinical-review-chip"
+                aria-expanded={flagsOpen}
+                aria-controls={flagsPanelId}
+                onClick={() => setFlagsOpen((current) => !current)}
+              >
+                {draft.review_flags.length === 1
+                  ? '1 por revisar'
+                  : `${draft.review_flags.length} por revisar`}
+              </button>
             )}
-            <ol
-              className="clinical-artifact-lifecycle"
+            <span
+              className="clinical-stage-chip"
               data-stage={visibleStage}
               data-lifecycle-label={assistantLifecycle}
-              aria-label="Etapa de la evolución"
+              aria-current="step"
               aria-live={visibleStage === 'saving' ? 'polite' : undefined}
             >
-              {(['draft', 'review', 'saved'] as const).map((stage, index) => {
-                const currentIndex =
-                  visibleStage === 'draft' ? 0 : visibleStage === 'review' ? 1 : 2;
-                const label =
-                  stage === 'saved' && visibleStage === 'saving'
-                    ? 'Guardando…'
-                    : lifecycleStageLabels[stage];
-                return (
-                  <li
-                    key={stage}
-                    className={
-                      stage === visibleStage || (stage === 'saved' && visibleStage === 'saving')
-                        ? 'is-current'
-                        : index < currentIndex
-                          ? 'is-complete'
-                          : undefined
-                    }
-                    aria-current={
-                      stage === visibleStage || (stage === 'saved' && visibleStage === 'saving')
-                        ? 'step'
-                        : undefined
-                    }
-                  >
-                    {stage === 'saved' && visibleStage === 'saving' && <Spinner size={15} />}
-                    <span>{label}</span>
-                  </li>
-                );
-              })}
-            </ol>
+              {visibleStage === 'saving' && <Spinner size={14} />}
+              {assistantLifecycle}
+            </span>
           </div>
         )}
       </div>
 
       {stale && (
-        <p className={isAssistant ? 'clinical-warning' : 'mt-4 text-sm text-[var(--warning)]'}>
+        <p className={isAssistant ? 'clinical-warning' : 'mt-4 text-sm text-warning'}>
           La nota original cambió. Regenera antes de preparar el guardado.
         </p>
       )}
@@ -251,6 +261,7 @@ export function EvolutionReviewArtifact({
           <input
             aria-label="Fecha de evolución"
             type="date"
+            ref={dateFirstInputRef}
             value={parts.date}
             onChange={(event) => updateDate(event.target.value, parts.time)}
           />
@@ -281,9 +292,7 @@ export function EvolutionReviewArtifact({
             <button
               type="button"
               className={
-                isAssistant
-                  ? 'clinical-secondary-button'
-                  : 'text-sm text-[var(--accent)] hover:underline'
+                isAssistant ? 'clinical-secondary-button' : 'text-sm text-primary hover:underline'
               }
               onClick={editingSource ? cancelSourceEdit : startSourceEdit}
             >
@@ -313,11 +322,12 @@ export function EvolutionReviewArtifact({
               <span>{label}</span>
               {!readOnly && editingField !== key && (
                 <button
+                  ref={(node) => {
+                    fieldEditButtonRefs.current[key] = node;
+                  }}
                   type="button"
                   className={
-                    isAssistant
-                      ? 'clinical-field-edit'
-                      : 'text-sm text-[var(--accent)] hover:underline'
+                    isAssistant ? 'clinical-field-edit' : 'text-sm text-primary hover:underline'
                   }
                   onClick={() => startFieldEdit(key)}
                   aria-label={`Editar ${label}`}
@@ -331,6 +341,7 @@ export function EvolutionReviewArtifact({
             {editingField === key && !readOnly ? (
               <>
                 <textarea
+                  ref={fieldTextareaRef}
                   rows={isAssistant ? 2 : 3}
                   value={editingValue}
                   onChange={(event) => setEditingValue(event.target.value)}
@@ -339,7 +350,7 @@ export function EvolutionReviewArtifact({
                 <div className="evolution-review-artifact__field-actions">
                   <button
                     type="button"
-                    className="text-sm text-[var(--text-secondary)] hover:underline"
+                    className="text-sm text-muted hover:underline"
                     onClick={cancelFieldEdit}
                   >
                     Cancelar
@@ -349,7 +360,7 @@ export function EvolutionReviewArtifact({
                     className={
                       isAssistant
                         ? 'clinical-secondary-button'
-                        : 'text-sm text-[var(--accent)] hover:underline'
+                        : 'text-sm text-primary hover:underline'
                     }
                     onClick={applyFieldEdit}
                   >
@@ -358,7 +369,10 @@ export function EvolutionReviewArtifact({
                 </div>
               </>
             ) : (
-              <p className="evolution-review-artifact__field-value">
+              <p
+                className="evolution-review-artifact__field-value"
+                data-empty={draft[key] ? undefined : true}
+              >
                 {draft[key] || 'Sin información registrada.'}
               </p>
             )}
@@ -370,6 +384,7 @@ export function EvolutionReviewArtifact({
         <section
           className={isAssistant ? 'clinical-review-flags' : 'evolution-review-artifact__flags'}
           aria-label="Observaciones de revisión"
+          id={isAssistant ? flagsPanelId : undefined}
         >
           <button
             type="button"
@@ -517,7 +532,7 @@ export function EvolutionReviewArtifact({
                       ? 'Cambios guardados'
                       : edited
                         ? 'Cambios sin guardar'
-                        : ''}
+                        : 'Borrador editable · aún no guardado'}
               </span>
               {syncState === 'error' && onRetrySync && (
                 <button type="button" onClick={onRetrySync}>

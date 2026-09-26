@@ -141,7 +141,7 @@ describe('ClinicalEvolutionArtifact', () => {
     expect(
       artifact?.querySelectorAll('.clinical-artifact-actions .clinical-primary-button'),
     ).toHaveLength(1);
-    expect(screen.getByText('Más acciones')).toBeVisible();
+    expect(screen.getByLabelText('Más acciones de la evolución')).toBeVisible();
   });
 
   it('renders draft lifecycle with one review action and overflow utilities', () => {
@@ -150,7 +150,7 @@ describe('ClinicalEvolutionArtifact', () => {
 
     expect(screen.getByText('Borrador')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
-    expect(screen.getByText('Más acciones')).toBeVisible();
+    expect(screen.getByLabelText('Más acciones de la evolución')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Confirmar guardado' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Revisar y guardar' }));
@@ -188,7 +188,7 @@ describe('ClinicalEvolutionArtifact', () => {
     expect(artifact).toBeInTheDocument();
     expect(artifact).toHaveTextContent('Guardando…');
     expect(artifact?.querySelectorAll('.animate-spin')).toHaveLength(1);
-    expect(screen.queryByText('Más acciones')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Más acciones de la evolución')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirmar guardado' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cambiar fecha y hora' })).not.toBeInTheDocument();
   });
