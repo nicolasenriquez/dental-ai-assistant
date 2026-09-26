@@ -993,10 +993,17 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   });
 
   const sidebar = page.locator('#app-sidebar');
+  await expect
+    .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
+    .toBe(244);
+  await expect(sidebar.getByRole('button', { name: 'Nueva conversación' })).toBeVisible();
+  await expect(sidebar.getByRole('link', { name: 'Asistente' })).toHaveCount(0);
+  await expect(page.getByTestId('clinical-composer').getByRole('button', { name: 'Contexto', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Añadir contexto desde Drive' })).toBeVisible();
   await page.keyboard.press('Control+k');
-  await expect(sidebar.getByRole('searchbox', { name: 'Buscar en asistente' })).toBeFocused();
+  await expect(sidebar.getByRole('searchbox', { name: 'Buscar en conversaciones' })).toBeFocused();
   await page.keyboard.press('Escape');
-  await expect(sidebar.getByRole('button', { name: 'Buscar en asistente' })).toBeVisible();
+  await expect(sidebar.getByRole('button', { name: 'Buscar en conversaciones' })).toBeVisible();
   await sidebar.getByRole('button', { name: 'Colapsar navegación' }).click();
   await expect(sidebar).toHaveClass(/collapsed/);
   await expect
@@ -1012,7 +1019,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(sidebar.locator('.workspace-thread-list__group-heading')).toHaveCount(0);
   await expect(sidebar.locator('.workspace-thread-list__item')).toHaveCount(0);
   const historyButton = sidebar.getByRole('button', {
-    name: 'Abrir historial de asistente',
+    name: 'Abrir historial de conversaciones',
   });
   await expect(historyButton).toBeVisible();
   await historyButton.click();
@@ -1106,7 +1113,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(savedArtifact.locator('.clinical-result, .clinical-receipt')).toHaveCount(0);
   await expect(page.locator('.clinical-artifact')).toHaveCount(1);
   await settleClinicalItem(page, savedArtifact);
-  await expect(savedArtifact).toHaveCSS('border-radius', '12px');
+  await expect(savedArtifact).toHaveCSS('border-radius', '13px');
 
   await composer.fill('Segundo control independiente.');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
@@ -1229,6 +1236,34 @@ test('clinical review exposes primary confirmation and secondary editing actions
   await expect(page).toHaveScreenshot('assistant-review-desktop.png', {
     animations: 'disabled',
   });
+});
+
+test('clinical evolution keeps inline field focus and review disclosure', async ({ page }) => {
+  const flagged = {
+    ...draft,
+    review_flags: [{ source_text: 'Dolor ocasional', reason: 'Confirmar frecuencia.' }],
+  };
+  const state = thread([], {
+    artifacts: [hydratedArtifact({ draft: flagged, generated_draft: flagged })],
+  });
+  await setupClinicalHarness(page, state);
+  const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+
+  const chip = artifact.getByRole('button', { name: '1 por revisar' });
+  await expect(chip).toHaveAttribute('aria-expanded', 'true');
+  await expect(artifact.getByText('Dolor ocasional')).toBeVisible();
+  await chip.click();
+  await expect(chip).toHaveAttribute('aria-expanded', 'false');
+  await expect(artifact.getByText('Dolor ocasional')).toHaveCount(0);
+
+  const edit = artifact.getByRole('button', { name: 'Editar Hallazgos' });
+  await edit.click();
+  const textarea = artifact.getByRole('textbox', { name: 'Hallazgos' });
+  await expect(textarea).toBeFocused();
+  await textarea.fill('Cambio descartado.');
+  await artifact.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(artifact.getByRole('button', { name: 'Editar Hallazgos' })).toBeFocused();
+  await expect(artifact.getByText('Encías sin sangrado al sondaje.')).toBeVisible();
 });
 
 test('saved evolution distinguishes clinical save from Drive synchronization', async ({ page }) => {
@@ -1800,6 +1835,11 @@ for (const viewport of [
     await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
     await expect(artifact.locator('.clinical-artifact-overflow summary')).toBeVisible();
     await expect(artifact).toHaveCSS('animation-name', 'none');
+    const contextTool = await page.getByRole('button', { name: 'Contexto', exact: true }).boundingBox();
+    const sendTool = await page.getByRole('button', { name: 'Enviar mensaje' }).boundingBox();
+    expect(contextTool).not.toBeNull();
+    expect(sendTool).not.toBeNull();
+    expect(Math.abs((contextTool?.y ?? 0) - (sendTool?.y ?? 0))).toBeLessThanOrEqual(4);
     if (viewport.width <= 640) {
       await expect(artifact.locator('.clinical-artifact-actions')).toHaveCSS(
         'flex-direction',
@@ -1923,7 +1963,7 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   await expect(page.getByRole('button', { name: 'Detener grabación' })).toBeVisible();
   const composer = page.getByTestId('clinical-composer');
   const voiceStatus = composer.locator('.voice-composer-status');
-  await expect(composer).toHaveClass(/chat-composer--voice-layout/);
+  await expect(composer).toHaveClass(/is-voice-active/);
   const [composerBox, recordingStatusBox] = await Promise.all([
     composer.boundingBox(),
     voiceStatus.boundingBox(),
@@ -1941,7 +1981,7 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
 
   await expect(input).toBeEditable();
   await expect(page.getByText('Transcribiendo dictado…')).toBeVisible();
-  await expect(composer).toHaveClass(/chat-composer--voice-layout/);
+  await expect(composer).toHaveClass(/is-voice-active/);
   await expectNoHorizontalOverflow(page);
   await input.fill('Nota manual');
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();

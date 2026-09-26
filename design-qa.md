@@ -2,6 +2,34 @@
 
 Reference: supplied Codex-inspired Clinical Assistant visual contract and the existing Dental AI Assistant shell.
 
+## Clinical Evolution card polish — 2026-09-26
+
+Scope (approved focused matrix): the single clinical evolution artifact inside `/assistant`, aligned to the supplied card mockup without a parallel card or a second state machine. Card surface (radius 13, gradient surface, `rgba(255,255,255,.11)` border, `0 12px 35px rgba(0,0,0,.18)` shadow, 760 px cap); kicker + title + masked-patient metadata; the `Borrador › Revisión › Guardada` breadcrumb replaced by one stage chip (`Borrador`, `Revisión`, `[spinner] Guardando…`, `Guardada`, amber `Necesita regeneración`), keeping `data-clinical-stage` and `aria-current="step"`; review-count chip in the header wired to the same flags disclosure; five-field grid (152 px desktop / 128 px tablet / stacked mobile) with inline edit, focus entering the textarea and returning to the same `Editar` trigger; stale strip inset; unified footer geometry; compact `•••` overflow trigger; embedded approval order corrected to secondary → primary. Manual evolution flow (`NewEvolution`) untouched; clinical fields and review-flag data unchanged; no heuristic flag → field mapping.
+
+| Evidence source | Result | Scope |
+| --- | --- | --- |
+| Vitest | 548/548 passed | New review-chip disclosure, field focus return, edited-stale regenerate confirmation and sync-error retry tests plus the existing clinical suites |
+| `bun run type-check` | passed | Frontend |
+| Biome on changed files | passed | `globals.css`, `EvolutionReviewArtifact.tsx/.test.tsx`, `ClinicalEvolutionArtifact.tsx/.test.tsx`, `ApprovalRequestItem.tsx`, `ClinicalAssistant.drive.test.tsx`; the repo-wide run still reports only the pre-existing CRLF checkout drift on untouched files |
+| Playwright `clinical` project, mocked browser against the isolated Docker rebuild (`localhost:8001`, win32 host run) | 27/27 passed (one new test) | `clinical evolution keeps inline field focus and review disclosure`; 12 win32 baselines refreshed; a second run without `--update-snapshots` passed identically |
+| Viewports | 1440 × 1000, 1024 × 900, 390 × 844 | Full-page snapshots for draft, review, saved and Drive surfaces; reduced-motion matrix passed unchanged |
+
+Deviation from the handoff's 18-state fixture matrix (agreed scope): the surfaces this pass changes are covered by the refreshed baselines plus the new browser focus/disclosure test; Drive terminal states keep their existing deterministic fixtures and were re-verified unchanged. Repo copy labels were kept (`Observación de revisión`, `Ver evidencia`, `Editar nota original`) so contract and e2e selectors stay stable. `Ctrl/Cmd+Enter` and `Escape` field shortcuts were not added (optional in the handoff). Five container-generated `*-linux.png` snapshots produced during an earlier container attempt were removed from the index and disk; only win32 baselines are updated. No live clinical write was performed; mocked browser evidence only.
+
+## Visual fidelity pass — brand, composer, clinical header · 2026-09-26
+
+Scope: clinical sidebar brand mark adopts the mockup literals (25 px, radius 8, `145deg #6790ff → #315fe7`, `0 6px 18px rgba(49,95,231,.24)`); the clinical composer takes the mockup surface (radius 15, `rgba(255,255,255,.11)` border, `rgba(18,23,32,.96)` background, deeper shadow, focus border `rgba(92,129,255,.58)` + 2 px `rgba(79,124,255,.13)` ring); the `/assistant` sidebar drops the redundant "Conversaciones" section title through a new `showHeaderTitle` opt-out that defaults to the shared behavior; the clinical workspace header becomes 52 px on desktop.
+
+| Evidence source | Result | Scope |
+| --- | --- | --- |
+| Vitest | 544/544 passed | New `showHeaderTitle` opt-out regression test plus the existing clinical progress, composer, queue, sidebar and Drive suites |
+| `bun run type-check` | passed | Frontend |
+| Biome on changed files | passed | `WorkspaceThreadList.tsx`, `WorkspaceThreadList.test.tsx`, `ClinicalThreadList.tsx`; the repo-wide run still reports the pre-existing CRLF checkout drift on untouched files |
+| Playwright `clinical` project, mocked browser on the isolated Docker rebuild (`localhost:8001`, win32 host run) | 26/26 passed | 8 baselines refreshed: `assistant-draft/review/saved-desktop`, `drive-browser/document/document-details/documents-browser-desktop`, `clinical-empty.aria.yml` (loses the removed section title). Mobile baselines unchanged |
+| Mobile regression, caught and fixed before refresh | — | The first 52 px header override also applied at `max-width: 767px`, clamping the designed multi-row mobile header to 52 px; the Drive utility then overflowed under the transcript and intercepted clicks. Scoping the override to `min-width: 768px` restored the mobile header; the 390 × 844 click-intercept and harness tests pass again |
+
+The Playwright actions above are **mocked browser** evidence on an isolated local stack rebuilt from this checkout. No live clinical write was performed and the shared Google-mode instance is not claimed for this pass.
+
 ## Interaction and layout refinement — 2026-09-26
 
 Scope: clinical content width capped at 820 px inside `/assistant` only; turn progress gained the divider/dots treatment with a neutral pulse; elapsed stays at 0 s until the matching user turn is hydrated and hides while stopping; clinical user bubbles use the 74 % / 92 % widths; the Drive accessory content enters with a 200 ms opacity/translate motion; the collapsed clinical rail exposes the running indicator beside the pending dot; the dictation transcription timer is hidden from live announcements; the Drive separator regression now resizes with keyboard and pointer while a turn is streaming.
