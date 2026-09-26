@@ -65,6 +65,44 @@ text, glossary definitions, or hidden reasoning to logs. When diagnosing a
 failed turn, use persisted turn status and these fields before requesting any
 clinical payload.
 
+## Authoring, review, and build
+
+The editable source of truth for the glossary is `knowledge/clinical/`: one
+independently reviewable concept card per file under `concepts/<domain>/`, the
+source registry in `sources/sources.toml`, and catalog-level metadata in
+`_meta/catalog.toml`. The bundled JSON, its digest, and its manifest are
+generated artifacts; never hand-edit them. Start navigation at
+`knowledge/clinical/CONTEXT.md`.
+
+From `app/backend/`:
+
+```bash
+uv run python scripts/build_clinical_catalog.py --write
+uv run python scripts/build_clinical_catalog.py --check
+uv run python scripts/build_clinical_catalog.py --release-check
+```
+
+`--write` regenerates `app/backend/data/dental_ai_glossary_es_cl_v1.json`, its
+`.sha256`, and `dental_ai_glossary_es_cl_v1.manifest.json`. `--check` fails on
+drift and never writes; it runs in the test suite so a merged card change
+cannot leave stale artifacts. The compiler reuses the runtime validator and
+additionally requires TAD, TMJ, CBCT, and BOP to resolve to exactly one active
+concept; it refuses duplicate IDs or ordinals, unknown source IDs, malformed
+aliases, missing metadata, and wrong locale or schema. Migration was
+mechanical: definitions, aliases, tags, source links, and array order were
+preserved from the reviewed catalog (digest `8efa...`), so imported cards are
+`legacy_unreviewed`, not clinically reviewed.
+
+`--release-check` checks artifact parity and declared release state: every active concept needs an
+approved clinical review and documented provenance, and every referenced
+source needs established reuse rights and a recorded rights review. All
+current cards and sources are unresolved, so the gate fails by design until
+the hold below is lifted. The production deploy script lives outside this
+repository at `/opt/dynachat/deploy.sh`: it must run this preflight before
+building the inactive color. Repository code alone cannot enforce that host
+step. Passing the build, checksum, or declared review-state check proves
+neither clinical correctness nor redistribution rights.
+
 ## Provenance and release hold
 
 The supplied dataset's editorial policy describes its definitions as brief

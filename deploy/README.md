@@ -8,8 +8,10 @@ Production deployment via Docker Compose. Runs Caddy (TLS + reverse proxy) and P
 2. Clone this repo to `/opt/dynachat/` (owned by a dedicated `dynachat` user, `chmod 700`)
 3. Copy `.env.example` to `.env`, fill in real values (`chmod 600`)
 4. Point DNS A record for your subdomain at the VPS public IP
-5. `cd deploy && docker compose up -d`
-6. Caddy auto-provisions a Let's Encrypt cert on first request
+5. Run the clinical catalog preflight below from the checkout root. Do not
+   deploy while the current catalog release hold remains active.
+6. After the preflight succeeds, `cd deploy && docker compose up -d`
+7. Caddy auto-provisions a Let's Encrypt cert on first request
 
 ## Files
 
@@ -53,6 +55,23 @@ ADMIN_USER_EMAIL=admin@yourdomain.com
 ```
 
 ## Clinical data gate
+
+The host-managed `/opt/dynachat/deploy.sh` must run a clinical catalog
+preflight from its freshly pulled checkout **before building the inactive
+color**. The script is host-owned, not part of this repository; verify this
+step exists on that host before production rollout. From the repo root, using
+Docker (no host Python/uv install required):
+
+```bash
+docker run --rm --mount "type=bind,source=$(pwd),target=/src,readonly" \
+  --workdir /src/app/backend python:3.11-slim \
+  python scripts/build_clinical_catalog.py --release-check
+```
+
+Nonzero exit blocks production deployment. This checks artifact parity and
+declared review state; human verification of clinical and reuse evidence
+remains necessary. The existing catalog currently fails this check by design
+(see `docs/clinical-grounding.md`).
 
 Clinical drafting uses synthetic data only in development, automated tests, and
 manual evaluation. Production defaults
