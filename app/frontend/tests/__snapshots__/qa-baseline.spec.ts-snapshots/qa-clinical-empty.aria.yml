@@ -8,25 +8,25 @@
       - /url: /assistant
     - link "Chat":
       - /url: /chat
+  - button "Nueva conversación"
   - region "Hilos del asistente clínico":
-    - text: Asistente
-    - button "Nueva evolución": ＋
-    - button "Buscar en asistente": Buscar Ctrl K
+    - button "Buscar en conversaciones": Buscar Ctrl K
     - region "Hoy":
       - button "Hoy 1" [expanded]
-      - button "Ana Pérez · Control"
+      - button "Ana Pérez · Control": Ana Pérez · Control Ahora
       - button "Acciones para Ana Pérez · Control"
-  - button "Abrir menú de usuario para qa@example.com": qa@example.com
-  - text: Dental AI Assistant
+  - button "Abrir menú de usuario para qa@example.com"
 - main:
   - strong: Ana Pérez · Control
-  - text: Paciente
-  - button "Seleccionar paciente activo": Ana Pérez · 12.345.•••-6
+  - button "Cambiar paciente activo":
+    - text: Paciente
+    - strong: /Ana Pérez · \d+\.\d+\.•••-6/
   - button "Quitar paciente activo"
-  - button "Abrir Google Drive": Google Drive
+  - button "Abrir Google Drive"
   - log "Transcripción clínica":
-    - heading "Trabaja más rápido con tus evoluciones" [level=1]
-    - paragraph: Pregunta algo o selecciona un paciente para trabajar con su ficha.
+    - heading "Prepara una evolución clínica" [level=1]
+    - paragraph: Escribe o dicta la nota; revisarás el borrador antes de guardarlo.
+    - button "Escribir nota clínica"
   - textbox "Nota clínica":
     - /placeholder: Escribe o dicta la nota clínica…
   - status:

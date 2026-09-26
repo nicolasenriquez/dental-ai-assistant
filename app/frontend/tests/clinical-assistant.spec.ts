@@ -402,7 +402,8 @@ async function setupClinicalHarness(
   await expect(
     page
       .getByRole('heading', { name: 'Evolución clínica' })
-      .or(page.getByRole('heading', { name: 'Trabaja más rápido con tus evoluciones' })),
+      .or(page.getByRole('heading', { name: 'Prepara una evolución clínica' }))
+      .or(page.getByRole('heading', { name: '¿Qué necesitas hacer?' })),
   ).toBeVisible();
   const header = page.locator('.workspace-header');
   const driveButton = page.getByRole('button', { name: 'Abrir Google Drive' });
@@ -449,6 +450,10 @@ for (const viewport of [
     await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
     await expect(artifact.locator('[aria-current="step"]')).toContainText('Borrador');
     await expectNoHorizontalOverflow(page);
+    await page.evaluate(() => document.fonts.ready);
+    await page.locator('.clinical-transcript').evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
     if (viewport.name === 'desktop') {
       await expect(page).toHaveScreenshot('assistant-draft-desktop.png', {
         animations: 'disabled',
@@ -541,8 +546,8 @@ for (const viewport of [
     if (viewport.name === 'desktop') {
       await page.getByRole('button', { name: 'Incorporar al borrador' }).click();
       await expect(page.getByRole('status', { name: 'Incorporado al borrador' })).toBeVisible();
-      await expect(page.locator('[aria-label="Contexto adjunto"]')).toContainText(
-        'Nota remota.txt · selección',
+      await expect(page.getByRole('group', { name: 'Documentos adjuntos' })).toContainText(
+        'Nota remota.txt · Google Drive',
       );
       await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue('');
     }
@@ -599,7 +604,7 @@ for (const failure of [
 test('opens header patient picker with visible options', async ({ page }) => {
   await setupClinicalHarness(page, thread());
 
-  const trigger = page.getByRole('button', { name: 'Seleccionar paciente activo' });
+  const trigger = page.getByRole('button', { name: 'Cambiar paciente activo' });
   await trigger.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
@@ -631,7 +636,7 @@ test('shows active-patient persistence failures and retries the selection', asyn
     },
   });
 
-  const trigger = page.getByRole('button', { name: 'Seleccionar paciente activo' });
+  const trigger = page.locator('.workspace-header .clinical-patient-trigger');
   await trigger.click();
   await page.getByRole('option', { name: /Ana Pérez/ }).click();
 
@@ -641,16 +646,17 @@ test('shows active-patient persistence failures and retries the selection', asyn
 
   await page.getByRole('alert').getByRole('button', { name: 'Reintentar' }).click();
   await expect(trigger).toContainText('Ana Pérez');
-  await expect(page.getByPlaceholder('Escribe o dicta una indicación clínica…')).toBeVisible();
+  await expect(trigger).toHaveAttribute('aria-label', 'Cambiar paciente activo');
+  await expect(page.getByPlaceholder('Escribe o dicta la nota clínica…')).toBeVisible();
   expect(requestBodies).toEqual([{ patient_id: patientId }, { patient_id: patientId }]);
 
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toContainText(
+  await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toContainText(
     'Ana Pérez',
   );
 });
 
-test('keeps the patient context before secondary actions on mobile', async ({ page }) => {
+test('keeps title and Drive above the patient selector on mobile', async ({ page }) => {
   await setupClinicalHarness(page, thread());
   await page.setViewportSize({ width: 390, height: 844 });
 
@@ -660,9 +666,9 @@ test('keeps the patient context before secondary actions on mobile', async ({ pa
   const actionBounds = await actions.boundingBox();
   expect(contextBounds).not.toBeNull();
   expect(actionBounds).not.toBeNull();
-  expect(contextBounds?.y).toBeLessThan(actionBounds?.y ?? 0);
+  expect(contextBounds?.y).toBeGreaterThan(actionBounds?.y ?? 0);
 
-  await page.getByRole('button', { name: 'Seleccionar paciente activo' }).click();
+  await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
   const option = page.getByRole('option', { name: /Ana Pérez/ });
   await expect(option).toBeVisible();
   const optionBounds = await option.boundingBox();
@@ -981,9 +987,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   );
   await page.goto(`/a/${threadId}`);
   await initialThreadLoad;
-  await expect(
-    page.getByRole('heading', { name: 'Trabaja más rápido con tus evoluciones' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prepara una evolución clínica' })).toBeVisible();
   await expect(page.locator('main.chat-area')).toBeVisible();
   await expect(page.locator('.chat-message-scroll')).toBeVisible();
   await expect(page.getByTestId('clinical-composer')).toHaveClass(/chat-composer/);
@@ -997,9 +1001,11 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
     .toBe(244);
   await expect(sidebar.getByRole('button', { name: 'Nueva conversación' })).toBeVisible();
-  await expect(sidebar.getByRole('link', { name: 'Asistente' })).toHaveCount(0);
-  await expect(page.getByTestId('clinical-composer').getByRole('button', { name: 'Contexto', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Añadir contexto desde Drive' })).toBeVisible();
+  await expect(sidebar.getByRole('link', { name: 'Asistente' })).toBeVisible();
+  await expect(
+    page.getByTestId('clinical-composer').getByRole('button', { name: 'Contexto', exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Añadir contexto desde Drive' })).toHaveCount(0);
   await page.keyboard.press('Control+k');
   await expect(sidebar.getByRole('searchbox', { name: 'Buscar en conversaciones' })).toBeFocused();
   await page.keyboard.press('Escape');
@@ -1103,7 +1109,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(savedArtifact.locator('button.clinical-secondary-button')).toHaveCount(0);
   await expect(savedArtifact).toHaveAttribute('data-clinical-stage', 'saved');
   await expect(savedArtifact).toHaveAttribute('data-e2e-mounted', 'true');
-  await expect(savedArtifact.getByText('Guardada', { exact: true })).toBeVisible();
+  await expect(savedArtifact.getByText('Guardada en ficha', { exact: true })).toBeVisible();
   await expect(savedArtifact.locator('.clinical-drive-row')).toHaveAttribute(
     'data-drive-export',
     'pending',
@@ -1385,7 +1391,7 @@ test('clinical artifact deep link reads edited remote journal and preserves tran
   const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
   const transcript = page.locator('.clinical-transcript');
   const transcriptPosition = await transcript.evaluate((element) => element.scrollTop);
-  await artifact.getByRole('button', { name: 'Abrir' }).click();
+  await artifact.getByRole('button', { name: 'Ver en Drive' }).click();
   await expect(page.getByRole('button', { name: 'Diarios', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -1835,11 +1841,11 @@ for (const viewport of [
     await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
     await expect(artifact.locator('.clinical-artifact-overflow summary')).toBeVisible();
     await expect(artifact).toHaveCSS('animation-name', 'none');
-    const contextTool = await page.getByRole('button', { name: 'Contexto', exact: true }).boundingBox();
+    const dictationTool = await page.getByRole('button', { name: 'Iniciar dictado' }).boundingBox();
     const sendTool = await page.getByRole('button', { name: 'Enviar mensaje' }).boundingBox();
-    expect(contextTool).not.toBeNull();
+    expect(dictationTool).not.toBeNull();
     expect(sendTool).not.toBeNull();
-    expect(Math.abs((contextTool?.y ?? 0) - (sendTool?.y ?? 0))).toBeLessThanOrEqual(4);
+    expect(Math.abs((dictationTool?.y ?? 0) - (sendTool?.y ?? 0))).toBeLessThanOrEqual(4);
     if (viewport.width <= 640) {
       await expect(artifact.locator('.clinical-artifact-actions')).toHaveCSS(
         'flex-direction',
@@ -1974,7 +1980,7 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   expect((recordingStatusBox?.x ?? 0) + (recordingStatusBox?.width ?? 0)).toBeLessThanOrEqual(
     (composerBox?.x ?? 0) + (composerBox?.width ?? 0),
   );
-  await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Quitar paciente activo' })).toBeDisabled();
   await expect(input).toBeEditable();
   await page.getByRole('button', { name: 'Detener grabación' }).click();
@@ -1988,7 +1994,7 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   releaseTranscription();
   await expect(input).toHaveValue('Texto dictado. Nota manual');
   await expect(page.getByText('Dictado añadido')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Seleccionar paciente activo' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toBeEnabled();
 });
 
 test('reuses one empty conversation across concurrent browser tabs', async ({ page }) => {

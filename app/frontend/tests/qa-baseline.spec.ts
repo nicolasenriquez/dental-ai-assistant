@@ -1064,7 +1064,7 @@ test('clinical assistant exposes the review lifecycle and Drive surface', async 
   await expect(
     page
       .getByRole('heading', { name: 'Evolución clínica' })
-      .or(page.getByRole('heading', { name: 'Trabaja más rápido con tus evoluciones' })),
+      .or(page.getByRole('heading', { name: 'Prepara una evolución clínica' })),
   ).toBeVisible();
   await expect(page.getByLabel('Nota clínica')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
