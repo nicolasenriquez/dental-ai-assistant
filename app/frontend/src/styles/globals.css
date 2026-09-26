@@ -1566,6 +1566,34 @@ body,
   }
 }
 
+@media (min-width: 768px) and (max-width: 900px) {
+  .clinical-assistant-area .workspace-header {
+    height: auto;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .clinical-assistant-area .workspace-header__copy {
+    flex: 1 1 0;
+  }
+
+  .clinical-assistant-area .workspace-header__context {
+    order: 2;
+    max-width: none;
+    flex-basis: 100%;
+  }
+
+  .clinical-assistant-area .workspace-header__actions {
+    order: 1;
+  }
+
+  .clinical-assistant-area .workspace-header__context .clinical-patient-context {
+    width: 100%;
+  }
+}
+
 .clinical-empty-state p,
 .clinical-approval > p,
 .clinical-result {
@@ -3775,23 +3803,6 @@ body,
   min-width: 56px;
 }
 
-.sidebar-container.is-clinical:not(.collapsed) {
-  min-width: 244px;
-}
-
-.sidebar-container.is-clinical .sidebar-brand-mark {
-  width: 25px;
-  height: 25px;
-  flex-basis: 25px;
-  border-radius: 8px;
-  background: linear-gradient(145deg, #6790ff, #315fe7);
-  box-shadow: 0 6px 18px rgba(49, 95, 231, 0.24);
-}
-
-.sidebar-container.is-clinical .sidebar-navigation {
-  border-top: 1px solid var(--border);
-}
-
 .clinical-sidebar-create {
   display: flex;
   width: calc(100% - 16px);
@@ -3865,10 +3876,16 @@ body,
 }
 
 .sidebar-brand-mark {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  border-radius: 6px;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  border-radius: 8px;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 70%, white),
+    var(--accent-dark)
+  );
+  box-shadow: 0 6px 18px var(--accent-glow);
 }
 
 .sidebar-brand-name {
@@ -4210,6 +4227,13 @@ body,
   white-space: nowrap;
 }
 
+.sidebar-container.is-clinical:not(.collapsed) .conversation-title-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+
 .conversation-title-copy {
   display: flex;
   min-width: 0;
@@ -4481,13 +4505,6 @@ body,
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 11px;
-}
-
-.sidebar-footer-brand {
-  padding: 0 8px 2px;
-  color: var(--text-tertiary);
-  font-size: 10px;
-  letter-spacing: 0.03em;
 }
 
 .sidebar-dialog-overlay {
@@ -4767,10 +4784,6 @@ body,
     width: min(260px, calc(100vw - 24px));
     min-width: min(260px, calc(100vw - 24px));
     border-right-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .sidebar-container.is-clinical:not(.collapsed) {
-    min-width: min(260px, calc(100vw - 24px));
   }
 
   .sidebar-container.collapsed {

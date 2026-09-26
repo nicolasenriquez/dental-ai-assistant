@@ -676,6 +676,36 @@ test('keeps title and Drive above the patient selector on mobile', async ({ page
   expect((optionBounds?.x ?? 0) + (optionBounds?.width ?? 0)).toBeLessThanOrEqual(390);
 });
 
+test('keeps the assistant header and sidebar consistent across viewport boundaries', async ({
+  page,
+}) => {
+  await setupClinicalHarness(page, thread());
+  const title = page.locator('.workspace-header__copy strong');
+  const context = page.locator('.workspace-header__context');
+  const actions = page.locator('.workspace-header__actions');
+  for (const width of [1440, 1024, 900, 768, 767, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    if (width >= 768) {
+      expect(
+        await page
+          .locator('#app-sidebar')
+          .evaluate((element) => element.getBoundingClientRect().width),
+      ).toBe(260);
+    }
+    if (width <= 900) {
+      expect((await context.boundingBox())?.y).toBeGreaterThan(
+        (await actions.boundingBox())?.y ?? 0,
+      );
+    }
+    if (width >= 768 && width <= 900) {
+      expect(await title.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+    }
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
 function sseEvent(
   name: string,
   sequence: number,
@@ -999,7 +1029,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   const sidebar = page.locator('#app-sidebar');
   await expect
     .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
-    .toBe(244);
+    .toBe(260);
   await expect(sidebar.getByRole('button', { name: 'Nueva conversación' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Asistente' })).toBeVisible();
   await expect(

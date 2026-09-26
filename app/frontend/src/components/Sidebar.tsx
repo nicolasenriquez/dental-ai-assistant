@@ -228,13 +228,7 @@ export function Sidebar({
         aria-hidden={isMobile && !isOpen ? true : undefined}
         initial={false}
         animate={{
-          width: isMobile
-            ? 'min(260px, calc(100vw - 24px))'
-            : isCollapsed
-              ? 56
-              : clinicalVariant
-                ? 244
-                : 260,
+          width: isMobile ? 'min(260px, calc(100vw - 24px))' : isCollapsed ? 56 : 260,
           x: isMobile && !isOpen ? '-100%' : 0,
         }}
         transition={
@@ -363,9 +357,6 @@ export function Sidebar({
               onClose={onClose}
               onLogout={() => guardTransition(() => void handleLogout())}
             />
-          )}
-          {!clinicalVariant && (
-            <span className="sidebar-footer-brand sidebar-label">Dental AI Assistant</span>
           )}
         </div>
       </motion.aside>

@@ -736,6 +736,12 @@ test('isolates concurrent conversation streams, stop, retry, and manual scroll',
 });
 
 test('captures sidebar responsive states and preserves the rail contract', async ({ page }) => {
+  await mockJsonRoute(page, '**/api/auth/config', {
+    mode: 'local',
+    google_client_id: null,
+    drive_enabled: false,
+    drive_auto_onboard: false,
+  });
   await mockJsonRoute(page, '**/api/auth/me', {
     id: '00000000-0000-0000-0000-000000000001',
     email: 'admin@email.com',

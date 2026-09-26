@@ -5,6 +5,7 @@ Dental AI Assistant and Chat share the dark workspace shell. The visual source o
 ## Shared surfaces
 
 - Both sidebars put Pacientes, Asistente, and Chat first, in that order. Each surface places its own creation action and history beneath this navigation.
+- The expanded desktop sidebar is 260px on every surface and uses one shared brand mark.
 - Both composers use the same surface color, border, radius, shadow, and focus ring. Assistant grows only when dictation or real document attachments require more room.
 - On narrow screens, the Assistant header places its title and Google Drive action on the first row and the active patient on the second. The patient control includes the masked RUT and is the place to change patient.
 

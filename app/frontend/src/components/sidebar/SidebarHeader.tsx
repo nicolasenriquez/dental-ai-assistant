@@ -26,7 +26,7 @@ export function SidebarHeader({
     <header className="sidebar-header">
       <div className="sidebar-brand" title="Dental AI Assistant">
         <span
-          className="sidebar-brand-mark inline-flex items-center justify-center bg-[var(--accent)] text-white"
+          className="sidebar-brand-mark inline-flex items-center justify-center text-white"
           aria-hidden="true"
         >
           <DentalToothIcon className="size-4" />

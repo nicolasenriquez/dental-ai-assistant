@@ -9,7 +9,6 @@
     - link "Chat":
       - /url: /chat
   - button "Abrir menú de usuario para qa@example.com"
-  - text: Dental AI Assistant
 - main:
   - heading "Pacientes" [level=1]
   - paragraph: Gestiona pacientes y sus evoluciones dentales.
