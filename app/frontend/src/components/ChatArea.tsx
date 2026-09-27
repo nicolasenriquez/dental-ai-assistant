@@ -208,6 +208,7 @@ export function ChatArea({
   const { addToast } = useToast();
   const currentConversationIdRef = useRef(conversationId);
   currentConversationIdRef.current = conversationId;
+  const reconciledRuntimeRef = useRef<ConversationRuntime | null>(null);
 
   const chatInputRef = useRef<ChatInputHandle>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
@@ -279,6 +280,26 @@ export function ChatArea({
     ? (pendingNewConversationMessages.get(conversationId) ??
       getPendingNavigationMessage(location.state))
     : null;
+
+  useEffect(() => {
+    if (
+      !conversationId ||
+      loading ||
+      error ||
+      conversation?.id !== conversationId ||
+      runtime?.phase !== 'completed' ||
+      reconciledRuntimeRef.current === runtime ||
+      activeSendIdsRef.current.has(conversationId)
+    )
+      return;
+
+    reconciledRuntimeRef.current = runtime;
+    const id = conversationId;
+    void reload().then((loaded) => {
+      if (loaded && mountedRef.current && currentConversationIdRef.current === id)
+        clearRuntime?.(id);
+    });
+  }, [clearRuntime, conversation?.id, conversationId, error, loading, reload, runtime]);
 
   const appendVoiceText = useCallback((text: string) => {
     const key = currentConversationIdRef.current ?? NEW_CHAT_KEY;
@@ -379,7 +400,7 @@ export function ChatArea({
       const turnId = ++nextOptimisticTurnIdRef.current;
       const tempId = `temp-user-${id}-${turnId}`;
       pendingUserMsgIdsRef.current.set(id, tempId);
-      if (currentConversationIdRef.current === id) {
+      if (mountedRef.current && currentConversationIdRef.current === id) {
         setMessages((previous) => [
           ...previous,
           {
@@ -401,6 +422,7 @@ export function ChatArea({
 
         if (
           result &&
+          mountedRef.current &&
           currentConversationIdRef.current === id &&
           (result.fullText || !result.stopped)
         ) {
@@ -432,7 +454,7 @@ export function ChatArea({
         }
 
         // The completed result is in messages before the runtime is removed.
-        clearRuntime?.(id);
+        if (mountedRef.current && currentConversationIdRef.current === id) clearRuntime?.(id);
 
         refreshAuth?.();
         refreshConversationsRef?.current?.();

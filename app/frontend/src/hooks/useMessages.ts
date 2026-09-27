@@ -8,14 +8,14 @@ export function useMessages(conversationId: string | null) {
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
     if (!conversationId) {
       setMessages([]);
       setConversation(null);
       setLoading(false);
       setError(null);
-      return;
+      return true;
     }
 
     setLoading(true);
@@ -23,7 +23,7 @@ export function useMessages(conversationId: string | null) {
 
     try {
       const data = await getConversation(conversationId);
-      if (requestId !== requestIdRef.current) return;
+      if (requestId !== requestIdRef.current) return false;
       setMessages(data.messages);
       setConversation({
         id: data.id,
@@ -31,10 +31,12 @@ export function useMessages(conversationId: string | null) {
         created_at: data.created_at,
         updated_at: data.updated_at,
       });
+      return true;
     } catch (e) {
       if (requestId === requestIdRef.current) {
         setError(e instanceof Error ? e.message : 'Failed to load messages');
       }
+      return false;
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }

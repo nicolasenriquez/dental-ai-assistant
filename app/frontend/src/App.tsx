@@ -8,10 +8,11 @@ import {
   createBrowserRouter,
   createRoutesFromElements,
   useLocation,
-  useParams,
+  useMatch,
 } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { ChatArea } from './components/ChatArea';
+import { ChatRuntimeProvider } from './components/ChatRuntimeProvider';
 import { ToastProvider } from './components/ToastProvider';
 import {
   AuthProvider,
@@ -19,7 +20,7 @@ import {
   isUnauthenticatedStatus,
   useAuth,
 } from './hooks/useAuth';
-import { useStreamingResponse } from './hooks/useStreamingResponse';
+import { useChatRuntime } from './hooks/useChatRuntime';
 import { AdminVideos } from './pages/AdminVideos';
 import { ClinicalAssistant } from './pages/ClinicalAssistant';
 import { Login } from './pages/Login';
@@ -52,17 +53,13 @@ function RequireAuth({ children }: RequireAuthProps) {
 }
 
 // ── Layout wrapper used by all routes ────────────────────────────
-interface AppLayoutProps {
-  conversationId?: string;
-}
-
-function AppLayout({ conversationId }: AppLayoutProps) {
+function AppLayout() {
+  const conversationId = useMatch('/c/:conversationId')?.params.conversationId;
   // Shared ref so ChatArea can trigger a sidebar conversation refresh
   const conversationsRef = useRef<(() => Promise<void>) | null>(null) as React.MutableRefObject<
     (() => Promise<void>) | null
   >;
-  const { runtimeByConversationId, startStream, abortStream, clearRuntime } =
-    useStreamingResponse();
+  const { runtimeByConversationId, startStream, abortStream, clearRuntime } = useChatRuntime();
   const { refresh: refreshAuth } = useAuth();
 
   return (
@@ -86,11 +83,6 @@ function AppLayout({ conversationId }: AppLayoutProps) {
 }
 
 // ── Route components ─────────────────────────────────────────────
-function ConversationPage() {
-  const { conversationId } = useParams<{ conversationId: string }>();
-  return <AppLayout conversationId={conversationId} />;
-}
-
 function AppProviders() {
   return (
     <AuthProvider>
@@ -107,93 +99,55 @@ const router = createBrowserRouter(
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route
-        path="/"
         element={
           <RequireAuth>
-            <Navigate to="/patients" replace />
+            <ChatRuntimeProvider>
+              <Outlet />
+            </ChatRuntimeProvider>
           </RequireAuth>
         }
-      />
-      <Route
-        path="/patients"
-        element={
-          <RequireAuth>
+      >
+        <Route path="/" element={<Navigate to="/patients" replace />} />
+        <Route
+          path="/patients"
+          element={
             <AppShell showConversations={false}>
               <Patients />
             </AppShell>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/patients/:patientId"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/patients/:patientId"
+          element={
             <AppShell showConversations={false}>
               <PatientDetail />
             </AppShell>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/patients/:patientId/evolutions/new"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/patients/:patientId/evolutions/new"
+          element={
             <AppShell showConversations={false}>
               <NewEvolution />
             </AppShell>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/patients/:patientId/evolutions/:evolutionId"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/patients/:patientId/evolutions/:evolutionId"
+          element={
             <AppShell showConversations={false}>
               <PatientDetail />
             </AppShell>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/chat"
-        element={
-          <RequireAuth>
-            <AppLayout />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/assistant"
-        element={
-          <RequireAuth>
-            <ClinicalAssistant />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/a/:threadId"
-        element={
-          <RequireAuth>
-            <ClinicalAssistant />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/c/:conversationId"
-        element={
-          <RequireAuth>
-            <ConversationPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <RequireAuth>
-            <AdminVideos />
-          </RequireAuth>
-        }
-      />
+          }
+        />
+        <Route element={<AppLayout />}>
+          <Route path="/chat" />
+          <Route path="/c/:conversationId" />
+        </Route>
+        <Route path="/assistant" element={<ClinicalAssistant />} />
+        <Route path="/a/:threadId" element={<ClinicalAssistant />} />
+        <Route path="/admin" element={<AdminVideos />} />
+      </Route>
       <Route path="*" element={<NotFound />} />
     </Route>,
   ),

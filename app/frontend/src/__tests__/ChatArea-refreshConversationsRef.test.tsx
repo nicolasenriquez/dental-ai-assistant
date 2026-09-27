@@ -221,6 +221,57 @@ describe('ChatArea refreshConversationsRef', () => {
     expect(startStream).toHaveBeenCalledTimes(1);
   });
 
+  it('reconciles a completed off-screen run before clearing its runtime', async () => {
+    getConversationMock
+      .mockResolvedValueOnce({
+        id: 'conv-1',
+        title: 'Conversation',
+        created_at: '',
+        updated_at: '',
+        messages: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv-1',
+        title: 'Conversation',
+        created_at: '',
+        updated_at: '',
+        messages: [
+          {
+            id: 'persisted-assistant',
+            conversation_id: 'conv-1',
+            role: 'assistant',
+            content: 'Respuesta terminada',
+            created_at: '',
+          },
+        ],
+      });
+    const clearRuntime = vi.fn();
+    renderChat(
+      <MemoryRouter>
+        <ChatArea
+          conversationId="conv-1"
+          runtime={{
+            status: 'running',
+            phase: 'completed',
+            content: 'Respuesta terminada',
+            sources: [],
+            streamingStatus: null,
+            error: null,
+            failedMessage: null,
+            canRetry: false,
+          }}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+          clearRuntime={clearRuntime}
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('Respuesta terminada')).toBeInTheDocument());
+    expect(getConversationMock).toHaveBeenCalledTimes(2);
+    expect(clearRuntime).toHaveBeenCalledWith('conv-1');
+  });
+
   it('shows a retry action when loading messages fails', async () => {
     getConversationMock.mockRejectedValueOnce(new Error('HTTP 500'));
 
