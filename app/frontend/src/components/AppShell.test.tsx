@@ -14,6 +14,7 @@ vi.mock('./Sidebar', () => ({
     isMobile,
     isOpen,
     isCollapsed,
+    hideCollapsed,
     onToggleCollapse,
     onClose,
   }: {
@@ -22,6 +23,7 @@ vi.mock('./Sidebar', () => ({
     isMobile?: boolean;
     isOpen?: boolean;
     isCollapsed?: boolean;
+    hideCollapsed?: boolean;
     onToggleCollapse?: () => void;
     onClose?: () => void;
   }) => (
@@ -29,7 +31,9 @@ vi.mock('./Sidebar', () => ({
       id="app-sidebar"
       ref={sidebarRef}
       onKeyDown={onKeyDown}
-      aria-hidden={isMobile && !isOpen ? true : undefined}
+      aria-hidden={
+        (isMobile && !isOpen) || (!isMobile && isCollapsed && hideCollapsed) ? true : undefined
+      }
     >
       {isMobile && isOpen ? (
         <button
@@ -113,6 +117,43 @@ describe('AppShell mobile sidebar', () => {
     expect(container.querySelector('.workspace-resize-handle')).toBeInTheDocument();
     expect(container.querySelector('.workspace-mobile-stack')).not.toBeInTheDocument();
 
+    vi.unstubAllGlobals();
+  });
+
+  it('defaults an accessory to visible and keeps it mounted when explicitly hidden', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+
+    const accessory = <aside>Accessory</aside>;
+    const { container, rerender } = render(
+      <AppShell workspaceAccessory={accessory}>
+        <main>Contenido</main>
+      </AppShell>,
+    );
+    expect(screen.getByText('Accessory')).toBeVisible();
+    expect(container.querySelector('.workspace-resize-handle-closed')).not.toBeInTheDocument();
+
+    rerender(
+      <AppShell workspaceAccessory={accessory} workspaceAccessoryOpen={false}>
+        <main>Contenido</main>
+      </AppShell>,
+    );
+    expect(screen.getByText('Accessory')).toBeInTheDocument();
+    expect(container.querySelector('.workspace-resize-handle-closed')).toBeInTheDocument();
+
+    rerender(
+      <AppShell workspaceAccessory={accessory} workspaceAccessoryOpen>
+        <main>Contenido</main>
+      </AppShell>,
+    );
+    expect(screen.getByText('Accessory')).toBeVisible();
+    expect(container.querySelector('.workspace-resize-handle-closed')).not.toBeInTheDocument();
     vi.unstubAllGlobals();
   });
 
@@ -298,6 +339,31 @@ describe('AppShell mobile sidebar', () => {
     expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('aria-hidden');
     expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('inert');
 
+    vi.unstubAllGlobals();
+  });
+
+  it('hides the chat sidebar completely and restores it from the workspace', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+    render(
+      <AppShell showConversations>
+        <main>Chat</main>
+      </AppShell>,
+    );
+    const collapse = screen.getByRole('button', { name: 'Cerrar navegación' });
+    collapse.focus();
+    fireEvent.click(collapse);
+    expect(document.querySelector('#app-sidebar')).toHaveAttribute('inert');
+    const restore = screen.getByRole('button', { name: 'Abrir navegación' });
+    expect(restore).toHaveFocus();
+    fireEvent.click(restore);
+    expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('inert');
     vi.unstubAllGlobals();
   });
 });

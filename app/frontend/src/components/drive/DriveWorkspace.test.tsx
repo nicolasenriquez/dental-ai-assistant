@@ -29,13 +29,15 @@
  */
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { type Mock, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../../lib/api';
 
 type DriveWorkspaceComponent = (props: {
   patientId: string | null;
   draftSeed?: { name: string; content: string } | null;
+  open?: boolean;
+  onClose?: () => void;
 }) => ReactNode;
 
 let DriveWorkspace: DriveWorkspaceComponent | null = null;
@@ -51,6 +53,8 @@ beforeAll(async () => {
 function Workspace(props: {
   patientId: string | null;
   draftSeed?: { name: string; content: string } | null;
+  open?: boolean;
+  onClose?: () => void;
 }) {
   if (!DriveWorkspace) {
     throw new Error('missing src/components/drive/DriveWorkspace.tsx seam — implement in task 5.2');
@@ -617,7 +621,11 @@ describe('accessibility', () => {
   it('opens the document in a labelled accessible dialog on mobile that closes with Escape', async () => {
     stubMobile();
     listDriveFilesMock.mockResolvedValue({ files: [fileBody], next_page_token: null });
-    renderWorkspace();
+    function ControlledWorkspace() {
+      const [open, setOpen] = useState(true);
+      return <Workspace patientId="p1" open={open} onClose={() => setOpen(false)} />;
+    }
+    render(<ControlledWorkspace />);
 
     await openFirstFile();
     const dialog = await screen.findByRole('dialog', { name: 'Documento' });

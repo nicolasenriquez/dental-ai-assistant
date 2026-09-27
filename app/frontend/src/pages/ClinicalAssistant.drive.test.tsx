@@ -325,6 +325,25 @@ describe('Clinical Assistant Drive transfer', () => {
     expect(mocks.stop).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Cerrar Google Drive' })).toBeVisible();
   });
+  it('keeps a local Drive draft while hidden and still guards patient changes', async () => {
+    renderAssistant();
+    const editor = await openAssistantMessageDraft();
+    fireEvent.change(editor, { target: { value: 'cambio local' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar Google Drive' }));
+    expect(
+      screen.queryByRole('textbox', { name: 'Contenido del documento' }),
+    ).not.toBeInTheDocument();
+    expect(dispatchBeforeUnload().defaultPrevented).toBe(true);
+    choosePatient('Bruno');
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
+    expect(screen.getByRole('textbox', { name: 'Contenido del documento' })).toHaveValue(
+      'cambio local',
+    );
+  });
   it('places the single active-patient selector in the workspace header', () => {
     renderAssistant();
 

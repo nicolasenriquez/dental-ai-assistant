@@ -10,11 +10,7 @@ const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
 >(({ className = '', ...props }, ref) => (
-  <SheetPrimitive.Overlay
-    ref={ref}
-    className={`dialog-overlay ${className}`.trim()}
-    {...props}
-  />
+  <SheetPrimitive.Overlay ref={ref} className={`dialog-overlay ${className}`.trim()} {...props} />
 ));
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 

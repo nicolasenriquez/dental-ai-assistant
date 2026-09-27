@@ -976,15 +976,7 @@ export function DriveWorkspace({
   }
 
   const requestCloseWorkspace = () => {
-    const close = () => {
-      closeDocNow();
-      onClose?.();
-    };
-    if (workspaceDocument && dirty && guardTransition) {
-      guardTransition(close);
-      return;
-    }
-    close();
+    onClose?.();
   };
 
   const conflictView = conflictOpen ? (

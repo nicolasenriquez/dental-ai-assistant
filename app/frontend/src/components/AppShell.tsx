@@ -29,12 +29,17 @@ function readDriveLayout(): { main: number; accessory: number } {
       main?: unknown;
       accessory?: unknown;
     } | null;
-    if (typeof parsed?.main !== 'number' || typeof parsed.accessory !== 'number') {
+    if (
+      !parsed ||
+      typeof parsed.main !== 'number' ||
+      typeof parsed.accessory !== 'number' ||
+      !Number.isFinite(parsed.main) ||
+      !Number.isFinite(parsed.accessory)
+    ) {
       return DEFAULT_WORKSPACE_LAYOUT;
     }
-    const main = Math.min(72, Math.max(58, parsed.main));
-    const accessory = Math.min(40, Math.max(28, parsed.accessory));
-    return { main, accessory };
+    const accessory = Math.min(72, Math.max(28, parsed.accessory));
+    return { main: 100 - accessory, accessory };
   } catch {
     return DEFAULT_WORKSPACE_LAYOUT;
   }
@@ -61,6 +66,7 @@ interface AppShellProps {
   workspaceMode?: boolean;
   utilities?: AppShellUtility[];
   workspaceAccessory?: ReactNode;
+  workspaceAccessoryOpen?: boolean;
   workspaceAccessoryMode?: 'compact' | 'document';
 }
 
@@ -75,29 +81,47 @@ export function AppShell({
   workspaceMode = false,
   utilities = [],
   workspaceAccessory,
+  workspaceAccessoryOpen = true,
   workspaceAccessoryMode = 'compact',
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const hideSidebarRail = showConversations || clinicalSidebar;
   const [isMobileSidebar, setIsMobileSidebar] = useState(
     () => window.matchMedia?.('(max-width: 767px)').matches ?? true,
   );
-  const [workspaceLayout] = useState(readDriveLayout);
-  const workspaceAccessoryVisible = Boolean(workspaceAccessory);
+  const [workspaceLayout, setWorkspaceLayout] = useState(readDriveLayout);
+  const [documentLayout, setDocumentLayout] = useState<{ main: number; accessory: number }>(
+    DOCUMENT_WORKSPACE_LAYOUT,
+  );
+  const [animatingWorkspace, setAnimatingWorkspace] = useState(false);
+  const workspaceAccessoryVisible = Boolean(workspaceAccessory) && workspaceAccessoryOpen;
   // Keep main content under same React parent so closing Drive cannot abort its stream.
-  const workspaceLayoutEnabled = workspaceMode || workspaceAccessoryVisible;
+  const workspaceLayoutEnabled = workspaceMode || Boolean(workspaceAccessory);
   const workspaceDefaultLayout = !workspaceAccessoryVisible
     ? CLOSED_WORKSPACE_LAYOUT
     : workspaceAccessoryMode === 'document'
-      ? DOCUMENT_WORKSPACE_LAYOUT
+      ? documentLayout
       : workspaceLayout;
   const workspaceGroup = useRef<GroupImperativeHandle>(null);
+  const previousAccessoryVisible = useRef(workspaceAccessoryVisible);
   useEffect(() => {
+    const visibilityChanged = previousAccessoryVisible.current !== workspaceAccessoryVisible;
+    previousAccessoryVisible.current = workspaceAccessoryVisible;
+    const animate =
+      visibilityChanged &&
+      !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches &&
+      !window.matchMedia?.('(max-width: 1024px)').matches;
+    if (animate) setAnimatingWorkspace(true);
     const frame = window.requestAnimationFrame(() => {
       workspaceGroup.current?.setLayout(workspaceDefaultLayout);
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [workspaceDefaultLayout]);
+    const timer = animate ? window.setTimeout(() => setAnimatingWorkspace(false), 300) : null;
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [workspaceDefaultLayout, workspaceAccessoryVisible]);
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarWasOpen = useRef(false);
@@ -121,10 +145,13 @@ export function AppShell({
     const sidebar = sidebarRef.current;
     if (!sidebar) return;
 
-    const hidden = isMobileSidebar && !sidebarOpen;
+    const hidden =
+      (isMobileSidebar && !sidebarOpen) ||
+      (!isMobileSidebar && sidebarCollapsed && hideSidebarRail);
+    if (hidden && sidebar.contains(document.activeElement)) menuButtonRef.current?.focus();
     sidebar.toggleAttribute('inert', hidden);
     return () => sidebar.removeAttribute('inert');
-  }, [isMobileSidebar, sidebarCollapsed, sidebarOpen]);
+  }, [isMobileSidebar, sidebarCollapsed, sidebarOpen, hideSidebarRail]);
 
   useEffect(() => {
     if (sidebarOpen) {
@@ -192,6 +219,7 @@ export function AppShell({
             showConversations={showConversations}
             isMobile={isMobileSidebar}
             isCollapsed={sidebarCollapsed}
+            hideCollapsed={hideSidebarRail}
             onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
             runtimeByConversationId={runtimeByConversationId}
             secondaryContent={secondarySidebarContent?.(
@@ -207,8 +235,22 @@ export function AppShell({
           <div
             id="main-content"
             tabIndex={-1}
-            className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}`}
+            className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}${!isMobileSidebar && sidebarCollapsed && hideSidebarRail ? ' has-sidebar-restore' : ''}`}
           >
+            {!isMobileSidebar && sidebarCollapsed && hideSidebarRail && (
+              <button
+                ref={menuButtonRef}
+                type="button"
+                className="sidebar-workspace-trigger"
+                onClick={() => setSidebarCollapsed(false)}
+                aria-expanded={false}
+                aria-controls="app-sidebar"
+                aria-label="Abrir navegación"
+                title="Abrir navegación"
+              >
+                <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
+              </button>
+            )}
             {isMobileSidebar && !sidebarOpen && (
               <button
                 key="mobile-navigation-trigger"
@@ -231,18 +273,19 @@ export function AppShell({
                   groupRef={workspaceGroup}
                   id="clinical-workspace"
                   orientation="horizontal"
-                  className="workspace-resizable"
+                  className={`workspace-resizable${animatingWorkspace ? ' is-toggling' : ''}`}
                   defaultLayout={workspaceDefaultLayout}
-                  onLayoutChanged={(layout) => {
-                    if (!workspaceAccessoryVisible || workspaceAccessoryMode === 'document') return;
+                  onLayoutChanged={(layout, meta) => {
+                    if (!meta.isUserInteraction || !workspaceAccessoryVisible) return;
+                    const accessory = Math.min(72, Math.max(28, layout.accessory ?? 32));
+                    const next = { main: 100 - accessory, accessory };
+                    if (workspaceAccessoryMode === 'document') {
+                      setDocumentLayout(next);
+                      return;
+                    }
+                    setWorkspaceLayout(next);
                     try {
-                      window.localStorage.setItem(
-                        DRIVE_LAYOUT_KEY,
-                        JSON.stringify({
-                          main: Math.min(72, Math.max(58, layout.main ?? 68)),
-                          accessory: Math.min(40, Math.max(28, layout.accessory ?? 32)),
-                        }),
-                      );
+                      window.localStorage.setItem(DRIVE_LAYOUT_KEY, JSON.stringify(next));
                     } catch {
                       // Storage is optional; the live layout still works.
                     }
@@ -251,7 +294,7 @@ export function AppShell({
                   <ResizablePanel
                     id="main"
                     defaultSize={workspaceAccessoryVisible ? '68' : '100'}
-                    minSize={workspaceAccessoryMode === 'document' ? '52' : '58'}
+                    minSize="400px"
                     className="workspace-panel-main"
                   >
                     {children}
@@ -259,21 +302,19 @@ export function AppShell({
                   <ResizableHandle
                     aria-label="Redimensionar Google Drive"
                     className={`workspace-resize-handle${workspaceAccessoryVisible ? '' : ' workspace-resize-handle-closed'}`}
+                    disabled={animatingWorkspace}
                   />
                   <ResizablePanel
                     id="accessory"
                     defaultSize={workspaceAccessoryVisible ? '32' : '0'}
-                    minSize={
-                      workspaceAccessoryVisible
-                        ? workspaceAccessoryMode === 'document'
-                          ? '32'
-                          : '28'
-                        : '0'
-                    }
-                    maxSize={workspaceAccessoryMode === 'document' ? '48' : '40'}
+                    collapsible
+                    collapsedSize="0"
+                    minSize="280px"
+                    maxSize="72"
+                    groupResizeBehavior="preserve-pixel-size"
                     className="workspace-panel-accessory"
                   >
-                    {workspaceAccessoryVisible ? workspaceAccessory : null}
+                    {workspaceAccessory}
                   </ResizablePanel>
                 </ResizableGroup>
               </div>

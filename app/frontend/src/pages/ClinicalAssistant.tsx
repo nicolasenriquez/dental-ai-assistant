@@ -39,6 +39,7 @@ function ClinicalAssistantContent() {
   const [createAttempt, setCreateAttempt] = useState(0);
   const [driveSurface, setDriveSurface] = useState<'compact' | 'document'>('compact');
   const [driveOpen, setDriveOpen] = useState(false);
+  const [driveMounted, setDriveMounted] = useState(false);
   const [driveInitialSection, setDriveInitialSection] = useState<'notes' | 'journals'>('notes');
   const [driveJournalTarget, setDriveJournalTarget] = useState<DriveJournalTarget | null>(null);
   const [driveDraftSeed, setDriveDraftSeed] = useState<{ name: string; content: string } | null>(
@@ -52,6 +53,7 @@ function ClinicalAssistantContent() {
   const createStarted = useRef(false);
 
   const setDriveVisibility = (open: boolean) => {
+    if (open) setDriveMounted(true);
     setDriveOpen(open);
     if (!open) {
       window.requestAnimationFrame?.(() => {
@@ -64,8 +66,7 @@ function ClinicalAssistantContent() {
   };
 
   const requestDriveVisibility = (open: boolean) => {
-    if (open) setDriveVisibility(true);
-    else transitionGuard.guardTransition(() => setDriveVisibility(false));
+    setDriveVisibility(open);
   };
 
   useEffect(() => {
@@ -145,6 +146,7 @@ function ClinicalAssistantContent() {
       clinicalSidebar
       workspaceMode
       workspaceAccessoryMode={driveSurface}
+      workspaceAccessoryOpen={driveOpen}
       secondarySidebarContent={(isCollapsed, onRequestExpand, onClose) => (
         <ClinicalThreadList
           activeThreadId={activeId ?? undefined}
@@ -156,7 +158,7 @@ function ClinicalAssistantContent() {
         />
       )}
       workspaceAccessory={
-        driveOpen ? (
+        driveMounted ? (
           <DriveWorkspace
             handleRef={driveRef}
             patientId={drivePatient?.id ?? null}

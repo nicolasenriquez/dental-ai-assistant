@@ -93,6 +93,7 @@ export interface SidebarProps {
   showConversations?: boolean;
   isMobile?: boolean;
   isCollapsed?: boolean;
+  hideCollapsed?: boolean;
   onToggleCollapse?: () => void;
   runtimeByConversationId?: RuntimeByConversationId;
   sidebarRef?: RefObject<HTMLElement>;
@@ -110,6 +111,7 @@ export function Sidebar({
   showConversations = true,
   isMobile = false,
   isCollapsed = false,
+  hideCollapsed = false,
   onToggleCollapse = () => undefined,
   runtimeByConversationId,
   sidebarRef,
@@ -224,17 +226,27 @@ export function Sidebar({
         id="app-sidebar"
         ref={sidebarRef}
         onKeyDown={onKeyDown}
-        className={`sidebar-container${isOpen ? ' open' : ''}${isCollapsed ? ' collapsed' : ''}${clinicalVariant ? ' is-clinical' : ''}`}
-        aria-hidden={isMobile && !isOpen ? true : undefined}
+        className={`sidebar-container${isOpen ? ' open' : ''}${isCollapsed ? ' collapsed' : ''}${hideCollapsed ? ' no-rail' : ''}${clinicalVariant ? ' is-clinical' : ''}`}
+        aria-hidden={
+          (isMobile && !isOpen) || (!isMobile && isCollapsed && hideCollapsed) ? true : undefined
+        }
         initial={false}
         animate={{
-          width: isMobile ? 'min(260px, calc(100vw - 24px))' : isCollapsed ? 56 : 260,
+          width: isMobile
+            ? 'min(260px, calc(100vw - 24px))'
+            : isCollapsed
+              ? hideCollapsed
+                ? 0
+                : 56
+              : 260,
           x: isMobile && !isOpen ? '-100%' : 0,
         }}
         transition={
           isMobile
             ? { duration: SIDEBAR_MOTION.slow, ease: SIDEBAR_MOTION.ease }
-            : SIDEBAR_MOTION.spring
+            : hideCollapsed
+              ? { type: 'tween', duration: 0.28, ease: SIDEBAR_MOTION.ease }
+              : SIDEBAR_MOTION.spring
         }
       >
         <SidebarHeader
