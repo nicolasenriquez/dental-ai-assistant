@@ -676,6 +676,65 @@ test('keeps title and Drive above the patient selector on mobile', async ({ page
   expect((optionBounds?.x ?? 0) + (optionBounds?.width ?? 0)).toBeLessThanOrEqual(390);
 });
 
+test('keeps a just-started thread running after immediate navigation', async ({ page }) => {
+  const otherId = '11111111-1111-4111-8111-111111111112';
+  await page.addInitScript((path) => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+      if (url.pathname !== path || init?.method !== 'POST') return originalFetch(input, init);
+      return Promise.resolve(
+        new Response(new ReadableStream(), {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        }),
+      );
+    };
+  }, `/api/clinical-threads/${threadId}/turns`);
+  await setupClinicalHarness(page, thread());
+
+  const otherThread = thread([], { id: otherId, title: 'Consulta B', active_patient: null });
+  let running = false;
+  let listCalls = 0;
+  await page.route('**/api/clinical-threads', (route) => {
+    listCalls += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { ...thread(), active_turn_id: running ? 'turn-a' : null, active_patient_id: patientId },
+        { ...otherThread, active_patient_id: null },
+      ]),
+    });
+  });
+  await page.route(`**/api/clinical-threads/${otherId}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(otherThread),
+    }),
+  );
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Consulta B', exact: true })).toBeVisible();
+
+  await page.getByLabel('Nota clínica').fill('Consulta rápida A');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await page.getByRole('button', { name: 'Consulta B', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/a/${otherId}$`));
+  const rowA = page.getByRole('button', { name: 'Ana Pérez · Control', exact: true });
+  await expect(rowA).toHaveAttribute('aria-busy', 'true');
+
+  const callsBeforePoll = listCalls;
+  running = true;
+  await expect.poll(() => listCalls).toBeGreaterThan(callsBeforePoll);
+  await expect(rowA).toHaveAttribute('aria-busy', 'true');
+  running = false;
+  await expect(rowA).toHaveAttribute('aria-busy', 'false', { timeout: 5000 });
+  const callsAfterCompletion = listCalls;
+  await page.waitForTimeout(2300);
+  expect(listCalls).toBe(callsAfterCompletion);
+});
+
 test('keeps the assistant header and sidebar consistent across viewport boundaries', async ({
   page,
 }) => {
@@ -1044,21 +1103,15 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(sidebar).toHaveClass(/collapsed/);
   await expect
     .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
-    .toBe(56);
+    .toBe(0);
+  await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+  await expect(sidebar).toHaveAttribute('inert', '');
+  const restoreNavigation = page.getByRole('button', { name: 'Abrir navegación' });
+  await expect(restoreNavigation).toBeVisible();
+  await restoreNavigation.click();
   await expect
-    .poll(() => sidebar.evaluate((element) => element.scrollWidth <= element.clientWidth))
-    .toBe(true);
-  await expect(sidebar.locator('.workspace-thread-list')).toHaveClass(/is-collapsed/);
-  await expect(sidebar.locator('.workspace-thread-list')).toHaveCSS('overflow-y', 'visible');
-  await expect(sidebar.locator('.sidebar-secondary-scroll')).toHaveCSS('overflow-y', 'auto');
-  await expect(sidebar.locator('.workspace-thread-list__heading')).toHaveCount(0);
-  await expect(sidebar.locator('.workspace-thread-list__group-heading')).toHaveCount(0);
-  await expect(sidebar.locator('.workspace-thread-list__item')).toHaveCount(0);
-  const historyButton = sidebar.getByRole('button', {
-    name: 'Abrir historial de conversaciones',
-  });
-  await expect(historyButton).toBeVisible();
-  await historyButton.click();
+    .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
+    .toBe(260);
   await expect(
     sidebar.getByRole('button', { name: 'Ana Pérez · Control', exact: true }),
   ).toBeVisible();
@@ -1782,6 +1835,7 @@ test('closing Drive during a retained clinical SSE keeps the turn alive', async 
   }));
   expect(widths.hit).toBeGreaterThanOrEqual(12);
   expect(widths.rule).toBe('1px');
+  await expect(divider).not.toHaveAttribute('aria-disabled', 'true');
   await divider.focus();
   await expect(divider).toBeFocused();
   const accessory = page.locator('.workspace-panel-accessory');

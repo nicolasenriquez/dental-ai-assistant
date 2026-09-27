@@ -1,5 +1,5 @@
 import { SquarePen } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import {
@@ -56,27 +56,93 @@ export function ClinicalThreadList({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
+  const [startingThreads, setStartingThreads] = useState<Set<string>>(() => new Set());
+  const refreshInFlight = useRef(false);
+  const previousLocalRun = useRef<{ id?: string; running: boolean }>({ running: false });
 
   const guardTransition = (continuation: () => void) => {
     if (transitionGuard) transitionGuard.guardTransition(continuation);
     else continuation();
   };
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(false);
+  const refresh = useCallback(async (silent = false) => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    if (!silent) {
+      setLoading(true);
+      setError(false);
+    }
     try {
-      setThreads(await getClinicalThreads());
+      const nextThreads = await getClinicalThreads();
+      setThreads(nextThreads);
+      setStartingThreads((current) => {
+        const next = new Set(current);
+        for (const thread of nextThreads) {
+          if (thread.active_turn_id) next.delete(thread.id);
+        }
+        return next.size === current.size ? current : next;
+      });
     } catch {
-      setError(true);
+      if (!silent) setError(true);
     } finally {
-      setLoading(false);
+      refreshInFlight.current = false;
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh, refreshKey]);
+
+  useEffect(() => {
+    const previous = previousLocalRun.current;
+    if (
+      activeThreadId &&
+      activeTurnRunning &&
+      (!previous.running || previous.id !== activeThreadId)
+    ) {
+      setStartingThreads((current) => new Set(current).add(activeThreadId));
+      void refresh(true);
+    } else if (
+      activeThreadId &&
+      !activeTurnRunning &&
+      previous.running &&
+      previous.id === activeThreadId
+    ) {
+      setStartingThreads((current) => {
+        if (!current.has(activeThreadId)) return current;
+        const next = new Set(current);
+        next.delete(activeThreadId);
+        return next;
+      });
+    }
+    previousLocalRun.current = { id: activeThreadId, running: activeTurnRunning };
+  }, [activeThreadId, activeTurnRunning, refresh]);
+
+  useEffect(() => {
+    if (!startingThreads.size) return;
+    // ponytail: expire a start that never appears in server summaries (for example, a failed send after navigation).
+    const timer = window.setTimeout(() => setStartingThreads(new Set()), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [startingThreads]);
+
+  const hasRunningThread =
+    activeTurnRunning ||
+    startingThreads.size > 0 ||
+    threads.some((thread) => thread.active_turn_id);
+  useEffect(() => {
+    if (!hasRunningThread) return;
+    const timer = window.setInterval(() => void refresh(true), 2000);
+    return () => window.clearInterval(timer);
+  }, [hasRunningThread, refresh]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden) void refresh(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refresh]);
 
   const create = async () => {
     setCreating(true);
@@ -148,7 +214,7 @@ export function ClinicalThreadList({
         ariaLabel="Hilos del asistente clínico"
         title="Conversaciones"
         isCollapsed={isCollapsed}
-        running={activeTurnRunning}
+        running={activeTurnRunning || hasRunningThread}
         items={threads.map((thread) => ({
           id: thread.id,
           title: thread.title,
@@ -185,7 +251,11 @@ export function ClinicalThreadList({
             }}
             query={query}
             isActive={Boolean(item.active)}
-            isRunning={Boolean(item.active && activeTurnRunning)}
+            isRunning={Boolean(
+              threads.find((thread) => thread.id === item.id)?.active_turn_id ||
+                startingThreads.has(item.id) ||
+                (item.id === activeThreadId && activeTurnRunning),
+            )}
             statusLabel={item.statusLabel}
             secondaryLabel={formatClinicalUpdatedAt(item.updatedAt)}
             onSelect={() =>

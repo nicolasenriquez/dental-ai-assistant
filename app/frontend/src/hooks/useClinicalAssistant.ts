@@ -262,6 +262,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     });
     return () => {
       cancelled = true;
+      // turn_runner owns execution; this only detaches the previous SSE subscriber.
       abortRef.current?.abort();
     };
   }, [load, threadId]);
@@ -340,6 +341,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         await consumeSse(
           response,
           ({ event, data }) => {
+            if (threadIdRef.current !== currentThreadId) return;
             if (!event) return;
             clinicalTrace('clinical.sse.received', {
               event,
@@ -481,12 +483,14 @@ export function useClinicalAssistant(threadId: string | undefined) {
         return !turnFailedRef.current;
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === 'AbortError') {
-          setRuntime('idle');
-          setError(null);
-          try {
-            await load();
-          } catch {
-            // The composer must remain usable even if reconciliation fails.
+          if (threadIdRef.current === currentThreadId) {
+            setRuntime('idle');
+            setError(null);
+            try {
+              await load();
+            } catch {
+              // The composer must remain usable even if reconciliation fails.
+            }
           }
         } else {
           const started = Date.now();
@@ -548,7 +552,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         }
         return false;
       } finally {
-        abortRef.current = null;
+        if (abortRef.current === controller) abortRef.current = null;
       }
     },
     [load, threadId],

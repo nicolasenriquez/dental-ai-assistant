@@ -94,6 +94,7 @@ interface QaRouteOptions {
   conversationLoadFailures?: number;
   streamFailuresBeforeSuccess?: number;
   holdFirstStream?: boolean;
+  persistChatStream?: boolean;
   holdClinicalStream?: boolean;
 }
 
@@ -154,6 +155,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
   const admin = options.admin ?? true;
   let loginAttempts = 0;
   let conversationLoadAttempts = 0;
+  let currentConversation = { ...conversation, messages: [...conversation.messages] };
   let streamAttempts = 0;
   let clinicalStreamAttempts = 0;
   const cancelledClinicalTurns = new Set<string>();
@@ -267,15 +269,15 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
     }
 
     if (path === '/api/conversations' && method === 'GET') {
-      await route.fulfill(json([conversation]));
+      await route.fulfill(json([currentConversation]));
       return;
     }
     if (path === '/api/conversations' && method === 'POST') {
-      await route.fulfill(json(conversation));
+      await route.fulfill(json(currentConversation));
       return;
     }
     if (path === '/api/conversations/acquire' && method === 'POST') {
-      await route.fulfill(json({ conversation, reused: false }));
+      await route.fulfill(json({ conversation: currentConversation, reused: false }));
       return;
     }
     if (path === `/api/conversations/${conversationId}` && method === 'GET') {
@@ -285,7 +287,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
         await route.fulfill(json({ detail: 'Error temporal de carga QA' }, 500));
         return;
       }
-      await route.fulfill(json(conversation));
+      await route.fulfill(json(currentConversation));
       return;
     }
     if (path === `/api/conversations/${conversationId}` && method === 'PATCH') {
@@ -309,6 +311,22 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
         await new Promise<void>((resolve) => {
           releaseHeldStream = resolve;
         });
+      }
+      if (options.persistChatStream) {
+        currentConversation = {
+          ...currentConversation,
+          messages: [
+            ...currentConversation.messages,
+            {
+              id: `assistant-stream-${streamAttempts}`,
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: 'Respuesta de streaming QA',
+              created_at: '2026-01-15T12:00:01Z',
+              sources: [],
+            },
+          ],
+        };
       }
       await route.fulfill({
         status: 200,
@@ -383,16 +401,21 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       await route.fulfill(json(currentClinicalThread));
       return;
     }
-    if (path.startsWith(`/api/clinical-threads/${threadId}/turns/`) && path.endsWith('/cancel') && method === 'POST') {
+    if (
+      path.startsWith(`/api/clinical-threads/${threadId}/turns/`) &&
+      path.endsWith('/cancel') &&
+      method === 'POST'
+    ) {
       const turn = path.split('/').at(-2) ?? '';
       cancelledClinicalTurns.add(turn);
       currentClinicalThread = {
         ...currentClinicalThread,
         active_turn_id: null,
-        messages: (currentClinicalThread.messages as Array<Record<string, unknown>>).map((message) =>
-          message.turn_id === turn && message.role === 'user'
-            ? { ...message, turn_status: 'failed', turn_error_code: 'CLINICAL_TURN_CANCELLED' }
-            : message,
+        messages: (currentClinicalThread.messages as Array<Record<string, unknown>>).map(
+          (message) =>
+            message.turn_id === turn && message.role === 'user'
+              ? { ...message, turn_status: 'failed', turn_error_code: 'CLINICAL_TURN_CANCELLED' }
+              : message,
         ),
       };
       releaseHeldStream?.();
@@ -1058,6 +1081,30 @@ test('chat queues a second message and drains it after the active stream', async
   }
 });
 
+test('chat stream completes after SPA navigation and reconciles on return', async ({ page }) => {
+  const controls = await installQaRoutes(page, { holdFirstStream: true, persistChatStream: true });
+  try {
+    await page.goto(`/c/${conversationId}`);
+    await page.getByLabel('Pregunta sobre la biblioteca de videos').fill('Pregunta pendiente QA');
+    await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+    await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
+
+    await page
+      .getByRole('navigation', { name: 'Navegación principal' })
+      .getByRole('link', { name: 'Pacientes' })
+      .click();
+    controls.releaseHeldStream();
+    await page
+      .getByRole('navigation', { name: 'Navegación principal' })
+      .getByRole('link', { name: 'Chat' })
+      .click();
+    await page.getByRole('button', { name: 'Conversación QA', exact: true }).click();
+    await expect(page.getByText('Respuesta de streaming QA')).toHaveCount(1);
+  } finally {
+    controls.releaseHeldStream();
+  }
+});
+
 test('clinical assistant exposes the review lifecycle and Drive surface', async ({ page }) => {
   await installQaRoutes(page, { driveEnabled: true });
   await page.goto(`/a/${threadId}`);
@@ -1120,7 +1167,7 @@ test('clinical stream survives closing Drive', async ({ page }) => {
     await input.fill('Nota durante stream clínico QA.');
     await page.getByRole('button', { name: 'Enviar mensaje' }).click();
     await controls.clinicalStreamEntered;
-    await expect(page.getByRole('button', { name: 'Detener', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Cerrar Google Drive' }).click();
     await expect(page.getByRole('button', { name: 'Abrir Google Drive' })).toBeVisible();
@@ -1135,15 +1182,66 @@ test('clinical stream survives closing Drive', async ({ page }) => {
   }
 });
 
-test('clinical turn finishes after navigation and reconciles on return and reload', async ({ page }) => {
+test('clinical workspace reflows during live resize without losing the composer', async ({
+  page,
+}) => {
+  await installQaRoutes(page, { driveEnabled: true });
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto(`/a/${threadId}`);
+  const composer = page.getByLabel('Nota clínica');
+  await composer.fill('Borrador que sigue en el workspace.');
+  const sidebar = page.locator('#app-sidebar');
+  await sidebar.getByRole('button', { name: 'Colapsar navegación' }).click();
+  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(0);
+  await expect(page.getByRole('button', { name: 'Abrir navegación' })).toBeVisible();
+  await page.getByRole('button', { name: 'Abrir navegación' }).click();
+  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(260);
+
+  await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+  await expect(page.locator('.workspace-resizable')).not.toHaveClass(/is-toggling/);
+  const main = page.locator('.workspace-panel-main');
+  const separator = page.getByRole('separator', { name: 'Redimensionar Google Drive' });
+  await expect(separator).toBeVisible();
+  const initialWidth = (await main.boundingBox())?.width ?? 0;
+  const handle = await separator.boundingBox();
+  if (!handle) throw new Error('No se encontró divisor');
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 400, handle.y + handle.height / 2, { steps: 8 });
+  const draggedWidth = (await main.boundingBox())?.width ?? 0;
+  expect(draggedWidth).toBeLessThan(initialWidth);
+  expect(draggedWidth).toBeGreaterThanOrEqual(390);
+  await page.mouse.up();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const saved = window.localStorage.getItem('dental.drive.workspace.layout.v1');
+        return saved ? (JSON.parse(saved) as { accessory: number }).accessory : 0;
+      }),
+    )
+    .toBeGreaterThan(40);
+  const settledWidth = (await main.boundingBox())?.width ?? 0;
+  await page.getByRole('button', { name: 'Cerrar Google Drive' }).click();
+  await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+  await expect
+    .poll(async () => Math.abs(((await main.boundingBox())?.width ?? 0) - settledWidth))
+    .toBeLessThan(8);
+  await expect(composer).toHaveValue('Borrador que sigue en el workspace.');
+  await assertNoHorizontalOverflow(page);
+});
+
+test('clinical turn finishes after navigation and reconciles on return and reload', async ({
+  page,
+}) => {
   const controls = await installQaRoutes(page, { holdClinicalStream: true });
   try {
     await page.goto(`/a/${threadId}`);
     await page.getByLabel('Nota clínica').fill('Nota durante navegación QA.');
     await page.getByRole('button', { name: 'Enviar mensaje' }).click();
     await controls.clinicalStreamEntered;
-    await expect(page.getByRole('button', { name: 'Detener', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Poner mensaje en cola' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
+    await page.getByLabel('Nota clínica').fill('Nota de seguimiento QA.');
+    await expect(page.getByRole('button', { name: 'Encolar' })).toBeVisible();
 
     await page.goto('/patients');
     controls.releaseHeldStream();
@@ -1164,8 +1262,10 @@ test('clinical Stop preserves the note and retry creates one artifact', async ({
     await page.getByLabel('Nota clínica').fill('Nota detenida QA.');
     await page.getByRole('button', { name: 'Enviar mensaje' }).click();
     await controls.clinicalStreamEntered;
-    await page.getByRole('button', { name: 'Detener', exact: true }).click();
-    await expect(page.getByText('Respuesta detenida. Tu nota se conserva y puedes reintentar.')).toBeVisible();
+    await page.getByRole('button', { name: 'Detener respuesta' }).click();
+    await expect(
+      page.getByText('Respuesta detenida. Tu nota se conserva y puedes reintentar.'),
+    ).toBeVisible();
     await page.getByRole('button', { name: 'Reintentar' }).click();
     await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(1);
     await page.setViewportSize({ width: 768, height: 900 });
