@@ -2382,9 +2382,72 @@ body,
 
 .clinical-artifact-overflow {
   position: relative;
-  margin-left: auto;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.clinical-artifact-utilities {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.clinical-artifact-copy {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 7px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.clinical-artifact-copy:hover,
+.clinical-artifact-copy:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.clinical-artifact-manual-copy {
+  flex-basis: 100%;
+  min-width: min(100%, 280px);
+  max-width: 480px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  padding: 10px;
+  font-size: 12px;
+}
+
+.clinical-artifact-manual-copy p {
+  margin-bottom: 8px;
+  color: var(--danger);
+}
+
+.clinical-artifact-manual-copy textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 8px;
+}
+
+.clinical-artifact-manual-copy button {
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
 }
 
 .clinical-artifact-overflow summary {
@@ -3361,7 +3424,7 @@ body,
   }
 
   .clinical-artifact-overflow {
-    width: 100%;
+    width: auto;
     margin-left: 0;
   }
 
@@ -3370,8 +3433,9 @@ body,
   }
 
   .clinical-artifact-overflow__menu {
-    position: static;
-    width: 100%;
+    position: absolute;
+    right: 0;
+    width: min(240px, calc(100vw - 32px));
     margin-top: 4px;
   }
 

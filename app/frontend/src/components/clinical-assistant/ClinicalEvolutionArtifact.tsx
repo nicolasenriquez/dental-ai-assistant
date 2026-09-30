@@ -1,5 +1,5 @@
-import { ChevronRight, MoreHorizontal } from 'lucide-react';
-import { useState } from 'react';
+import { Check, ChevronRight, Copy, MoreHorizontal } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
 import type { ClinicalApprovalItem, ClinicalDraftItem } from '../../hooks/useClinicalAssistant';
@@ -148,38 +148,122 @@ function ArtifactOverflow({
   saveToDriveDisabled: boolean;
 }) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [manualCopy, setManualCopy] = useState(false);
+  const copyButtonRef = useRef<HTMLButtonElement>(null);
+  const manualTextRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const menuTriggerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!manualCopy) return;
+    manualTextRef.current?.focus();
+    manualTextRef.current?.select();
+  }, [manualCopy]);
+
+  useEffect(() => {
+    if (!onSaveToDrive) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (menuRef.current?.open && !menuRef.current.contains(event.target as Node)) {
+        menuRef.current.open = false;
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [onSaveToDrive]);
 
   const copy = async () => {
     try {
       if (!navigator.clipboard) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(content);
       setCopyState('copied');
+      setManualCopy(false);
     } catch {
       setCopyState('error');
+      setManualCopy(true);
     }
   };
 
   return (
-    <details className="clinical-artifact-overflow">
-      <summary aria-label="Más acciones de la evolución" title="Más acciones">
-        <MoreHorizontal aria-hidden="true" size={16} />
-      </summary>
-      <div className="clinical-artifact-overflow__menu">
-        <button type="button" onClick={() => void copy()}>
-          {copyState === 'copied' ? 'Copiado' : 'Copiar'}
-        </button>
-        {onSaveToDrive && (
-          <button type="button" onClick={onSaveToDrive} disabled={saveToDriveDisabled}>
-            Guardar copia en Drive
-          </button>
+    <div className="clinical-artifact-utilities">
+      <button
+        ref={copyButtonRef}
+        type="button"
+        className="clinical-artifact-copy"
+        onClick={() => void copy()}
+      >
+        {copyState === 'copied' ? (
+          <Check aria-hidden="true" size={16} />
+        ) : (
+          <Copy aria-hidden="true" size={16} />
         )}
-      </div>
-      {copyState === 'error' && (
-        <span className="clinical-artifact-overflow__status" role="status">
-          No pudimos copiar la evolución.
+        {copyState === 'copied' ? 'Copiado' : 'Copiar'}
+      </button>
+      {onSaveToDrive && (
+        <details
+          ref={menuRef}
+          className="clinical-artifact-overflow"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              menuRef.current?.removeAttribute('open');
+              menuTriggerRef.current?.focus();
+            }
+          }}
+        >
+          <summary
+            ref={menuTriggerRef}
+            aria-label="Más acciones de la evolución"
+            title="Más acciones"
+          >
+            <MoreHorizontal aria-hidden="true" size={16} />
+          </summary>
+          <div className="clinical-artifact-overflow__menu">
+            <button
+              type="button"
+              onClick={() => {
+                menuRef.current?.removeAttribute('open');
+                onSaveToDrive();
+              }}
+              disabled={saveToDriveDisabled}
+            >
+              Guardar copia en Drive
+            </button>
+          </div>
+        </details>
+      )}
+      {copyState === 'copied' && (
+        <span className="sr-only" role="status">
+          Evolución copiada
         </span>
       )}
-    </details>
+      {manualCopy && (
+        <div className="clinical-artifact-manual-copy">
+          <p role="alert">No se pudo copiar. Selecciona el texto y cópialo manualmente.</p>
+          <textarea
+            ref={manualTextRef}
+            readOnly
+            value={content}
+            aria-label="Texto de la evolución para copiar"
+            rows={6}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setManualCopy(false);
+                window.requestAnimationFrame(() => copyButtonRef.current?.focus());
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setManualCopy(false);
+              copyButtonRef.current?.focus();
+            }}
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ClinicalApprovalItem, ClinicalDraftItem } from '../../hooks/useClinicalAssistant';
@@ -126,6 +126,47 @@ function renderArtifact(
 }
 
 describe('ClinicalEvolutionArtifact', () => {
+  it('copies the composed evolution and confirms success only after the clipboard resolves', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    try {
+      renderArtifact(draftItem());
+      fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+      await waitFor(() =>
+        expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Control preventivo')),
+      );
+      expect(screen.getByRole('button', { name: 'Copiado' })).toBeVisible();
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, 'clipboard', descriptor);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('offers selectable text when clipboard access fails', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new Error('Denied')) },
+    });
+    try {
+      renderArtifact(draftItem());
+      fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+      const text = await screen.findByRole('textbox', {
+        name: 'Texto de la evolución para copiar',
+      });
+      expect((text as HTMLTextAreaElement).value).toContain('Control preventivo');
+      expect(text).toHaveFocus();
+      fireEvent.keyDown(text, { key: 'Escape' });
+      expect(
+        screen.queryByRole('textbox', { name: 'Texto de la evolución para copiar' }),
+      ).not.toBeInTheDocument();
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, 'clipboard', descriptor);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
   it('keeps one quiet header, dominant body, provenance row, and primary action', () => {
     const view = renderArtifact(draftItem(), undefined, undefined, undefined, patient);
     const artifact = view.container.querySelector('[data-artifact-id="artifact-1"]');
@@ -141,7 +182,7 @@ describe('ClinicalEvolutionArtifact', () => {
     expect(
       artifact?.querySelectorAll('.clinical-artifact-actions .clinical-primary-button'),
     ).toHaveLength(1);
-    expect(screen.getByLabelText('Más acciones de la evolución')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeVisible();
   });
 
   it('renders draft lifecycle with one review action and overflow utilities', () => {

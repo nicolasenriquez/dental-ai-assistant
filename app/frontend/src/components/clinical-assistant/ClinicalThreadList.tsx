@@ -25,17 +25,17 @@ interface ClinicalThreadListProps {
 function formatClinicalUpdatedAt(value: string): string {
   const updated = new Date(value);
   if (!Number.isFinite(updated.getTime())) return '';
-  const now = new Date();
-  const day = (date: Date) =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const daysAgo = Math.round((day(now) - day(updated)) / 86_400_000);
-  if (daysAgo === 0) {
-    const minutes = Math.floor((now.getTime() - updated.getTime()) / 60_000);
-    if (minutes >= 0 && minutes < 60) return minutes < 1 ? 'Ahora' : `Hace ${minutes} min`;
-    return updated.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-  }
-  if (daysAgo === 1) return 'Ayer';
-  return updated.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+  const date = updated.toLocaleDateString('es-CL', {
+    day: '2-digit',
+    month: 'short',
+    year: '2-digit',
+  });
+  const time = updated.toLocaleTimeString('es-CL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  return `${date} · ${time}`;
 }
 
 export function ClinicalThreadList({
