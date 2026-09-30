@@ -64,7 +64,7 @@ describe('NewEvolution generation states', () => {
 
     fireEvent.change(date, { target: { value: '31/02/2020' } });
     expect(screen.getByRole('button', { name: 'Generar borrador con IA' })).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Ingresa una fecha no futura');
+    expect(screen.getByRole('alert')).toHaveTextContent('Ingresa una fecha válida, no futura');
     expect(screen.getByLabelText('Nota clínica')).toHaveValue(
       'Paciente refiere sensibilidad al frío.',
     );

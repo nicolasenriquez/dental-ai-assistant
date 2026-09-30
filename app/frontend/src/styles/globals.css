@@ -2593,16 +2593,44 @@ body,
 .evolution-review-artifact__date-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: end;
+  gap: 12px;
 }
 
-.evolution-review-artifact__date-controls input {
+.evolution-review-artifact__date-controls .evolution-review-artifact__time-input {
   min-height: 36px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-1);
   color: var(--text-primary);
   padding: 6px 8px;
+}
+
+.evolution-review-artifact__date-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.evolution-review-artifact__date-actions button {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.evolution-review-artifact__date-actions button:last-child {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.evolution-review-artifact__date-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .clinical-primary-button,
@@ -5059,6 +5087,197 @@ body,
   border: 1px solid var(--border);
   border-radius: 9px;
   background: var(--surface-2);
+}
+
+.clinical-date-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.clinical-date-field__label {
+  color: var(--text-secondary);
+}
+
+.clinical-date-field__optional {
+  margin-left: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.clinical-date-field__control {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+.clinical-date-field__control:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.clinical-date-field__control input {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.clinical-date-field__control button {
+  display: inline-flex;
+  min-width: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.clinical-date-field__control button:hover {
+  color: var(--text-primary);
+}
+
+.clinical-date-field__control button:disabled {
+  cursor: not-allowed;
+}
+
+.clinical-date-field__error {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.clinical-calendar {
+  position: fixed;
+  z-index: 1001;
+  top: 50%;
+  left: 50%;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: 18px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 36%);
+}
+
+.clinical-calendar__header,
+.clinical-calendar__navigation,
+.clinical-calendar__shortcuts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.clinical-calendar__header {
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.clinical-calendar__navigation {
+  margin-bottom: 12px;
+}
+
+.clinical-calendar__navigation select,
+.clinical-calendar__navigation input {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 6px;
+}
+
+.clinical-calendar__navigation select {
+  flex: 1;
+}
+.clinical-calendar__navigation input {
+  width: 78px;
+}
+
+.clinical-calendar button {
+  display: inline-flex;
+  min-width: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.clinical-calendar button:hover:not(:disabled),
+.clinical-calendar [aria-selected="true"] button {
+  background: var(--accent);
+  color: white;
+}
+
+.clinical-calendar button:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.clinical-calendar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.clinical-calendar table {
+  width: 100%;
+  table-layout: fixed;
+  border-spacing: 2px;
+  text-align: center;
+}
+
+.clinical-calendar th {
+  padding-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.clinical-calendar__shortcuts {
+  justify-content: flex-start;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+@media (max-width: 640px) {
+  .clinical-calendar {
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    transform: none;
+    border: 0;
+    border-radius: 0;
+    padding: 20px;
+  }
+
+  .clinical-calendar button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .clinical-calendar__shortcuts {
+    margin-top: 24px;
+  }
 }
 
 .drive-section-button {

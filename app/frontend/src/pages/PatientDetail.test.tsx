@@ -143,12 +143,12 @@ describe('PatientDetail evolution workspace', () => {
 
     expect(screen.getByRole('heading', { name: 'Editar paciente' })).toBeVisible();
     expect(screen.getByLabelText('Nombres')).toHaveValue('Ana');
-    expect(screen.getByLabelText('Fecha de nacimiento')).toHaveValue('02/01/1990');
+    expect(screen.getByLabelText(/Fecha de nacimiento/)).toHaveValue('02/01/1990');
     expect(screen.getByText('12.***.***-*')).toBeVisible();
     expect(screen.queryByRole('textbox', { name: 'RUT' })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: 'Lucia' } });
-    fireEvent.change(screen.getByLabelText('Fecha de nacimiento'), {
+    fireEvent.change(screen.getByLabelText(/Fecha de nacimiento/), {
       target: { value: '04/03/1991' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));

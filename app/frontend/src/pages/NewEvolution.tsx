@@ -8,6 +8,7 @@ import {
   composeClinicalDraft,
   hasClinicalContent as draftHasClinicalContent,
 } from '../components/clinical/evolutionFields';
+import { ClinicalDateField } from '../components/patterns/ClinicalDateField';
 import { useToast } from '../hooks/useToast';
 import {
   ApiError,
@@ -23,8 +24,8 @@ import {
   formatClinicalDate,
   formatClinicalDateTime,
   formatClinicalTime,
-  normalizeClinicalDateInput,
   parseClinicalDateInput,
+  parseClinicalDateTimeInput as parseEvolutionDateTime,
 } from '../lib/clinicalDate';
 
 const MAX_RAW_NOTE_LENGTH = 40000;
@@ -55,15 +56,6 @@ function localInputParts(value: Date) {
 function normalizeTimeInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 4);
   return digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
-}
-
-function parseEvolutionDateTime(date: string, time: string): Date | null {
-  const isoDate = parseClinicalDateInput(date);
-  if (!isoDate || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
-  const value = new Date(`${isoDate}T${time}`);
-  if (Number.isNaN(value.getTime())) return null;
-  const parts = localInputParts(value);
-  return parts.date === isoDate && parts.time === time ? value : null;
 }
 
 function toOffsetISOString(value: Date) {
@@ -417,24 +409,20 @@ export function NewEvolution() {
           </div>
           {showDateTime && (
             <div id="evolution-datetime-controls" className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
-                Fecha de evolución
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={10}
-                  placeholder="dd/mm/aaaa"
-                  value={dateInput}
-                  onChange={(event) => {
-                    const date = normalizeClinicalDateInput(event.currentTarget.value);
-                    setDateInput(date);
-                    changeDateTime(date, timeInput);
-                  }}
-                  aria-invalid={!dateTimeValid}
-                  aria-describedby={!dateTimeValid ? 'evolution-datetime-error' : undefined}
-                  className="rounded border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-                />
-              </label>
+              <ClinicalDateField
+                label="Fecha de evolución"
+                value={dateInput}
+                shortcuts
+                error={
+                  parseClinicalDateInput(dateInput)
+                    ? null
+                    : 'Ingresa una fecha válida, no futura, como dd/mm/aaaa.'
+                }
+                onChange={(date) => {
+                  setDateInput(date);
+                  changeDateTime(date, timeInput);
+                }}
+              />
               <label className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
                 Hora de evolución
                 <input
@@ -448,18 +436,22 @@ export function NewEvolution() {
                     setTimeInput(time);
                     changeDateTime(dateInput, time);
                   }}
-                  aria-invalid={!dateTimeValid}
-                  aria-describedby={!dateTimeValid ? 'evolution-datetime-error' : undefined}
+                  aria-invalid={!/^([01]\d|2[0-3]):[0-5]\d$/.test(timeInput)}
+                  aria-describedby={
+                    !/^([01]\d|2[0-3]):[0-5]\d$/.test(timeInput)
+                      ? 'evolution-datetime-error'
+                      : undefined
+                  }
                   className="rounded border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
                 />
               </label>
-              {!dateTimeValid && (
+              {!/^([01]\d|2[0-3]):[0-5]\d$/.test(timeInput) && (
                 <p
                   id="evolution-datetime-error"
                   role="alert"
                   className="w-full text-sm text-[var(--danger)]"
                 >
-                  Ingresa una fecha no futura (dd/mm/aaaa) y una hora válida (HH:mm).
+                  Ingresa una hora válida en formato HH:mm.
                 </p>
               )}
             </div>

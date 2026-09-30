@@ -1,8 +1,16 @@
 import { ChevronDown, CircleAlert, Pencil } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
-import { formatClinicalDateShort, formatClinicalDateTime } from '../../lib/clinicalDate';
+import {
+  formatClinicalDate,
+  formatClinicalDateShort,
+  formatClinicalDateTime,
+  formatClinicalTime,
+  parseClinicalDateInput,
+  parseClinicalDateTimeInput,
+} from '../../lib/clinicalDate';
 import { Spinner } from '../Spinner';
+import { ClinicalDateField } from '../patterns/ClinicalDateField';
 import { clinicalFields, hasClinicalContent } from './evolutionFields';
 
 export type ClinicalArtifactStage = 'draft' | 'review' | 'saving' | 'saved';
@@ -48,15 +56,6 @@ interface EvolutionReviewArtifactProps {
 
 type ClinicalFieldKey = (typeof clinicalFields)[number]['key'];
 
-function dateParts(value: string): { date: string; time: string } {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return { date: '', time: '' };
-  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
-  return { date: local.slice(0, 10), time: local.slice(11) };
-}
-
 export function EvolutionReviewArtifact({
   mode,
   sourceNote,
@@ -97,7 +96,10 @@ export function EvolutionReviewArtifact({
   const [editingValue, setEditingValue] = useState('');
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [dateControls, setDateControls] = useState(showDateTime);
+  const [dateInput, setDateInput] = useState(() => formatClinicalDate(evolutionAt));
+  const [timeInput, setTimeInput] = useState(() => formatClinicalTime(evolutionAt));
   const dateFirstInputRef = useRef<HTMLInputElement>(null);
+  const dateEditButtonRef = useRef<HTMLButtonElement>(null);
   const dateControlsRef = useRef(dateControls);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [flagsOpen, setFlagsOpen] = useState(draft.review_flags.length === 1);
@@ -117,11 +119,26 @@ export function EvolutionReviewArtifact({
       : lifecycleStageLabels[visibleStage]);
   const showActions = !embedded || !isAssistant || showAssistantActions;
   const Root = embedded ? ('div' as const) : ('article' as const);
-  const parts = dateParts(evolutionAt);
-  const updateDate = (date: string, time: string) => {
-    if (!date || !time || !onEvolutionAtChange) return;
-    const next = new Date(`${date}T${time}`);
-    if (!Number.isNaN(next.getTime())) onEvolutionAtChange(next.toISOString());
+  const dateValid = parseClinicalDateInput(dateInput) !== null;
+  const timeValid = /^([01]\d|2[0-3]):[0-5]\d$/.test(timeInput);
+  const openDateControls = () => {
+    if (dateControls) {
+      setDateControls(false);
+      return;
+    }
+    setDateInput(formatClinicalDate(evolutionAt));
+    setTimeInput(formatClinicalTime(evolutionAt));
+    setDateControls(true);
+  };
+  const closeDateControls = () => {
+    setDateControls(false);
+    window.requestAnimationFrame(() => dateEditButtonRef.current?.focus());
+  };
+  const applyDate = () => {
+    const next = parseClinicalDateTimeInput(dateInput, timeInput);
+    if (!next || !onEvolutionAtChange) return;
+    onEvolutionAtChange(next.toISOString());
+    closeDateControls();
   };
   const startFieldEdit = (key: ClinicalFieldKey) => {
     setEditingField(key);
@@ -211,10 +228,12 @@ export function EvolutionReviewArtifact({
             </time>
             {onEvolutionAtChange && !readOnly && (
               <button
+                ref={dateEditButtonRef}
                 type="button"
                 aria-label="Cambiar fecha y hora"
                 title="Cambiar fecha y hora"
-                onClick={() => setDateControls((current) => !current)}
+                aria-expanded={dateControls}
+                onClick={openDateControls}
               >
                 <Pencil aria-hidden="true" size={14} />
               </button>
@@ -257,20 +276,60 @@ export function EvolutionReviewArtifact({
       )}
 
       {dateControls && onEvolutionAtChange && (
-        <div className="evolution-review-artifact__date-controls">
-          <input
-            aria-label="Fecha de evolución"
-            type="date"
-            ref={dateFirstInputRef}
-            value={parts.date}
-            onChange={(event) => updateDate(event.target.value, parts.time)}
+        <div
+          className="evolution-review-artifact__date-controls"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              closeDateControls();
+            }
+          }}
+        >
+          <ClinicalDateField
+            label="Fecha de evolución"
+            value={dateInput}
+            onChange={setDateInput}
+            inputRef={dateFirstInputRef}
+            shortcuts
+            error={dateValid ? null : 'Ingresa una fecha válida, no futura, como dd/mm/aaaa.'}
           />
-          <input
-            aria-label="Hora de evolución"
-            type="time"
-            value={parts.time}
-            onChange={(event) => updateDate(parts.date, event.target.value)}
-          />
+          <label className="clinical-date-field">
+            <span className="clinical-date-field__label">Hora de evolución</span>
+            <input
+              className="evolution-review-artifact__time-input"
+              aria-label="Hora de evolución"
+              type="text"
+              inputMode="numeric"
+              maxLength={5}
+              placeholder="HH:mm"
+              value={timeInput}
+              aria-invalid={!timeValid}
+              aria-describedby={!timeValid ? 'assistant-evolution-time-error' : undefined}
+              onChange={(event) => {
+                const digits = event.target.value.replace(/\D/g, '').slice(0, 4);
+                setTimeInput(
+                  digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`,
+                );
+              }}
+            />
+            {!timeValid && (
+              <span
+                id="assistant-evolution-time-error"
+                className="clinical-date-field__error"
+                role="alert"
+              >
+                Ingresa una hora válida en formato HH:mm.
+              </span>
+            )}
+          </label>
+          <div className="evolution-review-artifact__date-actions">
+            <button type="button" onClick={closeDateControls}>
+              Cancelar
+            </button>
+            <button type="button" onClick={applyDate} disabled={!dateValid || !timeValid}>
+              Aplicar
+            </button>
+          </div>
         </div>
       )}
 

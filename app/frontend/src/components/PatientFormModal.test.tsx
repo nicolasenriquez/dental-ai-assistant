@@ -4,6 +4,31 @@ import { ApiError, type Patient } from '../lib/api';
 import { PatientFormModal } from './PatientFormModal';
 
 describe('PatientFormModal', () => {
+  it('closes the birth-date calendar with Escape without closing the patient form', () => {
+    const onClose = vi.fn();
+    render(
+      <PatientFormModal
+        open
+        mode="create"
+        onClose={onClose}
+        onSubmit={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Abrir calendario para fecha de nacimiento' }),
+    );
+    expect(screen.getByRole('dialog', { name: 'Seleccionar fecha de nacimiento' })).toBeVisible();
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Seleccionar fecha de nacimiento' }), {
+      key: 'Escape',
+    });
+    expect(
+      screen.queryByRole('dialog', { name: 'Seleccionar fecha de nacimiento' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Nuevo paciente' })).toBeVisible();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('closes a pristine form without confirmation', () => {
     const onClose = vi.fn();
     render(

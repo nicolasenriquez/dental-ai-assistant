@@ -22,7 +22,7 @@ describe('Patients birth-date dialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '+ Nuevo paciente' }));
 
-    const birthDate = screen.getByLabelText('Fecha de nacimiento');
+    const birthDate = screen.getByLabelText(/Fecha de nacimiento/);
 
     fireEvent.change(birthDate, { target: { value: '02/01/1990' } });
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -160,7 +160,7 @@ describe('Patients birth-date dialog', () => {
     fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: 'Ana' } });
     fireEvent.change(screen.getByLabelText('Apellidos'), { target: { value: 'Perez' } });
     fireEvent.change(screen.getByLabelText('RUT'), { target: { value: '123456785' } });
-    fireEvent.change(screen.getByLabelText('Fecha de nacimiento'), {
+    fireEvent.change(screen.getByLabelText(/Fecha de nacimiento/), {
       target: { value: '02/01/1990' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Crear paciente' }));
@@ -261,16 +261,16 @@ describe('Patients birth-date dialog', () => {
     fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: ' Ana   María ' } });
     fireEvent.change(screen.getByLabelText('Apellidos'), { target: { value: ' Pérez ' } });
     fireEvent.change(screen.getByLabelText('RUT'), { target: { value: '123456785' } });
-    fireEvent.change(screen.getByLabelText('Fecha de nacimiento'), {
+    fireEvent.change(screen.getByLabelText(/Fecha de nacimiento/), {
       target: { value: '31/02/1990' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Crear paciente' }));
 
     expect(await screen.findByText(/Ingresa una fecha válida/)).toBeVisible();
-    expect(screen.getByLabelText('Fecha de nacimiento')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(/Fecha de nacimiento/)).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText('RUT')).not.toHaveAttribute('aria-invalid');
 
-    fireEvent.change(screen.getByLabelText('Fecha de nacimiento'), {
+    fireEvent.change(screen.getByLabelText(/Fecha de nacimiento/), {
       target: { value: '10041990' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Crear paciente' }));
@@ -278,7 +278,7 @@ describe('Patients birth-date dialog', () => {
     expect(await screen.findByText('No pudimos crear el paciente.')).toBeVisible();
     expect(screen.getByLabelText('Nombres')).toHaveValue('Ana María');
     expect(screen.getByLabelText('Apellidos')).toHaveValue('Pérez');
-    expect(screen.getByLabelText('Fecha de nacimiento')).toHaveValue('1990-04-10');
+    expect(screen.getByLabelText(/Fecha de nacimiento/)).toHaveValue('10/04/1990');
   });
 
   it('blocks duplicate submits while the create request is pending', async () => {

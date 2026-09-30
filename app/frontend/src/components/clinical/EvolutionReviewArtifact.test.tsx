@@ -43,6 +43,40 @@ function renderArtifact(onChange = vi.fn()) {
 }
 
 describe('EvolutionReviewArtifact', () => {
+  it('applies a valid date only on confirmation and restores focus on cancel', () => {
+    const onEvolutionAtChange = vi.fn();
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={draft}
+        generatedDraft={draft}
+        evolutionAt="2026-09-08T12:00:00-04:00"
+        stale={false}
+        edited={false}
+        onChange={vi.fn()}
+        onEvolutionAtChange={onEvolutionAtChange}
+      />,
+    );
+    const edit = screen.getByRole('button', { name: 'Cambiar fecha y hora' });
+    fireEvent.click(edit);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Fecha de evolución' }), {
+      target: { value: '31/02/2020' },
+    });
+    expect(screen.getByRole('button', { name: 'Aplicar' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(onEvolutionAtChange).not.toHaveBeenCalled();
+    fireEvent.click(edit);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Fecha de evolución' }), {
+      target: { value: '01/01/2020' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Hora de evolución' }), {
+      target: { value: '1530' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(onEvolutionAtChange).toHaveBeenCalledWith(new Date('2020-01-01T15:30').toISOString());
+  });
+
   it.each([
     [false, false, 'Borrador'],
     [false, true, 'Borrador'],

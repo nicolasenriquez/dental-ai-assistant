@@ -127,3 +127,13 @@ export function parseClinicalDateInput(value: string, today = new Date()): strin
 
   return iso;
 }
+
+export function parseClinicalDateTimeInput(date: string, time: string): Date | null {
+  const isoDate = parseClinicalDateInput(date);
+  if (!isoDate || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
+  const value = new Date(`${isoDate}T${time}`);
+  if (Number.isNaN(value.getTime())) return null;
+  const localDate = `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+  const localTime = `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+  return localDate === isoDate && localTime === time ? value : null;
+}

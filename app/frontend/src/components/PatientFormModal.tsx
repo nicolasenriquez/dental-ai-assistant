@@ -15,6 +15,7 @@ import {
   validateRut,
 } from '../lib/rut';
 import { ConfirmDialog } from './ConfirmDialog';
+import { ClinicalDateField } from './patterns/ClinicalDateField';
 import { Button } from './ui/Button';
 
 export interface PatientFormValues {
@@ -226,7 +227,10 @@ export function PatientFormModal({
     }
 
     setSubmitting(true);
-    setForm(result.values);
+    setForm({
+      ...result.values,
+      birth_date: result.values.birth_date?.split('-').reverse().join('/') ?? null,
+    });
     try {
       const updated = await onSubmit(result.values);
       onSuccess(updated);
@@ -453,49 +457,29 @@ export function PatientFormModal({
                 )}
               </div>
 
-              <label className="text-sm">
-                <span className="text-[var(--text-secondary)]">Fecha de nacimiento</span>
-                <span className="ml-2 text-xs text-[var(--text-tertiary)]">Opcional</span>
-                <input
-                  ref={birthDateInput}
-                  id="patient-birth-date"
-                  aria-label="Fecha de nacimiento"
-                  inputMode="numeric"
-                  maxLength={10}
-                  placeholder="dd/mm/aaaa"
-                  value={form.birth_date ?? ''}
-                  onChange={(event) => {
-                    const value = normalizeClinicalDateInput(event.currentTarget.value);
-                    setForm((current) => ({ ...current, birth_date: value || null }));
+              <ClinicalDateField
+                id="patient-birth-date"
+                inputRef={birthDateInput}
+                label="Fecha de nacimiento"
+                optional
+                value={form.birth_date ?? ''}
+                disabled={submitting}
+                error={fieldErrors.birth_date}
+                onChange={(value) => {
+                  setForm((current) => ({ ...current, birth_date: value || null }));
+                  clearFieldError('birth_date');
+                }}
+                onBlur={(value) => {
+                  if (value.length === 10 && !parseClinicalDateInput(value)) {
+                    setFieldErrors((current) => ({
+                      ...current,
+                      birth_date: 'Ingresa una fecha válida, no futura, como dd/mm/aaaa.',
+                    }));
+                  } else {
                     clearFieldError('birth_date');
-                  }}
-                  onBlur={(event) => {
-                    const value = normalizeClinicalDateInput(event.currentTarget.value);
-                    setForm((current) => ({ ...current, birth_date: value || null }));
-                    if (value.length === 10 && !parseClinicalDateInput(value)) {
-                      setFieldErrors((current) => ({
-                        ...current,
-                        birth_date: 'Ingresa una fecha válida, no futura, como dd/mm/aaaa.',
-                      }));
-                    } else {
-                      clearFieldError('birth_date');
-                    }
-                  }}
-                  aria-describedby={fieldErrors.birth_date ? 'patient-birth-date-error' : undefined}
-                  aria-invalid={fieldErrors.birth_date ? true : undefined}
-                  disabled={submitting}
-                  className="mt-1 w-full rounded border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 outline-none focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                />
-                {fieldErrors.birth_date && (
-                  <p
-                    id="patient-birth-date-error"
-                    role="alert"
-                    className="mt-1 text-sm text-[var(--danger)]"
-                  >
-                    {fieldErrors.birth_date}
-                  </p>
-                )}
-              </label>
+                  }
+                }}
+              />
             </div>
             {formError && (
               <p role="alert" className="mt-4 text-sm text-[var(--danger)]">
