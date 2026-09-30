@@ -139,7 +139,7 @@ describe('DriveFileBrowser', () => {
 
   it('preserves loading, empty, importing, imported, and pagination feedback', () => {
     const loading = renderBrowser({ files: [], listLoading: true, query: '' });
-    expect(screen.getByText('Cargando documentos…')).toBeInTheDocument();
+    expect(screen.getByText('Actualizando documentos…')).toBeInTheDocument();
     loading.unmount();
 
     const empty = renderBrowser({ files: [], query: '', searchSubmitted: false });

@@ -29,6 +29,7 @@ interface DriveFileBrowserProps {
   onOpen: (file: DriveFile) => void;
   onLoadMore: () => void;
   searchInputRef?: RefObject<HTMLInputElement>;
+  onSelectPatient?: () => void;
 }
 
 type DriveViewMode = 'list' | 'grid';
@@ -77,6 +78,7 @@ export function DriveFileBrowser({
   onOpen,
   onLoadMore,
   searchInputRef,
+  onSelectPatient,
 }: DriveFileBrowserProps) {
   const [detailsFile, setDetailsFile] = useState<DriveFile | null>(null);
   const [viewMode, setViewMode] = useState<DriveViewMode>(readStoredViewMode);
@@ -91,8 +93,13 @@ export function DriveFileBrowser({
     return (
       <section className="drive-empty-state" aria-live="polite">
         <FileText aria-hidden="true" size={22} />
-        <h3>Seleccionar paciente</h3>
-        <p>Los documentos de Drive se muestran después de seleccionar un paciente.</p>
+        <h3>Documentos del paciente</h3>
+        <p>Selecciona un paciente para ver sus documentos.</p>
+        {onSelectPatient && (
+          <button type="button" className="drive-btn drive-btn-primary" onClick={onSelectPatient}>
+            Seleccionar paciente
+          </button>
+        )}
       </section>
     );
   }
@@ -209,9 +216,13 @@ export function DriveFileBrowser({
         <DriveQuickAccess files={quickFiles} onOpen={onOpen} />
         <h2 className="drive-section-title">Todos los documentos</h2>
         {searchLoading && <p className="drive-list-status">Buscando…</p>}
-        {listLoading ? (
+        {listLoading && (
+          <p className="drive-list-status" role="status">
+            Actualizando documentos…
+          </p>
+        )}
+        {listLoading && files.length === 0 ? (
           <>
-            <p className="drive-list-status">Cargando documentos…</p>
             <SkeletonRows />
           </>
         ) : noMatch ? (

@@ -52,9 +52,47 @@ describe('ClinicalPatientPicker', () => {
     fireEvent.keyDown(search, { key: 'ArrowDown' });
     fireEvent.keyDown(search, { key: 'Enter' });
 
-    expect(screen.getByText('No se encontraron pacientes.')).toBeVisible();
+    expect(screen.getByText('No encontramos pacientes para esta búsqueda.')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar búsqueda' }));
+    expect(screen.getByRole('combobox', { name: 'Buscar paciente por nombre o RUT' })).toHaveValue(
+      '',
+    );
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('keeps the query while the patient list loads or fails', () => {
+    const onPatientChange = vi.fn();
+    const view = render(
+      <ClinicalPatientPicker
+        patient={null}
+        patients={patients}
+        onPatientChange={onPatientChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente' }));
+    const search = screen.getByRole('combobox', { name: 'Buscar paciente por nombre o RUT' });
+    fireEvent.change(search, { target: { value: 'Ana' } });
+    view.rerender(
+      <ClinicalPatientPicker
+        patient={null}
+        patients={patients}
+        patientsLoading
+        onPatientChange={onPatientChange}
+      />,
+    );
+    expect(search).toHaveValue('Ana');
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando pacientes…');
+    view.rerender(
+      <ClinicalPatientPicker
+        patient={null}
+        patients={patients}
+        patientsError
+        onPatientChange={onPatientChange}
+      />,
+    );
+    expect(search).toHaveValue('Ana');
+    expect(screen.getByRole('alert')).toHaveTextContent('No pudimos cargar los pacientes.');
   });
 
   it('shows the active patient and exposes a clear action', () => {

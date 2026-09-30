@@ -39,6 +39,7 @@ function ClinicalAssistantContent() {
   const [createAttempt, setCreateAttempt] = useState(0);
   const [driveSurface, setDriveSurface] = useState<'compact' | 'document'>('compact');
   const [driveOpen, setDriveOpen] = useState(false);
+  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
   const [driveMounted, setDriveMounted] = useState(false);
   const [driveInitialSection, setDriveInitialSection] = useState<'notes' | 'journals'>('notes');
   const [driveJournalTarget, setDriveJournalTarget] = useState<DriveJournalTarget | null>(null);
@@ -52,10 +53,10 @@ function ClinicalAssistantContent() {
   const composerInsertRef = useRef<(item: ComposerContextItem) => void>(() => undefined);
   const createStarted = useRef(false);
 
-  const setDriveVisibility = (open: boolean) => {
+  const setDriveVisibility = (open: boolean, restoreUtilityFocus = true) => {
     if (open) setDriveMounted(true);
     setDriveOpen(open);
-    if (!open) {
+    if (!open && restoreUtilityFocus) {
       window.requestAnimationFrame?.(() => {
         const utility = Array.from(
           document.querySelectorAll<HTMLElement>('[data-drive-utility="true"]'),
@@ -173,6 +174,12 @@ function ClinicalAssistantContent() {
             initialSection={driveInitialSection}
             initialJournalTarget={driveJournalTarget}
             onJournalTargetConsumed={() => setDriveJournalTarget(null)}
+            onSelectPatient={() =>
+              transitionGuard.guardTransition(() => {
+                setDriveVisibility(false, false);
+                window.requestAnimationFrame(() => setPatientPickerOpen(true));
+              })
+            }
           />
         ) : null
       }
@@ -190,6 +197,8 @@ function ClinicalAssistantContent() {
             composerInsertRef.current = insert;
           }}
           driveOpen={driveOpen}
+          patientPickerOpen={patientPickerOpen}
+          onPatientPickerOpenChange={setPatientPickerOpen}
           onToggleDrive={() => requestDriveVisibility(!driveOpen)}
           onOpenDriveJournal={(target) => {
             setDriveJournalTarget(target);

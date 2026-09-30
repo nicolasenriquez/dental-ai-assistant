@@ -45,6 +45,7 @@ export function ClinicalPatientPicker({
   const statusId = useId();
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const isSaving = selectionState === 'saving';
   const interactionDisabled = disabled || isSaving;
   const filteredPatients = useMemo(() => {
@@ -78,6 +79,12 @@ export function ClinicalPatientPicker({
   useEffect(() => {
     if (interactionDisabled) setOpen(false);
   }, [interactionDisabled]);
+
+  useEffect(() => {
+    if (!open || interactionDisabled) return;
+    const frame = window.requestAnimationFrame(() => searchRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, interactionDisabled]);
 
   useEffect(() => {
     if (!open) return;
@@ -144,6 +151,7 @@ export function ClinicalPatientPicker({
             <label className="clinical-patient-search">
               <Search aria-hidden="true" size={15} />
               <input
+                ref={searchRef}
                 autoFocus
                 role="combobox"
                 aria-label="Buscar paciente por nombre o RUT"
@@ -173,7 +181,25 @@ export function ClinicalPatientPicker({
                   )}
                 </div>
               ) : filteredPatients.length === 0 ? (
-                <p>No se encontraron pacientes.</p>
+                <div className="clinical-patient-empty" role="status">
+                  <p>
+                    {query.trim()
+                      ? 'No encontramos pacientes para esta búsqueda.'
+                      : 'Aún no hay pacientes disponibles.'}
+                  </p>
+                  {query.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery('');
+                        setActiveOption(0);
+                        searchRef.current?.focus();
+                      }}
+                    >
+                      Limpiar búsqueda
+                    </button>
+                  )}
+                </div>
               ) : (
                 filteredPatients.map((option, index) => (
                   <button

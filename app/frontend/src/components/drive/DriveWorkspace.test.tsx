@@ -147,7 +147,7 @@ function renderWorkspace(patientId: string | null = 'p1') {
 }
 
 async function selectDocuments() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Documentos' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'Documentos' }));
 }
 
 function stubMobile() {
@@ -332,7 +332,7 @@ describe('patient-scoped list', () => {
     renderWorkspace();
 
     await selectDocuments();
-    expect(await screen.findByText('Cargando documentos…')).toBeInTheDocument();
+    expect(await screen.findByText('Actualizando documentos…')).toBeInTheDocument();
     act(() => {
       gate.resolve({ files: [], next_page_token: null });
     });

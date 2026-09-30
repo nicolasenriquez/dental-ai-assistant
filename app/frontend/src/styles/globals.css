@@ -3121,6 +3121,22 @@ body,
   padding: 8px;
 }
 
+.clinical-patient-empty {
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.clinical-patient-empty button {
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
 .clinical-patient-clear {
   width: 44px;
   height: 44px;
@@ -5356,9 +5372,16 @@ body,
 }
 
 .drive-section-button:hover,
-.drive-section-button[aria-pressed="true"] {
+.drive-section-button[aria-selected="true"] {
   background: var(--surface-1);
   color: var(--text-primary);
+}
+
+.drive-section-panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
 }
 
 .drive-section-button:focus-visible {

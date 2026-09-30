@@ -132,17 +132,37 @@ function renderWorkspace(
 }
 
 async function selectSection(name: 'Notas' | 'Documentos' | 'Diarios') {
-  const section = await screen.findByRole('button', { name: new RegExp(`^${name}$`) });
+  const section = await screen.findByRole('tab', { name: new RegExp(`^${name}$`) });
   fireEvent.click(section);
   return section;
 }
 
 describe('Drive section boundaries', () => {
+  it('moves focus between sections without changing selection until activation', async () => {
+    renderWorkspace(null);
+    const notes = await screen.findByRole('tab', { name: 'Notas' });
+    const documents = screen.getByRole('tab', { name: 'Documentos' });
+    fireEvent.keyDown(notes, { key: 'ArrowRight' });
+    expect(documents).toHaveFocus();
+    expect(notes).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(documents);
+    expect(documents).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'drive-tab-documents');
+  });
+
+  it('opens patient selection directly from Documents without patient context', async () => {
+    const onSelectPatient = vi.fn();
+    render(<DriveWorkspace patientId={null} onSelectPatient={onSelectPatient} />);
+    await selectSection('Documentos');
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente' }));
+    expect(onSelectPatient).toHaveBeenCalledOnce();
+  });
+
   it('keeps global Notes listable, searchable, and readable without a patient', async () => {
     renderWorkspace(null);
 
     const notes = await selectSection('Notas');
-    expect(notes).toHaveAttribute('aria-pressed', 'true');
+    expect(notes).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByRole('searchbox', { name: 'Buscar notas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Nota clínica\.md/ })).toBeInTheDocument();
     expect(api.listDriveSources).toHaveBeenCalledWith(undefined);
@@ -165,7 +185,9 @@ describe('Drive section boundaries', () => {
 
     await selectSection('Documentos');
 
-    expect(await screen.findByText('Seleccionar paciente')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Selecciona un paciente para ver sus documentos.'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(api.listDriveFiles).not.toHaveBeenCalled();
   });
@@ -187,7 +209,7 @@ describe('Drive section boundaries', () => {
     const view = renderWorkspace(null);
 
     const journals = await selectSection('Diarios');
-    expect(journals).toHaveAttribute('aria-pressed', 'true');
+    expect(journals).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByText('Evoluciones — 2026-W37.txt')).toBeInTheDocument();
     expect(screen.queryByText('Seleccionar paciente')).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
@@ -198,7 +220,7 @@ describe('Drive section boundaries', () => {
     view.rerender(<DriveWorkspace patientId="p2" patient={patientB} />);
 
     expect(await screen.findByText('Evoluciones — 2026-W37.txt')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Diarios' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('tab', { name: 'Diarios' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('keeps an open global note and its local work when patient changes', async () => {

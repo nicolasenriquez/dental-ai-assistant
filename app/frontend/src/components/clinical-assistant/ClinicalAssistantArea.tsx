@@ -31,6 +31,8 @@ interface ClinicalAssistantAreaProps {
   driveOpen?: boolean;
   onToggleDrive?: () => void;
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
+  patientPickerOpen?: boolean;
+  onPatientPickerOpenChange?: (open: boolean) => void;
 }
 
 type QueuedEntry = {
@@ -51,7 +53,10 @@ export function ClinicalAssistantArea({
   driveOpen = false,
   onToggleDrive,
   onOpenDriveJournal,
+  patientPickerOpen,
+  onPatientPickerOpenChange,
 }: ClinicalAssistantAreaProps) {
+  const [localPatientPickerOpen, setLocalPatientPickerOpen] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
   const [patientsError, setPatientsError] = useState(false);
@@ -64,7 +69,6 @@ export function ClinicalAssistantArea({
   const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [contextByThread, setContextByThread] = useState<Record<string, ComposerContextItem[]>>({});
-  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
   const voiceCaretRef = useRef<number | null>(null);
@@ -292,8 +296,8 @@ export function ClinicalAssistantArea({
             selectionError={patientSelectionError}
             onRetryPatientChange={retryPatientChange}
             disabled={voiceInFlight}
-            open={patientPickerOpen}
-            onOpenChange={setPatientPickerOpen}
+            open={patientPickerOpen ?? localPatientPickerOpen}
+            onOpenChange={onPatientPickerOpenChange ?? setLocalPatientPickerOpen}
           />
         }
       />
@@ -318,7 +322,7 @@ export function ClinicalAssistantArea({
                   <button
                     type="button"
                     className="clinical-primary-button"
-                    onClick={() => setPatientPickerOpen(true)}
+                    onClick={() => (onPatientPickerOpenChange ?? setLocalPatientPickerOpen)(true)}
                   >
                     Seleccionar paciente
                   </button>

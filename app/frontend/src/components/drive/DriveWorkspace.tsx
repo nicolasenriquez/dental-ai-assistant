@@ -76,6 +76,7 @@ export interface DriveWorkspaceProps {
   initialSection?: DriveSection;
   initialJournalTarget?: DriveJournalTarget | null;
   onJournalTargetConsumed?: () => void;
+  onSelectPatient?: () => void;
 }
 
 function newOperationId(): string {
@@ -121,6 +122,7 @@ export function DriveWorkspace({
   initialSection = 'notes',
   initialJournalTarget = null,
   onJournalTargetConsumed,
+  onSelectPatient,
 }: DriveWorkspaceProps) {
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -784,7 +786,7 @@ export function DriveWorkspace({
   }
 
   const sectionNavigation = (
-    <nav className="drive-section-nav" aria-label="Secciones de Google Drive">
+    <div className="drive-section-nav" role="tablist" aria-label="Secciones de Google Drive">
       {(
         [
           ['notes', 'Notas'],
@@ -794,9 +796,35 @@ export function DriveWorkspace({
       ).map(([value, label]) => (
         <button
           key={value}
+          id={`drive-tab-${value}`}
           type="button"
+          role="tab"
           className="drive-section-button"
-          aria-pressed={section === value}
+          aria-selected={section === value}
+          aria-controls="drive-section-panel"
+          tabIndex={section === value ? 0 : -1}
+          onKeyDown={(event) => {
+            const tabs = Array.from(
+              event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                '[role="tab"]',
+              ) ?? [],
+            );
+            const current = tabs.indexOf(event.currentTarget);
+            const next =
+              event.key === 'ArrowRight'
+                ? (current + 1) % tabs.length
+                : event.key === 'ArrowLeft'
+                  ? (current - 1 + tabs.length) % tabs.length
+                  : event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? tabs.length - 1
+                      : -1;
+            if (next >= 0) {
+              event.preventDefault();
+              tabs[next]?.focus();
+            }
+          }}
           onClick={() => {
             setSection(value);
             setErrorMessage(null);
@@ -808,7 +836,7 @@ export function DriveWorkspace({
           {label}
         </button>
       ))}
-    </nav>
+    </div>
   );
 
   const journalContent = (
@@ -934,43 +962,51 @@ export function DriveWorkspace({
       connectionContent = !workspaceDocument && (
         <>
           {sectionNavigation}
-          {section === 'notes' ? (
-            <DriveWorkspaceHome
-              files={sources}
-              patient={patient}
-              loading={sourcesLoading}
-              picking={importing}
-              onPick={() => void handleOpenNote()}
-              onOpen={(file) => void openSource(file.id)}
-              onMore={sourcePage ? () => void loadSources(sourcePage) : undefined}
-            />
-          ) : section === 'documents' ? (
-            <div className="min-h-0 flex-1 overflow-auto">
-              <DriveFileBrowser
-                managedOnly
-                patientId={patientId}
+          <div
+            id="drive-section-panel"
+            role="tabpanel"
+            aria-labelledby={`drive-tab-${section}`}
+            className="drive-section-panel"
+          >
+            {section === 'notes' ? (
+              <DriveWorkspaceHome
+                files={sources}
                 patient={patient}
-                query={query}
-                files={files}
-                listLoading={listLoading}
-                searchLoading={searchLoading}
-                searchSubmitted={searchSubmitted}
-                importing={importing}
-                imported={imported}
-                importLabel="Importar copia desde Drive"
-                nextPageToken={nextPageToken}
-                onQueryChange={setQuery}
-                onSearch={() => void handleSearch()}
-                onClearSearch={handleClearSearch}
-                onImport={() => void handleImport()}
-                onOpen={(file) => void handleOpen(file)}
-                onLoadMore={() => void handleLoadMore()}
-                searchInputRef={searchInputRef}
+                loading={sourcesLoading}
+                picking={importing}
+                onPick={() => void handleOpenNote()}
+                onOpen={(file) => void openSource(file.id)}
+                onMore={sourcePage ? () => void loadSources(sourcePage) : undefined}
               />
-            </div>
-          ) : (
-            journalContent
-          )}
+            ) : section === 'documents' ? (
+              <div className="min-h-0 flex-1 overflow-auto">
+                <DriveFileBrowser
+                  managedOnly
+                  patientId={patientId}
+                  patient={patient}
+                  query={query}
+                  files={files}
+                  listLoading={listLoading}
+                  searchLoading={searchLoading}
+                  searchSubmitted={searchSubmitted}
+                  importing={importing}
+                  imported={imported}
+                  importLabel="Importar copia desde Drive"
+                  nextPageToken={nextPageToken}
+                  onQueryChange={setQuery}
+                  onSearch={() => void handleSearch()}
+                  onClearSearch={handleClearSearch}
+                  onImport={() => void handleImport()}
+                  onOpen={(file) => void handleOpen(file)}
+                  onLoadMore={() => void handleLoadMore()}
+                  searchInputRef={searchInputRef}
+                  onSelectPatient={onSelectPatient}
+                />
+              </div>
+            ) : (
+              journalContent
+            )}
+          </div>
         </>
       );
   }
