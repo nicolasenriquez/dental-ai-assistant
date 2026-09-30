@@ -4,17 +4,20 @@ import {
   ApiError,
   type ClinicalDraft,
   type ClinicalPatient,
+  type ClinicalPendingAction,
   type ClinicalThread,
   cancelClinicalTurn,
   getClinicalThread,
   prepareClinicalSave,
   regenerateClinicalDraft,
+  resolveClinicalAction,
   resolveClinicalPatientSwitch,
+  retryClinicalDriveExport,
   setClinicalActivePatient,
   streamClinicalTurn,
   updateClinicalArtifact,
 } from '../lib/api';
-import type { ClinicalDraftItem } from './clinicalRuntime';
+import type { ClinicalApprovalItem, ClinicalDraftItem } from './clinicalRuntime';
 import { useClinicalAssistant } from './useClinicalAssistant';
 
 vi.mock('../lib/api', async () => {
@@ -25,6 +28,8 @@ vi.mock('../lib/api', async () => {
     getClinicalThread: vi.fn(),
     prepareClinicalSave: vi.fn(),
     regenerateClinicalDraft: vi.fn(),
+    resolveClinicalAction: vi.fn(),
+    retryClinicalDriveExport: vi.fn(),
     streamClinicalTurn: vi.fn(),
     resolveClinicalPatientSwitch: vi.fn(),
     setClinicalActivePatient: vi.fn(),
@@ -407,6 +412,32 @@ describe('clinical redaction and artifact ordering', () => {
     expect(result.current.artifactSyncState[artifact.id]).toBe('saved');
   });
 
+  it('recovers regeneration after an autosave rejects, but waits for the explicit save', async () => {
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    vi.useFakeTimers();
+    vi.mocked(updateClinicalArtifact).mockRejectedValueOnce(new Error('offline'));
+    act(() => result.current.updateDraftDate(artifact.id, '2026-09-18T12:00:00Z'));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    expect(result.current.artifactSyncState[artifact.id]).toBe('error');
+
+    const explicitSave = deferred<typeof artifact>();
+    vi.mocked(updateClinicalArtifact).mockReturnValueOnce(explicitSave.promise);
+    let generating!: Promise<void>;
+    act(() => {
+      generating = result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    await act(async () => Promise.resolve());
+    expect(updateClinicalArtifact).toHaveBeenCalledTimes(2);
+    expect(regenerateClinicalDraft).not.toHaveBeenCalled();
+    await act(async () => {
+      explicitSave.resolve(artifact);
+      await generating;
+    });
+    expect(regenerateClinicalDraft).toHaveBeenCalledTimes(1);
+    expect(result.current.artifactSyncState[artifact.id]).toBe('saved');
+  });
+
   it('keeps a failed source save stale and blocks regeneration until persistence is retried', async () => {
     const { result } = renderHook(() => useClinicalAssistant('thread-1'));
     await waitFor(() => expect(result.current.items).toHaveLength(1));
@@ -414,6 +445,7 @@ describe('clinical redaction and artifact ordering', () => {
     await act(async () => {
       expect(await result.current.updateDraftSource(artifact.id, 'corrected')).toBe(false);
     });
+    vi.mocked(updateClinicalArtifact).mockRejectedValueOnce(new Error('still offline'));
     await act(async () => {
       await result.current.regenerateDraft(result.current.items[0] as ClinicalDraftItem);
     });
@@ -424,6 +456,7 @@ describe('clinical redaction and artifact ordering', () => {
       stale: true,
     });
     expect(result.current.artifactSyncState[artifact.id]).toBe('error');
+    expect(result.current.error).toBe('No pudimos guardar la evolución. Tu borrador se conserva.');
     await act(async () => {
       expect(await result.current.updateDraftSource(artifact.id, 'corrected')).toBe(true);
     });
@@ -458,6 +491,96 @@ describe('clinical redaction and artifact ordering', () => {
     expect(result.current.items[0]).toMatchObject({ status: 'completed', draft });
     await act(async () => {
       expect(await result.current.updateDraftSource(artifact.id, 'retry')).toBe(true);
+    });
+  });
+});
+
+describe('clinical export status reconciliation', () => {
+  const action: ClinicalPendingAction = {
+    id: 'action-1',
+    thread_id: 'thread-1',
+    turn_id: 'turn-1',
+    patient_id: patientA.id,
+    action_type: 'save_evolution',
+    proposal_payload: null,
+    proposal_hash: 'hash',
+    status: 'pending',
+    expires_at: '2026-09-17T12:00:00Z',
+    created_at: '2026-09-17T12:00:00Z',
+    patient: patientA,
+  };
+
+  beforeEach(() => vi.resetAllMocks());
+
+  it('refreshes approved export to synced without discarding unsaved draft edits', async () => {
+    const approved: ClinicalPendingAction = {
+      ...action,
+      status: 'approved',
+      result_resource_id: 'evolution-1',
+      drive_export: { status: 'pending' },
+    };
+    vi.mocked(getClinicalThread)
+      .mockResolvedValueOnce({ ...thread(patientA), artifacts: [artifact], actions: [action] })
+      .mockResolvedValue({
+        ...thread(patientA),
+        artifacts: [artifact],
+        actions: [
+          {
+            ...approved,
+            drive_export: {
+              status: 'synced',
+              journal: { period_type: 'weekly', period_key: '2026-W38', journal_part: 1 },
+            },
+          },
+        ],
+      });
+    vi.mocked(resolveClinicalAction).mockResolvedValue(approved);
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    vi.useFakeTimers();
+    act(() => result.current.updateDraft(artifact.id, { ...draft, context: 'sin guardar' }));
+    await act(async () => {
+      await result.current.resolve(
+        result.current.items.find((item) => item.type === 'approval') as ClinicalApprovalItem,
+        'approve',
+      );
+    });
+    expect(result.current.items.find((item) => item.type === 'approval')).toMatchObject({
+      action: { drive_export: { status: 'pending' } },
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    expect(result.current.items.find((item) => item.type === 'approval')).toMatchObject({
+      action: { drive_export: { status: 'synced', journal: { journal_part: 1 } } },
+    });
+    expect(result.current.items.find((item) => item.type === 'draft')).toMatchObject({
+      draft: { context: 'sin guardar' },
+    });
+    vi.mocked(getClinicalThread).mockClear();
+    await act(async () => vi.advanceTimersByTimeAsync(4000));
+    expect(getClinicalThread).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a recovery request until export fails', async () => {
+    const failed: ClinicalPendingAction = {
+      ...action,
+      status: 'approved',
+      result_resource_id: 'evolution-1',
+      drive_export: { status: 'failed', error_code: 'DRIVE_UNAVAILABLE' },
+    };
+    vi.mocked(getClinicalThread)
+      .mockResolvedValueOnce({ ...thread(patientA), actions: [failed] })
+      .mockResolvedValue({ ...thread(patientA), actions: [failed] });
+    vi.mocked(retryClinicalDriveExport).mockResolvedValue({ drive_export: { status: 'pending' } });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    vi.useFakeTimers();
+    await act(async () => result.current.retryDriveExport('evolution-1'));
+    expect(result.current.items[0]).toMatchObject({
+      action: { drive_export: { status: 'pending' } },
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    expect(result.current.items[0]).toMatchObject({
+      action: { drive_export: { status: 'failed', error_code: 'DRIVE_UNAVAILABLE' } },
     });
   });
 });

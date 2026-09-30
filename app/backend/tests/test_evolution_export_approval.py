@@ -65,6 +65,10 @@ async def test_approval_export_freezes_identity_for_existing_connection(
         captured.update(kwargs)
         return {"status": kwargs["status"]}
 
+    async def no_export(_conn: object, _owner: UUID, _evolution_id: UUID) -> None:
+        return None
+
+    monkeypatch.setattr(service.evolution_exports_repo, "get_export_with_connection", no_export)
     monkeypatch.setattr(
         service.evolution_exports_repo, "get_connection_for_approval", connection_for_approval
     )
@@ -112,6 +116,10 @@ async def test_approval_without_connection_creates_no_export_intent(
     async def unexpected_insert(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("users without a Drive row must not get an export intent")
 
+    async def no_export(_conn: object, _owner: UUID, _evolution_id: UUID) -> None:
+        return None
+
+    monkeypatch.setattr(service.evolution_exports_repo, "get_export_with_connection", no_export)
     monkeypatch.setattr(
         service.evolution_exports_repo, "get_connection_for_approval", no_connection
     )
@@ -140,6 +148,31 @@ async def test_approval_without_connection_creates_no_export_intent(
         )
         is None
     )
+
+
+async def test_approval_retry_reuses_frozen_export_without_connection_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.evolution_exports import service
+
+    existing = {"status": "synced", "period_key": "2026-W01", "journal_block": "frozen"}
+
+    async def get_export(_conn: object, _owner: UUID, _evolution_id: UUID) -> dict[str, str]:
+        return existing
+
+    async def unexpected(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("retry must not read changed connection or insert another intent")
+
+    monkeypatch.setattr(service.evolution_exports_repo, "get_export_with_connection", get_export)
+    monkeypatch.setattr(service.evolution_exports_repo, "get_connection_for_approval", unexpected)
+    monkeypatch.setattr(
+        service.evolution_exports_repo, "create_export_intent_with_connection", unexpected
+    )
+
+    result = await service.persist_approval_export(
+        object(), UUID(int=1), {"id": uuid4()}, {}, datetime.now(UTC)
+    )
+    assert result is existing
 
 
 async def test_canonical_save_returns_before_any_external_drive_io(monkeypatch) -> None:

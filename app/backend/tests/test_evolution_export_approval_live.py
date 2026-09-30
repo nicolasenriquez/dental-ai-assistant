@@ -191,6 +191,43 @@ async def test_live_approval_persists_frozen_pending_export(db) -> None:
     assert str(export["operation_id"]) not in export["journal_block"]
 
 
+async def test_live_save_retry_keeps_existing_export_after_frequency_change(db) -> None:
+    owner = await _make_user(db)
+    patient_id = await _make_patient(db, owner)
+    await _make_connection(db, owner, status="active", frequency="weekly")
+    evolution_id = uuid4()
+    approval = {
+        "evolution_id": evolution_id,
+        "evolution_at": datetime(2026, 1, 5, 3, 30, tzinfo=UTC),
+        "raw_note": "Control",
+        "generated_text": "Hallazgos",
+        "final_text": "Texto aprobado",
+        "approval_at": datetime(2026, 1, 5, 3, 30, tzinfo=UTC),
+    }
+
+    first = await evolution_exports_service.persist_approved_evolution(
+        owner, patient_id, **approval
+    )
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE google_drive_connections SET evolution_export_frequency = 'daily' WHERE user_id = $1",
+            owner,
+        )
+    retry = await evolution_exports_service.persist_approved_evolution(
+        owner, patient_id, **approval
+    )
+
+    assert retry == first
+    assert retry[1] is not None and retry[1]["period_type"] == "weekly"
+    async with db.acquire() as conn:
+        count = await conn.fetchval(
+            "SELECT count(*) FROM google_drive_evolution_exports WHERE user_id = $1 AND evolution_id = $2",
+            owner,
+            evolution_id,
+        )
+    assert count == 1
+
+
 @pytest.mark.parametrize("connection_status", ["disconnected", "revoked"])
 async def test_live_disconnected_approval_persists_failed_export_without_drive_write(
     db, connection_status: str

@@ -1003,6 +1003,11 @@ async def persist_approval_export(
     approval_at: datetime,
 ) -> dict[str, Any] | None:
     """Freeze and persist export intent while approval transaction is open."""
+    existing = await evolution_exports_repo.get_export_with_connection(
+        conn, owner_user_id, evolution["id"]
+    )
+    if existing is not None:
+        return cast(dict[str, Any], existing)
     connection = await evolution_exports_repo.get_connection_for_approval(conn, owner_user_id)
     if connection is None:
         return None

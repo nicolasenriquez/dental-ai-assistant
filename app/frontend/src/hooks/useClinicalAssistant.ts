@@ -279,6 +279,53 @@ export function useClinicalAssistant(threadId: string | undefined) {
     return () => clearInterval(timer);
   }, [threadId, thread?.active_turn_id, load]);
 
+  const pendingExportIds = clinicalState.items
+    .filter(
+      (item) =>
+        item.type === 'approval' &&
+        item.action.result_resource_id &&
+        (item.action.drive_export?.status === 'pending' ||
+          item.action.drive_export?.status === 'syncing'),
+    )
+    .map((item) => (item.type === 'approval' ? item.action.result_resource_id : null))
+    .join(',');
+
+  useEffect(() => {
+    if (!threadId || !pendingExportIds) return;
+    const ids = new Set(pendingExportIds.split(','));
+    let cancelled = false;
+    let polling = false;
+    const timer = setInterval(() => {
+      if (polling) return;
+      polling = true;
+      void getClinicalThread(threadId)
+        .then((fresh) => {
+          if (cancelled || threadIdRef.current !== threadId) return;
+          for (const action of fresh.actions ?? []) {
+            if (
+              action.result_resource_id &&
+              ids.has(action.result_resource_id) &&
+              action.drive_export
+            ) {
+              dispatch({
+                type: 'updateDriveExport',
+                evolutionId: action.result_resource_id,
+                driveExport: action.drive_export,
+              });
+            }
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          polling = false;
+        });
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [threadId, pendingExportIds]);
+
   const setActivePatient = useCallback(
     async (patientId: string | null) => {
       if (!threadId) return;
@@ -664,7 +711,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
       try {
         clearTimeout(artifactTimersRef.current[item.id]);
         delete artifactTimersRef.current[item.id];
-        await artifactSyncsRef.current[item.id];
+        await artifactSyncsRef.current[item.id]?.catch(() => undefined);
         await updateClinicalArtifact(threadId, item.id, {
           source_note: item.sourceNote,
           draft: item.draft,
@@ -677,7 +724,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         setError(null);
       } catch {
         if (!persisted) setArtifactSyncState((state) => ({ ...state, [item.id]: 'error' }));
-        setError(safeError('CLINICAL_MODEL_UNAVAILABLE'));
+        setError(safeError(persisted ? 'CLINICAL_MODEL_UNAVAILABLE' : 'EVOLUTION_SAVE_FAILED'));
         setRuntime('failed');
       } finally {
         busyArtifactsRef.current.delete(item.id);
