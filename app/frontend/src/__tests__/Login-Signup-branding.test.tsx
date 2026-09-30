@@ -50,7 +50,7 @@ vi.mock('../lib/authApi', () => ({
   }),
 }));
 
-const brandingText = 'Pregúntale cualquier cosa a la biblioteca de YouTube de Cole Medin';
+const brandingText = 'Tu espacio clínico, con el paciente en contexto.';
 
 describe('Login page', () => {
   it('renders branding header with logo, title, and tagline', () => {

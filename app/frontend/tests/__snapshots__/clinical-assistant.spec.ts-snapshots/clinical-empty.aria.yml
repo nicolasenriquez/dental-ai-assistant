@@ -13,7 +13,7 @@
     - button "Buscar en conversaciones": Buscar Ctrl K
     - region "Anteriores":
       - button "Anteriores 1" [expanded]
-      - button "Ana Pérez · Control": /Ana Pérez · Control \d+-ene/
+      - button "Ana Pérez · Control": /Ana Pérez · Control \d+ ene \d+ · \d+:\d+/
       - button "Acciones para Ana Pérez · Control"
   - button "Abrir menú de usuario para demo@example.com"
 - main:

@@ -851,6 +851,20 @@ test('public auth and not-found views expose their controls and outcomes', async
   await captureView(page, 'qa-not-found');
 });
 
+test('clinical login remains readable on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installQaRoutes(page, { authenticated: false });
+  await page.goto('/login');
+  await expect(page.getByText('Tu espacio clínico, con el paciente en contexto.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Iniciar sesión' })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await expect(page).toHaveScreenshot('qa-login-mobile.png', {
+    animations: 'disabled',
+    maxDiffPixels: 20,
+  });
+});
+
 test('patients, patient detail, and new evolution preserve dialog contracts', async ({ page }) => {
   await installQaRoutes(page);
   await page.goto('/patients');

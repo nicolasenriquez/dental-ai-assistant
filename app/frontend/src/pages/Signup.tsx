@@ -32,7 +32,7 @@ export function Signup() {
       if (err instanceof AuthError && err.status === 429 && err.rateLimitScope) {
         setFormError({ kind: 'warning', msg: err.message });
       } else {
-        const msg = err instanceof Error ? err.message : 'Signup failed';
+        const msg = err instanceof Error ? err.message : 'No se pudo crear la cuenta.';
         setFormError({ kind: 'error', msg });
       }
     } finally {
@@ -41,12 +41,9 @@ export function Signup() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--bg)] text-[var(--text-primary)] p-4 gap-8">
+    <div className="auth-page">
       <BrandingHeader />
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6 space-y-4"
-      >
+      <form onSubmit={handleSubmit} aria-busy={submitting} className="auth-card space-y-4">
         <h1 className="text-xl font-semibold">Crear cuenta</h1>
         <label className="block text-sm">
           <span className="text-[var(--text-secondary)]">Correo electrónico</span>
@@ -56,7 +53,7 @@ export function Signup() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full px-3 py-2 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+            className="auth-field"
           />
         </label>
         <label className="block text-sm">
@@ -68,7 +65,7 @@ export function Signup() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full px-3 py-2 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+            className="auth-field"
           />
         </label>
         {formError && formError.kind === 'error' && (
@@ -89,11 +86,7 @@ export function Signup() {
             {formError.msg}
           </div>
         )}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="min-h-11 w-full rounded bg-[var(--accent)] py-2 font-medium text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-        >
+        <button type="submit" disabled={submitting} className="auth-submit">
           {submitting ? 'Creando cuenta…' : 'Registrarse'}
         </button>
         <div className="text-sm text-[var(--text-secondary)] text-center">

@@ -472,7 +472,7 @@ for (const viewport of [
     const drivePatientContext = page.locator('.drive-workspace-patient-context');
     await expect(drivePatientContext).toContainText(`${patient.first_name} ${patient.last_name}`);
     await expect(drivePatientContext).toContainText(patient.rut_masked);
-    if (viewport.width <= 1024) {
+    if (viewport.width < 1024) {
       await expect(page.locator('.drive-sheet-content')).toBeVisible();
       await expect(page.getByText('Conectado', { exact: true })).toBeVisible();
       await expect(page.locator('.workspace-row')).toHaveCount(1);
@@ -486,7 +486,7 @@ for (const viewport of [
       });
     }
 
-    await page.getByRole('button', { name: 'Documentos' }).click();
+    await page.getByRole('tab', { name: 'Documentos' }).click();
     await expect(
       page.getByRole('button', { name: 'Abrir Evolución septiembre.md', exact: true }),
     ).toBeVisible();
@@ -520,7 +520,7 @@ for (const viewport of [
     await expect(
       page.getByRole('button', { name: 'Ver detalles de Evolución septiembre.md' }),
     ).toBeFocused();
-    await page.getByRole('button', { name: 'Notas' }).click();
+    await page.getByRole('tab', { name: 'Notas' }).click();
 
     await page.getByRole('button', { name: /Nota remota\.txt/ }).click();
     await expect(page.getByRole('heading', { name: 'Nota remota.txt' })).toBeVisible();
@@ -534,7 +534,7 @@ for (const viewport of [
       const main = await page.locator('.workspace-panel-main').boundingBox();
       const accessory = await page.locator('.workspace-panel-accessory').boundingBox();
       expect(main?.width).toBeGreaterThan(accessory?.width ?? 0);
-    } else {
+    } else if (viewport.width < 1024) {
       await expect(page.locator('.drive-sheet-content')).toBeVisible();
     }
     if (viewport.name !== 'boundary') {
@@ -551,7 +551,7 @@ for (const viewport of [
       );
       await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue('');
     }
-    if (viewport.width <= 1024) {
+    if (viewport.width < 1024) {
       await page.keyboard.press('Escape');
       await expect(page.locator('.drive-sheet-content')).toHaveCount(0);
       await expect(driveUtility).toBeFocused();
@@ -620,6 +620,62 @@ test('opens header patient picker with visible options', async ({ page }) => {
 
   await option.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('assistant draft date can be cancelled and copy reports clipboard failures', async ({
+  page,
+}) => {
+  await setupClinicalHarness(page, thread([], { artifacts: [hydratedArtifact()] }));
+  const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+  const originalDate = await artifact.locator('.clinical-artifact-metadata time').textContent();
+
+  await artifact.getByRole('button', { name: 'Cambiar fecha y hora' }).click();
+  const date = artifact.getByRole('textbox', { name: 'Fecha de evolución' });
+  await expect(date).toBeFocused();
+  await date.fill('14/01/2026');
+  await artifact.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(artifact.locator('.clinical-artifact-metadata time')).toHaveText(originalDate ?? '');
+  await expect(artifact.getByRole('button', { name: 'Cambiar fecha y hora' })).toBeFocused();
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new Error('simulated clipboard denial');
+        },
+      },
+    });
+  });
+  await artifact.getByRole('button', { name: 'Copiar' }).click();
+  await expect(
+    artifact.getByText('No se pudo copiar. Selecciona el texto y cópialo manualmente.'),
+  ).toBeVisible();
+  await expect(
+    artifact.getByRole('textbox', { name: 'Texto de la evolución para copiar' }),
+  ).toBeFocused();
+  await artifact
+    .getByRole('textbox', { name: 'Texto de la evolución para copiar' })
+    .press('Escape');
+  await expect(
+    artifact.getByRole('textbox', { name: 'Texto de la evolución para copiar' }),
+  ).toHaveCount(0);
+});
+
+test('Drive documents without a patient opens the selector on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setupClinicalHarness(page, thread([], { active_patient: null }));
+  await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+  const documents = page.getByRole('tab', { name: 'Documentos' });
+  await documents.focus();
+  await documents.press('Enter');
+  await expect(documents).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: 'Seleccionar paciente' }).click();
+  await expect(page.locator('.drive-sheet-content')).toHaveCount(0);
+  await expect(
+    page.getByRole('combobox', { name: 'Buscar paciente por nombre o RUT' }),
+  ).toBeFocused();
+  await expect(page.getByRole('option', { name: /Ana Pérez/ })).toBeVisible();
 });
 
 test('shows active-patient persistence failures and retries the selection', async ({ page }) => {
@@ -1167,6 +1223,14 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
   await expect(page.getByText('Preparé un borrador para tu revisión.')).toHaveCount(0);
 
+  await liveArtifact.getByRole('button', { name: 'Cambiar fecha y hora' }).click();
+  await liveArtifact.getByRole('textbox', { name: 'Fecha de evolución' }).fill('14/01/2026');
+  await liveArtifact.getByRole('textbox', { name: 'Hora de evolución' }).fill('09:30');
+  await liveArtifact.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(liveArtifact.locator('.clinical-artifact-metadata time')).toContainText(
+    '14 ene 2026',
+  );
+
   await page.getByRole('button', { name: 'Revisar y guardar' }).click();
   await expect(liveArtifact).toHaveAttribute('data-clinical-stage', 'review');
   await expect(liveArtifact).toHaveAttribute('data-e2e-mounted', 'true');
@@ -1319,7 +1383,7 @@ test('clinical review exposes primary confirmation and secondary editing actions
   await expect(artifact).toHaveAttribute('data-clinical-stage', 'review');
   await expect(artifact.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
   await expect(artifact.getByRole('button', { name: 'Seguir editando' })).toBeVisible();
-  await expect(artifact.locator('.clinical-artifact-overflow summary')).toBeVisible();
+  await expect(artifact.getByRole('button', { name: 'Copiar' })).toBeVisible();
   await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await expect(page).toHaveScreenshot('assistant-review-desktop.png', {
@@ -1475,8 +1539,8 @@ test('clinical artifact deep link reads edited remote journal and preserves tran
   const transcript = page.locator('.clinical-transcript');
   const transcriptPosition = await transcript.evaluate((element) => element.scrollTop);
   await artifact.getByRole('button', { name: 'Ver en Drive' }).click();
-  await expect(page.getByRole('button', { name: 'Diarios', exact: true })).toHaveAttribute(
-    'aria-pressed',
+  await expect(page.getByRole('tab', { name: 'Diarios', exact: true })).toHaveAttribute(
+    'aria-selected',
     'true',
   );
   await expect(page.getByRole('heading', { name: journal.display_name })).toBeVisible();

@@ -1,4 +1,7 @@
-- text: Dental AI Assistant Pregúntale cualquier cosa a la biblioteca de YouTube de Cole Medin
+- text: Dental AI Assistant
+- paragraph: Tu espacio clínico, con el paciente en contexto.
+- paragraph: Consulta fichas y prepara evoluciones clínicas. La IA propone; tú revisas y decides qué guardar.
+- paragraph: Paciente Borrador Revisión
 - heading "Crear cuenta" [level=1]
 - text: Correo electrónico
 - textbox "Correo electrónico": new@example.com

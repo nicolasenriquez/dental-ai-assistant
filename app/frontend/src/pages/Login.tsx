@@ -113,7 +113,7 @@ export function Login() {
       await login(email, password);
       navigate(returnTo, { replace: true });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
+      const msg = err instanceof Error ? err.message : 'No se pudo iniciar sesión.';
       setFormError(msg);
     } finally {
       setSubmitting(false);
@@ -121,15 +121,20 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--bg)] text-[var(--text-primary)] p-4 gap-8">
+    <div className="auth-page">
       <BrandingHeader />
       {status === 'loading-config' && (
-        <div className="w-full max-w-sm flex flex-col items-center gap-3 bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6">
+        <div
+          className="auth-card flex flex-col items-center gap-3"
+          role="status"
+          aria-label="Preparando acceso"
+        >
           <Spinner />
+          <p>Preparando acceso…</p>
         </div>
       )}
       {status === 'unauthenticated-google' && (
-        <div className="w-full max-w-sm flex flex-col items-center gap-4 bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6">
+        <div className="auth-card flex flex-col items-center gap-4">
           <h1 className="text-xl font-semibold">Iniciar sesión</h1>
           {formError && (
             <div className="text-sm text-[var(--danger)] w-full text-center" role="alert">
@@ -140,7 +145,7 @@ export function Login() {
         </div>
       )}
       {status === 'authenticating-google' && (
-        <div className="w-full max-w-sm flex flex-col items-center gap-3 bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6">
+        <div className="auth-card flex flex-col items-center gap-3" role="status">
           <Spinner />
           <p className="text-sm text-[var(--text-secondary)]">Iniciando sesión…</p>
         </div>
@@ -150,23 +155,23 @@ export function Login() {
         status === 'authorizing-drive' ||
         status === 'preparing-workspace' ||
         status === 'ready') && (
-        <div className="w-full max-w-sm flex flex-col items-center gap-3 bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6">
+        <div className="auth-card flex flex-col items-center gap-3" role="status">
           <Spinner />
           <p className="text-sm text-[var(--text-secondary)]">Cuenta verificada</p>
         </div>
       )}
       {status === 'error' && (
-        <div className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6">
+        <div className="auth-card">
           <div className="text-sm text-[var(--danger)]" role="alert">
             {error ?? 'No se pudo cargar la configuración.'}
           </div>
+          <button type="button" className="auth-retry" onClick={() => window.location.reload()}>
+            Reintentar
+          </button>
         </div>
       )}
       {status === 'unauthenticated-local' && (
-        <form
-          onSubmit={handleSubmit}
-          className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6 space-y-4"
-        >
+        <form onSubmit={handleSubmit} aria-busy={submitting} className="auth-card space-y-4">
           <h1 className="text-xl font-semibold">Iniciar sesión</h1>
           <label className="block text-sm">
             <span className="text-[var(--text-secondary)]">Correo electrónico</span>
@@ -176,7 +181,7 @@ export function Login() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full px-3 py-2 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+              className="auth-field"
             />
           </label>
           <label className="block text-sm">
@@ -187,7 +192,7 @@ export function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full px-3 py-2 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+              className="auth-field"
             />
           </label>
           {formError && (
@@ -195,11 +200,7 @@ export function Login() {
               {formError}
             </div>
           )}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="min-h-11 w-full rounded bg-[var(--accent)] py-2 font-medium text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-          >
+          <button type="submit" disabled={submitting} className="auth-submit">
             {submitting ? 'Iniciando sesión…' : 'Iniciar sesión'}
           </button>
           <div className="text-sm text-[var(--text-secondary)] text-center">

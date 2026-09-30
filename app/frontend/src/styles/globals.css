@@ -6704,3 +6704,132 @@ body,
     transition: none;
   }
 }
+.auth-page {
+  display: grid;
+  grid-template-columns: minmax(0, 460px) minmax(0, 400px);
+  align-items: center;
+  justify-content: center;
+  gap: clamp(32px, 7vw, 100px);
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.auth-brand__name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-brand__mark {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: white;
+}
+
+.auth-brand__headline {
+  max-width: 18ch;
+  margin-top: 28px;
+  font-size: clamp(27px, 3vw, 38px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.auth-brand__description {
+  max-width: 48ch;
+  margin-top: 16px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.auth-brand__steps {
+  margin-top: 24px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.auth-brand__steps span {
+  margin: 0 8px;
+  color: var(--accent);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  padding: 28px;
+}
+
+.auth-field {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 8px 12px;
+}
+
+.auth-field:focus-visible,
+.auth-submit:focus-visible,
+.auth-retry:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.auth-submit {
+  min-height: 44px;
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent);
+  color: white;
+  padding: 9px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-submit:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.auth-retry {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 8px 12px;
+}
+
+@media (max-width: 760px) {
+  .auth-page {
+    grid-template-columns: minmax(0, 400px);
+    align-content: center;
+    gap: 28px;
+    padding: 24px 16px;
+  }
+
+  .auth-brand__headline {
+    margin-top: 20px;
+    font-size: 26px;
+  }
+  .auth-brand__steps {
+    margin-top: 16px;
+  }
+  .auth-card {
+    padding: 22px;
+  }
+}
