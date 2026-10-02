@@ -8,19 +8,37 @@ import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.config import CHAT_MODEL
+from backend.db import patients_repo
 from backend.llm.openrouter import _get_async_client
 from backend.llm.tool_loop import stream_tool_loop
 
 from .policy import ClinicalTurnContext
+from .provider_boundary import ProviderBoundary
 from .terminology import MAX_TERMINOLOGY_TERMS
 
 MAX_CLINICAL_TOOL_CALLS = 4
 logger = logging.getLogger(__name__)
+
+
+class ClinicalToolEffect(str, Enum):
+    READ = "read"
+    DRAFT_WRITE = "draft_write"
+    APPROVAL_PREPARATION = "approval_preparation"
+
+
+CLINICAL_TOOL_EFFECTS = {
+    "lookup_dental_terms": ClinicalToolEffect.READ,
+    "get_recent_evolutions": ClinicalToolEffect.READ,
+    "create_evolution_draft": ClinicalToolEffect.DRAFT_WRITE,
+    "update_evolution_draft": ClinicalToolEffect.DRAFT_WRITE,
+    "prepare_evolution_save": ClinicalToolEffect.APPROVAL_PREPARATION,
+}
 
 _SYSTEM_PROMPT = """\
 Eres un asistente clínico dental para profesionales. Responde en español, de forma breve y clara.
@@ -64,6 +82,7 @@ class TermLookupArguments(BaseModel):
 class ClinicalToolResult:
     payload: dict[str, Any]
     effect: dict[str, Any] | None = None
+    result_kind: str | None = None
 
 
 ClinicalToolHandler = Callable[[dict[str, Any]], Awaitable[ClinicalToolResult]]
@@ -182,6 +201,14 @@ async def run_clinical_agent(
         result = await handler(parsed)
         if result.effect:
             effects.append(result.effect)
+        if result.result_kind and result.payload.get("ok"):
+            effects.append(
+                {
+                    "kind": "clinical_result",
+                    "result_kind": result.result_kind,
+                    "payload": result.payload,
+                }
+            )
         outcomes = {
             status: sum(item.get("status") == status for item in result.payload.get("results", []))
             for status in ("matched", "ambiguous", "not_found")
@@ -215,6 +242,12 @@ async def run_clinical_agent(
     )
     final_text = ""
     try:
+        patient = (
+            await patients_repo.get_patient(context.user_id, context.patient_id)
+            if context.patient_id
+            else None
+        )
+        boundary = ProviderBoundary(patient)
         async for loop_event in stream_tool_loop(
             client=_get_async_client(),
             model=CHAT_MODEL,
@@ -224,6 +257,8 @@ async def run_clinical_agent(
             tool_executor=execute,
             max_tool_calls=MAX_CLINICAL_TOOL_CALLS,
             buffer_text=True,
+            prepare_request=boundary.prepare,
+            restore_text=boundary.restore,
             cap_message=(
                 "Alcanzaste el límite de herramientas. Responde ahora en español con los "
                 "resultados disponibles y sin intentar otra operación."

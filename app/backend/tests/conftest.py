@@ -150,6 +150,7 @@ def patch_pg_pool(monkeypatch):
     binding — not just the source in `backend.db.postgres`.
     """
     from backend import rate_limit as rate_limit_mod
+    from backend.db import clinical_assistant_repo, clinical_pending_work_repo
     from backend.db import evolution_exports_repo as evolution_exports_repo_mod
     from backend.db import evolutions_repo as evolutions_repo_mod
     from backend.db import google_drive_repo as google_drive_repo_mod
@@ -163,6 +164,8 @@ def patch_pg_pool(monkeypatch):
     fake = _FakePool()
     getter = lambda: fake  # noqa: E731
     monkeypatch.setattr(pg, "get_pg_pool", getter)
+    monkeypatch.setattr(clinical_pending_work_repo, "get_pg_pool", getter)
+    monkeypatch.setattr(clinical_assistant_repo, "get_pg_pool", getter)
     monkeypatch.setattr(auth_route, "get_pg_pool", getter)
     monkeypatch.setattr(repo_mod, "get_pg_pool", getter)
     monkeypatch.setattr(users_repo_mod, "get_pg_pool", getter)

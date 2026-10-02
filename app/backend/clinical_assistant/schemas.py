@@ -26,6 +26,15 @@ class ClinicalThreadCreate(BaseModel):
     ] = "Asistente clínico"
 
 
+class OpenClinicalContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    patient_id: UUID
+    thread_id: UUID | None = None
+    evolution_id: UUID | None = None
+    mode: Literal["reuse_compatible", "create_new"] = "reuse_compatible"
+
+
 class ClinicalThreadUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

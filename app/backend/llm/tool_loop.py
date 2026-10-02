@@ -63,6 +63,8 @@ async def stream_tool_loop(
     tool_subject: ToolSubject | None = None,
     buffer_text: bool = False,
     cap_message: str | None = None,
+    prepare_request: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    restore_text: Callable[[str], str] | None = None,
 ) -> AsyncGenerator[ToolLoopEvent, None]:
     """Run one bounded completion loop without imposing a transport format."""
     tools_active = bool(tools) and tool_executor is not None and max_tool_calls > 0
@@ -98,7 +100,10 @@ async def stream_tool_loop(
                 )
                 cap_message_appended = True
 
-        stream = await client.chat.completions.create(messages=full_messages, **kwargs)
+        request = {"messages": full_messages, **kwargs}
+        if prepare_request is not None:
+            request = prepare_request(request)
+        stream = await client.chat.completions.create(**request)
         assistant_text_parts: list[str] = []
         pending: dict[int, dict[str, Any]] = {}
         finish_reason: str | None = None
@@ -154,6 +159,12 @@ async def stream_tool_loop(
         if finish_reason == "tool_calls" and pending and tool_executor:
             assistant_text = "".join(assistant_text_parts)
             ordered = [pending[index] for index in sorted(pending)]
+            if restore_text is not None:
+                assistant_text = restore_text(assistant_text)
+                for tool_call in ordered:
+                    tool_call["function"]["arguments"] = restore_text(
+                        tool_call["function"]["arguments"]
+                    )
             full_messages.append(
                 cast(
                     ChatCompletionMessageParam,
@@ -193,6 +204,8 @@ async def stream_tool_loop(
             continue
 
         final_text = "".join(assistant_text_parts)
+        if restore_text is not None:
+            final_text = restore_text(final_text)
         if buffer_text and final_text:
             yield ToolLoopEvent(kind="text", text=final_text)
         yield ToolLoopEvent(

@@ -193,6 +193,7 @@ from backend.routes import (  # noqa: E402
     channels,
     clinical_artifacts,
     clinical_assistant,
+    clinical_pending_work,
     conversations,
     evolutions,
     google_drive,
@@ -217,6 +218,7 @@ app.include_router(patients.router, prefix="/api")
 app.include_router(evolutions.router, prefix="/api")
 app.include_router(evolutions.patient_router, prefix="/api")
 app.include_router(clinical_assistant.router, prefix="/api")
+app.include_router(clinical_pending_work.router, prefix="/api")
 app.include_router(clinical_artifacts.router, prefix="/api")
 app.include_router(transcriptions.router, prefix="/api")
 

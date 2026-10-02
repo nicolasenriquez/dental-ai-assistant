@@ -11,6 +11,7 @@ from uuid import UUID
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, ConfigDict, StringConstraints, ValidationError
 
+from backend.clinical_assistant.provider_boundary import ProviderBoundary
 from backend.config import CLINICAL_EXTERNAL_LLM_ENABLED
 from backend.db import patients_repo
 from backend.llm.openrouter import create_structured_completion
@@ -153,11 +154,17 @@ async def generate_draft(
     )
 
     try:
+        boundary = ProviderBoundary(patient)
+        request = boundary.prepare(
+            {"messages": _provider_messages(raw_note, history, grounding=grounding)}
+        )
         content = await create_structured_completion(
-            _provider_messages(raw_note, history, grounding=grounding),
+            request["messages"],
             ClinicalDraft.model_json_schema(),
         )
-        return ClinicalDraft.validate_meaningful(ClinicalDraft.model_validate_json(content))
+        return ClinicalDraft.validate_meaningful(
+            ClinicalDraft.model_validate_json(boundary.restore(content))
+        )
     except EmptyClinicalDraftError:
         raise
     except (ValidationError, RuntimeError) as exc:

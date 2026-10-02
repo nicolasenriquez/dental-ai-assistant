@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from backend import config
@@ -19,11 +19,14 @@ from backend.clinical_assistant.schemas import (
     ClinicalThreadResponse,
     ClinicalThreadUpdate,
     ClinicalTurnRequest,
+    OpenClinicalContext,
     PatientSwitchResolution,
     PrepareSaveRequest,
     RegenerateDraftRequest,
 )
+from backend.clinical_assistant.sensitive_input import safe_patient
 from backend.db import clinical_assistant_repo as repository
+from backend.db import patients_repo
 from backend.evolution_exports import service as evolution_exports_service
 
 router = APIRouter(tags=["clinical-assistant"])
@@ -59,6 +62,61 @@ async def create_thread(
 async def acquire_thread(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     thread, reused = await service.acquire_thread(_user_id(user))
     return {"thread": thread, "reused": reused}
+
+
+@router.post("/clinical-threads/open-context")
+async def open_context(
+    body: OpenClinicalContext,
+    response: Response,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    owner = _user_id(user)
+    if body.mode == "create_new" and body.thread_id is not None:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_CONTEXT_REQUEST"})
+    try:
+        thread_id, reused = await repository.open_context(
+            owner,
+            body.patient_id,
+            body.thread_id,
+            body.evolution_id,
+            create_new=body.mode == "create_new",
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Recurso clínico no encontrado") from None
+    except ValueError:
+        raise HTTPException(
+            status_code=422, detail={"code": "EVOLUTION_PATIENT_MISMATCH"}
+        ) from None
+    except repository.ContextConflictError as conflict:
+        current_id = conflict.thread["active_patient_id"]
+        current = await patients_repo.get_patient(owner, current_id) if current_id else None
+        requested = await patients_repo.get_patient(owner, body.patient_id)
+
+        def label(patient: dict[str, Any] | None) -> dict[str, Any] | None:
+            if patient is None:
+                return None
+            safe = safe_patient(patient)
+            return {
+                "id": str(safe["id"]),
+                "display_name": f"{safe['first_name']} {safe['last_name']}",
+                "rut_masked": safe["rut_masked"],
+            }
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CLINICAL_CONTEXT_CONFLICT",
+                "reason": conflict.reason,
+                "current": {"thread_id": str(conflict.thread["id"]), "patient": label(current)},
+                "requested": {"patient": label(requested)},
+                "allowed_actions": ["continue_current", "open_new_thread"],
+            },
+        ) from None
+    response.status_code = 200 if reused else 201
+    return {
+        "resolution": "reused" if reused else "created",
+        "thread": await _response(owner, thread_id),
+    }
 
 
 @router.get("/clinical-threads")

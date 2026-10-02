@@ -444,7 +444,7 @@ def _clinical_tool_handlers(
             grounding.add_patient_evidence(
                 [row for row in result["evolutions"] if row["id"] is not None]
             )
-        return ClinicalToolResult(result)
+        return ClinicalToolResult(result, result_kind="evolution_list")
 
     async def lookup_dental_terms(arguments: dict[str, Any]) -> ClinicalToolResult:
         try:
@@ -460,7 +460,10 @@ def _clinical_tool_handlers(
             return ClinicalToolResult({"ok": False, "error": "TERMINOLOGY_UNAVAILABLE"})
         for result in results:
             grounding.add_terminology_result(result)
-        return ClinicalToolResult({"ok": True, "results": [asdict(result) for result in results]})
+        return ClinicalToolResult(
+            {"ok": True, "results": [asdict(result) for result in results]},
+            result_kind="terminology_evidence",
+        )
 
     async def create_draft(_arguments: dict[str, Any]) -> ClinicalToolResult:
         if context.patient_id is None:
@@ -879,7 +882,39 @@ async def _stream_turn(
                 )
             elif output.kind == "effect" and output.effect:
                 effect = output.effect
-                if effect["kind"] == "draft":
+                if effect["kind"] == "clinical_result":
+                    kind = effect["result_kind"]
+                    payload = effect["payload"]
+                    if kind == "evolution_list":
+                        payload = {
+                            "patient_id": str(patient_id),
+                            "evolutions": [
+                                {"id": row["id"], "evolution_at": row["evolution_at"]}
+                                for row in payload["evolutions"]
+                            ],
+                        }
+                    label = (
+                        "Evoluciones consultadas"
+                        if kind == "evolution_list"
+                        else "Terminología consultada"
+                    )
+                    result = {"result_kind": kind, "payload": payload}
+                    message = await repository.append_message(
+                        owner, thread, turn, "assistant", label, clinical_result=result
+                    )
+                    yield event(
+                        "item.completed",
+                        {
+                            "thread_id": str(thread),
+                            "turn_id": str(turn),
+                            "item_id": str(message["id"]),
+                            "item_type": "assistant_message",
+                            "status": "completed",
+                            "content": label,
+                            "clinical_result": result,
+                        },
+                    )
+                elif effect["kind"] == "draft":
                     produced_artifact = True
                     yield event(
                         "item.completed",
