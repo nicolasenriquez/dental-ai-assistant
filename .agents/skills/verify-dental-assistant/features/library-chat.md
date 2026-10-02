@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-New chat, video library, streamed answer, citations, conversation history.
+New chat, video-library search, streamed answer, citations, conversation history/rename/delete, Markdown download, and stop/queue/edit/remove pending messages. Administrators can also ingest videos from the library.
 
 ## How to get to it (user POV)
 
@@ -10,7 +10,9 @@ After sign-in, open `/chat` or an existing `/c/:conversationId`. Library opens f
 
 ## Driving it with Playwright CLI
 
-Capture empty chat snapshot; click `Biblioteca`, confirm dialog `Biblioteca de videos` and searchbox `Buscar videos`. For full live proof on a disposable account with OpenRouter configured, enter a benign question in `Pregunta sobre la biblioteca de videos`, send via `Enviar mensaje`, wait for completed response/citations, then reload `/c/:conversationId` and confirm persisted messages and source deep-link. Preserve before/action/after evidence without credentials.
+Capture empty chat state; click `Biblioteca` and confirm dialog `Biblioteca de videos`. Wait for loading to finish. A nonempty library offers `Buscar videos`; search a visible title, prove matches, then an impossible term, prove no matches, and clear the search. An empty library instead shows `Aún no hay videos en la base de conocimiento.` and has no searchbox. Close with `Cerrar biblioteca de videos`.
+
+For full RAG proof on a disposable account with OpenRouter and indexed content, ask a specific question about an existing video in `Pregunta sobre la biblioteca de videos`. Send via `Enviar mensaje`, observe streaming/completion, then reload `/c/:conversationId` and confirm persisted messages. Open a retrieved citation and inspect its title, snippet, and timestamp. YouTube citations provide timestamp deep-links and an embedded player; Dynamous citations provide lesson links and timestamp text. An uncited answer cannot prove citation behavior. Preserve before/action/after evidence without credentials.
 
 ## Gotchas
 

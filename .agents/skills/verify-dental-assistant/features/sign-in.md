@@ -6,7 +6,7 @@ Local password login, signup navigation, protected-route redirect. Google login 
 
 ## How to get to it (user POV)
 
-Run `just e2e-local-up` and open `http://localhost:8001/login`. Select `Regístrate` to visit `/signup`; use `Iniciar sesión` to return. Authenticated users land on `/patients`.
+Run `just e2e-local-up` and open `http://localhost:8001/login`. Select `Regístrate` to visit `/signup`; use `Iniciar sesión` to return. Direct login defaults to `/patients`; login after a protected-route redirect returns to the originally requested path.
 
 ## Driving it with Playwright CLI
 
@@ -15,3 +15,5 @@ Confirm `/api/auth/config` on port 8001 reports `mode: local`. Start a fresh nam
 ## Gotchas
 
 `AUTH_MODE=google` replaces local controls with Google sign-in; do not report password login as tested in that mode. `AUTH_MODE=local` supports E2E password login and non-Drive flows, but cannot prove Drive access. Real signup writes an account and triggers abuse limits; navigation alone is safe on shared database. Existing Playwright `auth.setup.ts` uses `E2E_USER`/`E2E_PASSWORD`; mocked `/api/auth/me` flows cannot prove login.
+
+On a fresh disposable database, submit the real signup form and check both HTTP 201 and authenticated navigation to `/patients`. If the guard returns to `/login`, record a product failure. A separate successful password login proves login, not the signup session transition. Keep this failure out of maintenance code changes.
