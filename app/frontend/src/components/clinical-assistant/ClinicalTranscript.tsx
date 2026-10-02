@@ -13,6 +13,7 @@ import { Message } from '../Message';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 import { ClinicalDraftItem } from './ClinicalDraftItem';
 import { ClinicalPatientSwitchItem } from './ClinicalPatientSwitchItem';
+import { ClinicalReadResult } from './ClinicalReadResult';
 import { type ActiveClinicalTurn, ClinicalTurnProgress } from './ClinicalTurnProgress';
 
 type ResultItemData = Extract<ClinicalTranscriptItem, { type: 'result' }>;
@@ -208,7 +209,13 @@ export function ClinicalTranscript({
                     </div>
                   );
                 if (item.type === 'assistant')
-                  return (
+                  return item.clinicalResult ? (
+                    <ClinicalReadResult
+                      key={item.id}
+                      result={item.clinicalResult}
+                      fallback={item.content}
+                    />
+                  ) : (
                     <Message
                       key={item.id}
                       role={item.type}

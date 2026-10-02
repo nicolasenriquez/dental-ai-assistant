@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
+import { useOptionalClinicalRuntime } from '../components/ClinicalRuntimeProvider';
 import { ClinicalAssistantArea } from '../components/clinical-assistant/ClinicalAssistantArea';
 import { ClinicalThreadList } from '../components/clinical-assistant/ClinicalThreadList';
 import { DriveWorkspace, type DriveWorkspaceHandle } from '../components/drive/DriveWorkspace';
@@ -132,7 +133,12 @@ function ClinicalAssistantContent() {
   }, [createAttempt, navigate, threadId]);
 
   const activeId = threadId ?? createdThreadId;
-  const assistant = useClinicalAssistant(activeId ?? undefined);
+  const shared = useOptionalClinicalRuntime();
+  const fallback = useClinicalAssistant(shared ? undefined : (activeId ?? undefined));
+  const assistant = shared?.controller ?? fallback;
+  useEffect(() => {
+    if (activeId && shared?.activeThreadId !== activeId) shared?.activate(activeId);
+  }, [activeId, shared?.activeThreadId, shared?.activate]);
   const patient = assistant.thread?.active_patient;
   const drivePatient: DrivePatientContext | null = patient
     ? {
@@ -184,8 +190,9 @@ function ClinicalAssistantContent() {
         ) : null
       }
     >
-      {activeId ? (
+      {activeId && (!shared || shared.activeThreadId === activeId) ? (
         <ClinicalAssistantArea
+          returnToFicha
           threadId={activeId}
           assistant={assistant}
           onThreadStateChanged={() => setThreadListVersion((version) => version + 1)}

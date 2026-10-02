@@ -26,6 +26,7 @@ vi.mock('../../lib/api', async () => {
 
 function createAssistant(): ClinicalAssistantController {
   return {
+    detach: vi.fn(),
     thread: assistantState.thread,
     items: [],
     runtime: runtime.value,

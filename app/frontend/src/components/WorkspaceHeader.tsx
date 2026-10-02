@@ -5,6 +5,7 @@ interface WorkspaceHeaderProps {
   description?: string;
   workspaceContext?: ReactNode;
   actions?: ReactNode;
+  navigation?: ReactNode;
 }
 
 export function WorkspaceHeader({
@@ -12,10 +13,12 @@ export function WorkspaceHeader({
   description,
   workspaceContext,
   actions,
+  navigation,
 }: WorkspaceHeaderProps) {
   return (
     <header className="workspace-header">
       <div className="workspace-header__copy">
+        {navigation}
         <strong>{title}</strong>
         {description && <span>{description}</span>}
       </div>

@@ -67,6 +67,12 @@ export default defineConfig({
       use: { storageState: authStatePath },
     },
     {
+      name: 'workspace',
+      dependencies: ['setup'],
+      testMatch: /clinical-workspace\.spec\.ts/,
+      use: { storageState: authStatePath },
+    },
+    {
       name: 'qa-baseline',
       testMatch: /qa-baseline\.spec\.ts/,
     },

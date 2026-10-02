@@ -31,6 +31,7 @@ import {
   clinicalReducer,
   createClinicalReducerState,
   decodeClinicalEvent,
+  readClinicalResult,
 } from './clinicalRuntime';
 
 export type {
@@ -91,6 +92,9 @@ function messageItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
         createdAt: message.created_at,
         type: message.role,
         content: message.content,
+        ...(message.role === 'assistant'
+          ? { clinicalResult: readClinicalResult(message.clinical_result) }
+          : {}),
         ...(message.role === 'user' && message.context_items
           ? {
               contextItems: message.context_items.map((item) => ({
@@ -184,6 +188,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const activeTurnRef = useRef<string | null>(null);
   const threadIdRef = useRef(threadId);
   threadIdRef.current = threadId;
+  const detach = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
   const turnFailedRef = useRef(false);
   const loadSeqRef = useRef(0);
   const activePatientRequestSeqRef = useRef(0);
@@ -242,6 +249,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   useEffect(() => {
     let cancelled = false;
+    threadIdRef.current = threadId;
     loadSeqRef.current += 1;
     activePatientRequestSeqRef.current += 1;
     if (!threadId) {
@@ -262,6 +270,8 @@ export function useClinicalAssistant(threadId: string | undefined) {
     });
     return () => {
       cancelled = true;
+      threadIdRef.current = undefined;
+      loadSeqRef.current += 1;
       // turn_runner owns execution; this only detaches the previous SSE subscriber.
       abortRef.current?.abort();
     };
@@ -529,6 +539,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         }
         return !turnFailedRef.current;
       } catch (caught) {
+        if (threadIdRef.current !== currentThreadId) return true;
         if (caught instanceof DOMException && caught.name === 'AbortError') {
           if (threadIdRef.current === currentThreadId) {
             setRuntime('idle');
@@ -779,6 +790,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const resolve = useCallback(
     async (item: ClinicalApprovalItem, decision: 'approve' | 'decline') => {
+      const scope = threadIdRef.current;
       setRuntime('saving');
       dispatch({ type: 'resolveApproval', itemId: item.id, status: 'running' });
       try {
@@ -787,6 +799,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           decision,
           item.action.proposal_hash,
         );
+        if (threadIdRef.current !== scope) return;
         const resolvedStatus: ClinicalItemStatus =
           result.status === 'approved'
             ? 'completed'
@@ -802,6 +815,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         setRuntime('idle');
         setThread((current) => (current ? { ...current, pending_action: null } : current));
       } catch (caught) {
+        if (threadIdRef.current !== scope) return;
         const code = apiErrorCode(caught);
         const unavailable = code === 'ACTION_EXPIRED' || code === 'EVOLUTION_SAVE_FAILED';
         dispatch({
@@ -817,17 +831,22 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
 
   const retryDriveExport = useCallback(async (evolutionId: string) => {
+    const scope = threadIdRef.current;
     try {
       const { drive_export } = await retryClinicalDriveExport(evolutionId);
+      if (threadIdRef.current !== scope) return;
       dispatch({ type: 'updateDriveExport', evolutionId, driveExport: drive_export });
     } catch (caught) {
+      if (threadIdRef.current !== scope) return;
       setError(safeError(apiErrorCode(caught) ?? 'DRIVE_EXPORT_RECOVERY_FAILED'));
     }
   }, []);
 
   const backToEdit = useCallback(async (item: ClinicalApprovalItem): Promise<boolean> => {
+    const scope = threadIdRef.current;
     try {
       const result = await returnClinicalActionToEditing(item.action.id);
+      if (threadIdRef.current !== scope) return false;
       dispatch({
         type: 'returnToEditing',
         approvalId: item.id,
@@ -838,6 +857,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
       clinicalTrace('artifact.back_to_edit', { thread_id: item.action.thread_id });
       return true;
     } catch {
+      if (threadIdRef.current !== scope) return false;
       setError('No pudimos volver a la edición. Intenta nuevamente.');
       return false;
     }
@@ -988,6 +1008,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     cancelPatientSwitch,
     confirmPatientSwitch,
     reload: load,
+    detach,
     retryTurn,
     retryDriveExport,
     artifactSyncState,

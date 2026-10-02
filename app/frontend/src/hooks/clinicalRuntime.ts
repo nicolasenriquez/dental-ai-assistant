@@ -2,6 +2,7 @@ import type {
   ClinicalDraft,
   ClinicalPatient,
   ClinicalPendingAction,
+  ClinicalReadResult,
   ClinicalTurnArtifact,
   ComposerContextItem,
 } from '../lib/api';
@@ -24,6 +25,7 @@ export interface ClinicalUserItem extends ClinicalBaseItem {
 export interface ClinicalAssistantItem extends ClinicalBaseItem {
   type: 'assistant';
   content: string;
+  clinicalResult?: ClinicalReadResult;
 }
 
 export interface ClinicalActivityItem extends ClinicalBaseItem {
@@ -316,6 +318,7 @@ function itemFromEvent(event: ClinicalEvent): ClinicalTranscriptItem | null {
       createdAt,
       type: 'assistant',
       content: event.data.content,
+      clinicalResult: readClinicalResult(event.data.clinical_result),
     };
   }
   if (event.itemType === 'activity' && typeof event.data.label === 'string') {
@@ -399,6 +402,12 @@ function itemFromEvent(event: ClinicalEvent): ClinicalTranscriptItem | null {
     };
   }
   return null;
+}
+
+export function readClinicalResult(value: unknown): ClinicalReadResult | undefined {
+  if (!isRecord(value) || typeof value.result_kind !== 'string' || !isRecord(value.payload))
+    return undefined;
+  return { result_kind: value.result_kind, payload: value.payload };
 }
 
 export function classifyClinicalDecodeFailure(

@@ -1,5 +1,6 @@
 import { HardDrive, Stethoscope } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { ClinicalAssistantController } from '../../hooks/useClinicalAssistant';
 import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
 import {
@@ -14,6 +15,7 @@ import {
   captureComposerSelection,
   insertTranscript,
 } from '../../lib/composerSelection';
+import { type ClinicalQueuedEntry, useClinicalComposerMemory } from '../ClinicalRuntimeProvider';
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { EmptyState } from '../patterns/EmptyState';
@@ -33,15 +35,10 @@ interface ClinicalAssistantAreaProps {
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
   patientPickerOpen?: boolean;
   onPatientPickerOpenChange?: (open: boolean) => void;
+  returnToFicha?: boolean;
 }
 
-type QueuedEntry = {
-  id: string;
-  content: string;
-  contextItems: ComposerContextItem[];
-  patientId: string | null;
-  patientName: string;
-};
+type QueuedEntry = ClinicalQueuedEntry;
 
 export function ClinicalAssistantArea({
   threadId,
@@ -55,6 +52,7 @@ export function ClinicalAssistantArea({
   onOpenDriveJournal,
   patientPickerOpen,
   onPatientPickerOpenChange,
+  returnToFicha = false,
 }: ClinicalAssistantAreaProps) {
   const [localPatientPickerOpen, setLocalPatientPickerOpen] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -63,12 +61,19 @@ export function ClinicalAssistantArea({
   const [patientSelectionState, setPatientSelectionState] =
     useState<ClinicalPatientSelectionState>('idle');
   const [patientSelectionError, setPatientSelectionError] = useState<string | null>(null);
-  const [draftByThread, setDraftByThread] = useState<Record<string, string>>({});
-  const [queueByThread, setQueueByThread] = useState<Record<string, QueuedEntry[]>>({});
+  const memory = useClinicalComposerMemory();
+  const [localDrafts, setLocalDrafts] = useState<Record<string, string>>({});
+  const [localQueues, setLocalQueues] = useState<Record<string, QueuedEntry[]>>({});
+  const draftByThread = memory?.drafts ?? localDrafts;
+  const setDraftByThread = memory?.setDrafts ?? setLocalDrafts;
+  const queueByThread = memory?.queues ?? localQueues;
+  const setQueueByThread = memory?.setQueues ?? setLocalQueues;
   const [preparingDraftId, setPreparingDraftId] = useState<string | null>(null);
   const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
-  const [contextByThread, setContextByThread] = useState<Record<string, ComposerContextItem[]>>({});
+  const [localContexts, setLocalContexts] = useState<Record<string, ComposerContextItem[]>>({});
+  const contextByThread = memory?.attachments ?? localContexts;
+  const setContextByThread = memory?.setAttachments ?? setLocalContexts;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
   const voiceCaretRef = useRef<number | null>(null);
@@ -85,13 +90,13 @@ export function ClinicalAssistantArea({
         [threadId]: typeof next === 'function' ? next(current[threadId] ?? '') : next,
       }));
     },
-    [threadId],
+    [threadId, setDraftByThread],
   );
   const updateQueue = useCallback(
     (next: (current: QueuedEntry[]) => QueuedEntry[]) => {
       setQueueByThread((current) => ({ ...current, [threadId]: next(current[threadId] ?? []) }));
     },
-    [threadId],
+    [threadId, setQueueByThread],
   );
   const voiceScope = `clinical:${threadId}:${assistant.thread?.active_patient?.id ?? 'none'}`;
   const appendVoiceText = useCallback(
@@ -177,7 +182,7 @@ export function ClinicalAssistantArea({
       }));
       textareaRef.current?.focus();
     },
-    [threadId],
+    [threadId, setContextByThread],
   );
 
   useEffect(() => {
@@ -269,6 +274,16 @@ export function ClinicalAssistantArea({
     <main className="chat-area clinical-assistant-area">
       <WorkspaceHeader
         title={assistant.thread?.title ?? 'Asistente'}
+        navigation={
+          returnToFicha && activePatient ? (
+            <Link
+              className="py-1 text-xs text-primary hover:underline"
+              to={`/patients/${activePatient.id}`}
+            >
+              ‹ Volver a ficha
+            </Link>
+          ) : undefined
+        }
         actions={
           onToggleDrive ? (
             <button

@@ -13,6 +13,7 @@ import {
 import { AppShell } from './components/AppShell';
 import { ChatArea } from './components/ChatArea';
 import { ChatRuntimeProvider } from './components/ChatRuntimeProvider';
+import { ClinicalRuntimeProvider } from './components/ClinicalRuntimeProvider';
 import { ToastProvider } from './components/ToastProvider';
 import {
   AuthProvider,
@@ -102,7 +103,9 @@ const router = createBrowserRouter(
         element={
           <RequireAuth>
             <ChatRuntimeProvider>
-              <Outlet />
+              <ClinicalRuntimeProvider>
+                <Outlet />
+              </ClinicalRuntimeProvider>
             </ChatRuntimeProvider>
           </RequireAuth>
         }

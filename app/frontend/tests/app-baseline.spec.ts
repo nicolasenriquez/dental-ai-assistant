@@ -109,6 +109,11 @@ const evolutionDetailFixture = {
 
 async function mockPatientWorkspace(page: Page) {
   await mockJsonRoute(page, '**/api/patients', [patientFixture]);
+  await mockJsonRoute(page, '**/api/clinical-pending-work?**', {
+    items: [],
+    total: 0,
+    next_cursor: null,
+  });
   await mockJsonRoute(page, `**/api/patients/${patientIdFixture}`, patientFixture);
   await mockJsonRoute(
     page,
@@ -183,16 +188,13 @@ test('captures public views and patients workflow', async ({ page }) => {
   await patientDialog.getByLabel('Nombres').fill('Baseline');
   await patientDialog.getByLabel('Apellidos').fill('Validation');
   const rutInput = patientDialog.getByLabel('RUT');
-  const birthDateInput = patientDialog.getByLabel('Fecha de nacimiento');
+  const birthDateInput = patientDialog.getByRole('textbox', { name: /Fecha de nacimiento/ });
   await rutInput.fill('12.345.678-5');
   await rutInput.press('Tab');
   await expect(birthDateInput).toBeFocused();
   await birthDateInput.fill('31/02/2024');
   await patientDialog.getByRole('button', { name: 'Crear paciente' }).click();
-  await expect(patientDialog.getByLabel('Fecha de nacimiento')).toHaveAttribute(
-    'aria-invalid',
-    'true',
-  );
+  await expect(birthDateInput).toHaveAttribute('aria-invalid', 'true');
   await expect(patientDialog.getByText('Ingresa una fecha válida')).toBeVisible();
   await patientDialog.getByRole('button', { name: 'Cancelar' }).click();
   const leavePatientDialog = page.getByRole('dialog', { name: '¿Salir sin guardar?' });
@@ -208,8 +210,11 @@ test('captures public views and patients workflow', async ({ page }) => {
   if (!patientHref) throw new Error('Seeded patient link did not expose an href.');
 
   await patientLink.click();
+  await expect(page).toHaveURL(new URL(patientHref, page.url()).href);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Evolución dental' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+  await expect(page.locator('.patient-workspace__history a[aria-current="page"]')).toHaveCount(0);
   await captureView(page, 'patient-detail');
 
   await page.getByRole('link', { name: /Nueva evolución/ }).click();

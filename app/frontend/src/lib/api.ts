@@ -141,6 +141,7 @@ export interface ClinicalMessage {
   turn_id: string;
   role: 'user' | 'assistant';
   content: string;
+  clinical_result?: ClinicalReadResult | null;
   turn_status?: 'running' | 'completed' | 'failed' | null;
   turn_error_code?: string | null;
   context_items?: ClinicalContextItem[] | null;
@@ -151,6 +152,11 @@ export interface ClinicalMessage {
     resolution: 'pending' | 'kept_current' | 'changed_patient';
   } | null;
   created_at: string;
+}
+
+export interface ClinicalReadResult {
+  result_kind: string;
+  payload: Record<string, unknown>;
 }
 
 export interface ComposerContextItem {
@@ -362,6 +368,60 @@ export const getEvolution = (evolutionId: string) =>
   request<EvolutionDetail>(`/evolutions/${evolutionId}`);
 
 // Clinical Assistant — intentionally separate from RAG conversations.
+export interface PendingWorkPatient {
+  id: string;
+  display_name: string;
+  rut_masked: string;
+}
+
+export interface ClinicalContextConflict {
+  code: 'CLINICAL_CONTEXT_CONFLICT';
+  reason: 'different_patient' | 'pending_approval' | 'active_draft' | 'thread_has_history';
+  current: { thread_id: string; patient: PendingWorkPatient | null };
+  requested: { patient: PendingWorkPatient };
+  allowed_actions: ('continue_current' | 'open_new_thread')[];
+}
+
+export const openClinicalContext = (body: {
+  patient_id: string;
+  thread_id?: string | null;
+  evolution_id?: string | null;
+  mode?: 'reuse_compatible' | 'create_new';
+}) =>
+  request<{ resolution: 'created' | 'reused'; thread: ClinicalThread }>(
+    '/clinical-threads/open-context',
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+
+export type PendingWorkAction =
+  | { kind: 'review_approval'; action_id: string; thread_id: string }
+  | { kind: 'continue_draft'; artifact_id: string; thread_id: string }
+  | { kind: 'retry_drive_export'; evolution_id: string; thread_id: string | null };
+
+export interface PendingWorkItem {
+  id: string;
+  kind: 'approval_required' | 'recoverable_draft' | 'drive_export_failed';
+  patient: PendingWorkPatient;
+  updated_at: string;
+  action: PendingWorkAction;
+}
+
+export interface PendingWorkPage {
+  items: PendingWorkItem[];
+  next_cursor: string | null;
+  total: number;
+}
+
+export function getClinicalPendingWork(
+  patientId?: string,
+  cursor?: string,
+): Promise<PendingWorkPage> {
+  const query = new URLSearchParams();
+  if (patientId) query.set('patient_id', patientId);
+  if (cursor) query.set('cursor', cursor);
+  return request<PendingWorkPage>(`/clinical-pending-work?${query}`);
+}
+
 export const createClinicalThread = (title = 'Asistente clínico') =>
   request<ClinicalThread>('/clinical-threads', {
     method: 'POST',

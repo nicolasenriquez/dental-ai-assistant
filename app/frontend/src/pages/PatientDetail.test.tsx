@@ -49,23 +49,27 @@ describe('PatientDetail evolution workspace', () => {
   });
 
   function mockPatientData() {
+    vi.spyOn(api, 'getClinicalPendingWork').mockResolvedValue({
+      items: [],
+      total: 0,
+      next_cursor: null,
+    });
     vi.spyOn(api, 'getPatient').mockResolvedValue(patient);
     vi.spyOn(api, 'getPatientEvolutions').mockResolvedValue([evolutionSummary]);
   }
 
-  it('selects the newest evolution on patient entry', async () => {
+  it('keeps overview visible on patient entry without redirecting to an evolution', async () => {
     mockPatientData();
     const getEvolution = vi.spyOn(api, 'getEvolution').mockResolvedValue(evolutionDetail);
 
     renderPatient('/patients/patient-1');
 
-    expect(await screen.findByRole('heading', { name: 'Evolución dental' })).toBeVisible();
-    expect(screen.getByTestId('location')).toHaveTextContent(
-      '/patients/patient-1/evolutions/evolution-1',
-    );
+    expect(await screen.findByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+    expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1');
     expect(screen.getByRole('link', { name: /Ver evolución del/ })).toBeVisible();
     expect(screen.getByText('Nacimiento 02/01/1990')).toBeVisible();
-    expect(getEvolution).toHaveBeenCalledWith('evolution-1');
+    expect(getEvolution).not.toHaveBeenCalled();
+    expect(screen.getByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
   });
 
   it('keeps the history list when returning from the mobile detail view', async () => {
