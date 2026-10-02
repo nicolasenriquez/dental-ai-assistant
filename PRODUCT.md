@@ -38,9 +38,15 @@ autonomous scribe tools and from generic chat assistants.
 ## Capabilities and Constraints
 
 - Patients: identity with masked RUT, birth date, evolution history.
+- Patient workspace: recent persisted evolution, counts, recoverable work and an
+  authorized contextual Assistant. The existing new-evolution action remains primary.
+- Pending Work projects approvals, recoverable drafts and failed Drive exports;
+  it does not create another clinical workflow or storage path.
 - Evolutions: five structured fields, source-note provenance, review flags, stale-draft detection.
 - Approval: required before persistence; declined/expired/failed outcomes are explicit.
-- Privacy: RUT sanitization before prompts; masked identifiers in UI and notes.
+- Privacy: RUT sanitization and request-local outbound pseudonymization of known
+  patient identities, structured identifiers, emails and phones. Unknown free-text
+  identities remain a documented limitation; this is not anonymization.
 - Rate limit: 25 messages per user per 24 hours (security invariant).
 - Stack constraint: Postgres + pgvector, FastAPI, React; no ORM, no new state library, no new
   LLM/embedding provider without an authorizing ticket.
