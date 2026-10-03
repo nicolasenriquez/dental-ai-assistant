@@ -1,6 +1,17 @@
-# Patient notes, conditions and activity API contract
+# Patient contact, notes, conditions and activity API contract
 
 Normative companion to the delta spec and `patient-clinical-contract.md`. Runtime endpoints do not exist yet. JSON uses snake_case, UUID strings, UTC RFC3339 timestamps and null explicitly. Ordinary fetch stays in `lib/api.ts`. Every patient/resource/revision read and write checks authenticated ownership and matching parent before returning content. New request DTOs reject unknown fields. All new timestamps persist as TIMESTAMPTZ. No new auth mechanism.
+
+## Basic patient contact extension
+
+Extend the existing POST /api/patients, PATCH /api/patients/{patient_id} and GET /api/patients/{patient_id}; keep current auth, owner checks, identity validation, duplicate recovery and status codes. No new contact route.
+
+- Request fields: optional phone: string|null and email: string|null. On create, omission/null/trimmed blank stores null. On PATCH, omission preserves and null/trimmed blank clears, independently per field; retain current semantics for other fields.
+- Trim outer whitespace before validation. Phone allows only ASCII digits, spaces, parentheses, hyphens and one optional leading +, contains 1–15 digits and is at most 40 characters; preserve the trimmed display formatting and derive digits for search. Do not infer a country or rewrite to E.164.
+- Email is at most 254 characters after trimming: one @, nonempty local/domain, no whitespace/control characters, dotted domain with nonempty labels. Preserve display case; this is basic contact validation, not deliverability or ownership verification. No new validator dependency is required.
+- Invalid type/format/length returns existing field-located 422; validate the entire request before any write. Fields are nullable VARCHAR(40)/VARCHAR(254) in an expand-only migration after checking Alembic head.
+- PatientDetail extends the existing masked identity response with phone: string|null and email: string|null, always present, including null for legacy rows. PATCH returns that detail. Keep POST's existing PatientSummary response/status201; the exact created-ficha GET provides contact detail. PatientSummary, list and search remain compatible and contact-free; rut_masked is retained in the DTO but not rendered in the directory.
+- Header and Información consume the same owned detail, refreshed after successful editing. Clearing hides the corresponding header icon and shows No registrado in Información. Failed saves preserve drafts and last confirmed values. Phone/email never enter Activity, URLs, browser storage, navigation state, analytics, logs or clinical prompts; IdCard discloses only rut_masked.
 
 ## Common pagination and errors
 

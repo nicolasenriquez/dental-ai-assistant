@@ -1,5 +1,9 @@
 # Evidence and product-design critique
 
+## Current scoped evidence, 2026-10-03
+
+See audit-2026-10-03/report.md for the current source/target comparison, screenshots, measurements, priorities and explicit single-context critique provenance. patient-coverage.json contains15 demo source fichas across Summary/Info/Clinical/Activity; directory-metrics.json and source-header-metrics.json contain current DOM measurements. reference-check.json records Playwright CLI proof for synthetic HTML only. Target data was not copied to new records. Old broad source findings remain descriptive; target authority is the delta spec, two patient contracts and implementation-blueprint UI-01…UI-09.
+
 This annex is part of the change and is intentionally self-contained. It records the broad comparison and adoption decisions. The later focused patient click path is in dentalpin-patients-e2e-2026-10-02.md, including create, search, filters, sort, ficha tabs and source behavior. Neither annex embeds demo patient names, contacts, balances or clinical notes.
 
 ## Method and confidence

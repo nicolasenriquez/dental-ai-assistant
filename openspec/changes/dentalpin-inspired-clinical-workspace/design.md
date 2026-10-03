@@ -1,5 +1,7 @@
 ## Context
 
+Current scoped composition evidence is audit-2026-10-03/report.md; the normative shell/directory/header/modal/panel/icon contract is implementation-blueprint UI-01…UI-09. Retain the present sidebar appearance. Compact brand receives its own row and guarded /patients destination above the separate expansion button. The new header and toolbar reflow by available width. Default Resumen does not display the empty focused-evolution detail pane; exact evolution routes retain existing behavior. Three synthetic HTML references remain; patient-detail.html no longer embeds an obsolete diagnosis implementation.
+
 Dental AI Assistant is a Spanish, dark clinical workspace with a patient-first entry. The source audit shows useful DentalPin interaction patterns in finding patients, opening a ficha, registering tooth conditions and reading activity. The target already has a strong evolution/Assistant owner and a three-destination sidebar. The change adopts those patterns in existing route and component seams. `dentalpin-patients-e2e-2026-10-02.md` records observed behavior; `patient-clinical-contract.md` is the detailed target data/API/UI contract.
 
 ## Goals / Non-Goals
@@ -27,7 +29,7 @@ Dental AI Assistant is a Spanish, dark clinical workspace with a patient-first e
 
 `routes/patients.py` currently interprets short DV-valid numeric text as a compact RUT, otherwise falls into name-only search. Replace search classification with the ordered table in `patient-clinical-contract.md`: 1–8 bare digits are RUT/phone fragments; nine digits are compact full candidates; explicit guion/DV or trailing K identifies full RUT; phone formatting has first precedence. Exact valid identifiers do not broaden; invalid explicit identifiers return empty, invalid nine-digit candidates can match phone only. SQL LIKE wildcards are literal-escaped. Summary remains masked/contact-free. Search still returns the complete existing unpaginated owned result, so client sort/filter does not pretend to cover only an arbitrary cap.
 
-At >=1024 CSS px, use a semantic table with Paciente, RUT, Edad and Última evolución columns; below that, full-card patient links show the same facts without horizontal page scroll. DentalPin's source is visually table-like but implemented as a row-link list. The target uses semantic headers for keyboard/screen-reader access while retaining the avatar/name/secondary detail, thin separators and exact row destination. No unsupported balance, visit or status column appears. Empty-directory and filtered-no-match states differ; result count is the displayed record count.
+At >=1024 CSS px, use a semantic table with Paciente, Edad and Última evolución columns; below that, full-card patient links show the same facts without horizontal page scroll. DentalPin's source is visually table-like but implemented as a row-link list. The target uses semantic headers for keyboard/screen-reader access while retaining the avatar/name/secondary detail, thin separators and exact row destination. RUT is not rendered in desktop rows or mobile cards; retain rut_masked in the compatible summary DTO and private RUT search. No unsupported balance, visit or status column appears. Empty-directory and filtered-no-match states differ; result count is the displayed record count.
 
 ### Patient identity and creation
 
@@ -35,7 +37,7 @@ The existing `PatientFormModal.tsx` remains the single creation/edit form. First
 
 ### Ficha, notes and diagnosis
 
-`PatientDetail.tsx` remains the ficha route owner. Resumen is the default of four local tabs: Resumen, Información, Clínica and Actividad. Deep `/patients/:patientId/evolutions/:evolutionId` remains focused on that evolution. The header keeps masked identity and birth-date-derived age if present, existing primary Nueva evolución and secondary contextual Assistant; phone/email links appear only when data exists. No artificial active-status dot is introduced.
+`PatientDetail.tsx` remains the ficha route owner. Resumen is the default of four local tabs: Resumen, Información, Clínica and Actividad. Deep `/patients/:patientId/evolutions/:evolutionId` remains focused on that evolution. The header keeps full name/avatar and birth-date-derived age if present, existing primary Nueva evolución and secondary contextual Assistant. Below the name/age, Phone and Mail icon buttons appear only for registered values; IdCard reveals masked RUT. Values appear on hover, focus or tap, with accessible labels and Escape dismissal. Keep the four section tabs and Editar action. No raw RUT reveal or communication is triggered by these controls. Información retains the contact fields and editing. No artificial active-status dot is introduced.
 
 `PatientOverview.tsx` prioritizes approval, then recoverable draft, while failed Drive export has a separate synchronization line and exact owning link. The existing pending-work endpoint gains optional exact kind filtering and bounded limit; filter applies before total/cursor. No Home-only aggregate is needed. A failed kind says unavailable/retry, not zero. Assistant's direct `/assistant?view=pending` mode skips automatic thread acquisition, keeps its URL on reload and shows work in the main pane at narrow widths. Starter actions prefill without sending or changing the active patient silently.
 
@@ -87,7 +89,7 @@ The inspector edits the condition draft, not a second note resource. General not
 
 ## Slice dependencies
 
-Directory/contact and sidebar work can proceed independently. Ficha consumes contact/pending reads. Notes and condition-list vertical slices can proceed independently after ficha scaffolding; anatomical chart consumes the conditions slice; Activity consumes note/condition revisions and approved evolutions. No clinical note task is blocked by chart geometry. Exact order and proof are in tasks.md.
+Directory/contact and sidebar have no schema dependency, but execution is serial under tasks.md guardrails. Ficha consumes contact/pending reads. Notes and condition-list vertical slices require the verified ficha checkpoint; anatomical chart consumes the conditions slice; Activity consumes note/condition revisions and approved evolutions. No clinical note task is blocked by chart geometry. Exact order and proof are in tasks.md.
 
 ## Readiness closure decisions
 

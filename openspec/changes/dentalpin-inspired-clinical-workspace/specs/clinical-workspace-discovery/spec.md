@@ -66,7 +66,7 @@ The system SHALL preserve patient search in authenticated in-memory state during
 
 #### Scenario: Responsive patient results
 - **WHEN** the viewport is at least 1024 CSS px wide
-- **THEN** results form a semantic table with Paciente, RUT, Edad and Última evolución headers and exact ficha links
+- **THEN** results form a semantic table with Paciente, Edad and Última evolución headers and exact ficha links; neither rows nor compact cards render RUT, while private RUT search and the existing masked summary DTO remain supported
 - **WHEN** the viewport is narrower than 1024 CSS px
 - **THEN** the same values appear as compact full-card links without horizontal overflow; missing birth date or approved evolution has explicit text
 
@@ -357,3 +357,44 @@ Draft transitions SHALL follow patient-clinical-contract.md. Highlight SHALL rem
 - **THEN** status/revision/activity update transactionally
 - **WHEN** browser refresh is attempted with dirty draft
 - **THEN** beforeunload warns; confirmed reload clears in-memory draft and no automatic recovery from browser storage is promised
+
+### Requirement: Measurable patient UI composition
+Directory, ficha and modal SHALL implement UI-01 through UI-09 in implementation-blueprint.md with the incumbent semantic tokens, font and sidebar identity. Source screenshots SHALL be descriptive evidence, not authority for unsupported data or mutation behavior. Unicode glyphs SHALL NOT substitute for the existing icon system.
+
+#### Scenario: Recognizable compact navigation
+- **WHEN** the desktop rail is collapsed
+- **THEN** the existing three destinations remain directly usable with hover/focus labels, and the brand has its own hit area above the separate expansion button and navigates to /patients through current guards
+- **AND** the present expanded sidebar appearance and mobile drawer remain the visual basis
+
+#### Scenario: Directory composition and selectable rows
+- **WHEN** patient results render at desktop width
+- **THEN** one heading and the primary create action precede a bounded leading search and supported filter/order controls, followed by the semantic table with avatar/identity, age, latest evolution and decorative chevron
+- **AND** each patient has one real owned ficha link with a full-row hit/focus area, without nested controls or invented balances/status/contact values
+- **WHEN** width is narrow, name is long or metadata is missing
+- **THEN** controls remain visible, identity can wrap, the same fields use linked cards and there is no horizontal page overflow
+
+#### Scenario: Stable ficha context
+- **WHEN** a plain patient URL opens
+- **THEN** Resumen is selected beneath the shared back/avatar/full-name/metadata/actions header, with four named sections and icons
+- **AND** no empty focused-evolution detail pane displaces Resumen content; the exact evolution route retains its existing detail
+- **WHEN** the contextual Assistant changes available width
+- **THEN** identity and actions wrap without clipping or obscuring the tabs and drafts remain intact
+
+#### Scenario: Header identity disclosures
+- **WHEN** an owned ficha has registered phone/email
+- **THEN** its header shows labelled Phone/Mail icon controls beside age, plus IdCard for masked RUT, without replacing Editar, Nueva evolución, Asistente or the four section tabs
+- **WHEN** a control is hovered, focused or activated by click/tap
+- **THEN** the associated labelled value is revealed without writing, copying, calling or sending messages; RUT remains masked and the disclosure supports Escape/outside dismissal and focus return
+- **WHEN** phone/email is missing or cleared
+- **THEN** the corresponding header icon is absent and Información shows No registrado; saved edits refresh both surfaces without placing contact values in URLs, storage, navigation state, analytics or logs
+
+#### Scenario: Existing modal continuity
+- **WHEN** Nuevo paciente or Editar paciente opens
+- **THEN** the existing modal preserves first-name focus, validated required identity, masked edit RUT, duplicate recovery, optional birth date and optional contact grouped according to UI-07
+- **WHEN** a dirty modal is cancelled or dismissed
+- **THEN** the existing discard guard and focus restoration apply; failed saving retains entered values
+
+#### Scenario: Current reference and implementation evidence
+- **WHEN** an agent prepares or verifies this change
+- **THEN** the current three HTML references and2026-10-03 audit distinguish synthetic composition from source observations and shipped behavior; obsolete embedded diagnostic HTML is not implemented
+- **AND** production evidence records actual CSS viewport dimensions and verifies UI-09 states and icon/focus/keyboard behavior rather than treating passing prototype checks as persistence proof
