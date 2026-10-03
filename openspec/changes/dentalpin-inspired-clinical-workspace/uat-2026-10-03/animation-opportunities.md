@@ -1,5 +1,25 @@
 # Propuesta de motion, 3 octubre 2026
 
+## Implementación autorizada: entregas 1, 2 y 3
+
+Implementadas después de esta propuesta. Spinner compartido, aria-busy y anchos acotados en
+guardado de notas, condiciones y paciente. Un solo spinner cuando se abre el guard de navegación.
+Entrada CSS local del modal (180ms formulario, 150ms overlay); cierre inmediato. Toasts con
+AnimatePresence de la dependencia motion existente (180ms entrada, 120ms salida, 8px), sin cambiar
+los cuatro segundos de lectura. Se eliminó el keyframe antiguo del toast. No se aplicó la
+simplificación opcional del detalle ni se animó navegación/odontograma.
+
+Validación: TypeScript, Biome (212 archivos), 633 tests en 77 archivos y build Docker pasan.
+Tests nuevos cubren espera y error del formulario, espera normal y guard de notas/diagnóstico,
+preservación del borrador y salida de toasts apilados. Detector Impeccable: sin findings.
+Browser nativo confirma animaciones computadas, foco en Nombres, cierre que restaura Nuevo
+paciente y ausencia de overflow del documento/formulario a 320 × 667. Capturas:
+animation-modal-desktop-after.jpg (viewport real 561 × 792) y animation-modal-mobile-after.jpg.
+El movimiento reducido se respeta por motion-safe, la política global y useReducedMotion;
+no se cambió la preferencia del sistema ni se verificó en vivo su activación. Guardado pendiente
+y toast se comprobaron con tests, sin provocar escrituras clínicas en la sesión autenticada.
+Sin dependencias nuevas, commit ni push. El texto siguiente conserva la propuesta original.
+
 Propuesta sin cambios de implementación. Reconocimiento del frontend React 18, Tailwind 3,
 Radix y `motion` ya instalado. Estado gestionado con hooks y Context; clientes API tipados.
 Se conserva la arquitectura página → dominio → patrón → primitive → token.
