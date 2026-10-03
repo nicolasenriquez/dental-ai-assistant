@@ -980,3 +980,121 @@ export const recreateDriveWorkspace = (operationId: string, acknowledgePossibleO
 
 export const disconnectDrive = () =>
   request<DriveStatus>('/google-drive/disconnect', { method: 'POST' });
+
+export type Dentition = 'permanent' | 'primary';
+export type ToothSurface = 'M' | 'D' | 'O' | 'V' | 'L';
+export interface ConditionCatalogEntry {
+  code: string;
+  label_es: string;
+  surface_codes: ToothSurface[];
+}
+export interface ConditionCatalog {
+  version: 1;
+  conditions: ConditionCatalogEntry[];
+}
+export interface ConditionSnapshot {
+  dentition: Dentition;
+  tooth_fdi: number;
+  condition_code: string;
+  surfaces: ToothSurface[];
+  note: string | null;
+  status: 'active' | 'resolved';
+}
+export interface PatientCondition extends ConditionSnapshot {
+  id: string;
+  patient_id: string;
+  revision: number;
+  created_by: PatientActor;
+  updated_by: PatientActor;
+  created_at: string;
+  updated_at: string;
+}
+export interface PatientConditionRevision {
+  id: string;
+  condition_id: string;
+  revision: number;
+  action: 'created' | 'edited' | 'resolved';
+  before: ConditionSnapshot | null;
+  after: ConditionSnapshot;
+  actor: PatientActor;
+  changed_at: string;
+}
+export interface PatientConditionPage {
+  items: PatientCondition[];
+  total: number;
+  next_cursor: string | null;
+}
+export interface PatientConditionRevisionPage {
+  items: PatientConditionRevision[];
+  total: number;
+  next_cursor: string | null;
+}
+export interface CreatePatientCondition {
+  id: string;
+  dentition: Dentition;
+  tooth_fdi: number;
+  condition_code: string;
+  surfaces: ToothSurface[];
+  note: string | null;
+}
+export interface UpdatePatientCondition {
+  expected_revision: number;
+  surfaces?: ToothSurface[];
+  note?: string | null;
+  status?: 'resolved';
+}
+export function getConditionCatalog(): Promise<ConditionCatalog> {
+  return request('/patients/condition-catalog');
+}
+export function getPatientConditions(
+  patientId: string,
+  options: {
+    dentition?: Dentition;
+    status?: 'all' | 'active' | 'resolved';
+    cursor?: string;
+    limit?: number;
+  } = {},
+): Promise<PatientConditionPage> {
+  const query = new URLSearchParams({
+    limit: String(options.limit ?? 20),
+    status: options.status ?? 'all',
+  });
+  if (options.dentition) query.set('dentition', options.dentition);
+  if (options.cursor) query.set('cursor', options.cursor);
+  return request(`/patients/${patientId}/conditions?${query}`);
+}
+export function getPatientCondition(
+  patientId: string,
+  conditionId: string,
+): Promise<PatientCondition> {
+  return request(`/patients/${patientId}/conditions/${conditionId}`);
+}
+export function createPatientCondition(
+  patientId: string,
+  body: CreatePatientCondition,
+): Promise<PatientCondition> {
+  return request(`/patients/${patientId}/conditions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+export function updatePatientCondition(
+  patientId: string,
+  conditionId: string,
+  body: UpdatePatientCondition,
+): Promise<PatientCondition> {
+  return request(`/patients/${patientId}/conditions/${conditionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+export function getPatientConditionRevisions(
+  patientId: string,
+  conditionId: string,
+  cursor?: string,
+  limit = 20,
+): Promise<PatientConditionRevisionPage> {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (cursor) query.set('cursor', cursor);
+  return request(`/patients/${patientId}/conditions/${conditionId}/revisions?${query}`);
+}

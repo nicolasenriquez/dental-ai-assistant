@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PatientFormModal, type PatientFormValues } from '../components/PatientFormModal';
 import { PatientWorkspace, type PatientWorkspaceDetailError } from '../components/PatientWorkspace';
 import { ContextualAssistant } from '../components/clinical-assistant/ContextualAssistant';
+import { PatientDiagnosis } from '../components/patients/PatientDiagnosis';
 import { PatientHeaderDisclosure } from '../components/patients/PatientHeaderDisclosure';
 import { PatientInformation } from '../components/patients/PatientInformation';
 import { PatientNotes } from '../components/patients/PatientNotes';
@@ -342,22 +343,34 @@ export function PatientDetail() {
                           <Button
                             variant="clinicalSecondary"
                             aria-pressed={clinicalSection === 'diagnosis'}
-                            onClick={() => setClinicalSection('diagnosis')}
+                            onClick={() => {
+                              const change = (): void => setClinicalSection('diagnosis');
+                              if (guard) guard.guardTransition(change);
+                              else change();
+                            }}
                           >
                             Diagnóstico
                           </Button>
                           <Button
                             variant="clinicalSecondary"
                             aria-pressed={clinicalSection === 'evolutions'}
-                            onClick={() => setClinicalSection('evolutions')}
+                            onClick={() => {
+                              const change = (): void => setClinicalSection('evolutions');
+                              if (guard) guard.guardTransition(change);
+                              else change();
+                            }}
                           >
                             Evoluciones
                           </Button>
                         </div>
                         {clinicalSection === 'diagnosis' ? (
-                          <p className="text-muted">
-                            El diagnóstico manual estará disponible al completar su implementación.
-                          </p>
+                          <PatientDiagnosis
+                            key={patient.id}
+                            patientId={patient.id}
+                            focusedConditionId={
+                              new URLSearchParams(location.search).get('condition') ?? undefined
+                            }
+                          />
                         ) : (
                           <section aria-label="Evoluciones aprobadas">
                             <h2 className="text-lg font-semibold">Historial de evoluciones</h2>

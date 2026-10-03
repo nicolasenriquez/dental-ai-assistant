@@ -18,7 +18,12 @@ from backend.auth.dependencies import get_current_user
 from backend.clinical_assistant import pending_work, service
 from backend.clinical_assistant.schemas import PrepareSaveRequest
 from backend.db import clinical_assistant_repo as repo
-from backend.db import clinical_pending_work_repo, patient_notes_repo, patients_repo
+from backend.db import (
+    clinical_pending_work_repo,
+    patient_conditions_repo,
+    patient_notes_repo,
+    patients_repo,
+)
 from backend.main import app
 from backend.routes import patients as patient_routes
 
@@ -29,7 +34,13 @@ pytestmark = pytest.mark.skipif(not DSN, reason="WORKSPACE_LIVE_TEST_DSN not set
 @pytest.fixture
 async def workspace_db(monkeypatch):
     pool = await asyncpg.create_pool(DSN, min_size=1, max_size=3)
-    for module in (repo, clinical_pending_work_repo, patients_repo, patient_notes_repo):
+    for module in (
+        repo,
+        clinical_pending_work_repo,
+        patients_repo,
+        patient_notes_repo,
+        patient_conditions_repo,
+    ):
         monkeypatch.setattr(module, "get_pg_pool", lambda: pool)
     owner, other = uuid4(), uuid4()
     patient, second, foreign = uuid4(), uuid4(), uuid4()
@@ -654,3 +665,263 @@ async def test_manual_failed_exports_are_visible_only_to_their_owner(workspace_d
     assert page.items[0].action.thread_id is None
     assert (await pending_work.list_pending_work(owner, patient, 20, None)).total == 1
     assert (await pending_work.list_pending_work(owner, second, 20, None)).total == 0
+
+
+async def test_conditions_lifecycle_retry_and_ownership(workspace_db):
+    _, owner, other, patient, second, foreign = workspace_db
+    current_owner = owner
+
+    async def user():
+        return {"id": str(current_owner)}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            base = f"/api/patients/{patient}/conditions"
+            payload = {
+                "id": str(uuid4()),
+                "dentition": "permanent",
+                "tooth_fdi": 36,
+                "condition_code": "caries",
+                "surfaces": ["O", "M"],
+                "note": "  Sintética  ",
+            }
+            created = await client.post(base, json=payload)
+            assert created.status_code == 201
+            record = created.json()
+            assert record["surfaces"] == ["M", "O"] and record["note"] == "Sintética"
+            assert record["created_by"]["user_id"] == str(owner)
+            assert (await client.post(base, json=payload)).status_code == 200
+            duplicate = await client.post(base, json={**payload, "id": str(uuid4())})
+            assert duplicate.status_code == 409
+            assert duplicate.json()["detail"]["code"] == "active_condition_exists"
+            assert duplicate.json()["detail"]["existing"]["id"] == payload["id"]
+            path = f"{base}/{payload['id']}"
+            patch = {"expected_revision": 1, "note": None, "surfaces": ["D"]}
+            edited = await client.patch(path, json=patch)
+            assert edited.status_code == 200 and edited.json()["revision"] == 2
+            assert edited.json()["note"] is None
+            assert (await client.patch(path, json=patch)).json()["revision"] == 2
+            assert (await client.post(base, json=payload)).json()["revision"] == 2
+            assert (
+                await client.post(base, json={**payload, "note": "different"})
+            ).status_code == 409
+            assert (await client.patch(path, json={"expected_revision": 2, "note": None})).json()[
+                "revision"
+            ] == 2
+            assert (
+                await client.patch(path, json={"expected_revision": 1, "note": "stale"})
+            ).status_code == 409
+            for body in (
+                {"expected_revision": 2, "tooth_fdi": 35},
+                {"expected_revision": 2, "dentition": "primary"},
+                {"expected_revision": 2, "condition_code": "missing"},
+            ):
+                assert (await client.patch(path, json=body)).status_code == 422
+            resolve = {"expected_revision": 2, "status": "resolved"}
+            assert (await client.patch(path, json=resolve)).json()["revision"] == 3
+            assert (await client.patch(path, json=resolve)).json()["revision"] == 3
+            assert (
+                await client.patch(path, json={"expected_revision": 3, "note": "reopen"})
+            ).json()["detail"]["code"] == "condition_resolved"
+            history = (await client.get(f"{path}/revisions", params={"limit": 1})).json()
+            assert history["total"] == 3 and history["items"][0]["action"] == "resolved"
+            assert history["items"][0]["before"]["status"] == "active"
+            history2 = (
+                await client.get(f"{path}/revisions", params={"cursor": history["next_cursor"]})
+            ).json()
+            assert len(history2["items"]) == 2 and history2["total"] == 3
+            # Recurrence is another resource; resolved history remains.
+            assert (
+                await client.post(base, json={**payload, "id": str(uuid4()), "surfaces": ["D"]})
+            ).status_code == 201
+            primary = {
+                "id": str(uuid4()),
+                "dentition": "primary",
+                "tooth_fdi": 51,
+                "condition_code": "missing",
+            }
+            assert (await client.post(base, json=primary)).status_code == 201
+            page = (await client.get(base, params={"limit": 1})).json()
+            assert page["total"] == 3 and page["next_cursor"]
+            rest = (await client.get(base, params={"cursor": page["next_cursor"]})).json()
+            assert rest["total"] == 3 and len(rest["items"]) == 2
+            assert (
+                await client.get(base, params={"dentition": "primary", "status": "active"})
+            ).json()["total"] == 1
+            for params in (
+                {"cursor": page["next_cursor"], "status": "active"},
+                {"cursor": "bad"},
+                {"limit": 51},
+            ):
+                assert (await client.get(base, params=params)).status_code == 422
+            assert (await client.get(path)).json()["id"] == payload["id"]
+            for url in (
+                f"/api/patients/{second}/conditions/{payload['id']}",
+                f"/api/patients/{foreign}/conditions",
+            ):
+                assert (await client.get(url)).status_code == 404
+            assert (
+                await client.post(f"/api/patients/{second}/conditions", json=payload)
+            ).status_code == 404
+            current_owner = other
+            assert (
+                await client.post(f"/api/patients/{foreign}/conditions", json=payload)
+            ).status_code == 404
+            for url in (base, path, f"{path}/revisions"):
+                assert (await client.get(url)).status_code == 404
+            assert (await client.patch(path, json=resolve)).status_code == 404
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_conditions_concurrency(workspace_db):
+    _, owner, _, patient, _, _ = workspace_db
+
+    async def user():
+        return {"id": str(owner)}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            base = f"/api/patients/{patient}/conditions"
+            payload = {
+                "id": str(uuid4()),
+                "dentition": "permanent",
+                "tooth_fdi": 11,
+                "condition_code": "pulpitis",
+            }
+            same = await asyncio.gather(
+                client.post(base, json=payload), client.post(base, json=payload)
+            )
+            assert sorted(r.status_code for r in same) == [200, 201]
+            duplicates = await asyncio.gather(
+                *[
+                    client.post(base, json={**payload, "id": str(uuid4()), "tooth_fdi": 12})
+                    for _ in range(2)
+                ]
+            )
+            assert sorted(r.status_code for r in duplicates) == [201, 409]
+            path = f"{base}/{payload['id']}"
+            updates = await asyncio.gather(
+                *[
+                    client.patch(path, json={"expected_revision": 1, "note": note})
+                    for note in ("A", "B")
+                ]
+            )
+            assert sorted(r.status_code for r in updates) == [200, 409]
+            identical = await asyncio.gather(
+                *[client.patch(path, json={"expected_revision": 2, "note": "C"}) for _ in range(2)]
+            )
+            assert [r.status_code for r in identical] == [200, 200]
+            assert (await client.get(f"{path}/revisions")).json()["total"] == 3
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_condition_revision_failure_rolls_back(workspace_db, monkeypatch):
+    pool, owner, _, patient, _, _ = workspace_db
+    identifier = uuid4()
+    value = {
+        "dentition": "permanent",
+        "tooth_fdi": 36,
+        "condition_code": "caries",
+        "surfaces": ["M"],
+        "note": None,
+    }
+    original = patient_conditions_repo._revision
+
+    async def fail(*args, **kwargs):
+        raise RuntimeError("synthetic revision failure")
+
+    monkeypatch.setattr(patient_conditions_repo, "_revision", fail)
+    with pytest.raises(RuntimeError, match="synthetic revision failure"):
+        await patient_conditions_repo.create_condition(owner, patient, identifier, value)
+    async with pool.acquire() as conn:
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_tooth_conditions WHERE id=$1", identifier
+            )
+            == 0
+        )
+    monkeypatch.setattr(patient_conditions_repo, "_revision", original)
+    await patient_conditions_repo.create_condition(owner, patient, identifier, value)
+    monkeypatch.setattr(patient_conditions_repo, "_revision", fail)
+    with pytest.raises(RuntimeError, match="synthetic revision failure"):
+        await patient_conditions_repo.update_condition(
+            owner, patient, identifier, 1, {"note": "changed"}
+        )
+    record = await patient_conditions_repo.get_condition(owner, patient, identifier)
+    assert record["revision"] == 1 and record["note"] is None
+    async with pool.acquire() as conn:
+        # Database also rejects noncanonical arrays, independently of HTTP validation.
+        for invalid in (["O", "M"], ["M", "M"], ["X"], [None]):
+            with pytest.raises(asyncpg.CheckViolationError):
+                async with conn.transaction():
+                    await conn.execute(
+                        "UPDATE patient_tooth_conditions SET surfaces=$2 WHERE id=$1",
+                        identifier,
+                        invalid,
+                    )
+
+
+async def test_condition_overlapping_surfaces_patch_duplicate_and_empty_cursor(workspace_db):
+    _, owner, _, patient, _, _ = workspace_db
+
+    async def user():
+        return {"id": str(owner)}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            base = f"/api/patients/{patient}/conditions"
+            value = {
+                "id": str(uuid4()),
+                "dentition": "permanent",
+                "tooth_fdi": 36,
+                "condition_code": "caries",
+                "surfaces": ["M"],
+            }
+            first = await client.post(base, json=value)
+            assert first.status_code == 201
+            second_id = str(uuid4())
+            second = await client.post(
+                base, json={**value, "id": second_id, "surfaces": ["M", "O"]}
+            )
+            assert second.status_code == 201  # overlapping sets coexist, no clinical merge.
+            duplicate = await client.patch(
+                f"{base}/{second_id}",
+                json={"expected_revision": 1, "surfaces": ["M"], "note": "must not persist"},
+            )
+            assert (
+                duplicate.status_code == 409
+                and duplicate.json()["detail"]["existing"]["id"] == value["id"]
+            )
+            actual = (await client.get(f"{base}/{second_id}")).json()
+            assert (
+                actual["revision"] == 1
+                and actual["note"] is None
+                and actual["surfaces"] == ["M", "O"]
+            )
+            page = (await client.get(base, params={"limit": 1})).json()
+            decoded = json.loads(
+                base64.urlsafe_b64decode(
+                    page["next_cursor"] + "=" * (-len(page["next_cursor"]) % 4)
+                )
+            )
+            decoded.update(tooth_fdi=48, created_at="2099-01-01T00:00:00Z", id=str(uuid4()))
+            end = base64.urlsafe_b64encode(json.dumps(decoded).encode()).decode().rstrip("=")
+            exhausted = (await client.get(base, params={"cursor": end})).json()
+            assert exhausted == {"items": [], "next_cursor": None, "total": 2}
+            unsupported = await client.post(
+                base, json={**value, "id": str(uuid4()), "created_by": {"user_id": str(owner)}}
+            )
+            assert unsupported.status_code == 422
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)

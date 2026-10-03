@@ -199,6 +199,7 @@ from backend.routes import (  # noqa: E402
     google_drive,
     ingest,
     messages,
+    patient_conditions,
     patient_notes,
     patients,
     transcriptions,
@@ -215,6 +216,7 @@ app.include_router(conversations.router, prefix="/api", dependencies=_auth_requi
 app.include_router(messages.router, prefix="/api", dependencies=_auth_required)
 # Patient endpoints declare the same dependency themselves so request models are
 # validated before authentication (important for deterministic 422 boundaries).
+app.include_router(patient_conditions.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
 app.include_router(patient_notes.router, prefix="/api")
 app.include_router(evolutions.router, prefix="/api")
