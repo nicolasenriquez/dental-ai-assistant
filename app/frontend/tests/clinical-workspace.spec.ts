@@ -111,7 +111,8 @@ test('patient to reviewed evolution to ficha and pending Drive recovery', async 
   await page.getByRole('link', { name: 'Abrir asistente completo' }).click();
   await expect(page).toHaveURL(`/a/${threadId}`);
   await page.getByRole('button', { name: 'Revisar y guardar', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirmar guardado', exact: true }).click();
+  expect(evidence.saves()).toBe(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Guardar evolución', exact: true }).click();
   await expect(page.getByText('Guardada en ficha', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Ver en ficha', exact: true }).click();
   await expect(page).toHaveURL(`/patients/${patientId}/evolutions/${evolutionId}`);

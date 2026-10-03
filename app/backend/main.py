@@ -199,6 +199,7 @@ from backend.routes import (  # noqa: E402
     google_drive,
     ingest,
     messages,
+    patient_activity,
     patient_conditions,
     patient_notes,
     patients,
@@ -219,6 +220,7 @@ app.include_router(messages.router, prefix="/api", dependencies=_auth_required)
 app.include_router(patient_conditions.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
 app.include_router(patient_notes.router, prefix="/api")
+app.include_router(patient_activity.router, prefix="/api")
 app.include_router(evolutions.router, prefix="/api")
 app.include_router(evolutions.patient_router, prefix="/api")
 app.include_router(clinical_assistant.router, prefix="/api")

@@ -20,6 +20,7 @@ from backend.clinical_assistant.schemas import PrepareSaveRequest
 from backend.db import clinical_assistant_repo as repo
 from backend.db import (
     clinical_pending_work_repo,
+    patient_activity_repo,
     patient_conditions_repo,
     patient_notes_repo,
     patients_repo,
@@ -40,6 +41,7 @@ async def workspace_db(monkeypatch):
         patients_repo,
         patient_notes_repo,
         patient_conditions_repo,
+        patient_activity_repo,
     ):
         monkeypatch.setattr(module, "get_pg_pool", lambda: pool)
     owner, other = uuid4(), uuid4()
@@ -74,6 +76,133 @@ async def workspace_db(monkeypatch):
         )
         await conn.execute("DELETE FROM users WHERE id = ANY($1::uuid[])", [owner, other])
     await pool.close()
+
+
+async def test_activity_revision_identity_filters_ties_and_ownership(workspace_db):
+    pool, owner, _, patient, second, foreign = workspace_db
+
+    async def user(session=None):
+        return {"id": str(owner)}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        note, condition, evolution = uuid4(), uuid4(), uuid4()
+        await patient_notes_repo.create_note(owner, patient, note, "Private note body")
+        await patient_notes_repo.update_note(owner, patient, note, 1, "Private edit")
+        await patient_conditions_repo.create_condition(
+            owner,
+            patient,
+            condition,
+            {
+                "dentition": "primary",
+                "tooth_fdi": 51,
+                "condition_code": "missing",
+                "surfaces": [],
+                "note": "Private diagnosis",
+            },
+        )
+        await patient_conditions_repo.update_condition(
+            owner, patient, condition, 1, {"status": "resolved"}
+        )
+        timestamp = datetime(2026, 10, 3, 12, tzinfo=UTC)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO evolutions(id,patient_id,owner_user_id,evolution_at,
+                   raw_note,generated_text,final_text,created_at)
+                   VALUES($1,$2,$3,'2000-01-01','Private raw','Private generated','Private final',$4)""",
+                evolution,
+                patient,
+                owner,
+                timestamp,
+            )
+            for table in ("patient_note_revisions", "patient_tooth_condition_revisions"):
+                # Fixed fixture table names only, never request input.
+                await conn.execute(
+                    f"UPDATE {table} SET changed_at=$1 WHERE patient_id=$2", timestamp, patient
+                )
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            base = f"/api/patients/{patient}/activity"
+            first = await client.get(base, params={"limit": 1})
+            assert first.status_code == 200
+            initial = first.json()
+            assert initial["total"] == 5
+            events = initial["items"]
+            cursor = initial["next_cursor"]
+            final_cursor = cursor
+            while cursor:
+                final_cursor = cursor
+                page = (await client.get(base, params={"limit": 1, "cursor": cursor})).json()
+                assert page["total"] == 5
+                events.extend(page["items"])
+                cursor = page["next_cursor"]
+            assert len(events) == 5
+            assert len({(e["kind"], e["event_id"]) for e in events}) == 5
+            assert [e["kind"] for e in events] == [
+                "diagnoses",
+                "diagnoses",
+                "evolutions",
+                "notes",
+                "notes",
+            ]
+            for kind in ("notes", "diagnoses"):
+                pair = [e for e in events if e["kind"] == kind]
+                assert pair[0]["resource_id"] == pair[1]["resource_id"]
+                assert pair[0]["event_id"] > pair[1]["event_id"]
+                assert all(
+                    e["actor"] == {"user_id": str(owner), "display_name": None} for e in pair
+                )
+            saved = next(e for e in events if e["kind"] == "evolutions")
+            assert saved["occurred_at"].startswith("2026-10-03")
+            assert saved["href"] == f"/patients/{patient}/evolutions/{evolution}"
+            assert "Private" not in json.dumps(events)
+            for kind, total in (("notes", 2), ("diagnoses", 2), ("evolutions", 1)):
+                page = (await client.get(base, params={"kind": kind})).json()
+                assert page["total"] == total and all(e["kind"] == kind for e in page["items"])
+            for params in (
+                {"kind": "notes", "cursor": final_cursor},
+                {"cursor": "bad"},
+                {"limit": 51},
+            ):
+                assert (await client.get(base, params=params)).status_code == 422
+            assert (await client.get(f"/api/patients/{foreign}/activity")).status_code == 404
+            assert (await client.get(f"/api/patients/{uuid4()}/activity")).status_code == 404
+            assert (
+                await client.get(
+                    f"/api/patients/{second}/activity", params={"cursor": final_cursor}
+                )
+            ).status_code == 422
+            assert (await client.get(f"/api/patients/{second}/activity")).json() == {
+                "items": [],
+                "total": 0,
+                "next_cursor": None,
+            }
+            # A valid cursor beyond the last event still retains the pre-cursor count.
+            last = events[-1]
+            exhausted = (
+                base64.urlsafe_b64encode(
+                    json.dumps(
+                        {
+                            "v": 1,
+                            "patient_id": str(patient),
+                            "filter": "all",
+                            "occurred_at": last["occurred_at"],
+                            "kind": last["kind"],
+                            "event_id": last["event_id"],
+                        }
+                    ).encode()
+                )
+                .decode()
+                .rstrip("=")
+            )
+            assert (await client.get(base, params={"cursor": exhausted})).json() == {
+                "items": [],
+                "total": 5,
+                "next_cursor": None,
+            }
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 async def test_notes_lifecycle_retry_ownership_and_cursor(workspace_db):

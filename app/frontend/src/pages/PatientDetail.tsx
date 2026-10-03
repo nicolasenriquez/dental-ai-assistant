@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PatientFormModal, type PatientFormValues } from '../components/PatientFormModal';
 import { PatientWorkspace, type PatientWorkspaceDetailError } from '../components/PatientWorkspace';
 import { ContextualAssistant } from '../components/clinical-assistant/ContextualAssistant';
+import { PatientActivity } from '../components/patients/PatientActivity';
 import { PatientDiagnosis } from '../components/patients/PatientDiagnosis';
 import { PatientHeaderDisclosure } from '../components/patients/PatientHeaderDisclosure';
 import { PatientInformation } from '../components/patients/PatientInformation';
@@ -397,9 +398,7 @@ export function PatientDetail() {
                       </section>
                     )}
                     {section === 'activity' && (
-                      <p className="text-muted">
-                        La actividad persistida estará disponible al completar su implementación.
-                      </p>
+                      <PatientActivity key={patient.id} patientId={patient.id} />
                     )}
                   </div>
                 </>

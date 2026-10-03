@@ -427,6 +427,34 @@ export interface PatientActor {
   user_id: string;
   display_name: string | null;
 }
+export type PatientActivityKind = 'evolutions' | 'notes' | 'diagnoses';
+export type PatientActivityFilter = 'all' | PatientActivityKind;
+export interface PatientActivityItem {
+  event_id: string;
+  resource_id: string;
+  kind: PatientActivityKind;
+  action: 'created' | 'edited' | 'resolved';
+  occurred_at: string;
+  actor: PatientActor | null;
+  title: string;
+  tooth_fdi: number | null;
+  href: string;
+}
+export interface PatientActivityPage {
+  items: PatientActivityItem[];
+  next_cursor: string | null;
+  total: number;
+}
+export function getPatientActivity(
+  patientId: string,
+  kind: PatientActivityFilter = 'all',
+  cursor?: string,
+  limit = 20,
+): Promise<PatientActivityPage> {
+  const query = new URLSearchParams({ kind, limit: String(limit) });
+  if (cursor) query.set('cursor', cursor);
+  return request(`/patients/${patientId}/activity?${query}`);
+}
 export interface PatientNote {
   id: string;
   patient_id: string;
