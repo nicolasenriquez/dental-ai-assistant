@@ -1,8 +1,19 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
 import { PatientDetail } from './PatientDetail';
+
+vi.mock('../hooks/useContextualAssistant', () => ({
+  useContextualAssistant: () => ({ panelThreadId: 'thread', width: 400, close: vi.fn() }),
+}));
+vi.mock('../components/clinical-assistant/ContextualAssistant', () => ({
+  ContextualAssistant: ({ onChanged }: { onChanged: () => void }) => (
+    <button type="button" onClick={onChanged}>
+      Refresh from assistant
+    </button>
+  ),
+}));
 
 const patient: api.Patient = {
   id: 'patient-1',
@@ -44,6 +55,32 @@ function renderPatient(path: string, state?: Record<string, unknown>) {
 }
 
 describe('PatientDetail evolution workspace', () => {
+  it('preserves a dirty patient form through pending, failed and successful assistant refresh', async () => {
+    mockPatientData();
+    renderPatient('/patients/patient-1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar paciente' }));
+    const names = screen.getByLabelText('Nombres');
+    fireEvent.change(names, { target: { value: 'Borrador' } });
+    let reject!: (error: Error) => void;
+    vi.mocked(api.getPatient).mockImplementationOnce(
+      () =>
+        new Promise((_, rejectPromise) => {
+          reject = rejectPromise;
+        }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from assistant' }));
+    expect(names).toBeInTheDocument();
+    expect(names).toHaveValue('Borrador');
+    await act(async () => reject(new Error('offline')));
+    expect(await screen.findByText(/No pudimos actualizar el paciente/)).toBeVisible();
+    expect(names).toBeInTheDocument();
+    expect(names).toHaveValue('Borrador');
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await waitFor(() => expect(screen.queryByText(/No pudimos actualizar el paciente/)).toBeNull());
+    expect(names).toBeInTheDocument();
+    expect(names).toHaveValue('Borrador');
+  });
+
   it('task 1.4: defaults to Resumen with four keyboard sections and no empty evolution pane', async () => {
     mockPatientData();
     renderPatient('/patients/patient-1');
@@ -66,6 +103,29 @@ describe('PatientDetail evolution workspace', () => {
     expect(tabs[3]).toHaveFocus();
     fireEvent.keyDown(tabs[3], { key: 'Home' });
     expect(tabs[0]).toHaveFocus();
+  });
+
+  it('keeps an unsaved note mounted while the assistant refreshes patient data', async () => {
+    mockPatientData();
+    vi.spyOn(api, 'getPatientNotes').mockResolvedValue({ items: [], total: 0, next_cursor: null });
+    renderPatient('/patients/patient-1');
+    await screen.findByRole('heading', { name: 'Ana Perez' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Información' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Nueva nota' }));
+    const note = screen.getByRole('textbox', { name: 'Nota general' });
+    fireEvent.change(note, { target: { value: 'No perder esta nota' } });
+    let resolve!: (value: api.PatientDetail) => void;
+    vi.mocked(api.getPatient).mockImplementationOnce(
+      () =>
+        new Promise((resolvePromise) => {
+          resolve = resolvePromise;
+        }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from assistant' }));
+    expect(note).toBeInTheDocument();
+    await act(async () => resolve({ ...patient, phone: null, email: null }));
+    expect(note).toBeInTheDocument();
+    expect(note).toHaveValue('No perder esta nota');
   });
 
   it('task 1.4: discloses contact by focus/tap and masked RUT with Escape dismissal', async () => {

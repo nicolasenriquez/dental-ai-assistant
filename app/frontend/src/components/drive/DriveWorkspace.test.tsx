@@ -32,12 +32,14 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ReactNode, useState } from 'react';
 import { type Mock, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../../lib/api';
+import type { DriveWorkspaceHandle } from './DriveWorkspace';
 
 type DriveWorkspaceComponent = (props: {
   patientId: string | null;
   draftSeed?: { name: string; content: string } | null;
   open?: boolean;
   onClose?: () => void;
+  handleRef?: { current: DriveWorkspaceHandle | null };
 }) => ReactNode;
 
 let DriveWorkspace: DriveWorkspaceComponent | null = null;
@@ -55,6 +57,7 @@ function Workspace(props: {
   draftSeed?: { name: string; content: string } | null;
   open?: boolean;
   onClose?: () => void;
+  handleRef?: { current: DriveWorkspaceHandle | null };
 }) {
   if (!DriveWorkspace) {
     throw new Error('missing src/components/drive/DriveWorkspace.tsx seam — implement in task 5.2');
@@ -168,6 +171,39 @@ async function openFirstFile(name = 'nota.txt') {
 }
 
 describe('connection presentation', () => {
+  it.each([
+    new api.ApiError(503, { error: 'DRIVE_WRITE_UNKNOWN' }),
+    new TypeError('response lost'),
+  ])('blocks uncertain creates until an explicit refresh (%s)', async (error) => {
+    createDriveFileMock.mockRejectedValueOnce(error);
+    const handleRef: { current: DriveWorkspaceHandle | null } = { current: null };
+    render(
+      <Workspace
+        patientId="p1"
+        draftSeed={{ name: 'nota', content: 'Mi texto' }}
+        handleRef={handleRef}
+      />,
+    );
+    const editor = await screen.findByRole('textbox', { name: 'Contenido del documento' });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    const refresh = await screen.findByRole('button', { name: 'Actualizar Drive' });
+    const save = screen.getByRole('button', { name: 'Guardar cambios' });
+    expect(save).toBeDisabled();
+    fireEvent.change(editor, { target: { value: 'Texto conservado' } });
+    fireEvent.click(save);
+    await act(async () => expect(await handleRef.current?.save()).toBe(false));
+    expect(createDriveFileMock).toHaveBeenCalledTimes(1);
+    listDriveFilesMock.mockRejectedValueOnce(new TypeError('offline'));
+    fireEvent.click(refresh);
+    await screen.findByText('No se pudo actualizar Drive. El guardado sigue bloqueado.');
+    expect(save).toBeDisabled();
+    expect(editor).toHaveValue('Texto conservado');
+    fireEvent.click(refresh);
+    await waitFor(() => expect(save).toBeEnabled());
+    expect(createDriveFileMock).toHaveBeenCalledTimes(1);
+    expect(editor).toHaveValue('Texto conservado');
+  });
+
   it('shows a retry when status loading fails', async () => {
     getDriveStatusMock
       .mockRejectedValueOnce(new Error('offline'))

@@ -160,6 +160,8 @@ export function PatientDetail() {
     });
   };
 
+  const hasCurrentPatient = patient?.id === patientId;
+
   return (
     <main className="min-h-full bg-[var(--bg)] p-6 text-[var(--text-primary)] md:p-8">
       <div className="mx-auto flex max-w-7xl gap-6">
@@ -172,14 +174,14 @@ export function PatientDetail() {
             Pacientes
           </Link>
 
-          {loading ? (
+          {loading && !hasCurrentPatient ? (
             <div aria-live="polite" aria-busy="true" className="mt-8 space-y-4">
               <span className="sr-only">Cargando paciente</span>
               <div className="skeleton h-8 w-2/3" />
               <div className="skeleton h-4 w-48" />
               <div className="skeleton h-32 w-full" />
             </div>
-          ) : error || !patient ? (
+          ) : !patient || !hasCurrentPatient ? (
             <div role="alert" className="mt-8 text-[var(--danger)]">
               <p>No pudimos cargar el paciente</p>
               <button
@@ -192,6 +194,19 @@ export function PatientDetail() {
             </div>
           ) : (
             <>
+              {error && (
+                <div role="alert" className="mt-4 text-danger">
+                  <p>No pudimos actualizar el paciente. Tu trabajo local se conserva.</p>
+                  <button
+                    type="button"
+                    onClick={() => void load()}
+                    disabled={loading}
+                    className="underline"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              )}
               <header className="patient-page-header">
                 <div className="flex min-w-0 items-start gap-3">
                   <span

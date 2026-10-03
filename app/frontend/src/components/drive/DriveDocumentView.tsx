@@ -14,6 +14,7 @@ export interface DriveDocumentViewModel {
   content: string;
   baseline: string | null;
   representation: AuthoringRepresentation;
+  uncertainOperationId?: string;
 }
 
 interface DriveDocumentViewProps {
@@ -173,7 +174,7 @@ export function DriveDocumentView({
             type="button"
             className="drive-btn drive-btn-primary"
             onClick={onSave}
-            disabled={saving}
+            disabled={saving || Boolean(doc.uncertainOperationId)}
           >
             {saving ? (
               <>

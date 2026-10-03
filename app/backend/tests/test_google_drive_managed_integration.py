@@ -59,6 +59,19 @@ def _adapter(name: str):
 
 
 @respx.mock
+async def test_creation_marker_lookup_includes_trashed_files_and_rejects_duplicates() -> None:
+    file = {**_managed_file(), "trashed": True}
+    route = respx.get(_FILES_URL).mock(return_value=httpx.Response(200, json={"files": [file]}))
+    found = await google_drive.find_file_by_creation_operation("token", "operation")
+    assert found == file
+    assert "trashed" not in route.calls.last.request.url.params["q"]
+    route.mock(return_value=httpx.Response(200, json={"files": [file, file]}))
+    with pytest.raises(google_drive.GoogleDriveError) as caught:
+        await google_drive.find_file_by_creation_operation("token", "operation")
+    assert caught.value.code == "DRIVE_OPERATION_REUSED"
+
+
+@respx.mock
 async def test_get_folder_requests_only_authoritative_metadata() -> None:
     route = respx.get(_FILES_URL + "/folder-1").mock(
         return_value=httpx.Response(200, json={"id": "folder-1", "name": "Dental AI Assistant"})

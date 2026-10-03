@@ -960,6 +960,10 @@ async def _create_with_binding(
     does not exist yet); the metadata update completes the file-ID-bound MAC
     required by managed-file validation.
     """
+    existing = await google_drive.find_file_by_creation_operation(access_token, operation_id)
+    if existing is not None:
+        raise _DriveDomainError("DRIVE_OPERATION_REUSED", status.HTTP_409_CONFLICT)
+
     provisional = _binding_mac(binding_secret, operation_id, patient_ref, user_id)
     properties = _file_properties(patient_ref, operation_id, provisional)
     try:
@@ -1066,6 +1070,15 @@ async def recreate_workspace(
     row, access_token = await _connection_access_token(user_id)
 
     pending = row.get("pending_folder_operation_id")
+    if not pending:
+        try:
+            await _ensure_folder(user_id, row, access_token)
+        except _DriveDomainError as exc:
+            if exc.code != "DRIVE_WORKSPACE_MISSING":
+                raise
+        else:
+            return {"status": "workspace_available"}
+
     if pending:
         folders = await google_drive.find_folder_by_creation_operation(access_token, str(pending))
         if len(folders) > 1:
@@ -1087,7 +1100,14 @@ async def recreate_workspace(
             raise _DriveDomainError("DRIVE_WORKSPACE_RECOVERY_PENDING", status.HTTP_409_CONFLICT)
 
     operation_id = str(body.operation_id)
-    await google_drive_repo.set_pending_folder_operation(user_id, operation_id)
+    claimed = await google_drive_repo.claim_folder_operation(
+        user_id,
+        operation_id,
+        expected_folder_id=row.get("folder_id"),
+        expected_pending_operation_id=pending,
+    )
+    if not claimed:
+        raise _DriveDomainError("DRIVE_WORKSPACE_RECOVERY_PENDING", status.HTTP_409_CONFLICT)
     try:
         folder = await google_drive.create_folder(
             access_token, name=FOLDER_NAME, operation_id=operation_id
@@ -1442,6 +1462,7 @@ async def update_managed_file(
         patient_ref, operation_id, str(existing_properties.get("bindingMac") or "")
     )
     properties["lastOperationId"] = operation_id
+    properties["creationOperationId"] = existing_properties["creationOperationId"]
 
     try:
         updated = await google_drive.update_file(

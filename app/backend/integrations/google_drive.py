@@ -226,10 +226,9 @@ async def list_files(
 async def find_file_by_creation_operation(
     access_token: str, operation_id: str
 ) -> dict[str, Any] | None:
-    """Reconcile one ambiguous file create by its exact operation marker."""
+    """Find an existing creation operation, including files moved to trash."""
     query = (
-        "trashed = false"
-        " and appProperties has { key='creationOperationId' and value="
+        "appProperties has { key='creationOperationId' and value="
         f"'{_escape_query(operation_id)}' }}"
     )
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:

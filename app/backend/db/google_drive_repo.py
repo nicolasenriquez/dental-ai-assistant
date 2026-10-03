@@ -228,6 +228,36 @@ async def set_pending_folder_operation(
     return dict(row) if row else None
 
 
+async def claim_folder_operation(
+    user_id: UUID | str,
+    operation_id: UUID | str,
+    *,
+    expected_folder_id: str | None,
+    expected_pending_operation_id: UUID | str | None,
+) -> bool:
+    """Claim recreation only while the observed workspace state still matches."""
+    async with get_pg_pool().acquire() as conn:
+        claimed = await conn.fetchval(
+            """
+            UPDATE google_drive_connections
+            SET pending_folder_operation_id = $2, updated_at = now()
+            WHERE user_id = $1 AND status = 'active'
+              AND folder_id IS NOT DISTINCT FROM $3::text
+              AND pending_folder_operation_id IS NOT DISTINCT FROM $4::uuid
+              AND pending_folder_operation_id IS DISTINCT FROM $2::uuid
+              AND folder_creation_operation_id IS DISTINCT FROM $2::uuid
+            RETURNING user_id
+            """,
+            _to_uuid(user_id),
+            _to_uuid(operation_id),
+            expected_folder_id,
+            _to_uuid(expected_pending_operation_id)
+            if expected_pending_operation_id is not None
+            else None,
+        )
+    return claimed is not None
+
+
 async def complete_folder_operation(
     user_id: UUID | str,
     *,

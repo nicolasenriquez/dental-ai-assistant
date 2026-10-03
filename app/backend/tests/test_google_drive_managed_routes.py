@@ -186,6 +186,21 @@ def managed_context(monkeypatch):
         state["calls"].append(("complete_folder_operation", str(operation_id)))
         return dict(state["connection"])
 
+    async def claim_folder_operation(
+        user_id, operation_id, *, expected_folder_id, expected_pending_operation_id
+    ):
+        row = state["connection"]
+        if (
+            row["status"] != "active"
+            or row["folder_id"] != expected_folder_id
+            or row["pending_folder_operation_id"] != expected_pending_operation_id
+            or str(operation_id)
+            in (str(row["pending_folder_operation_id"]), str(row["folder_creation_operation_id"]))
+        ):
+            return False
+        row["pending_folder_operation_id"] = str(operation_id)
+        return True
+
     async def mark_workspace_recovery_pending(user_id: UUID | str, operation_id: UUID | str):
         state["connection"]["pending_folder_operation_id"] = str(operation_id)
         state["calls"].append(("mark_workspace_recovery_pending", str(operation_id)))
@@ -208,6 +223,7 @@ def managed_context(monkeypatch):
 
     repo_functions = {
         "get_connection": get_connection,
+        "claim_folder_operation": claim_folder_operation,
         "set_pending_folder_operation": set_pending_folder_operation,
         "complete_folder_operation": complete_folder_operation,
         "mark_workspace_recovery_pending": mark_workspace_recovery_pending,
@@ -575,6 +591,62 @@ async def test_acknowledged_workspace_recreation_uses_one_new_operation_marker(
     assert managed_context["connection"]["folder_creation_operation_id"] == operation_id
 
 
+async def test_recreate_healthy_workspace_and_replay_do_not_create(
+    managed_client: AsyncClient, managed_context: dict[str, Any]
+) -> None:
+    for _ in range(2):
+        response = await managed_client.post(
+            "/api/google-drive/workspace/recreate",
+            headers={**_headers(), "Content-Type": "application/json"},
+            json={"operation_id": str(uuid4()), "acknowledge_possible_orphan": True},
+        )
+        assert response.status_code == 200
+    assert not _calls(managed_context, "create_folder")
+    assert managed_context["connection"]["folder_id"] == "folder-1"
+
+
+async def test_recreate_lost_claim_never_creates(
+    managed_client: AsyncClient, managed_context: dict[str, Any], monkeypatch
+) -> None:
+    from backend.db import google_drive_repo
+
+    managed_context["folder"] = None
+
+    async def lose_claim(*args, **kwargs):
+        return False
+
+    monkeypatch.setattr(google_drive_repo, "claim_folder_operation", lose_claim)
+    response = await managed_client.post(
+        "/api/google-drive/workspace/recreate",
+        headers={**_headers(), "Content-Type": "application/json"},
+        json={"operation_id": str(uuid4()), "acknowledge_possible_orphan": True},
+    )
+    assert response.status_code == 409
+    assert not _calls(managed_context, "create_folder")
+
+
+@pytest.mark.parametrize("endpoint", ["/files", "/import-copy"])
+async def test_existing_creation_operation_rejected_without_write(
+    managed_client: AsyncClient, managed_context: dict[str, Any], endpoint: str
+) -> None:
+    operation_id = str(uuid4())
+    managed_context["reconcile_file"] = managed_context["file"]
+    body = {"patient_id": PATIENT_ID, "operation_id": operation_id}
+    if endpoint == "/files":
+        body.update(name="nota.txt", content="texto")
+    else:
+        body["source_file_id"] = "source-1"
+    response = await managed_client.post(
+        f"/api/google-drive{endpoint}",
+        headers={**_headers(), "Content-Type": "application/json"},
+        json=body,
+    )
+    assert response.status_code == 409
+    assert response.json() == {"error": "DRIVE_OPERATION_REUSED"}
+    assert not _calls(managed_context, "create_file")
+    assert not _calls(managed_context, "update_file")
+
+
 async def test_list_requires_owned_patient_before_google_access(
     managed_client: AsyncClient, managed_context: dict[str, Any]
 ) -> None:
@@ -796,6 +868,10 @@ async def test_update_binds_write_to_provider_revision(
 
     assert response.status_code == 200
     assert _calls(managed_context, "update_file")[0][1]["revision"] == '"revision-7"'
+    assert (
+        _calls(managed_context, "update_file")[0][1]["app_properties"]["creationOperationId"]
+        == managed_context["file"]["appProperties"]["creationOperationId"]
+    )
 
 
 async def test_uncertain_create_reconciles_once_without_blind_retry(

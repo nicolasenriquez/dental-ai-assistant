@@ -19,6 +19,7 @@ Drive tables and ``users`` so the proof is repeatable.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import secrets
@@ -255,6 +256,29 @@ async def test_live_pending_folder_completion_is_compare_and_clear(db):
     )
     assert completed["folder_id"] == "folder-reconciled"
     assert completed["pending_folder_operation_id"] is None
+
+
+async def test_live_folder_claim_is_atomic_and_rejects_reuse(db):
+    uid = await _make_user(db)
+    await _make_connection(db, uid)
+    operations = [uuid4(), uuid4()]
+    results = await asyncio.gather(
+        *(
+            google_drive_repo.claim_folder_operation(
+                uid, operation, expected_folder_id="folder-live", expected_pending_operation_id=None
+            )
+            for operation in operations
+        )
+    )
+    assert results.count(True) == 1
+    winner = operations[results.index(True)]
+    assert not await google_drive_repo.claim_folder_operation(
+        uid, winner, expected_folder_id="folder-live", expected_pending_operation_id=winner
+    )
+    await google_drive_repo.set_disconnected(uid)
+    assert not await google_drive_repo.claim_folder_operation(
+        uid, uuid4(), expected_folder_id="folder-live", expected_pending_operation_id=None
+    )
 
 
 async def test_live_lazy_refresh_rotation_cannot_repopulate_revoked_row(db):

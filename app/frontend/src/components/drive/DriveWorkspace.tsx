@@ -562,6 +562,7 @@ export function DriveWorkspace({
       }
     }
     if (!doc || !patientId || doc.boundPatientId !== patientId) return false;
+    if (saving || unknownWrite || doc.uncertainOperationId || conflictOpen) return false;
     const exportContent = serializeToPlainText(doc.content, doc.representation);
     const savedLocalContent = normalizeLocalContentAfterSave(doc.content, doc.representation);
     const operationId = newOperationId();
@@ -614,7 +615,17 @@ export function DriveWorkspace({
       if (err instanceof ApiError && err.status === 409) {
         setConflictOpen(true);
       } else {
-        setUnknownWrite(apiErrorCode(err) === 'DRIVE_WRITE_UNKNOWN');
+        const uncertain = !(err instanceof ApiError) || err.status >= 500;
+        setUnknownWrite(uncertain);
+        if (uncertain) {
+          setDoc((previous) =>
+            previous &&
+            previous.fileId === doc.fileId &&
+            previous.boundPatientId === doc.boundPatientId
+              ? { ...previous, uncertainOperationId: operationId }
+              : previous,
+          );
+        }
         setDebugErrorMessage(null);
         setErrorMessage('No se pudo completar la acción');
       }
@@ -623,6 +634,36 @@ export function DriveWorkspace({
       setSaving(false);
     }
     return true;
+  };
+
+  const refreshUncertainWrite = async (): Promise<void> => {
+    if (!doc?.uncertainOperationId || !patientId || doc.boundPatientId !== patientId) return;
+    const operationId = doc.uncertainOperationId;
+    const sequence = openSequence.current;
+    try {
+      if (doc.fileId) {
+        await getDriveFile(doc.fileId, patientId);
+      } else {
+        const page = await listDriveFiles(patientId, undefined);
+        if (sequence !== openSequence.current || patientIdRef.current !== patientId) return;
+        setFiles(page.files);
+        setNextPageToken(page.next_page_token);
+      }
+      if (sequence !== openSequence.current || patientIdRef.current !== patientId) return;
+      setDoc((previous) =>
+        previous?.uncertainOperationId === operationId
+          ? { ...previous, uncertainOperationId: undefined }
+          : previous,
+      );
+      setUnknownWrite(false);
+      setErrorMessage(
+        doc.fileId
+          ? 'Versión consultada. Tu texto local se conserva; puedes intentar guardar.'
+          : 'Lista actualizada. Revisa Drive antes de guardar: el intento anterior puede haber creado el archivo.',
+      );
+    } catch {
+      setErrorMessage('No se pudo actualizar Drive. El guardado sigue bloqueado.');
+    }
   };
 
   const handleViewCurrentVersion = async () => {
@@ -1053,7 +1094,7 @@ export function DriveWorkspace({
           onClose={requestCloseWorkspace}
         />
       )}
-      {errorMessage && !conflictOpen && (
+      {(errorMessage || doc?.uncertainOperationId) && !conflictOpen && (
         <DriveAlert>
           <DriveAlertTitle>
             {sourceDoc ? 'No se pudo guardar el documento' : 'No se pudo completar la acción'}
@@ -1065,10 +1106,19 @@ export function DriveWorkspace({
                 ? 'Tu trabajo local se conserva.'
                 : errorMessage}
           </DriveAlertDescription>
-          {unknownWrite && (
+          {(unknownWrite || doc?.uncertainOperationId) && (
             <DriveAlertDescription>
-              Actualiza la lista antes de volver a guardar.
+              El resultado del guardado no está confirmado. Actualiza Drive antes de otro intento.
             </DriveAlertDescription>
+          )}
+          {doc?.uncertainOperationId && (
+            <button
+              type="button"
+              className="drive-btn drive-btn-secondary"
+              onClick={() => void refreshUncertainWrite()}
+            >
+              Actualizar Drive
+            </button>
           )}
         </DriveAlert>
       )}
