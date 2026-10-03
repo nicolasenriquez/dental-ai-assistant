@@ -15,7 +15,7 @@ import logging
 
 from backend.config import SEED_ENABLE
 from backend.db import repository
-from backend.rag.chunker import chunk_video
+from backend.rag.chunker import chunk_video_fallback
 from backend.rag.embeddings import embed_batch
 
 logger = logging.getLogger(__name__)
@@ -264,26 +264,29 @@ async def _ingest_video(video: dict) -> int:
     )
     video_id = video_record["id"]
 
-    chunk_texts = chunk_video(video)
-    if not chunk_texts:
+    chunk_dicts, _ = chunk_video_fallback(video)
+    if not chunk_dicts:
         logger.warning("No chunks generated for '%s'", video["title"])
         return 0
 
     try:
-        embeddings = embed_batch(chunk_texts)
+        embeddings = embed_batch([chunk["content"] for chunk in chunk_dicts])
     except Exception as exc:
         logger.error("Embedding failed for '%s': %s", video["title"], exc)
         return 0
 
-    for idx, (text, embedding) in enumerate(zip(chunk_texts, embeddings)):
+    for idx, (chunk, embedding) in enumerate(zip(chunk_dicts, embeddings)):
         await repository.create_chunk(
             video_id=video_id,
-            content=text,
+            content=chunk["content"],
             embedding=embedding,
             chunk_index=idx,
+            start_seconds=chunk["start_seconds"],
+            end_seconds=chunk["end_seconds"],
+            snippet=chunk["snippet"],
         )
 
-    return len(chunk_texts)
+    return len(chunk_dicts)
 
 
 async def _chunk_existing_video(video_id: str, video: dict) -> int:
@@ -292,26 +295,29 @@ async def _chunk_existing_video(video_id: str, video: dict) -> int:
     Used when videos were seeded without chunks (e.g., from Sprint 1).
     Returns the number of chunks created.
     """
-    chunk_texts = chunk_video(video)
-    if not chunk_texts:
+    chunk_dicts, _ = chunk_video_fallback(video)
+    if not chunk_dicts:
         logger.warning("No chunks generated for '%s'", video.get("title"))
         return 0
 
     try:
-        embeddings = embed_batch(chunk_texts)
+        embeddings = embed_batch([chunk["content"] for chunk in chunk_dicts])
     except Exception as exc:
         logger.error("Embedding failed for '%s': %s", video.get("title"), exc)
         return 0
 
-    for idx, (text, embedding) in enumerate(zip(chunk_texts, embeddings)):
+    for idx, (chunk, embedding) in enumerate(zip(chunk_dicts, embeddings)):
         await repository.create_chunk(
             video_id=video_id,
-            content=text,
+            content=chunk["content"],
             embedding=embedding,
             chunk_index=idx,
+            start_seconds=chunk["start_seconds"],
+            end_seconds=chunk["end_seconds"],
+            snippet=chunk["snippet"],
         )
 
-    return len(chunk_texts)
+    return len(chunk_dicts)
 
 
 async def run_seed() -> None:

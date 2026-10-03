@@ -19,6 +19,14 @@ os.environ["DATABASE_URL"] = "postgresql://test:test@localhost:5432/test"
 os.environ["SUPADATA_API_KEY"] = "test-supadata-key"
 os.environ["YOUTUBE_CHANNEL_ID"] = "UC_testchannel"
 os.environ["CHANNEL_SYNC_TYPE"] = "video"
+os.environ["CLINICAL_EXTERNAL_LLM_ENABLED"] = "false"
+# Keep config's ambient .env discovery disabled for the whole test process:
+# a developer's gitignored docker-compose .env (e.g. AUTH_MODE=google) must
+# not leak into tests. PYTEST_CURRENT_TEST is not set yet at conftest import
+# time, so an explicit marker is required.
+os.environ["AI_TUTOR_DISABLE_DOTENV"] = "1"
+# CPython 3.14.4 on Windows aborts in OpenSSL when TLS key logging is enabled.
+os.environ.pop("SSLKEYLOGFILE", None)
 
 import pytest
 
@@ -142,17 +150,31 @@ def patch_pg_pool(monkeypatch):
     binding — not just the source in `backend.db.postgres`.
     """
     from backend import rate_limit as rate_limit_mod
+    from backend.db import clinical_assistant_repo, clinical_pending_work_repo, patient_notes_repo
+    from backend.db import evolution_exports_repo as evolution_exports_repo_mod
+    from backend.db import evolutions_repo as evolutions_repo_mod
+    from backend.db import google_drive_repo as google_drive_repo_mod
+    from backend.db import patients_repo as patients_repo_mod
     from backend.db import postgres as pg
     from backend.db import repository as repo_mod
     from backend.db import users_repo as users_repo_mod
+    from backend.evolution_exports import service as evolution_exports_service
     from backend.routes import auth as auth_route
 
     fake = _FakePool()
     getter = lambda: fake  # noqa: E731
     monkeypatch.setattr(pg, "get_pg_pool", getter)
+    monkeypatch.setattr(clinical_pending_work_repo, "get_pg_pool", getter)
+    monkeypatch.setattr(patient_notes_repo, "get_pg_pool", getter)
+    monkeypatch.setattr(clinical_assistant_repo, "get_pg_pool", getter)
     monkeypatch.setattr(auth_route, "get_pg_pool", getter)
     monkeypatch.setattr(repo_mod, "get_pg_pool", getter)
     monkeypatch.setattr(users_repo_mod, "get_pg_pool", getter)
+    monkeypatch.setattr(patients_repo_mod, "get_pg_pool", getter)
+    monkeypatch.setattr(evolutions_repo_mod, "get_pg_pool", getter)
+    monkeypatch.setattr(evolution_exports_repo_mod, "get_pg_pool", getter)
+    monkeypatch.setattr(google_drive_repo_mod, "get_pg_pool", getter)
+    monkeypatch.setattr(evolution_exports_service, "get_pg_pool", getter)
     monkeypatch.setattr(rate_limit_mod, "get_pg_pool", getter)
 
 

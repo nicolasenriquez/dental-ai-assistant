@@ -1,0 +1,1286 @@
+"""Owner-scoped PostgreSQL access for Clinical Assistant state."""
+
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
+from uuid import UUID, uuid4
+
+from backend.config import CLINICAL_TURN_LIMIT_PER_24H
+from backend.db.postgres import get_pg_pool
+from backend.evolution_exports import service as evolution_exports_service
+
+
+def _uuid(value: UUID | str) -> UUID:
+    return value if isinstance(value, UUID) else UUID(str(value))
+
+
+def _action_dict(row: Any) -> dict[str, Any]:
+    result = dict(row)
+    payload = result.get("proposal_payload")
+    if isinstance(payload, str):
+        result["proposal_payload"] = json.loads(payload)
+    return result
+
+
+def _artifact_dict(row: Any) -> dict[str, Any]:
+    result = dict(row)
+    payload = result.pop("payload", {})
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    if not isinstance(payload, dict):
+        payload = {}
+    result.update(payload)
+    return result
+
+
+def _message_dict(row: Any) -> dict[str, Any]:
+    message = dict(row)
+    result = message.get("clinical_result")
+    if isinstance(result, str):
+        message["clinical_result"] = json.loads(result)
+    return message
+
+
+class TurnAlreadyRunningError(Exception):
+    """The thread already has another turn in progress."""
+
+
+class TurnIdempotencyConflictError(Exception):
+    """A turn UUID was reused with different content."""
+
+
+class ProposalStaleError(Exception):
+    """The approval no longer represents the displayed proposal."""
+
+
+class ActionExpiredError(Exception):
+    """The approval window has elapsed."""
+
+
+class ClinicalRateLimitError(Exception):
+    """The independent clinical turn limit has been reached."""
+
+
+class PendingActionExistsError(Exception):
+    """The thread already has a pending approval."""
+
+
+class StaleClinicalTurnError(Exception):
+    """The turn lost its active-thread write fence."""
+
+
+class ContextConflictError(Exception):
+    """Owned thread cannot receive the requested patient without reassignment."""
+
+    def __init__(self, thread: dict[str, Any], reason: str) -> None:
+        self.thread = thread
+        self.reason = reason
+        super().__init__("Clinical context conflict")
+
+
+async def open_context(
+    owner_user_id: UUID,
+    patient_id: UUID,
+    thread_id: UUID | None = None,
+    evolution_id: UUID | None = None,
+    *,
+    create_new: bool = False,
+) -> tuple[UUID, bool]:
+    """Resolve patient and thread together without reassigning historical work."""
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))", str(owner_user_id)
+        )
+        patient = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND owner_user_id = $2 FOR KEY SHARE",
+            patient_id,
+            owner_user_id,
+        )
+        if patient is None:
+            raise LookupError("Patient not found")
+        if evolution_id is not None:
+            evolution = await conn.fetchrow(
+                "SELECT patient_id FROM evolutions WHERE id = $1 AND owner_user_id = $2",
+                evolution_id,
+                owner_user_id,
+            )
+            if evolution is None:
+                raise LookupError("Evolution not found")
+            if evolution["patient_id"] != patient_id:
+                raise ValueError("Evolution belongs to another patient")
+        row = None
+        if not create_new:
+            row = (
+                await conn.fetchrow(
+                    """
+                SELECT t.*,
+                  NOT EXISTS (SELECT 1 FROM clinical_messages m WHERE m.thread_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM clinical_turn_artifacts a WHERE a.thread_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM clinical_pending_actions p WHERE p.thread_id = t.id)
+                  AND t.active_turn_id IS NULL AS unused,
+                  t.active_turn_id IS NOT NULL OR EXISTS (
+                    SELECT 1 FROM clinical_pending_actions p WHERE p.thread_id = t.id
+                    AND p.status = 'pending' AND p.expires_at > now()
+                  ) OR EXISTS (
+                    SELECT 1 FROM clinical_turn_artifacts a WHERE a.thread_id = t.id
+                    AND a.status IN ('draft', 'stale')
+                  ) AS unfinished
+                FROM clinical_threads t
+                WHERE t.owner_user_id = $1 AND ($3::uuid IS NULL OR t.id = $3)
+                ORDER BY (t.active_patient_id = $2) DESC NULLS LAST,
+                         t.updated_at DESC, t.id DESC
+                FOR UPDATE
+                """,
+                    owner_user_id,
+                    patient_id,
+                    thread_id,
+                )
+                if thread_id
+                else None
+            )
+            if thread_id and row is None:
+                raise LookupError("Thread not found")
+            if row is not None:
+                if row["active_patient_id"] != patient_id and not (
+                    row["active_patient_id"] is None and row["unused"]
+                ):
+                    raise ContextConflictError(
+                        dict(row),
+                        "different_patient" if row["active_patient_id"] else "thread_has_history",
+                    )
+            else:
+                row = await conn.fetchrow(
+                    """
+                    SELECT t.* FROM clinical_threads t
+                    WHERE t.owner_user_id = $1 AND (
+                      (t.active_patient_id = $2 AND (
+                        t.active_turn_id IS NOT NULL OR EXISTS (
+                          SELECT 1 FROM clinical_pending_actions p WHERE p.thread_id = t.id
+                          AND p.status = 'pending' AND p.expires_at > now()
+                        ) OR EXISTS (
+                          SELECT 1 FROM clinical_turn_artifacts a WHERE a.thread_id = t.id
+                          AND a.status IN ('draft', 'stale')
+                        )
+                      )) OR (
+                        t.active_turn_id IS NULL
+                        AND NOT EXISTS (SELECT 1 FROM clinical_messages m WHERE m.thread_id = t.id)
+                        AND NOT EXISTS (SELECT 1 FROM clinical_turn_artifacts a WHERE a.thread_id = t.id)
+                        AND NOT EXISTS (SELECT 1 FROM clinical_pending_actions p WHERE p.thread_id = t.id)
+                      )
+                    )
+                    ORDER BY (t.active_turn_id IS NOT NULL OR EXISTS (
+                      SELECT 1 FROM clinical_pending_actions p WHERE p.thread_id = t.id
+                        AND p.status = 'pending' AND p.expires_at > now()
+                    ) OR EXISTS (
+                      SELECT 1 FROM clinical_turn_artifacts a WHERE a.thread_id = t.id
+                        AND a.status IN ('draft', 'stale')
+                    )) DESC, t.updated_at DESC, t.id DESC FOR UPDATE
+                    LIMIT 1
+                    """,
+                    owner_user_id,
+                    patient_id,
+                )
+        if row is not None:
+            await conn.execute(
+                "UPDATE clinical_threads SET active_patient_id = $3, updated_at = now() "
+                "WHERE id = $1 AND owner_user_id = $2",
+                row["id"],
+                owner_user_id,
+                patient_id,
+            )
+            return row["id"], True
+        new_id = uuid4()
+        await conn.execute(
+            """INSERT INTO clinical_threads
+               (id, owner_user_id, title, active_patient_id, created_at, updated_at)
+               VALUES ($1, $2, 'Asistente clínico', $3, now(), now())""",
+            new_id,
+            owner_user_id,
+            patient_id,
+        )
+        return new_id, False
+
+
+ACTIVE_TURN_STALE_SECONDS = 10 * 60
+
+
+def _turn_is_stale(updated_at: datetime) -> bool:
+    """True when the thread's lock timestamp is old enough that the owner
+    worker is considered dead and the lock may be reclaimed."""
+    return updated_at < datetime.now(UTC) - timedelta(seconds=ACTIVE_TURN_STALE_SECONDS)
+
+
+async def create_thread(owner_user_id: UUID | str, title: str) -> dict[str, Any]:
+    thread_id = uuid4()
+    now = datetime.now(UTC)
+    async with get_pg_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO clinical_threads (id, owner_user_id, title, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $4)
+            RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                      created_at, updated_at
+            """,
+            thread_id,
+            _uuid(owner_user_id),
+            title,
+            now,
+        )
+    return {**dict(row), "messages": [], "artifacts": [], "pending_action": None}
+
+
+async def acquire_thread(owner_user_id: UUID | str) -> tuple[dict[str, Any], bool]:
+    """Reuse one provably unused clinical thread, or create one under a user lock."""
+    owner = _uuid(owner_user_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+            str(owner),
+        )
+        rows = await conn.fetch(
+            """
+            SELECT t.id, t.owner_user_id, t.title, t.active_patient_id, t.active_turn_id,
+                   t.created_at, t.updated_at
+            FROM clinical_threads t
+            WHERE t.owner_user_id = $1 AND t.active_turn_id IS NULL
+              AND NOT EXISTS (SELECT 1 FROM clinical_messages m WHERE m.thread_id = t.id)
+              AND NOT EXISTS (SELECT 1 FROM clinical_turn_artifacts a WHERE a.thread_id = t.id)
+              AND NOT EXISTS (SELECT 1 FROM clinical_pending_actions p WHERE p.thread_id = t.id)
+            ORDER BY t.updated_at DESC
+            FOR UPDATE
+            """,
+            owner,
+        )
+        if rows:
+            keep = dict(rows[0])
+            duplicate_ids = [row["id"] for row in rows[1:]]
+            if duplicate_ids:
+                await conn.execute(
+                    "DELETE FROM clinical_threads WHERE owner_user_id = $1 AND id = ANY($2::uuid[])",
+                    owner,
+                    duplicate_ids,
+                )
+            if keep["active_patient_id"] is not None:
+                await conn.execute(
+                    "UPDATE clinical_threads SET active_patient_id = NULL WHERE id = $1",
+                    keep["id"],
+                )
+                keep["active_patient_id"] = None
+            return {**keep, "messages": [], "artifacts": [], "pending_action": None}, True
+
+        row = await conn.fetchrow(
+            """
+            INSERT INTO clinical_threads (id, owner_user_id, title, created_at, updated_at)
+            VALUES ($1, $2, 'Asistente clínico', now(), now())
+            RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                      created_at, updated_at
+            """,
+            uuid4(),
+            owner,
+        )
+        return {**dict(row), "messages": [], "artifacts": [], "pending_action": None}, False
+
+
+async def list_threads(owner_user_id: UUID | str) -> list[dict[str, Any]]:
+    async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts a
+            SET status = 'failed', resolved_at = now(), updated_at = now()
+            WHERE a.owner_user_id = $1 AND a.status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM clinical_pending_actions p
+                WHERE p.artifact_id = a.id AND p.status = 'pending' AND p.expires_at <= now()
+              )
+            """,
+            _uuid(owner_user_id),
+        )
+        await conn.execute(
+            """
+            UPDATE clinical_pending_actions
+            SET status = 'expired', proposal_payload = NULL, resolved_at = now()
+            WHERE owner_user_id = $1 AND status = 'pending' AND expires_at <= now()
+            """,
+            _uuid(owner_user_id),
+        )
+        rows = await conn.fetch(
+            """
+            SELECT t.id, t.owner_user_id, t.title, t.active_patient_id, t.active_turn_id,
+                   t.created_at, t.updated_at,
+                   (SELECT turn_id FROM clinical_messages m2 WHERE m2.thread_id = t.id
+                    ORDER BY m2.created_at DESC LIMIT 1) AS latest_turn_id,
+                   (SELECT content FROM clinical_messages m WHERE m.thread_id = t.id
+                    ORDER BY m.created_at DESC LIMIT 1) AS preview,
+                   EXISTS (
+                     SELECT 1 FROM clinical_pending_actions a
+                     WHERE a.thread_id = t.id AND a.status = 'pending'
+                       AND a.expires_at > now()
+                   ) AS approval_pending
+            FROM clinical_threads t
+            WHERE t.owner_user_id = $1
+            ORDER BY t.updated_at DESC
+            """,
+            _uuid(owner_user_id),
+        )
+    return [dict(row) for row in rows]
+
+
+async def rename_thread(
+    owner_user_id: UUID | str, thread_id: UUID | str, title: str
+) -> dict[str, Any] | None:
+    async with get_pg_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE clinical_threads SET title = $3, updated_at = now()
+            WHERE id = $1 AND owner_user_id = $2
+            RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                      created_at, updated_at
+            """,
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+            title,
+        )
+    return dict(row) if row else None
+
+
+async def delete_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> bool:
+    async with get_pg_pool().acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM clinical_threads WHERE id = $1 AND owner_user_id = $2",
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+        )
+    return bool(result == "DELETE 1")
+
+
+async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[str, Any] | None:
+    thread_uuid = _uuid(thread_id)
+    async with get_pg_pool().acquire() as conn:
+        async with conn.transaction():
+            active = await conn.fetchrow(
+                """SELECT active_turn_id, updated_at FROM clinical_threads
+                   WHERE id = $1 AND owner_user_id = $2 FOR UPDATE""",
+                thread_uuid,
+                _uuid(owner_user_id),
+            )
+            if active and active["active_turn_id"] and _turn_is_stale(active["updated_at"]):
+                await conn.execute(
+                    """UPDATE clinical_messages
+                       SET turn_status = 'failed', turn_error_code = 'CLINICAL_TURN_STALE'
+                       WHERE thread_id = $1 AND turn_id = $2 AND role = 'user'
+                         AND turn_status = 'running'""",
+                    thread_uuid,
+                    active["active_turn_id"],
+                )
+                await conn.execute(
+                    """UPDATE clinical_threads SET active_turn_id = NULL, updated_at = now()
+                       WHERE id = $1 AND owner_user_id = $2 AND active_turn_id = $3""",
+                    thread_uuid,
+                    _uuid(owner_user_id),
+                    active["active_turn_id"],
+                )
+        thread = await conn.fetchrow(
+            """
+            SELECT id, owner_user_id, title, active_patient_id, active_turn_id,
+                   created_at, updated_at,
+                   (SELECT turn_id FROM clinical_messages m2 WHERE m2.thread_id = clinical_threads.id
+                    ORDER BY m2.created_at DESC LIMIT 1) AS latest_turn_id
+            FROM clinical_threads
+            WHERE id = $1 AND owner_user_id = $2
+            """,
+            thread_uuid,
+            _uuid(owner_user_id),
+        )
+        if not thread:
+            return None
+        messages = await conn.fetch(
+            """
+            SELECT id, thread_id, turn_id, role, content, context_items, patient_switch, clinical_result,
+                   turn_status, turn_error_code, created_at
+            FROM clinical_messages WHERE thread_id = $1
+            ORDER BY created_at ASC
+            """,
+            thread_uuid,
+        )
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts a
+            SET status = 'failed', resolved_at = now(), updated_at = now()
+            WHERE a.thread_id = $1 AND a.status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM clinical_pending_actions p
+                WHERE p.artifact_id = a.id AND p.status = 'pending' AND p.expires_at <= now()
+              )
+            """,
+            thread_uuid,
+        )
+        await conn.execute(
+            """
+            UPDATE clinical_pending_actions
+            SET status = 'expired', proposal_payload = NULL, resolved_at = now()
+            WHERE thread_id = $1 AND status = 'pending' AND expires_at <= now()
+            """,
+            thread_uuid,
+        )
+        artifacts = await conn.fetch(
+            """
+            SELECT id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                   status, payload, created_at, updated_at, resolved_at
+            FROM clinical_turn_artifacts
+            WHERE thread_id = $1 AND owner_user_id = $2
+            ORDER BY created_at ASC
+            """,
+            thread_uuid,
+            _uuid(owner_user_id),
+        )
+        pending = await conn.fetchrow(
+            """
+            SELECT id, thread_id, turn_id, artifact_id, patient_id, action_type, proposal_payload,
+                   proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
+            FROM clinical_pending_actions
+            WHERE thread_id = $1 AND status = 'pending'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            thread_uuid,
+        )
+        actions = await conn.fetch(
+            """
+            SELECT id, thread_id, turn_id, artifact_id, patient_id, action_type, proposal_payload,
+                   proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
+            FROM clinical_pending_actions
+            WHERE thread_id = $1
+            ORDER BY created_at ASC
+            """,
+            thread_uuid,
+        )
+    return {
+        **dict(thread),
+        "messages": [_message_dict(row) for row in messages],
+        "artifacts": [_artifact_dict(row) for row in artifacts],
+        "pending_action": _action_dict(pending) if pending else None,
+        "actions": [_action_dict(row) for row in actions],
+    }
+
+
+async def set_patient_switch(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    patient_switch: dict[str, Any],
+) -> None:
+    async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE clinical_messages m
+            SET patient_switch = $4::jsonb
+            FROM clinical_threads t
+            WHERE m.thread_id = t.id AND m.thread_id = $1 AND m.turn_id = $2
+              AND m.role = 'user' AND t.owner_user_id = $3
+            """,
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(owner_user_id),
+            json.dumps(patient_switch, ensure_ascii=False, default=str),
+        )
+
+
+async def resolve_patient_switch(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    resolution: str,
+) -> bool:
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        switch = await conn.fetchrow(
+            """
+            SELECT m.patient_switch->'detected_patient'->>'id' AS detected_patient_id
+            FROM clinical_messages m
+            JOIN clinical_threads t ON t.id = m.thread_id
+            WHERE m.thread_id = $1 AND m.turn_id = $2 AND m.role = 'user'
+              AND t.owner_user_id = $3
+              AND m.patient_switch->>'resolution' = 'pending'
+            FOR UPDATE
+            """,
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(owner_user_id),
+        )
+        if switch is None:
+            return False
+        if resolution == "changed_patient":
+            detected_patient_id = switch["detected_patient_id"]
+            if not detected_patient_id:
+                return False
+            patient_exists = await conn.fetchval(
+                "SELECT 1 FROM patients WHERE id = $1 AND owner_user_id = $2",
+                _uuid(detected_patient_id),
+                _uuid(owner_user_id),
+            )
+            if not patient_exists:
+                return False
+            await conn.execute(
+                """
+                UPDATE clinical_threads
+                SET active_patient_id = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3
+                """,
+                _uuid(detected_patient_id),
+                _uuid(thread_id),
+                _uuid(owner_user_id),
+            )
+        result = await conn.execute(
+            """
+            UPDATE clinical_messages m
+            SET patient_switch = jsonb_set(m.patient_switch, '{resolution}', to_jsonb($4::text))
+            FROM clinical_threads t
+            WHERE m.thread_id = t.id AND m.thread_id = $1 AND m.turn_id = $2
+              AND m.role = 'user' AND t.owner_user_id = $3
+              AND m.patient_switch->>'resolution' = 'pending'
+            """,
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(owner_user_id),
+            resolution,
+        )
+    return bool(result == "UPDATE 1")
+
+
+async def create_artifact(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    patient_id: UUID | str,
+    artifact_id: UUID | str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    owner = _uuid(owner_user_id)
+    thread = _uuid(thread_id)
+    turn = _uuid(turn_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        thread_state = await conn.fetchrow(
+            """
+            SELECT active_turn_id
+            FROM clinical_threads
+            WHERE id = $1 AND owner_user_id = $2
+            FOR UPDATE
+            """,
+            thread,
+            owner,
+        )
+        if thread_state is None or thread_state["active_turn_id"] != turn:
+            raise StaleClinicalTurnError
+        row = await conn.fetchrow(
+            """
+            INSERT INTO clinical_turn_artifacts (
+                id, owner_user_id, thread_id, turn_id, patient_id,
+                artifact_type, status, payload
+            ) VALUES ($1, $2, $3, $4, $5, 'clinical_draft', 'draft', $6::jsonb)
+            ON CONFLICT (thread_id, turn_id, artifact_type) DO UPDATE
+            SET payload = EXCLUDED.payload, updated_at = now(), status = 'draft', resolved_at = NULL
+            RETURNING id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                      status, payload, created_at, updated_at, resolved_at
+            """,
+            _uuid(artifact_id),
+            _uuid(owner_user_id),
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(patient_id),
+            json.dumps(payload, ensure_ascii=False, default=str),
+        )
+    return _artifact_dict(row)
+
+
+async def get_artifact(
+    owner_user_id: UUID | str, thread_id: UUID | str, artifact_id: UUID | str
+) -> dict[str, Any] | None:
+    async with get_pg_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                   status, payload, created_at, updated_at, resolved_at
+            FROM clinical_turn_artifacts
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
+            """,
+            _uuid(artifact_id),
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+        )
+    return _artifact_dict(row) if row else None
+
+
+async def list_turn_artifacts(
+    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str
+) -> list[dict[str, Any]]:
+    """Load artifacts for one owner-scoped turn for idempotent replay."""
+    async with get_pg_pool().acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                   status, payload, created_at, updated_at, resolved_at
+            FROM clinical_turn_artifacts
+            WHERE owner_user_id = $1 AND thread_id = $2 AND turn_id = $3
+            ORDER BY created_at ASC
+            """,
+            _uuid(owner_user_id),
+            _uuid(thread_id),
+            _uuid(turn_id),
+        )
+    return [_artifact_dict(row) for row in rows]
+
+
+async def update_artifact(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    artifact_id: UUID | str,
+    *,
+    payload: dict[str, Any],
+    status: str,
+) -> dict[str, Any] | None:
+    async with get_pg_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE clinical_turn_artifacts
+            SET payload = $4::jsonb, status = $5, updated_at = now()
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
+              AND status IN ('draft', 'stale')
+            RETURNING id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                      status, payload, created_at, updated_at, resolved_at
+            """,
+            _uuid(artifact_id),
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+            json.dumps(payload, ensure_ascii=False, default=str),
+            status,
+        )
+    return _artifact_dict(row) if row else None
+
+
+async def set_artifact_status(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    artifact_id: UUID | str,
+    status: str,
+) -> None:
+    async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts
+            SET status = $4,
+                updated_at = now(),
+                resolved_at = CASE WHEN $4 IN ('approved', 'declined', 'failed') THEN now() ELSE resolved_at END
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
+            """,
+            _uuid(artifact_id),
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+            status,
+        )
+
+
+async def set_active_patient(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    patient_id: UUID | str | None,
+    *,
+    turn_id: UUID | str | None = None,
+) -> dict[str, Any] | None:
+    owner = _uuid(owner_user_id)
+    thread = _uuid(thread_id)
+    async with get_pg_pool().acquire() as conn:
+        if patient_id is not None:
+            patient_exists = await conn.fetchval(
+                "SELECT 1 FROM patients WHERE id = $1 AND owner_user_id = $2",
+                _uuid(patient_id),
+                owner,
+            )
+            if not patient_exists:
+                return None
+        if turn_id is None:
+            row = await conn.fetchrow(
+                """
+                UPDATE clinical_threads
+                SET active_patient_id = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3
+                RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                          created_at, updated_at
+                """,
+                _uuid(patient_id) if patient_id is not None else None,
+                thread,
+                owner,
+            )
+        else:
+            row = await conn.fetchrow(
+                """
+                UPDATE clinical_threads
+                SET active_patient_id = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3 AND active_turn_id = $4
+                RETURNING id, owner_user_id, title, active_patient_id, active_turn_id,
+                          created_at, updated_at
+                """,
+                _uuid(patient_id) if patient_id is not None else None,
+                thread,
+                owner,
+                _uuid(turn_id),
+            )
+            if row is None:
+                raise StaleClinicalTurnError
+    return dict(row) if row else None
+
+
+async def turn_exists(
+    owner_user_id: UUID | str, thread_id: UUID | str, turn_id: UUID | str
+) -> bool:
+    async with get_pg_pool().acquire() as conn:
+        return bool(
+            await conn.fetchval(
+                """
+                SELECT 1
+                FROM clinical_messages m
+                JOIN clinical_threads t ON t.id = m.thread_id
+                WHERE m.thread_id = $1 AND m.turn_id = $2 AND t.owner_user_id = $3
+                LIMIT 1
+                """,
+                _uuid(thread_id),
+                _uuid(turn_id),
+                _uuid(owner_user_id),
+            )
+        )
+
+
+async def update_title_if_default(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    title: str,
+    *,
+    turn_id: UUID | str | None = None,
+) -> None:
+    """Give the first clinical turn a useful title without replacing custom titles."""
+    async with get_pg_pool().acquire() as conn:
+        if turn_id is None:
+            await conn.execute(
+                """
+                UPDATE clinical_threads
+                SET title = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3 AND title = 'Asistente clínico'
+                """,
+                title,
+                _uuid(thread_id),
+                _uuid(owner_user_id),
+            )
+        else:
+            await conn.execute(
+                """
+                UPDATE clinical_threads
+                SET title = $1, updated_at = now()
+                WHERE id = $2 AND owner_user_id = $3 AND title = 'Asistente clínico'
+                  AND active_turn_id = $4
+                """,
+                title,
+                _uuid(thread_id),
+                _uuid(owner_user_id),
+                _uuid(turn_id),
+            )
+
+
+async def claim_turn(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    content: str,
+    context_items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    owner = _uuid(owner_user_id)
+    thread = _uuid(thread_id)
+    turn = _uuid(turn_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+            str(owner),
+        )
+        row = await conn.fetchrow(
+            """
+            SELECT active_patient_id, active_turn_id, updated_at
+            FROM clinical_threads
+            WHERE id = $1 AND owner_user_id = $2
+            FOR UPDATE
+            """,
+            thread,
+            owner,
+        )
+        if not row:
+            raise LookupError("Thread not found")
+        existing = await conn.fetch(
+            """
+            SELECT m.id, m.role, m.content, m.context_items, m.turn_status, m.turn_error_code
+            FROM clinical_messages m
+            JOIN clinical_threads t ON t.id = m.thread_id
+            WHERE m.turn_id = $1 AND m.thread_id = $2 AND t.owner_user_id = $3
+            """,
+            turn,
+            thread,
+            owner,
+        )
+        if existing:
+            if any(
+                msg["role"] == "user"
+                and (
+                    msg["content"] != content
+                    or (msg["context_items"] or []) != (context_items or [])
+                )
+                for msg in existing
+            ):
+                raise TurnIdempotencyConflictError
+            messages = [dict(msg) for msg in existing]
+            user_message = next(msg for msg in messages if msg["role"] == "user")
+            turn_status = user_message["turn_status"]
+            if turn_status is None:
+                turn_status = (
+                    "completed" if any(msg["role"] == "assistant" for msg in messages) else "failed"
+                )
+            return {
+                "replay": True,
+                "messages": messages,
+                "turn_status": turn_status,
+                "turn_error_code": user_message["turn_error_code"],
+            }
+        stale_turn = (
+            row["active_turn_id"]
+            if row["active_turn_id"] is not None
+            and row["active_turn_id"] != turn
+            and _turn_is_stale(row["updated_at"])
+            else None
+        )
+        if (
+            row["active_turn_id"] is not None
+            and row["active_turn_id"] != turn
+            and not _turn_is_stale(row["updated_at"])
+        ):
+            raise TurnAlreadyRunningError
+        if stale_turn is not None:
+            await conn.execute(
+                """UPDATE clinical_messages
+                   SET turn_status = 'failed', turn_error_code = 'CLINICAL_TURN_STALE'
+                   WHERE thread_id = $1 AND turn_id = $2 AND role = 'user'
+                     AND turn_status = 'running'""",
+                thread,
+                stale_turn,
+            )
+        turn_count = await conn.fetchval(
+            """
+            SELECT count(*)
+            FROM clinical_messages m
+            JOIN clinical_threads t ON t.id = m.thread_id
+            WHERE t.owner_user_id = $1 AND m.role = 'user'
+              AND m.created_at > now() - interval '24 hours'
+            """,
+            owner,
+        )
+        if int(turn_count or 0) >= CLINICAL_TURN_LIMIT_PER_24H:
+            raise ClinicalRateLimitError
+        await conn.execute(
+            """
+            UPDATE clinical_threads SET active_turn_id = $1, updated_at = now()
+            WHERE id = $2 AND owner_user_id = $3
+            """,
+            turn,
+            thread,
+            owner,
+        )
+        message = await conn.fetchrow(
+            """
+            INSERT INTO clinical_messages (
+                id, thread_id, turn_id, role, content, context_items, turn_status, created_at
+            )
+            VALUES ($1, $2, $3, 'user', $4, $5::jsonb, 'running', now())
+            RETURNING id, thread_id, turn_id, role, content, context_items, created_at
+            """,
+            uuid4(),
+            thread,
+            turn,
+            content,
+            json.dumps(context_items, ensure_ascii=False) if context_items else None,
+        )
+    return {
+        "replay": False,
+        "active_patient_id": row["active_patient_id"],
+        "message": dict(message),
+    }
+
+
+async def append_message(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    role: str,
+    content: str,
+    *,
+    clinical_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    owner = _uuid(owner_user_id)
+    thread = _uuid(thread_id)
+    turn = _uuid(turn_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        thread_state = await conn.fetchrow(
+            """
+            SELECT active_turn_id
+            FROM clinical_threads
+            WHERE id = $1 AND owner_user_id = $2
+            FOR UPDATE
+            """,
+            thread,
+            owner,
+        )
+        if thread_state is None or thread_state["active_turn_id"] != turn:
+            raise StaleClinicalTurnError
+        row = await conn.fetchrow(
+            """
+            INSERT INTO clinical_messages (id, thread_id, turn_id, role, content, clinical_result, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, now())
+            RETURNING id, thread_id, turn_id, role, content, clinical_result, created_at
+            """,
+            uuid4(),
+            thread,
+            turn,
+            role,
+            content,
+            json.dumps(clinical_result, ensure_ascii=False, default=str)
+            if clinical_result
+            else None,
+        )
+        await conn.execute(
+            "UPDATE clinical_threads SET updated_at = now() WHERE id = $1 AND owner_user_id = $2",
+            thread,
+            owner,
+        )
+    return dict(row)
+
+
+async def finish_turn(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    status: Literal["completed", "failed"] = "failed",
+    error_code: str | None = None,
+) -> None:
+    if status == "failed" and error_code is None:
+        error_code = "CLINICAL_RUNTIME_FAILED"
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        await conn.execute(
+            """
+            UPDATE clinical_messages m
+            SET turn_status = $1, turn_error_code = $2
+            WHERE m.thread_id = $3 AND m.turn_id = $4 AND m.role = 'user'
+              AND m.turn_status = 'running'
+              AND EXISTS (
+                SELECT 1 FROM clinical_threads t
+                WHERE t.id = m.thread_id AND t.owner_user_id = $5
+                  AND t.active_turn_id = $4
+              )
+            """,
+            status,
+            error_code,
+            _uuid(thread_id),
+            _uuid(turn_id),
+            _uuid(owner_user_id),
+        )
+        await conn.execute(
+            """
+            UPDATE clinical_threads SET active_turn_id = NULL, updated_at = now()
+            WHERE id = $1 AND owner_user_id = $2 AND active_turn_id = $3
+            """,
+            _uuid(thread_id),
+            _uuid(owner_user_id),
+            _uuid(turn_id),
+        )
+
+
+async def create_pending_action(
+    owner_user_id: UUID | str,
+    thread_id: UUID | str,
+    turn_id: UUID | str,
+    artifact_id: UUID | str,
+    patient_id: UUID | str,
+    action_type: str,
+    payload: dict[str, Any],
+    proposal_hash: str,
+) -> dict[str, Any]:
+    expires_at = datetime.now(UTC) + timedelta(minutes=30)
+    owner = _uuid(owner_user_id)
+    thread = _uuid(thread_id)
+    turn = _uuid(turn_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        artifact_state = await conn.fetchrow(
+            """
+            SELECT id
+            FROM clinical_turn_artifacts
+            WHERE id = $1 AND owner_user_id = $2 AND thread_id = $3
+              AND turn_id = $4 AND patient_id = $5 AND status = 'draft'
+            FOR UPDATE
+            """,
+            _uuid(artifact_id),
+            owner,
+            thread,
+            turn,
+            _uuid(patient_id),
+        )
+        if artifact_state is None:
+            raise StaleClinicalTurnError
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts a
+            SET status = 'failed', resolved_at = now(), updated_at = now()
+            WHERE a.thread_id = $1 AND a.owner_user_id = $2 AND a.status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM clinical_pending_actions p
+                WHERE p.artifact_id = a.id AND p.status = 'pending' AND p.expires_at <= now()
+              )
+            """,
+            thread,
+            owner,
+        )
+        await conn.execute(
+            """
+            UPDATE clinical_pending_actions
+            SET status = 'expired', proposal_payload = NULL, resolved_at = now()
+            WHERE thread_id = $1 AND owner_user_id = $2 AND status = 'pending'
+              AND expires_at <= now()
+            """,
+            thread,
+            owner,
+        )
+        row = await conn.fetchrow(
+            """
+            INSERT INTO clinical_pending_actions (
+                id, owner_user_id, thread_id, turn_id, artifact_id, patient_id, action_type,
+                proposal_payload, proposal_hash, status, expires_at, created_at
+            ) SELECT $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'pending', $10, now()
+             FROM clinical_turn_artifacts
+             WHERE id = $5 AND owner_user_id = $2 AND thread_id = $3
+               AND turn_id = $4 AND patient_id = $6 AND status = 'draft'
+            ON CONFLICT (thread_id) WHERE status = 'pending' DO NOTHING
+            RETURNING id, thread_id, turn_id, artifact_id, patient_id, action_type, proposal_payload,
+                      proposal_hash, status, expires_at, created_at, resolved_at, result_resource_id
+            """,
+            uuid4(),
+            owner,
+            thread,
+            turn,
+            _uuid(artifact_id),
+            _uuid(patient_id),
+            action_type,
+            json.dumps(payload, ensure_ascii=False),
+            proposal_hash,
+            expires_at,
+        )
+        if row is None:
+            raise PendingActionExistsError
+        await conn.execute(
+            """
+            UPDATE clinical_turn_artifacts
+            SET status = 'pending', updated_at = now()
+            WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3 AND turn_id = $4
+            """,
+            _uuid(artifact_id),
+            thread,
+            owner,
+            turn,
+        )
+    return _action_dict(row)
+
+
+async def return_to_editing(owner_user_id: UUID | str, action_id: UUID | str) -> dict[str, Any]:
+    """Remove a pending approval and reopen its artifact without a terminal receipt."""
+    owner = _uuid(owner_user_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        action = await conn.fetchrow(
+            """
+            DELETE FROM clinical_pending_actions
+            WHERE id = $1 AND owner_user_id = $2 AND status = 'pending'
+            RETURNING id, thread_id, artifact_id
+            """,
+            _uuid(action_id),
+            owner,
+        )
+        if action is None:
+            raise LookupError("Pending action not found")
+        if action["artifact_id"] is not None:
+            await conn.execute(
+                """
+                UPDATE clinical_turn_artifacts
+                SET status = 'draft', resolved_at = NULL, updated_at = now()
+                WHERE id = $1 AND owner_user_id = $2 AND status = 'pending'
+                """,
+                action["artifact_id"],
+                owner,
+            )
+        return dict(action)
+
+
+async def resolve_action(
+    owner_user_id: UUID | str,
+    action_id: UUID | str,
+    decision: str,
+    proposal_hash: str,
+) -> dict[str, Any]:
+    owner = _uuid(owner_user_id)
+    async with get_pg_pool().acquire() as conn, conn.transaction():
+        action = await conn.fetchrow(
+            "SELECT * FROM clinical_pending_actions WHERE id = $1 AND owner_user_id = $2 FOR UPDATE",
+            _uuid(action_id),
+            owner,
+        )
+        if action is None:
+            raise LookupError("Action not found")
+        if action["status"] == "pending" and action["expires_at"] <= datetime.now(UTC):
+            await conn.execute(
+                """
+                UPDATE clinical_pending_actions
+                SET status = 'expired', proposal_payload = NULL, resolved_at = now()
+                WHERE id = $1
+                """,
+                _uuid(action_id),
+            )
+            if action["artifact_id"] is not None:
+                await conn.execute(
+                    """
+                    UPDATE clinical_turn_artifacts
+                    SET status = 'failed', resolved_at = now(), updated_at = now()
+                    WHERE id = $1 AND owner_user_id = $2
+                    """,
+                    action["artifact_id"],
+                    owner,
+                )
+            return {
+                "id": action["id"],
+                "status": "expired",
+                "proposal_hash": action["proposal_hash"],
+                "thread_id": action["thread_id"],
+            }
+        if action["status"] in {"approved", "declined"}:
+            if action["proposal_hash"] == proposal_hash and (
+                (action["status"] == "approved" and decision == "approve")
+                or (action["status"] == "declined" and decision == "decline")
+            ):
+                return dict(action)
+            raise ProposalStaleError
+        if action["status"] != "pending" or action["proposal_hash"] != proposal_hash:
+            raise ProposalStaleError
+        if decision == "decline":
+            row = await conn.fetchrow(
+                """
+                UPDATE clinical_pending_actions
+                SET status = 'declined', resolved_at = now(), resolved_by = $2
+                WHERE id = $1
+                RETURNING *
+                """,
+                _uuid(action_id),
+                owner,
+            )
+            if action["artifact_id"] is not None:
+                await conn.execute(
+                    """
+                    UPDATE clinical_turn_artifacts
+                    SET status = 'declined', resolved_at = now(), updated_at = now()
+                    WHERE id = $1 AND owner_user_id = $2
+                    """,
+                    action["artifact_id"],
+                    owner,
+                )
+            return dict(row)
+
+        payload = action["proposal_payload"]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        required = {
+            "evolution_id",
+            "patient_id",
+            "evolution_at",
+            "raw_note",
+            "generated_text",
+            "final_text",
+        }
+        if not isinstance(payload, dict) or set(payload) != required:
+            raise ProposalStaleError
+        try:
+            payload_patient_id = _uuid(payload["patient_id"])
+            evolution_id = _uuid(payload["evolution_id"])
+            evolution_at = payload["evolution_at"]
+            if isinstance(evolution_at, str):
+                evolution_at = datetime.fromisoformat(evolution_at)
+        except (TypeError, ValueError, KeyError):
+            raise ProposalStaleError from None
+        if not isinstance(evolution_at, datetime) or payload_patient_id != _uuid(
+            action["patient_id"]
+        ):
+            raise ProposalStaleError
+        thread_exists = await conn.fetchval(
+            "SELECT 1 FROM clinical_threads WHERE id = $1 AND owner_user_id = $2",
+            _uuid(action["thread_id"]),
+            owner,
+        )
+        if not thread_exists:
+            raise LookupError("Action not found")
+        approval_at = datetime.now(UTC)
+        try:
+            async with conn.transaction():
+                (
+                    result,
+                    _export,
+                ) = await evolution_exports_service.persist_approved_evolution_with_connection(
+                    conn,
+                    owner,
+                    _uuid(action["patient_id"]),
+                    evolution_id=evolution_id,
+                    evolution_at=evolution_at,
+                    raw_note=str(payload["raw_note"]),
+                    generated_text=str(payload["generated_text"]),
+                    final_text=str(payload["final_text"]),
+                    approval_at=approval_at,
+                )
+        except Exception:
+            row = await conn.fetchrow(
+                """
+                UPDATE clinical_pending_actions
+                SET status = 'failed', proposal_payload = NULL, resolved_at = now(), resolved_by = $2
+                WHERE id = $1
+                RETURNING *
+                """,
+                _uuid(action_id),
+                owner,
+            )
+            if action["artifact_id"] is not None:
+                await conn.execute(
+                    """
+                    UPDATE clinical_turn_artifacts
+                    SET status = 'failed', resolved_at = now(), updated_at = now()
+                    WHERE id = $1 AND owner_user_id = $2
+                    """,
+                    action["artifact_id"],
+                    owner,
+                )
+            return dict(row)
+        row = await conn.fetchrow(
+            """
+            UPDATE clinical_pending_actions
+            SET status = 'approved', resolved_at = now(),
+                resolved_by = $2, result_resource_id = $3
+            WHERE id = $1
+            RETURNING *
+            """,
+            _uuid(action_id),
+            owner,
+            UUID(str(result["id"])),
+        )
+        if action["artifact_id"] is not None:
+            await conn.execute(
+                """
+                UPDATE clinical_turn_artifacts
+                SET status = 'approved', resolved_at = now(), updated_at = now()
+                WHERE id = $1 AND owner_user_id = $2
+                """,
+                action["artifact_id"],
+                owner,
+            )
+        return {**dict(row), "result": result}

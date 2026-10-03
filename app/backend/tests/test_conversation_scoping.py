@@ -245,6 +245,7 @@ async def test_repository_functions_require_user_id():
 
     scoped = [
         "create_conversation",
+        "acquire_conversation",
         "get_conversation",
         "list_conversations",
         "update_conversation_title",

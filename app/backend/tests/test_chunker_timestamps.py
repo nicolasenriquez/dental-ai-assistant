@@ -93,6 +93,15 @@ class TestChunkVideoFallback:
         for chunk in result:
             assert len(chunk["snippet"]) <= 300
 
+    def test_estimated_duration_uses_seconds(self) -> None:
+        video = {
+            "title": "Test Video",
+            "transcript": " ".join(["word"] * 300),
+        }
+        result, _ = chunk_video_fallback(video)
+
+        assert result[-1]["end_seconds"] == 120.0
+
     def test_empty_transcript_returns_empty(self) -> None:
         """Empty transcript returns empty list."""
         video = {"title": "Test", "transcript": ""}

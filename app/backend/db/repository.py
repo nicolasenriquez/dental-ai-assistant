@@ -403,8 +403,10 @@ async def replace_chunks_for_video(
 # Conversations
 # ---------------------------------------------------------------------------
 
+DEFAULT_CONVERSATION_TITLE = "Nueva conversación"
 
-async def create_conversation(*, user_id: str, title: str = "New Conversation") -> dict:
+
+async def create_conversation(*, user_id: str, title: str = DEFAULT_CONVERSATION_TITLE) -> dict:
     conv_id = _new_id()
     now = _now()
     async with _acquire() as conn:
@@ -426,6 +428,55 @@ async def create_conversation(*, user_id: str, title: str = "New Conversation") 
         "created_at": now,
         "updated_at": now,
     }
+
+
+async def acquire_conversation(*, user_id: str) -> tuple[dict, bool]:
+    """Return the user's newest unused conversation, or create one atomically."""
+    now = _now()
+    async with _acquire() as conn, conn.transaction():
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+            str(user_id),
+        )
+        rows = await conn.fetch(
+            """
+            SELECT c.*
+            FROM conversations c
+            WHERE c.user_id = $1
+              AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id)
+            ORDER BY c.updated_at DESC
+            FOR UPDATE
+            """,
+            user_id,
+        )
+        if rows:
+            conversation = dict(rows[0])
+            duplicate_ids = [row["id"] for row in rows[1:]]
+            if duplicate_ids:
+                await conn.execute(
+                    "DELETE FROM conversations WHERE user_id = $1 AND id = ANY($2::text[])",
+                    user_id,
+                    duplicate_ids,
+                )
+            logger.info(
+                "conversation.acquire.reused", extra={"conversation_id": conversation["id"]}
+            )
+            return conversation, True
+
+        conv_id = _new_id()
+        row = await conn.fetchrow(
+            """
+            INSERT INTO conversations (id, user_id, title, created_at, updated_at)
+            VALUES ($1, $2, 'Nueva conversación', $3, $3)
+            RETURNING *
+            """,
+            conv_id,
+            user_id,
+            now,
+        )
+        conversation = dict(row)
+        logger.info("conversation.acquire.created", extra={"conversation_id": conv_id})
+        return conversation, False
 
 
 async def get_conversation(conv_id: str, user_id: str) -> dict | None:
@@ -527,6 +578,7 @@ async def create_message(
     role: str,
     content: str,
     sources: list[dict] | None = None,
+    termination_reason: str | None = None,
 ) -> dict | None:
     """Insert a message. Returns None if the conversation does not belong to the user."""
     msg_id = _new_id()
@@ -538,10 +590,11 @@ async def create_message(
         # if a route handler forgets to check.
         result = await conn.execute(
             """
-            INSERT INTO messages (id, conversation_id, role, content, sources, created_at)
-            SELECT $1, $2, $3, $4, $5::jsonb, $6
+            INSERT INTO messages
+                (id, conversation_id, role, content, sources, termination_reason, created_at)
+            SELECT $1, $2, $3, $4, $5::jsonb, $6, $7
             WHERE EXISTS (
-                SELECT 1 FROM conversations WHERE id = $7 AND user_id = $8
+                SELECT 1 FROM conversations WHERE id = $8 AND user_id = $9
             )
             """,
             msg_id,
@@ -549,6 +602,7 @@ async def create_message(
             role,
             content,
             sources_json,
+            termination_reason,
             now,
             conversation_id,
             user_id,
@@ -562,6 +616,7 @@ async def create_message(
         "role": role,
         "content": content,
         "sources": sources,
+        "termination_reason": termination_reason,
         "created_at": now,
     }
 

@@ -1,6 +1,6 @@
 """OpenRouter streaming chat completions wrapper.
 
-Streams tokens from anthropic/claude-sonnet-4.6 via OpenRouter, with optional
+Streams tokens from the configured `CHAT_MODEL` via OpenRouter, with optional
 tool-use support (e.g. `get_video_transcript` in backend.rag.tools).
 
 `stream_chat(messages, context, tools=None, tool_executor=None, max_tool_calls=0)`
@@ -11,13 +11,19 @@ continue until finish_reason=stop. Terminates with `data: [DONE]\\n\\n`.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-import time
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Any, cast
+from collections.abc import AsyncGenerator
+from typing import Any
 
-from openai import APIConnectionError, APIError, APIStatusError, AsyncOpenAI
+from openai import (
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncOpenAI,
+)
 from openai.types.chat import ChatCompletionMessageParam
 
 from backend.config import (
@@ -27,10 +33,16 @@ from backend.config import (
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
 )
+from backend.llm.tool_loop import (
+    RunCancelled,
+    ToolExecutor,
+    stream_tool_loop,
+    wait_or_cancel,
+)
 from backend.rag import catalog
 
 logger = logging.getLogger(__name__)
-
+_wait_or_cancel = wait_or_cancel
 # Heartbeat cadence for the SSE keepalive. Kimi K2.6 regularly goes 60-140s of
 # silent tool-call streaming + tool execution before emitting the first
 # user-visible text token. Browsers and reverse proxies idle-timeout SSE
@@ -50,6 +62,28 @@ def _get_async_client() -> AsyncOpenAI:
     if _async_client is None:
         _async_client = AsyncOpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
     return _async_client
+
+
+async def create_structured_completion(
+    messages: list[ChatCompletionMessageParam], json_schema: dict[str, Any]
+) -> str:
+    """Run one non-streaming completion through the shared OpenRouter client."""
+    response = await _get_async_client().chat.completions.create(
+        model=CHAT_MODEL,
+        messages=messages,
+        stream=False,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "clinical_evolution",
+                "strict": True,
+                "schema": json_schema,
+            },
+        },
+    )
+    if not response.choices or not response.choices[0].message.content:
+        raise RuntimeError("OpenRouter returned no structured content")
+    return response.choices[0].message.content
 
 
 _BASE_SYSTEM_PROMPT = """\
@@ -144,10 +178,6 @@ async def build_system_prompt(max_tool_calls: int = 0) -> list[dict]:
     return blocks
 
 
-ToolExecutor = Callable[[str, str], Awaitable[str]]
-"""(tool_name, raw_arguments_json) -> tool result string (role: tool content)."""
-
-
 def _extract_tool_subject(tool_name: str, tool_args_raw: str) -> str:
     """Extract a human-readable subject from tool arguments for status events.
 
@@ -174,6 +204,8 @@ async def stream_chat(
     tool_executor: ToolExecutor | None = None,
     max_tool_calls: int = 0,
     final_text_out: list[str] | None = None,
+    cancel_event: asyncio.Event | None = None,
+    termination_reason_out: list[str] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream a chat completion via OpenRouter. When tools + executor are
     supplied, execute tool calls in a loop until finish_reason=stop.
@@ -191,205 +223,80 @@ async def stream_chat(
     client = _get_async_client()
     tools_active = bool(tools) and tool_executor is not None and max_tool_calls > 0
     system_blocks = await build_system_prompt(max_tool_calls=max_tool_calls if tools_active else 0)
-
-    full_messages: list[ChatCompletionMessageParam] = [
-        # openai stubs don't model list-content system messages; runtime accepts it.
-        {"role": "system", "content": system_blocks},  # type: ignore[misc,list-item]
-        *cast(list[ChatCompletionMessageParam], messages),
-    ]
-    base_kwargs: dict[str, Any] = {
-        "model": CHAT_MODEL,
-        "stream": True,
-        # Explicit output cap. Without this, OpenRouter applies its own default
-        # (historically 4096 for Anthropic via the OpenAI-compat shim), which
-        # broad queries can exhaust: many tool_call rounds each serialize JSON
-        # args into the output budget, and on the final round the model has
-        # nothing left, returning finish_reason=length with zero visible
-        # content. Silent ~10%/24h failures in prod traced back to this.
-        "max_tokens": 8192,
-    }
-    if tools_active:
-        base_kwargs["tools"] = tools
-
-    tool_calls_made = 0
     tokens_yielded = 0
-    round_num = 0
-    last_heartbeat_at = time.monotonic()
-
-    def _heartbeat_due() -> bool:
-        return (time.monotonic() - last_heartbeat_at) >= HEARTBEAT_INTERVAL_SECONDS
-
-    cap_reached_continuation_appended = False
     try:
-        while True:
-            round_num += 1
-            # Once the per-turn cap has been reached, force the model to
-            # compose a final answer instead of calling more tools. We must
-            # NOT strip `tools` from the request: the conversation history
-            # already contains tool_use/tool_result blocks, and Anthropic's
-            # API (via OpenRouter) returns finish_reason=stop with zero
-            # content tokens when it sees tool-use context but no declared
-            # tools. So we keep tools declared and set tool_choice="none".
-            #
-            # Empirically, tool_choice="none" alone is *necessary but not
-            # sufficient* — Sonnet 4.6 still sometimes returns
-            # finish_reason=stop with zero content on long tool histories.
-            # The bulletproof fix is to also append a synthetic user message
-            # explicitly asking for the final answer once the cap is hit.
-            # This nudges the model out of "I'll keep gathering" mode into
-            # "compose now" mode. The synthetic message is only appended
-            # once per turn so we don't loop adding more.
-            kwargs = dict(base_kwargs)
-            if tools_active and tool_calls_made >= max_tool_calls:
-                kwargs["tool_choice"] = "none"
-                if not cap_reached_continuation_appended:
-                    full_messages.append(
-                        cast(
-                            ChatCompletionMessageParam,
-                            {
-                                "role": "user",
-                                "content": (
-                                    "You have reached your tool-call budget for this turn "
-                                    "and may not call any more tools. Please answer my original "
-                                    "question now using only the search results above. Do not "
-                                    "ask me follow-up questions and do not announce that you are "
-                                    "answering — just produce the final answer."
-                                ),
-                            },
-                        )
-                    )
-                    cap_reached_continuation_appended = True
-            stream = await client.chat.completions.create(messages=full_messages, **kwargs)
-            assistant_text_parts: list[str] = []
-            round_content_deltas = 0
-            # Tool call deltas arrive as fragments keyed by index; accumulate.
-            pending: dict[int, dict[str, Any]] = {}
-            finish_reason: str | None = None
-
-            async for chunk in stream:
-                if not chunk.choices:
-                    continue
-                choice = chunk.choices[0]
-                delta = choice.delta
-                if choice.finish_reason:
-                    finish_reason = choice.finish_reason
-                if delta and delta.content:
-                    assistant_text_parts.append(delta.content)
-                    tokens_yielded += 1
-                    round_content_deltas += 1
-                    yield f"data: {json.dumps(delta.content)}\n\n"
-                    last_heartbeat_at = time.monotonic()
-                if delta and delta.tool_calls:
-                    for tc in delta.tool_calls:
-                        slot = pending.setdefault(
-                            tc.index,
-                            {
-                                "id": "",
-                                "type": "function",
-                                "function": {"name": "", "arguments": ""},
-                            },
-                        )
-                        if tc.id:
-                            slot["id"] = tc.id
-                        if tc.type:
-                            slot["type"] = tc.type
-                        if tc.function:
-                            if tc.function.name:
-                                slot["function"]["name"] = tc.function.name
-                            if tc.function.arguments:
-                                slot["function"]["arguments"] += tc.function.arguments
-                    # Emit a keepalive while the model streams tool_call args.
-                    # No content token is arriving during this phase, so
-                    # without this the socket can go silent for 30+ seconds
-                    # on long tool-call sequences.
-                    if _heartbeat_due():
-                        yield ": keepalive\n\n"
-                        last_heartbeat_at = time.monotonic()
-
-            logger.info(
-                "stream_chat round=%d finish_reason=%s content_deltas=%d tool_calls_pending=%d tool_calls_made=%d",
-                round_num,
-                finish_reason,
-                round_content_deltas,
-                len(pending),
-                tool_calls_made,
-            )
-
-            if finish_reason == "tool_calls" and pending and tool_executor:
-                assistant_text = "".join(assistant_text_parts)
-                ordered = [pending[i] for i in sorted(pending.keys())]
-                full_messages.append(
-                    cast(
-                        ChatCompletionMessageParam,
-                        {
-                            "role": "assistant",
-                            "content": assistant_text or None,
-                            "tool_calls": ordered,
-                        },
-                    )
+        async for loop_event in stream_tool_loop(
+            client=client,
+            model=CHAT_MODEL,
+            system_content=system_blocks,
+            messages=messages,
+            tools=tools,
+            tool_executor=tool_executor,
+            max_tool_calls=max_tool_calls,
+            cancel_event=cancel_event,
+            heartbeat_interval_seconds=HEARTBEAT_INTERVAL_SECONDS,
+            tool_subject=_extract_tool_subject,
+            cap_message=(
+                "You have reached your tool-call budget for this turn and may not call any more "
+                "tools. Please answer my original question now using only the search results "
+                "above. Do not ask me follow-up questions and do not announce that you are "
+                "answering — just produce the final answer."
+            ),
+        ):
+            if loop_event.kind == "text":
+                tokens_yielded += 1
+                yield f"data: {json.dumps(loop_event.text)}\n\n"
+            elif loop_event.kind == "heartbeat":
+                yield ": keepalive\n\n"
+            elif loop_event.kind == "tool_start":
+                yield (
+                    "event: status\n"
+                    f"data: {json.dumps({'type': 'tool_call_start', 'tool': loop_event.tool_name, 'subject': loop_event.subject})}\n\n"
                 )
-                for tc in ordered:
-                    # Tool execution (embedding + DB queries) can take a few
-                    # seconds per call. Emit a keepalive right before we
-                    # await it so browsers/proxies don't idle-timeout the
-                    # socket while the coroutine is suspended.
-                    yield ": keepalive\n\n"
-                    last_heartbeat_at = time.monotonic()
-                    tool_name = tc["function"]["name"]
-                    tool_args_raw = tc["function"]["arguments"]
-                    if tool_calls_made < max_tool_calls:
-                        subject = _extract_tool_subject(tool_name, tool_args_raw)
-                        yield (
-                            "event: status\n"
-                            f"data: {json.dumps({'type': 'tool_call_start', 'tool': tool_name, 'subject': subject})}\n\n"
-                        )
-                        try:
-                            payload = await tool_executor(tool_name, tool_args_raw)
-                        except Exception as exc:
-                            logger.warning("tool executor raised: %s", exc, exc_info=True)
-                            payload = f"Error: tool execution failed: {exc}"
-                        yield (
-                            "event: status\n"
-                            f"data: {json.dumps({'type': 'tool_call_done', 'tool': tool_name})}\n\n"
-                        )
-                    else:
-                        payload = (
-                            f"Error: per-turn tool call cap ({max_tool_calls}) reached. "
-                            "No more tool calls will be executed for this user turn."
-                        )
-                    tool_calls_made += 1
-                    full_messages.append(
-                        cast(
-                            ChatCompletionMessageParam,
-                            {"role": "tool", "tool_call_id": tc["id"], "content": payload},
-                        )
-                    )
-                continue
-
-            # Final round reached (finish_reason is not tool_calls, or pending/
-            # executor missing). Stash the final-round text for the caller's
-            # refusal check.
-            if final_text_out is not None:
-                final_text_out.append("".join(assistant_text_parts))
-            if round_content_deltas == 0:
-                logger.warning(
-                    "stream_chat final round emitted zero content tokens "
-                    "(round=%d finish_reason=%s tool_calls_made=%d). "
-                    "Caller will persist nothing; user will see empty answer.",
-                    round_num,
-                    finish_reason,
-                    tool_calls_made,
+            elif loop_event.kind == "tool_done":
+                yield (
+                    "event: status\n"
+                    f"data: {json.dumps({'type': 'tool_call_done', 'tool': loop_event.tool_name})}\n\n"
                 )
-            break
-
+            elif loop_event.kind == "final":
+                if final_text_out is not None:
+                    final_text_out.append(loop_event.text)
+                if termination_reason_out is not None:
+                    termination_reason_out.append(
+                        "length" if loop_event.finish_reason == "length" else "completed"
+                    )
+                if not loop_event.text:
+                    logger.warning(
+                        "stream_chat final round emitted zero content tokens "
+                        "(round=%d finish_reason=%s tool_calls_made=%d). "
+                        "Caller will persist nothing; user will see empty answer.",
+                        loop_event.round_num,
+                        loop_event.finish_reason,
+                        loop_event.tool_calls_made,
+                    )
         yield "data: [DONE]\n\n"
 
+    except RunCancelled:
+        if termination_reason_out is not None:
+            termination_reason_out.append("user_cancelled")
+        return
+    except APITimeoutError as exc:
+        if termination_reason_out is not None:
+            termination_reason_out.append("provider_timeout")
+        logger.error("OpenRouter streaming timed out: %s", exc)
+        if tokens_yielded == 0:
+            raise RuntimeError(f"OpenRouter streaming timed out: {exc}") from exc
+        yield f"data: {json.dumps({'error': str(exc)})}\n\n"
     except (APIError, APIConnectionError, APIStatusError) as exc:
+        if termination_reason_out is not None:
+            termination_reason_out.append("failed")
         logger.error("OpenRouter streaming API error: %s", exc)
         if tokens_yielded == 0:
             raise RuntimeError(f"OpenRouter streaming failed: {exc}") from exc
         yield f"data: {json.dumps({'error': str(exc)})}\n\n"
     except Exception as exc:
+        if termination_reason_out is not None:
+            termination_reason_out.append("failed")
         logger.error("Unexpected error during streaming: %s", exc)
         if tokens_yielded == 0:
             raise RuntimeError(f"Streaming failed unexpectedly: {exc}") from exc

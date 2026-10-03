@@ -84,3 +84,18 @@ deploy/upstream.conf
 .archon/mcp/
 scratch_build/
 EXAMPLE-CLAUDE.md
+.agents/
+.playwright-cli/
+
+# Canonical project-local verification skill; keep other local agent files ignored.
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/verify-dental-assistant/
+!.agents/skills/verify-dental-assistant/**
+
+# Impeccable — shared config and surface briefs are tracked; machine-local
+# overrides and live sessions are not.
+.impeccable/config.local.json
+.impeccable/live/

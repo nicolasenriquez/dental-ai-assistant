@@ -1,0 +1,332 @@
+"""HTTP transport for the isolated Clinical Assistant vertical slice."""
+
+from __future__ import annotations
+
+from typing import Any, cast
+from uuid import UUID
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
+
+from backend import config
+from backend.auth.dependencies import get_current_user
+from backend.clinical_assistant import service, turn_runner
+from backend.clinical_assistant.schemas import (
+    ActionResolutionRequest,
+    ActivePatientUpdate,
+    ClinicalDraft,
+    ClinicalThreadCreate,
+    ClinicalThreadResponse,
+    ClinicalThreadUpdate,
+    ClinicalTurnRequest,
+    OpenClinicalContext,
+    PatientSwitchResolution,
+    PrepareSaveRequest,
+    RegenerateDraftRequest,
+)
+from backend.clinical_assistant.sensitive_input import safe_patient
+from backend.db import clinical_assistant_repo as repository
+from backend.db import patients_repo
+from backend.evolution_exports import service as evolution_exports_service
+
+router = APIRouter(tags=["clinical-assistant"])
+
+
+def _user_id(user: dict[str, Any]) -> UUID:
+    return UUID(str(user["id"]))
+
+
+def _require_same_origin(request: Request) -> None:
+    """Guard recovery mutations against cross-site requests."""
+    origin = request.headers.get("Origin", "")
+    fetch_site = request.headers.get("Sec-Fetch-Site")
+    if origin not in config.APP_ORIGINS or (fetch_site is not None and fetch_site != "same-origin"):
+        raise HTTPException(status_code=403, detail="Invalid origin")
+
+
+async def _response(owner: UUID, thread_id: UUID) -> ClinicalThreadResponse:
+    thread = await service.get_thread_response(owner, thread_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
+    return thread
+
+
+@router.post("/clinical-threads", response_model=ClinicalThreadResponse, status_code=201)
+async def create_thread(
+    request: ClinicalThreadCreate, user: dict[str, Any] = Depends(get_current_user)
+) -> ClinicalThreadResponse:
+    return await service.create_thread(_user_id(user), request.title)
+
+
+@router.post("/clinical-threads/acquire")
+async def acquire_thread(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    thread, reused = await service.acquire_thread(_user_id(user))
+    return {"thread": thread, "reused": reused}
+
+
+@router.post("/clinical-threads/open-context")
+async def open_context(
+    body: OpenClinicalContext,
+    response: Response,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    owner = _user_id(user)
+    if body.mode == "create_new" and body.thread_id is not None:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_CONTEXT_REQUEST"})
+    try:
+        thread_id, reused = await repository.open_context(
+            owner,
+            body.patient_id,
+            body.thread_id,
+            body.evolution_id,
+            create_new=body.mode == "create_new",
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Recurso clínico no encontrado") from None
+    except ValueError:
+        raise HTTPException(
+            status_code=422, detail={"code": "EVOLUTION_PATIENT_MISMATCH"}
+        ) from None
+    except repository.ContextConflictError as conflict:
+        current_id = conflict.thread["active_patient_id"]
+        current = await patients_repo.get_patient(owner, current_id) if current_id else None
+        requested = await patients_repo.get_patient(owner, body.patient_id)
+
+        def label(patient: dict[str, Any] | None) -> dict[str, Any] | None:
+            if patient is None:
+                return None
+            safe = safe_patient(patient)
+            return {
+                "id": str(safe["id"]),
+                "display_name": f"{safe['first_name']} {safe['last_name']}",
+                "rut_masked": safe["rut_masked"],
+            }
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CLINICAL_CONTEXT_CONFLICT",
+                "reason": conflict.reason,
+                "current": {"thread_id": str(conflict.thread["id"]), "patient": label(current)},
+                "requested": {"patient": label(requested)},
+                "allowed_actions": ["continue_current", "open_new_thread"],
+            },
+        ) from None
+    response.status_code = 200 if reused else 201
+    return {
+        "resolution": "reused" if reused else "created",
+        "thread": await _response(owner, thread_id),
+    }
+
+
+@router.get("/clinical-threads")
+async def list_threads(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    return cast(list[dict[str, Any]], await repository.list_threads(_user_id(user)))
+
+
+@router.get("/clinical-threads/{thread_id}", response_model=ClinicalThreadResponse)
+async def get_thread(
+    thread_id: UUID, user: dict[str, Any] = Depends(get_current_user)
+) -> ClinicalThreadResponse:
+    return await _response(_user_id(user), thread_id)
+
+
+@router.patch("/clinical-threads/{thread_id}", response_model=ClinicalThreadResponse)
+async def rename_thread(
+    thread_id: UUID,
+    request: ClinicalThreadUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ClinicalThreadResponse:
+    updated = await service.rename_thread(_user_id(user), thread_id, request.title)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
+    return updated
+
+
+@router.delete("/clinical-threads/{thread_id}", status_code=204)
+async def delete_thread(thread_id: UUID, user: dict[str, Any] = Depends(get_current_user)) -> None:
+    if not await repository.delete_thread(_user_id(user), thread_id):
+        raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
+
+
+@router.patch("/clinical-threads/{thread_id}/active-patient", response_model=ClinicalThreadResponse)
+async def set_active_patient(
+    thread_id: UUID,
+    request: ActivePatientUpdate,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ClinicalThreadResponse:
+    updated = await service.set_active_patient(_user_id(user), thread_id, request.patient_id)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Hilo o paciente no encontrado")
+    return updated
+
+
+@router.patch(
+    "/clinical-threads/{thread_id}/turns/{turn_id}/patient-switch",
+    response_model=ClinicalThreadResponse,
+)
+async def resolve_patient_switch(
+    thread_id: UUID,
+    turn_id: UUID,
+    request: PatientSwitchResolution,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ClinicalThreadResponse:
+    updated = await service.resolve_patient_switch(_user_id(user), thread_id, turn_id, request)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Decisión de paciente no encontrada")
+    return updated
+
+
+@router.post("/clinical-threads/{thread_id}/turns")
+async def start_turn(
+    thread_id: UUID,
+    request: ClinicalTurnRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> StreamingResponse:
+    return StreamingResponse(
+        turn_runner.start(
+            _user_id(user), thread_id, request.turn_id, request.content, request.context_items
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/clinical-threads/{thread_id}/turns/{turn_id}/cancel")
+async def cancel_turn(
+    thread_id: UUID,
+    turn_id: UUID,
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    _require_same_origin(request)
+    owner = _user_id(user)
+    thread = await repository.get_thread(owner, thread_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
+    if thread["active_turn_id"] not in (None, turn_id) or not await turn_runner.cancel(
+        owner, thread_id, turn_id
+    ):
+        raise HTTPException(status_code=409, detail="El turno ya no está activo")
+    return {"status": "cancelled"}
+
+
+@router.post("/clinical-threads/{thread_id}/prepare-save")
+async def prepare_save(
+    thread_id: UUID,
+    request: PrepareSaveRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        return cast(dict[str, Any], await service.prepare_save(_user_id(user), thread_id, request))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Hilo o paciente no encontrado") from None
+    except service.ArtifactNotDraftError:
+        raise HTTPException(
+            status_code=409, detail={"code": "CLINICAL_ARTIFACT_NOT_DRAFT"}
+        ) from None
+    except service.PendingActionExistsError:
+        raise HTTPException(
+            status_code=409, detail={"code": "CLINICAL_PENDING_ACTION_EXISTS"}
+        ) from None
+    except ValueError as error:
+        code = (
+            "CLINICAL_ARTIFACT_STALE"
+            if "regeneración" in str(error)
+            else "CLINICAL_CONTENT_REQUIRED"
+        )
+        raise HTTPException(status_code=422, detail={"code": code}) from None
+
+
+@router.post("/clinical-threads/{thread_id}/drafts", response_model=ClinicalDraft)
+async def regenerate_draft(
+    thread_id: UUID,
+    request: RegenerateDraftRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ClinicalDraft:
+    try:
+        return await service.regenerate_draft(_user_id(user), thread_id, request.artifact_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Hilo o paciente no encontrado") from None
+    except service.ClinicalGenerationDisabledError:
+        raise HTTPException(
+            status_code=503, detail={"code": "CLINICAL_EXTERNAL_LLM_DISABLED"}
+        ) from None
+    except service.EmptyClinicalDraftError:
+        raise HTTPException(
+            status_code=422, detail={"code": "CLINICAL_CONTENT_INSUFFICIENT"}
+        ) from None
+    except service.ClinicalGenerationError:
+        raise HTTPException(
+            status_code=502, detail={"code": "CLINICAL_MODEL_UNAVAILABLE"}
+        ) from None
+    except ValueError:
+        raise HTTPException(status_code=409, detail={"code": "CLINICAL_ARTIFACT_LOCKED"}) from None
+
+
+@router.post("/clinical-actions/{action_id}/resolve")
+async def resolve_action(
+    action_id: UUID,
+    request: ActionResolutionRequest,
+    background_tasks: BackgroundTasks,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        result = cast(
+            dict[str, Any],
+            await service.resolve_action(
+                _user_id(user), action_id, request.decision, request.proposal_hash
+            ),
+        )
+        if result.get("status") == "expired":
+            raise HTTPException(status_code=410, detail={"code": "ACTION_EXPIRED"})
+        if result.get("status") == "failed":
+            raise HTTPException(status_code=502, detail={"code": "EVOLUTION_SAVE_FAILED"})
+        if result.get("status") == "approved":
+            resource_id = result.get("result_resource_id")
+            saved_result = result.get("result")
+            if resource_id is None and isinstance(saved_result, dict):
+                resource_id = saved_result.get("id")
+            if resource_id is not None:
+                evolution_exports_service.schedule_export(
+                    background_tasks,
+                    _user_id(user),
+                    UUID(str(resource_id)),
+                )
+        return result
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Acción no encontrada") from None
+    except service.ActionExpiredError:
+        raise HTTPException(status_code=410, detail={"code": "ACTION_EXPIRED"}) from None
+    except service.ProposalStaleError:
+        raise HTTPException(status_code=409, detail={"code": "PROPOSAL_STALE"}) from None
+
+
+@router.post("/clinical/evolutions/{evolution_id}/drive-export/retry")
+async def retry_drive_export(
+    evolution_id: UUID,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Schedule state-aware export recovery after a same-origin request."""
+    _require_same_origin(request)
+    try:
+        state = await evolution_exports_service.request_export_recovery(
+            _user_id(user), evolution_id, background_tasks
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Exportación no encontrada") from None
+    except evolution_exports_service.DriveConnectionRequiredError:
+        raise HTTPException(status_code=409, detail={"code": "DRIVE_CONNECTION_REQUIRED"}) from None
+    return {"drive_export": state}
+
+
+@router.post("/clinical-actions/{action_id}/return-to-editing")
+async def return_to_editing(
+    action_id: UUID, user: dict[str, Any] = Depends(get_current_user)
+) -> dict[str, Any]:
+    try:
+        return cast(dict[str, Any], await service.return_to_editing(_user_id(user), action_id))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Acción pendiente no encontrada") from None

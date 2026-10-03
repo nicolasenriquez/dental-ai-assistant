@@ -6,19 +6,26 @@ Handles lifespan startup (DB init + seeding) and route registration.
 import logging
 import os
 import subprocess
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_version
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.auth.dependencies import get_current_admin, get_current_user
+from backend.clinical_assistant.terminology import load_bundled_catalog
 from backend.config import CORS_ORIGINS, FRONTEND_DIST
 from backend.data.seed import seed_if_empty
 from backend.db.postgres import close_pg_pool, init_pg_pool
+from backend.db.terminology_repo import sync_catalog
+from backend.transcription.whisper_adapter import WhisperHttpAdapter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -66,6 +73,13 @@ async def lifespan(app: FastAPI):
     await init_pg_pool()
     logger.info("Postgres pool initialised.")
 
+    try:
+        await sync_catalog(load_bundled_catalog())
+    except Exception:
+        await close_pg_pool()
+        raise
+    logger.info("Clinical terminology catalog ready.")
+
     logger.info("Checking seed data…")
     await seed_if_empty()
 
@@ -83,13 +97,45 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Dynamous content ingest failed; continuing without it")
 
+    whisper_adapter = WhisperHttpAdapter()
+    await whisper_adapter.start()
+    app.state.whisper_adapter = whisper_adapter
     logger.info("Startup complete.")
-    yield
-    logger.info("Shutting down.")
-    await close_pg_pool()
+    try:
+        yield
+    finally:
+        logger.info("Shutting down.")
+        from backend.clinical_assistant import turn_runner
+
+        await turn_runner.shutdown()
+        await whisper_adapter.close()
+        await close_pg_pool()
 
 
 app = FastAPI(title="RAG YouTube Chat API", lifespan=lifespan)
+
+# Parent-document origins observed while loading GIS and raw PickerBuilder.
+# Keep provider paths narrow; embedded Google documents own their subresource
+# policy. GIS injects a style element, while existing React layout components
+# use style attributes for dynamic values; script elements stay locked.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "script-src 'self' https://accounts.google.com/gsi/client "
+    "https://apis.google.com/js/api.js https://apis.google.com/_/scs/; "
+    "style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; "
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com "
+    "https://accounts.google.com/gsi/style; "
+    "style-src-attr 'unsafe-inline'; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data:; "
+    "connect-src 'self' https://accounts.google.com/gsi/; "
+    "frame-src 'self' https://accounts.google.com/gsi/ "
+    "https://docs.google.com/picker https://www.youtube.com/embed/"
+)
 
 # Allow the Vite dev server to reach the API during development
 app.add_middleware(
@@ -100,10 +146,65 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_popup_security_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Apply browser policy required by GIS, Picker, and existing embeds."""
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
+# Transport cap for Drive request bodies: 8 MiB before JSON parsing (the
+# decoded persisted content cap stays at 1 MiB). ASGI boundary, so oversized
+# bodies never reach validation, route code, or Google.
+DRIVE_REQUEST_BODY_LIMIT = 8 * 1024 * 1024
+
+
+@app.middleware("http")
+async def drive_request_body_limit(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    if request.url.path.startswith("/api/google-drive/"):
+        content_length = request.headers.get("content-length", "")
+        if content_length.isdigit() and int(content_length) > DRIVE_REQUEST_BODY_LIMIT:
+            return JSONResponse(status_code=413, content={"error": "DRIVE_REQUEST_TOO_LARGE"})
+        body = bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body) > DRIVE_REQUEST_BODY_LIMIT:
+                return JSONResponse(status_code=413, content={"error": "DRIVE_REQUEST_TOO_LARGE"})
+        request._body = bytes(body)
+    return await call_next(request)
+
+
 # ---------------------------------------------------------------------------
 # Routes (imported here to keep main.py clean)
 # ---------------------------------------------------------------------------
-from backend.routes import admin, auth, channels, conversations, ingest, messages  # noqa: E402
+from backend.routes import (  # noqa: E402
+    admin,
+    auth,
+    channels,
+    clinical_artifacts,
+    clinical_assistant,
+    clinical_pending_work,
+    conversations,
+    evolutions,
+    google_drive,
+    ingest,
+    messages,
+    patient_activity,
+    patient_conditions,
+    patient_notes,
+    patients,
+    transcriptions,
+)
 
 # Auth routes are public (signup/login don't require a session; /me and /logout
 # rely on their own dependency/cookie behaviour).
@@ -114,6 +215,22 @@ app.include_router(auth.router, prefix="/api")
 _auth_required = [Depends(get_current_user)]
 app.include_router(conversations.router, prefix="/api", dependencies=_auth_required)
 app.include_router(messages.router, prefix="/api", dependencies=_auth_required)
+# Patient endpoints declare the same dependency themselves so request models are
+# validated before authentication (important for deterministic 422 boundaries).
+app.include_router(patient_conditions.router, prefix="/api")
+app.include_router(patients.router, prefix="/api")
+app.include_router(patient_notes.router, prefix="/api")
+app.include_router(patient_activity.router, prefix="/api")
+app.include_router(evolutions.router, prefix="/api")
+app.include_router(evolutions.patient_router, prefix="/api")
+app.include_router(clinical_assistant.router, prefix="/api")
+app.include_router(clinical_pending_work.router, prefix="/api")
+app.include_router(clinical_artifacts.router, prefix="/api")
+app.include_router(transcriptions.router, prefix="/api")
+
+# Drive routes declare their own session dependency (the OAuth callback is
+# cross-site browser navigation and cannot carry the mutation-origin guard).
+app.include_router(google_drive.router, prefix="/api")
 
 # Library-mutation routes (ingest a video, backfill the whole channel) and
 # admin routes — all gated on get_current_admin. These endpoints write to the
@@ -125,6 +242,35 @@ _admin_required = [Depends(get_current_admin)]
 app.include_router(ingest.router, prefix="/api", dependencies=_admin_required)
 app.include_router(channels.router, prefix="/api", dependencies=_admin_required)
 app.include_router(admin.router, prefix="/api", dependencies=_admin_required)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> Response:
+    """Avoid echoing sensitive search bodies in validation responses."""
+    sensitive_path = (
+        request.url.path
+        in (
+            "/api/patients/search",
+            "/api/evolutions/generate",
+            "/api/clinical-threads",
+            "/api/transcriptions",
+        )
+        or request.url.path.startswith("/api/clinical-threads/")
+        or request.url.path.startswith("/api/clinical-actions/")
+        or request.url.path.startswith("/api/google-drive/")
+        or (
+            request.url.path.startswith("/api/patients/")
+            and request.url.path.endswith("/evolutions")
+            and request.method == "POST"
+        )
+    )
+    if not sensitive_path:
+        return await request_validation_exception_handler(request, exc)
+    errors = [
+        {key: value for key, value in error.items() if key not in ("input", "ctx")}
+        for error in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": errors}))
 
 
 # ---------------------------------------------------------------------------

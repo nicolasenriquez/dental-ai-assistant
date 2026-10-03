@@ -8,8 +8,10 @@ Production deployment via Docker Compose. Runs Caddy (TLS + reverse proxy) and P
 2. Clone this repo to `/opt/dynachat/` (owned by a dedicated `dynachat` user, `chmod 700`)
 3. Copy `.env.example` to `.env`, fill in real values (`chmod 600`)
 4. Point DNS A record for your subdomain at the VPS public IP
-5. `cd deploy && docker compose up -d`
-6. Caddy auto-provisions a Let's Encrypt cert on first request
+5. Run the clinical catalog preflight below from the checkout root. Do not
+   deploy while the current catalog release hold remains active.
+6. After the preflight succeeds, `cd deploy && docker compose up -d`
+7. Caddy auto-provisions a Let's Encrypt cert on first request
 
 ## Files
 
@@ -33,6 +35,8 @@ The app container reads these from `/opt/dynachat/.env` via docker-compose:
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | **yes** | Postgres credentials used by both the `postgres` service and the app's `DATABASE_URL` |
 | `JWT_SECRET` | **yes** (auth) | 32+ random bytes used to sign session-cookie JWTs. Generate with `openssl rand -hex 32`. Rotating this value invalidates all live sessions |
 | `ADMIN_USER_EMAIL` | optional | Email of the single admin user (case-insensitive match). When unset, every `/api/admin/*` endpoint returns 403. Match MUST equal the email the admin registered with |
+| `CLINICAL_EXTERNAL_LLM_ENABLED` | **no** (default: `false`) | Gate for external clinical drafting. Keep `false` until production approval |
+| `CLINICAL_TIMEZONE` | **no** (default: `America/Santiago`) | IANA timezone for approval-local journal grouping and Journal V1 display |
 
 The app's `DATABASE_URL` is assembled from the `POSTGRES_*` values inside
 `docker-compose.yml` — you do **not** set it directly in `.env`. It points at
@@ -49,6 +53,36 @@ POSTGRES_DB=dynachat
 JWT_SECRET=<openssl rand -hex 32>
 ADMIN_USER_EMAIL=admin@yourdomain.com
 ```
+
+## Clinical data gate
+
+The host-managed `/opt/dynachat/deploy.sh` must run a clinical catalog
+preflight from its freshly pulled checkout **before building the inactive
+color**. The script is host-owned, not part of this repository; verify this
+step exists on that host before production rollout. From the repo root, using
+Docker (no host Python/uv install required):
+
+```bash
+docker run --rm --mount "type=bind,source=$(pwd),target=/src,readonly" \
+  --workdir /src/app/backend python:3.11-slim \
+  python scripts/build_clinical_catalog.py --release-check
+```
+
+Nonzero exit blocks production deployment. This checks artifact parity and
+declared review state; human verification of clinical and reuse evidence
+remains necessary. The existing catalog currently fails this check by design
+(see `docs/clinical-grounding.md`).
+
+Clinical drafting uses synthetic data only in development, automated tests, and
+manual evaluation. Production defaults
+`CLINICAL_EXTERNAL_LLM_ENABLED=false`; when disabled, the service stops before
+building or sending a request to OpenRouter. This gate does not disable the
+patient directory or local persistence.
+
+Do not set the variable to `true` in production until privacy, contractual,
+logging, retention, deployment, and data-processing reviews have explicit
+approval. The application does not classify notes as real or synthetic, so this
+approval is an operational responsibility.
 
 ## Secret hygiene
 

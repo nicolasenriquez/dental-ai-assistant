@@ -1,0 +1,16 @@
+schema_version = "1.0.0"
+dataset_id = "dental-ai-basic-glossary-es-cl"
+title = "Dental AI Assistant — Glosario odontológico y ortodóncico básico"
+locale = "es-CL"
+secondary_language = "en"
+created_at = "2026-09-22"
+intended_use = "Grounding y retrieval para un agente clínico odontológico. Cada entrada representa un concepto atómico."
+not_for = "No sustituye guías clínicas, diagnóstico, indicaciones terapéuticas ni juicio profesional."
+
+[editorial_policy]
+definitions = "Paráfrasis breves y normalizadas a partir de fuentes oficiales o asociaciones profesionales; no son copias literales."
+language = "Español clínico usado en Chile como idioma principal; inglés y aliases se mantienen para mejorar recuperación léxica y semántica."
+chunking = "No fragmentar: una entrada debe indexarse como una unidad."
+recommended_embedding_template = "{term} | {term_en} | aliases: {aliases} | {definition} | tags: {metadata.tags}"
+recommended_retrieval = "Hybrid search (keyword + vector). Usar metadata.domain/category como filtros opcionales y source_ids para trazabilidad."
+recommended_top_k = 5

@@ -192,7 +192,7 @@ class TestEventGeneratorPersistsOnCancel:
 
             resp = await create_message(
                 conv_id=fake_conv["id"],
-                body=MessageCreate(content="hi"),
+                body=MessageCreate(content="hi", run_id="run-1"),
                 current_user=fake_user,
             )
 
@@ -203,8 +203,11 @@ class TestEventGeneratorPersistsOnCancel:
                 chunk = await body_iter.__anext__()
                 got.append(chunk)
 
-            # Close the generator — this triggers the finally.
-            await body_iter.aclose()
+            from backend.routes.messages import cancel_run
+
+            await cancel_run(fake_conv["id"], "run-1", fake_user)
+            with pytest.raises(StopAsyncIteration):
+                await body_iter.__anext__()
 
             # Give the shielded save a moment to complete (it's backgrounded).
             await asyncio.sleep(0.1)
@@ -218,3 +221,4 @@ class TestEventGeneratorPersistsOnCancel:
         second_call_kwargs = mock_create.call_args_list[1].kwargs
         assert second_call_kwargs["role"] == "assistant"
         assert "Hello world" in second_call_kwargs["content"]
+        assert second_call_kwargs["termination_reason"] == "user_cancelled"

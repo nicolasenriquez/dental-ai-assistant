@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import cast
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -70,7 +71,7 @@ class TestFormatterMarkerRoundTrip:
 class TestStreamStripper:
     def _run(self, tokens: list[str]) -> str:
         s = CitationMarkerStripper()
-        return "".join(s.feed(t) for t in tokens) + s.flush()
+        return cast(str, "".join(s.feed(t) for t in tokens) + s.flush())
 
     @pytest.mark.parametrize(
         ("tokens", "expected"),
@@ -106,6 +107,7 @@ async def _post_message(*, answer_tokens: list[str], retrieved_chunks: list[dict
         tool_executor=None,
         max_tool_calls=0,
         final_text_out=None,
+        **kwargs,
     ):
         if tool_executor is not None:
             await tool_executor("search_videos", json.dumps({"query": "t"}))

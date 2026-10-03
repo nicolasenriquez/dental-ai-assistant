@@ -1,0 +1,422 @@
+import { Check, ChevronRight, Copy, MoreHorizontal } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
+import type { ClinicalApprovalItem, ClinicalDraftItem } from '../../hooks/useClinicalAssistant';
+import type { ClinicalPatient, DriveExportState, DriveJournalTarget } from '../../lib/api';
+import {
+  type ClinicalArtifactStage,
+  EvolutionReviewArtifact,
+} from '../clinical/EvolutionReviewArtifact';
+import { composeClinicalDraft } from '../clinical/evolutionFields';
+import { buttonVariants } from '../ui/Button';
+import { ApprovalRequestItem } from './ApprovalRequestItem';
+
+interface ClinicalEvolutionArtifactProps {
+  item: ClinicalDraftItem;
+  patient?: ClinicalPatient | null;
+  approval?: ClinicalApprovalItem;
+  result?: ClinicalResultItem;
+  onChange: (draft: ClinicalDraftItem['draft']) => void;
+  onSourceChange: (sourceNote: string) => Promise<boolean>;
+  onEvolutionAtChange: (evolutionAt: string) => void;
+  onRegenerate: () => void;
+  onPrepare: () => void;
+  onResolve?: (item: ClinicalApprovalItem, decision: 'approve' | 'decline') => void;
+  onBackToEdit?: (item: ClinicalApprovalItem) => void;
+  preparing?: boolean;
+  syncState?: 'idle' | 'saving' | 'saved' | 'error';
+  onRetrySync?: () => void;
+  onSaveToDrive?: () => void;
+  saveToDriveDisabled?: boolean;
+  autoOpenApproval?: boolean;
+  onRecoverDriveExport?: (evolutionId: string) => void;
+  onReconnectDrive?: () => void;
+  onOpenDriveJournal?: (target: DriveJournalTarget) => void;
+}
+
+function DriveExportRow({
+  state,
+  evolutionId,
+  onRecover,
+  onReconnect,
+  onOpen,
+}: {
+  state: DriveExportState;
+  evolutionId: string | null;
+  onRecover?: (evolutionId: string) => void;
+  onReconnect?: () => void;
+  onOpen?: (target: DriveJournalTarget) => void;
+}) {
+  const connectionRequired =
+    state.status === 'failed' && state.error_code === 'DRIVE_CONNECTION_REQUIRED';
+  const copy = connectionRequired
+    ? 'Drive necesita reconexión'
+    : {
+        pending: 'Pendiente de sincronización',
+        syncing: 'Sincronizando con Drive…',
+        synced: 'Guardado en Drive',
+        failed: 'No se pudo guardar en Drive',
+        unknown: 'No pudimos confirmar el resultado',
+      }[state.status];
+  const journal = state.journal;
+  const navigable =
+    state.status === 'synced' && evolutionId && journal?.journal_part !== undefined && onOpen
+      ? {
+          evolutionId,
+          journal: { ...journal, journal_part: journal.journal_part },
+        }
+      : null;
+
+  return (
+    <div
+      className="clinical-drive-row"
+      data-drive-export={state.status}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="clinical-drive-row__statuses">
+        <span>{copy}</span>
+      </span>
+      {navigable && onOpen && (
+        <button
+          type="button"
+          className="clinical-secondary-button"
+          onClick={() => onOpen(navigable)}
+        >
+          Ver en Drive
+        </button>
+      )}
+      {connectionRequired && onReconnect && (
+        <button type="button" className="clinical-secondary-button" onClick={onReconnect}>
+          Reconectar
+        </button>
+      )}
+      {state.status === 'failed' && !connectionRequired && evolutionId && onRecover && (
+        <button
+          type="button"
+          className="clinical-secondary-button"
+          onClick={() => onRecover(evolutionId)}
+        >
+          Reintentar
+        </button>
+      )}
+      {state.status === 'unknown' && evolutionId && onRecover && (
+        <button
+          type="button"
+          className="clinical-secondary-button"
+          onClick={() => onRecover(evolutionId)}
+        >
+          Verificar
+        </button>
+      )}
+    </div>
+  );
+}
+
+function artifactStage(
+  item: ClinicalDraftItem,
+  approval: ClinicalApprovalItem | undefined,
+  result: ClinicalResultItem | undefined,
+): ClinicalArtifactStage {
+  if (approval?.status === 'running' || item.status === 'running') return 'saving';
+  if (approval?.status === 'completed' || result || item.artifactStatus === 'approved')
+    return 'saved';
+  if (approval?.status === 'pending' || item.artifactStatus === 'pending') return 'review';
+  return 'draft';
+}
+
+function isLocked(item: ClinicalDraftItem, approval?: ClinicalApprovalItem): boolean {
+  return (
+    Boolean(approval) ||
+    item.status === 'pending' ||
+    item.status === 'running' ||
+    item.artifactStatus === 'pending' ||
+    item.artifactStatus === 'approved' ||
+    item.artifactStatus === 'declined' ||
+    item.artifactStatus === 'failed'
+  );
+}
+
+function ArtifactOverflow({
+  content,
+  onSaveToDrive,
+  saveToDriveDisabled,
+}: {
+  content: string;
+  onSaveToDrive?: () => void;
+  saveToDriveDisabled: boolean;
+}) {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [manualCopy, setManualCopy] = useState(false);
+  const copyButtonRef = useRef<HTMLButtonElement>(null);
+  const manualTextRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const menuTriggerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!manualCopy) return;
+    manualTextRef.current?.focus();
+    manualTextRef.current?.select();
+  }, [manualCopy]);
+
+  useEffect(() => {
+    if (!onSaveToDrive) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (menuRef.current?.open && !menuRef.current.contains(event.target as Node)) {
+        menuRef.current.open = false;
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [onSaveToDrive]);
+
+  const copy = async () => {
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(content);
+      setCopyState('copied');
+      setManualCopy(false);
+    } catch {
+      setCopyState('error');
+      setManualCopy(true);
+    }
+  };
+
+  return (
+    <div className="clinical-artifact-utilities">
+      <button
+        ref={copyButtonRef}
+        type="button"
+        className="clinical-artifact-copy"
+        onClick={() => void copy()}
+      >
+        {copyState === 'copied' ? (
+          <Check aria-hidden="true" size={16} />
+        ) : (
+          <Copy aria-hidden="true" size={16} />
+        )}
+        {copyState === 'copied' ? 'Copiado' : 'Copiar'}
+      </button>
+      {onSaveToDrive && (
+        <details
+          ref={menuRef}
+          className="clinical-artifact-overflow"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              menuRef.current?.removeAttribute('open');
+              menuTriggerRef.current?.focus();
+            }
+          }}
+        >
+          <summary
+            ref={menuTriggerRef}
+            aria-label="Más acciones de la evolución"
+            title="Más acciones"
+          >
+            <MoreHorizontal aria-hidden="true" size={16} />
+          </summary>
+          <div className="clinical-artifact-overflow__menu">
+            <button
+              type="button"
+              onClick={() => {
+                menuRef.current?.removeAttribute('open');
+                onSaveToDrive();
+              }}
+              disabled={saveToDriveDisabled}
+            >
+              Guardar copia en Drive
+            </button>
+          </div>
+        </details>
+      )}
+      {copyState === 'copied' && (
+        <span className="sr-only" role="status">
+          Evolución copiada
+        </span>
+      )}
+      {manualCopy && (
+        <div className="clinical-artifact-manual-copy">
+          <p role="alert">No se pudo copiar. Selecciona el texto y cópialo manualmente.</p>
+          <textarea
+            ref={manualTextRef}
+            readOnly
+            value={content}
+            aria-label="Texto de la evolución para copiar"
+            rows={6}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setManualCopy(false);
+                window.requestAnimationFrame(() => copyButtonRef.current?.focus());
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setManualCopy(false);
+              copyButtonRef.current?.focus();
+            }}
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ClinicalEvolutionArtifact({
+  item,
+  patient,
+  approval,
+  result,
+  onChange,
+  onSourceChange,
+  onEvolutionAtChange,
+  onRegenerate,
+  onPrepare,
+  onResolve,
+  onBackToEdit,
+  preparing = false,
+  syncState = 'idle',
+  onRetrySync,
+  onSaveToDrive,
+  saveToDriveDisabled = false,
+  autoOpenApproval = false,
+  onRecoverDriveExport,
+  onReconnectDrive,
+  onOpenDriveJournal,
+}: ClinicalEvolutionArtifactProps) {
+  const locked = isLocked(item, approval);
+  const stage = artifactStage(item, approval, result);
+  const resourceId = approval?.action.result_resource_id ?? result?.evolutionId ?? null;
+  const resourcePatientId = approval?.action.patient_id ?? result?.patientId ?? item.patientId;
+  const terminalApproval = approval?.status === 'declined' || approval?.status === 'failed';
+  const clinicalContent = composeClinicalDraft(item.draft);
+  const showOverflow = stage !== 'saving';
+  const driveExport = approval?.action.drive_export ?? null;
+
+  return (
+    <article
+      className="clinical-artifact"
+      data-artifact-id={item.id}
+      data-clinical-stage={stage}
+      tabIndex={-1}
+      aria-label="Evolución clínica"
+    >
+      <EvolutionReviewArtifact
+        mode="assistant"
+        embedded
+        patient={patient ?? approval?.patient}
+        sourceNote={item.sourceNote}
+        draft={item.draft}
+        generatedDraft={item.baseline}
+        evolutionAt={item.evolutionAt}
+        stale={item.stale}
+        edited={item.edited}
+        readOnly={locked}
+        sourceEditable
+        onChange={onChange}
+        onSourceChange={onSourceChange}
+        onEvolutionAtChange={onEvolutionAtChange}
+        onRegenerate={onRegenerate}
+        onPrepare={approval || terminalApproval ? undefined : onPrepare}
+        preparing={preparing}
+        lifecycleStage={stage}
+        showAssistantActions={stage === 'draft' && !terminalApproval}
+        syncState={syncState}
+        onRetrySync={onRetrySync}
+        footerAccessory={
+          stage === 'draft' && !terminalApproval && showOverflow ? (
+            <ArtifactOverflow
+              content={clinicalContent}
+              onSaveToDrive={onSaveToDrive}
+              saveToDriveDisabled={saveToDriveDisabled}
+            />
+          ) : undefined
+        }
+      />
+
+      {stage === 'review' && approval && (
+        <div className="clinical-artifact-review-actions">
+          <ApprovalRequestItem
+            item={approval}
+            embedded
+            onResolve={(decision) => onResolve?.(approval, decision)}
+            onBackToEdit={() => onBackToEdit?.(approval)}
+            autoOpen={autoOpenApproval}
+          />
+          {showOverflow && (
+            <ArtifactOverflow content={clinicalContent} saveToDriveDisabled={saveToDriveDisabled} />
+          )}
+        </div>
+      )}
+
+      {stage === 'saving' && approval && (
+        <ApprovalRequestItem
+          item={approval}
+          embedded
+          onResolve={(decision) => onResolve?.(approval, decision)}
+          onBackToEdit={() => onBackToEdit?.(approval)}
+          autoOpen={autoOpenApproval}
+        />
+      )}
+
+      {stage === 'saved' && (
+        <>
+          {driveExport ? (
+            <DriveExportRow
+              state={driveExport}
+              evolutionId={resourceId}
+              onRecover={onRecoverDriveExport}
+              onReconnect={onReconnectDrive}
+              onOpen={onOpenDriveJournal}
+            />
+          ) : onSaveToDrive ? (
+            <div className="clinical-drive-row" data-drive-export="manual" role="status">
+              <span className="clinical-drive-row__statuses">
+                <span>Drive: copia pendiente</span>
+              </span>
+              <button
+                type="button"
+                className="clinical-secondary-button"
+                onClick={onSaveToDrive}
+                disabled={saveToDriveDisabled}
+              >
+                Guardar copia en Drive
+              </button>
+            </div>
+          ) : null}
+          <div className="clinical-artifact-terminal-actions">
+            {resourceId && resourcePatientId && (
+              <Link
+                className={buttonVariants({ variant: 'clinical' })}
+                to={`/patients/${resourcePatientId}/evolutions/${resourceId}`}
+              >
+                Ver en ficha <ChevronRight aria-hidden="true" size={15} />
+              </Link>
+            )}
+            {showOverflow && (
+              <ArtifactOverflow
+                content={clinicalContent}
+                saveToDriveDisabled={saveToDriveDisabled}
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {terminalApproval && approval && (
+        <ApprovalRequestItem
+          item={approval}
+          embedded
+          onResolve={(decision) => onResolve?.(approval, decision)}
+          onBackToEdit={() => onBackToEdit?.(approval)}
+          autoOpen={autoOpenApproval}
+        />
+      )}
+    </article>
+  );
+}

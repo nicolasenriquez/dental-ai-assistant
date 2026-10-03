@@ -1,0 +1,3406 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "dental-ai-basic-glossary-es-cl",
+  "title": "Dental AI Assistant — Glosario odontológico y ortodóncico básico",
+  "locale": "es-CL",
+  "secondary_language": "en",
+  "created_at": "2026-09-22",
+  "intended_use": "Grounding y retrieval para un agente clínico odontológico. Cada entrada representa un concepto atómico.",
+  "not_for": "No sustituye guías clínicas, diagnóstico, indicaciones terapéuticas ni juicio profesional.",
+  "editorial_policy": {
+    "definitions": "Paráfrasis breves y normalizadas a partir de fuentes oficiales o asociaciones profesionales; no son copias literales.",
+    "language": "Español clínico usado en Chile como idioma principal; inglés y aliases se mantienen para mejorar recuperación léxica y semántica.",
+    "chunking": "No fragmentar: una entrada debe indexarse como una unidad.",
+    "recommended_embedding_template": "{term} | {term_en} | aliases: {aliases} | {definition} | tags: {metadata.tags}",
+    "recommended_retrieval": "Hybrid search (keyword + vector). Usar metadata.domain/category como filtros opcionales y source_ids para trazabilidad.",
+    "recommended_top_k": 5
+  },
+  "sources": {
+    "ADA_GLOSSARY": {
+      "name": "American Dental Association — Glossary of Dental Clinical Terms",
+      "organization": "American Dental Association (ADA)",
+      "type": "professional_association",
+      "url": "https://www.ada.org/publications/cdt/glossary-dental-terms",
+      "scope": "Terminología clínica odontológica general."
+    },
+    "AAO_GLOSSARY": {
+      "name": "American Association of Orthodontists — Glossary of Orthodontic Terms",
+      "organization": "American Association of Orthodontists (AAO)",
+      "type": "professional_association",
+      "url": "https://aaoinfo.org/resources/glossary-of-orthodontic-terms/",
+      "scope": "Terminología de ortodoncia y aparatología."
+    },
+    "NIDCR_CARIES": {
+      "name": "NIDCR — Tooth Decay",
+      "organization": "National Institute of Dental and Craniofacial Research (NIH)",
+      "type": "government_health",
+      "url": "https://www.nidcr.nih.gov/health-info/tooth-decay",
+      "scope": "Caries, desmineralización, cavidad y prevención."
+    },
+    "NIDCR_PERIODONTAL": {
+      "name": "NIDCR — Periodontal (Gum) Disease",
+      "organization": "National Institute of Dental and Craniofacial Research (NIH)",
+      "type": "government_health",
+      "url": "https://www.nidcr.nih.gov/health-info/gum-disease",
+      "scope": "Placa, cálculo, gingivitis, periodontitis y tejidos de soporte."
+    },
+    "NIDCR_DRY_MOUTH": {
+      "name": "NIDCR — Dry Mouth",
+      "organization": "National Institute of Dental and Craniofacial Research (NIH)",
+      "type": "government_health",
+      "url": "https://www.nidcr.nih.gov/health-info/dry-mouth",
+      "scope": "Xerostomía y función salival."
+    },
+    "NIDCR_BRUXISM": {
+      "name": "NIDCR — Bruxism",
+      "organization": "National Institute of Dental and Craniofacial Research (NIH)",
+      "type": "government_health",
+      "url": "https://www.nidcr.nih.gov/health-info/bruxism",
+      "scope": "Bruxismo y manifestaciones asociadas."
+    },
+    "NIDCR_TMD": {
+      "name": "NIDCR — Temporomandibular Disorders",
+      "organization": "National Institute of Dental and Craniofacial Research (NIH)",
+      "type": "government_health",
+      "url": "https://www.nidcr.nih.gov/health-info/tmd",
+      "scope": "Articulación temporomandibular y trastornos temporomandibulares."
+    },
+    "MINSAL_GUIDES": {
+      "name": "MINSAL Chile — Guías Clínicas de Salud Bucal",
+      "organization": "Ministerio de Salud de Chile (MINSAL / DIPRECE)",
+      "type": "government_health",
+      "url": "https://diprece.minsal.cl/programas-de-salud/salud-bucal/informacion-al-profesional-salud-bucal/guias-clinicas/",
+      "scope": "Terminología y práctica clínica usada en el sistema de salud chileno."
+    },
+    "MINSAL_ORTHO_2026": {
+      "name": "MINSAL Chile — Criterios técnicos 2026 para actividades odontológicas",
+      "organization": "Ministerio de Salud de Chile",
+      "type": "government_health",
+      "url": "https://www.minsal.cl/wp-content/uploads/2026/09/10-RPE-Criterios-tecnicos-para-la-programacion-de-actividades-odontologicas-en-APS-y-Especialidades.pdf",
+      "scope": "Uso vigente de Ortodoncia Preventiva e Interceptiva y prestaciones odontológicas en Chile."
+    },
+    "MINSAL_FHIR_SPECIALTIES": {
+      "name": "MINSAL Chile — Especialidades y Subespecialidades Odontológicas",
+      "organization": "Ministerio de Salud de Chile — Guía de Estándares de Información de Salud",
+      "type": "government_standard",
+      "url": "https://interoperabilidad.minsal.cl/fhir/ig/eis/CodeSystem-eis-especialidades-odontologicas-cs.html",
+      "scope": "Nombres oficiales/computables de especialidades odontológicas en Chile."
+    },
+    "ISO_3950": {
+      "name": "ISO 3950:2016 — Dentistry — Designation system for teeth and areas of the oral cavity",
+      "organization": "International Organization for Standardization (ISO)",
+      "type": "international_standard",
+      "url": "https://www.iso.org/standard/68292.html",
+      "scope": "Sistema de dos dígitos para designación dentaria y áreas de la cavidad oral."
+    },
+    "ISO_1942": {
+      "name": "ISO 1942:2020 — Dentistry — Vocabulary",
+      "organization": "International Organization for Standardization (ISO)",
+      "type": "international_standard",
+      "url": "https://www.iso.org/standard/72249.html",
+      "scope": "Referencia internacional de vocabulario odontológico."
+    }
+  },
+  "entries": [
+    {
+      "id": "anat.tooth",
+      "term": "diente",
+      "term_en": "tooth",
+      "aliases": [
+        "pieza dentaria"
+      ],
+      "definition": "Órgano mineralizado de la cavidad oral formado por corona y raíz, con tejidos duros que protegen una pulpa interna.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "anatomia",
+        "tags": [
+          "diente",
+          "pieza_dentaria",
+          "anatomia"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "ISO_1942"
+        ]
+      }
+    },
+    {
+      "id": "anat.crown",
+      "term": "corona dental",
+      "term_en": "dental crown",
+      "aliases": [
+        "corona"
+      ],
+      "definition": "Porción del diente situada por encima de la unión cemento-esmalte; clínicamente corresponde a la parte visible en boca.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "anatomia",
+        "tags": [
+          "corona",
+          "diente"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.root",
+      "term": "raíz dental",
+      "term_en": "tooth root",
+      "aliases": [
+        "raíz"
+      ],
+      "definition": "Porción del diente que se extiende bajo la corona y se aloja en el hueso alveolar.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "anatomia",
+        "tags": [
+          "raiz",
+          "diente"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.enamel",
+      "term": "esmalte",
+      "term_en": "enamel",
+      "aliases": [],
+      "definition": "Tejido altamente mineralizado que recubre la corona del diente y protege la dentina subyacente.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "anatomia",
+        "tags": [
+          "esmalte",
+          "tejido_duro"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "NIDCR_CARIES"
+        ]
+      }
+    },
+    {
+      "id": "anat.dentin",
+      "term": "dentina",
+      "term_en": "dentin",
+      "aliases": [],
+      "definition": "Tejido mineralizado que forma la mayor parte del diente y se encuentra bajo el esmalte y el cemento.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "anatomia",
+        "tags": [
+          "dentina",
+          "tejido_duro"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.pulp",
+      "term": "pulpa dental",
+      "term_en": "dental pulp",
+      "aliases": [
+        "pulpa"
+      ],
+      "definition": "Tejido blando interno del diente que contiene vasos sanguíneos, nervios y tejido conectivo.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "anatomia",
+        "tags": [
+          "pulpa",
+          "nervio",
+          "vascular"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.cementum",
+      "term": "cemento radicular",
+      "term_en": "cementum",
+      "aliases": [
+        "cemento dental"
+      ],
+      "definition": "Tejido mineralizado que recubre la superficie de la raíz y participa en la inserción del ligamento periodontal.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "anatomia",
+        "tags": [
+          "cemento",
+          "raiz",
+          "periodonto"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.pdl",
+      "term": "ligamento periodontal",
+      "term_en": "periodontal ligament",
+      "aliases": [
+        "LPD",
+        "periodontal ligament"
+      ],
+      "definition": "Tejido conectivo fibroso entre el cemento radicular y el hueso alveolar que sostiene el diente y amortigua fuerzas.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "anatomia",
+        "tags": [
+          "ligamento_periodontal",
+          "periodonto",
+          "soporte"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.alveolar_bone",
+      "term": "hueso alveolar",
+      "term_en": "alveolar bone",
+      "aliases": [],
+      "definition": "Porción de los maxilares que forma los alvéolos dentarios y sostiene las raíces de los dientes.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "anatomia",
+        "tags": [
+          "hueso",
+          "alveolo",
+          "periodonto"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "anat.gingiva",
+      "term": "encía",
+      "term_en": "gingiva",
+      "aliases": [
+        "gingiva"
+      ],
+      "definition": "Tejido blando que rodea los dientes y cubre el hueso alveolar.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "anatomia",
+        "tags": [
+          "encia",
+          "periodonto"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "anat.gingival_sulcus",
+      "term": "surco gingival",
+      "term_en": "gingival sulcus",
+      "aliases": [],
+      "definition": "Espacio poco profundo entre el margen gingival y la superficie del diente.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "anatomia",
+        "tags": [
+          "surco_gingival",
+          "encia"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.apex",
+      "term": "ápice radicular",
+      "term_en": "root apex",
+      "aliases": [
+        "ápice"
+      ],
+      "definition": "Extremo terminal de una raíz dental.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "anatomia",
+        "tags": [
+          "apice",
+          "raiz"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.root_canal",
+      "term": "conducto radicular",
+      "term_en": "root canal",
+      "aliases": [
+        "canal radicular"
+      ],
+      "definition": "Espacio interno de la raíz que contiene tejido pulpar o el espacio resultante de su preparación endodóntica.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "anatomia",
+        "tags": [
+          "conducto",
+          "raiz",
+          "pulpa"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.cusp",
+      "term": "cúspide",
+      "term_en": "cusp",
+      "aliases": [],
+      "definition": "Eminencia elevada de la superficie masticatoria de determinados dientes.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "anatomia",
+        "tags": [
+          "cuspide",
+          "oclusal"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.fossa",
+      "term": "fosa dental",
+      "term_en": "dental fossa",
+      "aliases": [],
+      "definition": "Depresión anatómica en una superficie dentaria, especialmente en superficies oclusales o linguales.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "anatomia",
+        "tags": [
+          "fosa",
+          "morfologia"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.fissure",
+      "term": "fisura dental",
+      "term_en": "dental fissure",
+      "aliases": [],
+      "definition": "Hendidura estrecha del esmalte, frecuentemente ubicada entre cúspides en superficies oclusales.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "anatomia",
+        "tags": [
+          "fisura",
+          "oclusal"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.maxilla",
+      "term": "maxilar",
+      "term_en": "maxilla",
+      "aliases": [
+        "maxila",
+        "maxilar superior"
+      ],
+      "definition": "Hueso superior que sostiene la arcada dentaria superior y participa en la estructura del tercio medio facial.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "anatomia",
+        "tags": [
+          "maxilar",
+          "maxila",
+          "hueso"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "anat.mandible",
+      "term": "mandíbula",
+      "term_en": "mandible",
+      "aliases": [],
+      "definition": "Hueso móvil inferior de la cara que sostiene la arcada dentaria inferior.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "anatomia",
+        "tags": [
+          "mandibula",
+          "hueso"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "anat.dental_arch",
+      "term": "arcada dentaria",
+      "term_en": "dental arch",
+      "aliases": [
+        "arco dental",
+        "arcada dental"
+      ],
+      "definition": "Estructura curva formada por los dientes y tejidos de soporte de cada maxilar.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "anatomia",
+        "tags": [
+          "arcada",
+          "arco_dental"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "anat.tmj",
+      "term": "articulación temporomandibular",
+      "term_en": "temporomandibular joint",
+      "aliases": [
+        "ATM",
+        "TMJ"
+      ],
+      "definition": "Articulación que conecta la mandíbula con el cráneo y permite movimientos mandibulares.",
+      "metadata": {
+        "domain": "dolor_orofacial",
+        "category": "anatomia",
+        "tags": [
+          "ATM",
+          "articulacion",
+          "mandibula"
+        ],
+        "source_ids": [
+          "NIDCR_TMD",
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "surface.occlusal",
+      "term": "superficie oclusal",
+      "term_en": "occlusal surface",
+      "aliases": [],
+      "definition": "Superficie masticatoria de premolares y molares que contacta con dientes antagonistas.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "superficie_dentaria",
+        "tags": [
+          "oclusal",
+          "superficie"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "surface.incisal",
+      "term": "borde incisal",
+      "term_en": "incisal edge",
+      "aliases": [],
+      "definition": "Borde cortante de incisivos y caninos.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "superficie_dentaria",
+        "tags": [
+          "incisal",
+          "borde"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "surface.buccal",
+      "term": "superficie vestibular",
+      "term_en": "buccal surface",
+      "aliases": [
+        "bucal",
+        "buccal"
+      ],
+      "definition": "Superficie dentaria orientada hacia la mejilla; en Chile también se usa vestibular.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "superficie_dentaria",
+        "tags": [
+          "vestibular",
+          "bucal",
+          "superficie"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ],
+        "chile_usage": "En clínica chilena suele preferirse «vestibular» para la superficie externa."
+      }
+    },
+    {
+      "id": "surface.labial",
+      "term": "superficie labial",
+      "term_en": "labial surface",
+      "aliases": [],
+      "definition": "Superficie de los dientes anteriores orientada hacia los labios.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "superficie_dentaria",
+        "tags": [
+          "labial",
+          "superficie"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "surface.lingual",
+      "term": "superficie lingual",
+      "term_en": "lingual surface",
+      "aliases": [],
+      "definition": "Superficie dentaria orientada hacia la lengua.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "superficie_dentaria",
+        "tags": [
+          "lingual",
+          "superficie"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "surface.palatal",
+      "term": "superficie palatina",
+      "term_en": "palatal surface",
+      "aliases": [],
+      "definition": "Superficie de los dientes superiores orientada hacia el paladar.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "superficie_dentaria",
+        "tags": [
+          "palatina",
+          "superficie"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "surface.mesial",
+      "term": "mesial",
+      "term_en": "mesial",
+      "aliases": [],
+      "definition": "Dirección o superficie de un diente orientada hacia la línea media de la arcada.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "orientacion",
+        "tags": [
+          "mesial",
+          "direccion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "surface.distal",
+      "term": "distal",
+      "term_en": "distal",
+      "aliases": [],
+      "definition": "Dirección o superficie de un diente alejada de la línea media de la arcada.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "orientacion",
+        "tags": [
+          "distal",
+          "direccion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "surface.proximal",
+      "term": "superficie proximal",
+      "term_en": "proximal surface",
+      "aliases": [
+        "interproximal"
+      ],
+      "definition": "Superficie mesial o distal de un diente en relación con el diente vecino.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "superficie_dentaria",
+        "tags": [
+          "proximal",
+          "interproximal"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.incisor",
+      "term": "incisivo",
+      "term_en": "incisor",
+      "aliases": [],
+      "definition": "Diente anterior con borde incisal, principalmente relacionado con corte de alimentos.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "tipo_dentario",
+        "tags": [
+          "incisivo",
+          "anterior"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.canine",
+      "term": "canino",
+      "term_en": "canine",
+      "aliases": [
+        "colmillo",
+        "cuspid"
+      ],
+      "definition": "Diente anterior de una cúspide situado entre incisivos y premolares.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "tipo_dentario",
+        "tags": [
+          "canino",
+          "cuspid"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.premolar",
+      "term": "premolar",
+      "term_en": "premolar",
+      "aliases": [
+        "bicúspide",
+        "bicuspid"
+      ],
+      "definition": "Diente permanente situado entre caninos y molares.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "tipo_dentario",
+        "tags": [
+          "premolar",
+          "posterior"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.molar",
+      "term": "molar",
+      "term_en": "molar",
+      "aliases": [],
+      "definition": "Diente posterior con amplia superficie oclusal destinado principalmente a trituración.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "tipo_dentario",
+        "tags": [
+          "molar",
+          "posterior"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.primary",
+      "term": "dentición temporal",
+      "term_en": "primary dentition",
+      "aliases": [
+        "dentición primaria",
+        "dentición decidua",
+        "dientes de leche"
+      ],
+      "definition": "Conjunto de dientes primarios presentes antes del recambio completo por dentición permanente.",
+      "metadata": {
+        "domain": "odontopediatria",
+        "category": "denticion",
+        "tags": [
+          "temporal",
+          "primaria",
+          "decidua"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "dentition.permanent",
+      "term": "dentición permanente",
+      "term_en": "permanent dentition",
+      "aliases": [],
+      "definition": "Conjunto de dientes que reemplaza a la dentición temporal y permanece en la vida adulta.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "denticion",
+        "tags": [
+          "permanente",
+          "adulta"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.mixed",
+      "term": "dentición mixta",
+      "term_en": "mixed dentition",
+      "aliases": [],
+      "definition": "Etapa en que coexisten dientes temporales y permanentes.",
+      "metadata": {
+        "domain": "odontopediatria",
+        "category": "denticion",
+        "tags": [
+          "mixta",
+          "recambio"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "dentition.eruption",
+      "term": "erupción dentaria",
+      "term_en": "tooth eruption",
+      "aliases": [],
+      "definition": "Proceso por el cual un diente se desplaza hacia la cavidad oral hasta alcanzar su posición funcional.",
+      "metadata": {
+        "domain": "odontopediatria",
+        "category": "desarrollo",
+        "tags": [
+          "erupcion",
+          "desarrollo"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "dentition.exfoliation",
+      "term": "exfoliación dentaria",
+      "term_en": "tooth exfoliation",
+      "aliases": [],
+      "definition": "Pérdida fisiológica de un diente temporal asociada al recambio dentario.",
+      "metadata": {
+        "domain": "odontopediatria",
+        "category": "desarrollo",
+        "tags": [
+          "exfoliacion",
+          "recambio"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.unerupted",
+      "term": "diente no erupcionado",
+      "term_en": "unerupted tooth",
+      "aliases": [
+        "pieza no erupcionada"
+      ],
+      "definition": "Diente que aún no ha emergido a la cavidad oral.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "desarrollo",
+        "tags": [
+          "no_erupcionado",
+          "erupcion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.impacted",
+      "term": "diente incluido",
+      "term_en": "impacted tooth",
+      "aliases": [
+        "diente impactado",
+        "pieza incluida"
+      ],
+      "definition": "Diente cuya erupción está impedida o detenida por posición, falta de espacio u otra barrera.",
+      "metadata": {
+        "domain": "cirugia_oral",
+        "category": "desarrollo",
+        "tags": [
+          "incluido",
+          "impactado",
+          "erupcion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.supernumerary",
+      "term": "diente supernumerario",
+      "term_en": "supernumerary tooth",
+      "aliases": [],
+      "definition": "Diente adicional al número habitual de la dentición.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "desarrollo",
+        "tags": [
+          "supernumerario",
+          "numero_dentario"
+        ],
+        "source_ids": [
+          "ISO_3950",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "dentition.agenesis",
+      "term": "agenesia dentaria",
+      "term_en": "tooth agenesis",
+      "aliases": [
+        "hipodoncia"
+      ],
+      "definition": "Ausencia congénita de uno o más dientes por falta de desarrollo del germen dentario.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "desarrollo",
+        "tags": [
+          "agenesia",
+          "ausencia_dentaria"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "dentition.edentulous",
+      "term": "edentulismo",
+      "term_en": "edentulism",
+      "aliases": [
+        "edéntulo",
+        "edentulous"
+      ],
+      "definition": "Ausencia de dientes en una zona o en una arcada completa.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "condicion",
+        "tags": [
+          "edentulismo",
+          "ausencia_dientes"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "notation.fdi",
+      "term": "nomenclatura FDI/ISO de dos dígitos",
+      "term_en": "FDI two-digit tooth notation",
+      "aliases": [
+        "sistema FDI",
+        "ISO 3950",
+        "nomenclatura de dos dígitos"
+      ],
+      "definition": "Sistema que identifica cada diente mediante dos dígitos: uno para el cuadrante y otro para la posición del diente dentro del cuadrante.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "nomenclatura",
+        "tags": [
+          "FDI",
+          "ISO3950",
+          "pieza_dentaria",
+          "cuadrante"
+        ],
+        "source_ids": [
+          "ISO_3950"
+        ],
+        "chile_usage": "Es la nomenclatura habitual en registros clínicos en Chile y otros países fuera de EE.UU."
+      }
+    },
+    {
+      "id": "notation.quadrant",
+      "term": "cuadrante dentario",
+      "term_en": "dental quadrant",
+      "aliases": [],
+      "definition": "División de la dentición en cuatro sectores principales según maxilar y lado; el sistema FDI utiliza cuadrantes para codificar dientes.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "nomenclatura",
+        "tags": [
+          "cuadrante",
+          "FDI"
+        ],
+        "source_ids": [
+          "ISO_3950"
+        ]
+      }
+    },
+    {
+      "id": "notation.tooth_number",
+      "term": "número de pieza dentaria",
+      "term_en": "tooth designation",
+      "aliases": [
+        "número de diente",
+        "pieza"
+      ],
+      "definition": "Código utilizado para identificar una pieza dentaria específica dentro de un sistema de nomenclatura.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "nomenclatura",
+        "tags": [
+          "pieza_dentaria",
+          "codigo",
+          "FDI"
+        ],
+        "source_ids": [
+          "ISO_3950"
+        ]
+      }
+    },
+    {
+      "id": "caries.plaque",
+      "term": "placa dental",
+      "term_en": "dental plaque",
+      "aliases": [
+        "biofilm dental",
+        "biopelícula dental"
+      ],
+      "definition": "Biopelícula adherente que se forma sobre dientes y otras superficies orales y contiene microorganismos.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "patologia",
+        "tags": [
+          "placa",
+          "biofilm",
+          "bacterias"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "caries.calculus",
+      "term": "cálculo dental",
+      "term_en": "dental calculus",
+      "aliases": [
+        "tártaro",
+        "sarro"
+      ],
+      "definition": "Depósito mineralizado derivado de placa que se adhiere a dientes o superficies protésicas y requiere remoción profesional.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "patologia",
+        "tags": [
+          "calculo",
+          "tartaro",
+          "periodonto"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "caries.caries",
+      "term": "caries dental",
+      "term_en": "dental caries",
+      "aliases": [
+        "caries"
+      ],
+      "definition": "Proceso de pérdida mineral de los tejidos duros del diente asociado a ácidos producidos por bacterias a partir de carbohidratos fermentables.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "patologia",
+        "tags": [
+          "caries",
+          "desmineralizacion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "NIDCR_CARIES"
+        ]
+      }
+    },
+    {
+      "id": "caries.cavity",
+      "term": "cavidad de caries",
+      "term_en": "cavity",
+      "aliases": [
+        "cavity",
+        "lesión cavitada"
+      ],
+      "definition": "Defecto estructural irreversible del diente producido cuando la desmineralización progresa hasta generar pérdida de tejido.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "patologia",
+        "tags": [
+          "cavidad",
+          "caries"
+        ],
+        "source_ids": [
+          "NIDCR_CARIES"
+        ]
+      }
+    },
+    {
+      "id": "caries.demineralization",
+      "term": "desmineralización",
+      "term_en": "demineralization",
+      "aliases": [],
+      "definition": "Pérdida de minerales del esmalte o dentina, favorecida por exposiciones ácidas repetidas.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "proceso_biologico",
+        "tags": [
+          "desmineralizacion",
+          "esmalte",
+          "caries"
+        ],
+        "source_ids": [
+          "NIDCR_CARIES"
+        ]
+      }
+    },
+    {
+      "id": "caries.remineralization",
+      "term": "remineralización",
+      "term_en": "remineralization",
+      "aliases": [],
+      "definition": "Recuperación de minerales en tejidos dentarios tempranamente desmineralizados, favorecida por saliva y flúor.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "proceso_biologico",
+        "tags": [
+          "remineralizacion",
+          "fluor",
+          "esmalte"
+        ],
+        "source_ids": [
+          "NIDCR_CARIES"
+        ]
+      }
+    },
+    {
+      "id": "caries.fluoride",
+      "term": "flúor",
+      "term_en": "fluoride",
+      "aliases": [
+        "fluoruro"
+      ],
+      "definition": "Mineral utilizado para aumentar la resistencia del esmalte frente a la caries y favorecer la remineralización.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "prevencion",
+        "tags": [
+          "fluor",
+          "caries",
+          "prevencion"
+        ],
+        "source_ids": [
+          "NIDCR_CARIES",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "caries.sealant",
+      "term": "sellante de fosas y fisuras",
+      "term_en": "pit and fissure sealant",
+      "aliases": [
+        "sellante"
+      ],
+      "definition": "Material aplicado sobre fosas y fisuras susceptibles para reducir la retención de placa y prevenir caries oclusal.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "prevencion",
+        "tags": [
+          "sellante",
+          "fisuras",
+          "prevencion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "restoration.restoration",
+      "term": "restauración dental",
+      "term_en": "dental restoration",
+      "aliases": [
+        "obturación",
+        "relleno dental",
+        "filling"
+      ],
+      "definition": "Procedimiento o material destinado a reconstruir forma, función y sellado de una estructura dentaria perdida o dañada.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "procedimiento",
+        "tags": [
+          "restauracion",
+          "operatoria"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "restoration.composite",
+      "term": "resina compuesta",
+      "term_en": "composite resin",
+      "aliases": [
+        "composite",
+        "resina"
+      ],
+      "definition": "Material restaurador estético formado por una matriz de resina y partículas de relleno.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "material",
+        "tags": [
+          "composite",
+          "resina",
+          "restauracion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "restoration.amalgam",
+      "term": "amalgama dental",
+      "term_en": "dental amalgam",
+      "aliases": [],
+      "definition": "Material restaurador metálico tradicional utilizado para obturaciones dentales.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "material",
+        "tags": [
+          "amalgama",
+          "restauracion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "restoration.crown",
+      "term": "corona protésica",
+      "term_en": "dental crown",
+      "aliases": [
+        "funda",
+        "cap"
+      ],
+      "definition": "Restauración indirecta que cubre gran parte o toda la corona clínica de un diente o de un implante.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "procedimiento",
+        "tags": [
+          "corona",
+          "protesis_fija"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "restoration.veneer",
+      "term": "carilla",
+      "term_en": "veneer",
+      "aliases": [
+        "laminado",
+        "laminate veneer"
+      ],
+      "definition": "Restauración delgada adherida principalmente a la superficie vestibular de un diente para modificar forma o apariencia.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "procedimiento",
+        "tags": [
+          "carilla",
+          "estetica"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "restoration.bridge",
+      "term": "puente fijo",
+      "term_en": "fixed partial denture",
+      "aliases": [
+        "bridge",
+        "prótesis fija parcial"
+      ],
+      "definition": "Prótesis fija que reemplaza uno o más dientes ausentes apoyándose en dientes o implantes adyacentes.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "procedimiento",
+        "tags": [
+          "puente",
+          "protesis_fija"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "restoration.implant",
+      "term": "implante dental",
+      "term_en": "dental implant",
+      "aliases": [],
+      "definition": "Dispositivo colocado en el hueso para actuar como soporte de una restauración o prótesis dental.",
+      "metadata": {
+        "domain": "implantologia",
+        "category": "procedimiento",
+        "tags": [
+          "implante",
+          "oseointegracion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "restoration.denture",
+      "term": "prótesis removible",
+      "term_en": "removable denture",
+      "aliases": [
+        "dentadura",
+        "denture"
+      ],
+      "definition": "Prótesis que reemplaza dientes ausentes y puede ser retirada por el paciente.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "procedimiento",
+        "tags": [
+          "protesis_removible",
+          "dentadura"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "restoration.complete_denture",
+      "term": "prótesis total",
+      "term_en": "complete denture",
+      "aliases": [
+        "dentadura completa"
+      ],
+      "definition": "Prótesis removible que reemplaza todos los dientes de una arcada edéntula.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "procedimiento",
+        "tags": [
+          "protesis_total",
+          "edentulismo"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "perio.gingivitis",
+      "term": "gingivitis",
+      "term_en": "gingivitis",
+      "aliases": [],
+      "definition": "Inflamación de la encía asociada habitualmente a placa, sin pérdida de soporte periodontal.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "patologia",
+        "tags": [
+          "gingivitis",
+          "encia",
+          "inflamacion"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "perio.periodontitis",
+      "term": "periodontitis",
+      "term_en": "periodontitis",
+      "aliases": [],
+      "definition": "Enfermedad inflamatoria periodontal con destrucción progresiva de tejidos de soporte del diente, incluido hueso alveolar.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "patologia",
+        "tags": [
+          "periodontitis",
+          "hueso",
+          "soporte"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "perio.pocket",
+      "term": "bolsa periodontal",
+      "term_en": "periodontal pocket",
+      "aliases": [
+        "pocket periodontal"
+      ],
+      "definition": "Profundización patológica del espacio entre encía y diente asociada a pérdida de inserción periodontal.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "hallazgo",
+        "tags": [
+          "bolsa_periodontal",
+          "sondaje"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "perio.probing_depth",
+      "term": "profundidad de sondaje",
+      "term_en": "probing depth",
+      "aliases": [
+        "PS",
+        "PD"
+      ],
+      "definition": "Distancia clínica medida con sonda periodontal desde el margen gingival hasta el fondo del surco o bolsa.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "medicion",
+        "tags": [
+          "sondaje",
+          "periodonto",
+          "profundidad"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "perio.recession",
+      "term": "recesión gingival",
+      "term_en": "gingival recession",
+      "aliases": [],
+      "definition": "Desplazamiento apical del margen gingival que deja expuesta una mayor porción del diente o de la raíz.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "hallazgo",
+        "tags": [
+          "recesion",
+          "encia",
+          "raiz"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "perio.bop",
+      "term": "sangrado al sondaje",
+      "term_en": "bleeding on probing",
+      "aliases": [
+        "BOP"
+      ],
+      "definition": "Sangrado provocado durante el sondaje periodontal, utilizado como signo clínico de inflamación gingival.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "hallazgo",
+        "tags": [
+          "sangrado",
+          "sondaje",
+          "inflamacion"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "perio.scaling",
+      "term": "destartraje",
+      "term_en": "scaling",
+      "aliases": [
+        "scaling",
+        "tartrectomía"
+      ],
+      "definition": "Remoción profesional de placa y cálculo adheridos a superficies dentarias.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "procedimiento",
+        "tags": [
+          "destartraje",
+          "calculo",
+          "limpieza"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "perio.root_planing",
+      "term": "alisado radicular",
+      "term_en": "root planing",
+      "aliases": [
+        "root planing"
+      ],
+      "definition": "Instrumentación de la superficie radicular para retirar depósitos y dejar una superficie compatible con el control periodontal.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "procedimiento",
+        "tags": [
+          "alisado_radicular",
+          "periodoncia"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "endo.pulpitis",
+      "term": "pulpitis",
+      "term_en": "pulpitis",
+      "aliases": [],
+      "definition": "Inflamación de la pulpa dental; su curso y reversibilidad dependen del daño pulpar y del contexto clínico.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "patologia",
+        "tags": [
+          "pulpitis",
+          "pulpa",
+          "dolor"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "endo.pulp_necrosis",
+      "term": "necrosis pulpar",
+      "term_en": "pulp necrosis",
+      "aliases": [],
+      "definition": "Pérdida de vitalidad del tejido pulpar por muerte del tejido dentro del diente.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "patologia",
+        "tags": [
+          "necrosis",
+          "pulpa"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "endo.periapical_lesion",
+      "term": "lesión periapical",
+      "term_en": "periapical lesion",
+      "aliases": [],
+      "definition": "Alteración de los tejidos que rodean el ápice radicular, frecuentemente asociada a infección o inflamación de origen endodóntico.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "hallazgo",
+        "tags": [
+          "periapical",
+          "apice",
+          "lesion"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "endo.abscess",
+      "term": "absceso odontogénico",
+      "term_en": "dental abscess",
+      "aliases": [
+        "absceso dental"
+      ],
+      "definition": "Colección localizada de pus asociada a una infección de origen dental o periodontal.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "patologia",
+        "tags": [
+          "absceso",
+          "infeccion",
+          "pus"
+        ],
+        "source_ids": [
+          "NIDCR_CARIES",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "endo.root_canal_treatment",
+      "term": "tratamiento endodóntico",
+      "term_en": "root canal treatment",
+      "aliases": [
+        "tratamiento de conducto",
+        "endodoncia",
+        "root canal"
+      ],
+      "definition": "Tratamiento destinado a limpiar, conformar, desinfectar y obturar el sistema de conductos radiculares.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "procedimiento",
+        "tags": [
+          "endodoncia",
+          "conducto",
+          "tratamiento"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "surg.extraction",
+      "term": "extracción dental",
+      "term_en": "tooth extraction",
+      "aliases": [
+        "exodoncia"
+      ],
+      "definition": "Remoción de un diente o de sus partes desde el alvéolo.",
+      "metadata": {
+        "domain": "cirugia_oral",
+        "category": "procedimiento",
+        "tags": [
+          "extraccion",
+          "exodoncia"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "surg.avulsion",
+      "term": "avulsión dentaria",
+      "term_en": "tooth avulsion",
+      "aliases": [
+        "avulsión"
+      ],
+      "definition": "Desplazamiento traumático completo del diente fuera de su alvéolo.",
+      "metadata": {
+        "domain": "cirugia_oral",
+        "category": "trauma",
+        "tags": [
+          "avulsion",
+          "trauma"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "surg.biopsy",
+      "term": "biopsia",
+      "term_en": "biopsy",
+      "aliases": [],
+      "definition": "Obtención de tejido para estudio microscópico con fines diagnósticos.",
+      "metadata": {
+        "domain": "patologia_oral",
+        "category": "procedimiento",
+        "tags": [
+          "biopsia",
+          "diagnostico"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "diag.prophylaxis",
+      "term": "profilaxis dental",
+      "term_en": "dental prophylaxis",
+      "aliases": [
+        "limpieza dental"
+      ],
+      "definition": "Limpieza profesional preventiva destinada a remover placa, manchas y depósitos accesibles según indicación clínica.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "procedimiento",
+        "tags": [
+          "profilaxis",
+          "limpieza",
+          "prevencion"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "diag.radiograph",
+      "term": "radiografía dental",
+      "term_en": "dental radiograph",
+      "aliases": [
+        "rayos X dental"
+      ],
+      "definition": "Imagen obtenida con rayos X para evaluar dientes, hueso y estructuras maxilofaciales.",
+      "metadata": {
+        "domain": "imagenologia",
+        "category": "diagnostico",
+        "tags": [
+          "radiografia",
+          "imagen"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "diag.bitewing",
+      "term": "radiografía bitewing",
+      "term_en": "bitewing radiograph",
+      "aliases": [
+        "aleta de mordida"
+      ],
+      "definition": "Radiografía intraoral que muestra coronas de dientes superiores e inferiores y cresta ósea, útil entre otros fines para evaluar caries interproximales.",
+      "metadata": {
+        "domain": "imagenologia",
+        "category": "diagnostico",
+        "tags": [
+          "bitewing",
+          "interproximal",
+          "radiografia"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "diag.periapical",
+      "term": "radiografía periapical",
+      "term_en": "periapical radiograph",
+      "aliases": [],
+      "definition": "Radiografía intraoral que muestra el diente completo y la región alrededor de sus ápices.",
+      "metadata": {
+        "domain": "imagenologia",
+        "category": "diagnostico",
+        "tags": [
+          "periapical",
+          "apice",
+          "radiografia"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "diag.panoramic",
+      "term": "radiografía panorámica",
+      "term_en": "panoramic radiograph",
+      "aliases": [
+        "ortopantomografía",
+        "OPG"
+      ],
+      "definition": "Imagen extraoral amplia de ambos maxilares, dientes y estructuras relacionadas.",
+      "metadata": {
+        "domain": "imagenologia",
+        "category": "diagnostico",
+        "tags": [
+          "panoramica",
+          "ortopantomografia",
+          "radiografia"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "diag.cephalometric_radiograph",
+      "term": "telerradiografía lateral",
+      "term_en": "cephalometric radiograph",
+      "aliases": [
+        "radiografía cefalométrica",
+        "cephalometric x-ray"
+      ],
+      "definition": "Radiografía lateral estandarizada del cráneo utilizada especialmente en evaluación ortodóncica y cefalométrica.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "diagnostico",
+        "tags": [
+          "telerradiografia",
+          "cefalometria",
+          "radiografia"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "diag.cbct",
+      "term": "tomografía computarizada de haz cónico",
+      "term_en": "cone-beam computed tomography",
+      "aliases": [
+        "CBCT",
+        "cone beam"
+      ],
+      "definition": "Técnica de imagen tridimensional con rayos X utilizada para evaluar estructuras dentomaxilofaciales en indicaciones seleccionadas.",
+      "metadata": {
+        "domain": "imagenologia",
+        "category": "diagnostico",
+        "tags": [
+          "CBCT",
+          "tomografia",
+          "3D"
+        ],
+        "source_ids": [
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "diag.clinical_exam",
+      "term": "examen clínico odontológico",
+      "term_en": "dental clinical examination",
+      "aliases": [],
+      "definition": "Evaluación sistemática de dientes, tejidos orales, oclusión y estructuras relacionadas para identificar hallazgos y orientar diagnóstico.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "diagnostico",
+        "tags": [
+          "examen",
+          "evaluacion",
+          "diagnostico"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "diag.anamnesis",
+      "term": "anamnesis",
+      "term_en": "medical and dental history",
+      "aliases": [],
+      "definition": "Recopilación estructurada de antecedentes, síntomas, historia médica y dental relevantes para la atención.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "diagnostico",
+        "tags": [
+          "anamnesis",
+          "historia_clinica"
+        ],
+        "source_ids": [
+          "MINSAL_ORTHO_2026",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.orthodontics",
+      "term": "ortodoncia",
+      "term_en": "orthodontics",
+      "aliases": [],
+      "definition": "Especialidad odontológica dedicada al diagnóstico, prevención y corrección de alteraciones en la posición de dientes y relaciones dentofaciales.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "especialidad",
+        "tags": [
+          "ortodoncia",
+          "maloclusion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.dentofacial_orthopedics",
+      "term": "ortopedia dentomaxilofacial",
+      "term_en": "dentofacial orthopedics",
+      "aliases": [
+        "ortopedia dentofacial"
+      ],
+      "definition": "Área asociada a ortodoncia que guía o modifica relaciones de crecimiento de los maxilares y estructuras faciales mediante terapias indicadas.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "especialidad",
+        "tags": [
+          "ortopedia",
+          "crecimiento",
+          "maxilares"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_FHIR_SPECIALTIES"
+        ],
+        "chile_usage": "MINSAL denomina la especialidad «Ortodoncia y Ortopedia Dento Maxilofacial»."
+      }
+    },
+    {
+      "id": "ortho.occlusion",
+      "term": "oclusión",
+      "term_en": "occlusion",
+      "aliases": [
+        "mordida"
+      ],
+      "definition": "Relación de contacto entre dientes superiores e inferiores al cerrar la boca y durante la función.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "oclusion",
+          "mordida"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.malocclusion",
+      "term": "maloclusión",
+      "term_en": "malocclusion",
+      "aliases": [
+        "mala mordida"
+      ],
+      "definition": "Alteración en la relación o alineación de dientes y/o maxilares que impide una oclusión considerada adecuada.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "maloclusion",
+          "mordida"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.class_i",
+      "term": "maloclusión Clase I",
+      "term_en": "Class I malocclusion",
+      "aliases": [],
+      "definition": "Relación molar de Clase I con posibles alteraciones dentarias como apiñamiento, espacios, mordida abierta o mordidas cruzadas.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "clasificacion",
+        "tags": [
+          "clase_I",
+          "Angle",
+          "maloclusion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.class_ii",
+      "term": "maloclusión Clase II",
+      "term_en": "Class II malocclusion",
+      "aliases": [],
+      "definition": "Relación sagital en la que la dentición y/o mandíbula inferior se encuentra relativamente posterior respecto de la superior.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "clasificacion",
+        "tags": [
+          "clase_II",
+          "Angle",
+          "maloclusion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.class_iii",
+      "term": "maloclusión Clase III",
+      "term_en": "Class III malocclusion",
+      "aliases": [],
+      "definition": "Relación sagital en la que la dentición y/o mandíbula inferior se encuentra relativamente anterior respecto de la superior.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "clasificacion",
+        "tags": [
+          "clase_III",
+          "Angle",
+          "maloclusion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.overjet",
+      "term": "resalte",
+      "term_en": "overjet",
+      "aliases": [
+        "overjet"
+      ],
+      "definition": "Distancia horizontal entre incisivos superiores e inferiores; puede describirse como normal, aumentado, disminuido o invertido.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "resalte",
+          "overjet",
+          "sagital"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ],
+        "chile_usage": "«Resalte» es el término clínico habitual en español de Chile."
+      }
+    },
+    {
+      "id": "ortho.overbite",
+      "term": "sobremordida",
+      "term_en": "overbite",
+      "aliases": [
+        "overbite"
+      ],
+      "definition": "Superposición vertical de los incisivos superiores sobre los inferiores al ocluir.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "sobremordida",
+          "overbite",
+          "vertical"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.deep_bite",
+      "term": "mordida profunda",
+      "term_en": "deep bite",
+      "aliases": [
+        "deep bite",
+        "sobremordida aumentada"
+      ],
+      "definition": "Sobremordida vertical aumentada, con cobertura excesiva de los incisivos inferiores por los superiores.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "mordida_profunda",
+          "sobremordida"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.open_bite",
+      "term": "mordida abierta",
+      "term_en": "open bite",
+      "aliases": [
+        "open bite"
+      ],
+      "definition": "Ausencia de contacto vertical entre determinados dientes antagonistas cuando el resto de la dentición está en oclusión.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "mordida_abierta",
+          "vertical"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.anterior_crossbite",
+      "term": "mordida cruzada anterior",
+      "term_en": "anterior crossbite",
+      "aliases": [
+        "mordida invertida anterior"
+      ],
+      "definition": "Relación en la que uno o más dientes anteriores superiores ocluyen por lingual de los inferiores.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "mordida_cruzada",
+          "anterior",
+          "invertida"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.posterior_crossbite",
+      "term": "mordida cruzada posterior",
+      "term_en": "posterior crossbite",
+      "aliases": [],
+      "definition": "Relación transversal anómala en la que uno o más dientes posteriores superiores ocluyen en una posición invertida respecto de los inferiores.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "mordida_cruzada",
+          "posterior",
+          "transversal"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.edge_to_edge",
+      "term": "mordida borde a borde",
+      "term_en": "edge-to-edge bite",
+      "aliases": [
+        "vis a vis",
+        "edge-to-edge"
+      ],
+      "definition": "Relación en la que los bordes incisales superiores e inferiores contactan sin resalte positivo.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "borde_a_borde",
+          "vis_a_vis"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.crowding",
+      "term": "apiñamiento dental",
+      "term_en": "dental crowding",
+      "aliases": [
+        "apiñamiento"
+      ],
+      "definition": "Falta de espacio en la arcada que produce superposición, rotación o desplazamiento de dientes.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "alineacion",
+        "tags": [
+          "apinamiento",
+          "espacio",
+          "alineacion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.spacing",
+      "term": "espaciamiento dental",
+      "term_en": "dental spacing",
+      "aliases": [],
+      "definition": "Presencia de espacios entre dientes dentro de una arcada.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "alineacion",
+        "tags": [
+          "espaciamiento",
+          "diastema"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.diastema",
+      "term": "diastema",
+      "term_en": "diastema",
+      "aliases": [],
+      "definition": "Espacio visible entre dos dientes adyacentes, con frecuencia referido al espacio entre incisivos centrales.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "alineacion",
+        "tags": [
+          "diastema",
+          "espacio"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY",
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.midline",
+      "term": "línea media dental",
+      "term_en": "dental midline",
+      "aliases": [],
+      "definition": "Línea de referencia que divide los incisivos centrales de una arcada y permite evaluar su relación con la arcada opuesta y con la cara.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "alineacion",
+        "tags": [
+          "linea_media",
+          "simetria"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.midline_deviation",
+      "term": "desviación de línea media",
+      "term_en": "midline deviation",
+      "aliases": [],
+      "definition": "Desplazamiento de la línea media dental respecto de la línea media opuesta o facial.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "alineacion",
+        "tags": [
+          "linea_media",
+          "desviacion"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.protrusion",
+      "term": "protrusión dentaria",
+      "term_en": "dental protrusion",
+      "aliases": [],
+      "definition": "Posición o inclinación anterior aumentada de uno o más dientes respecto de una referencia clínica.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "posicion_dentaria",
+        "tags": [
+          "protrusion",
+          "inclinacion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.retrusion",
+      "term": "retrusión dentaria",
+      "term_en": "dental retrusion",
+      "aliases": [],
+      "definition": "Posición o inclinación posterior de uno o más dientes respecto de una referencia clínica.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "posicion_dentaria",
+        "tags": [
+          "retrusion",
+          "inclinacion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.rotation",
+      "term": "rotación dentaria",
+      "term_en": "tooth rotation",
+      "aliases": [],
+      "definition": "Giro de un diente alrededor de su eje longitudinal.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "movimiento_dentario",
+        "tags": [
+          "rotacion",
+          "movimiento"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.intrusion",
+      "term": "intrusión",
+      "term_en": "intrusion",
+      "aliases": [],
+      "definition": "Movimiento ortodóncico de un diente hacia el hueso alveolar a lo largo de su eje.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "movimiento_dentario",
+        "tags": [
+          "intrusion",
+          "movimiento"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.extrusion",
+      "term": "extrusión",
+      "term_en": "extrusion",
+      "aliases": [],
+      "definition": "Movimiento ortodóncico de un diente en dirección coronal, alejándolo del hueso alveolar.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "movimiento_dentario",
+        "tags": [
+          "extrusion",
+          "movimiento"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.tipping",
+      "term": "inclinación dentaria",
+      "term_en": "tipping",
+      "aliases": [],
+      "definition": "Movimiento en el que la corona y la raíz cambian su angulación con desplazamientos relativos distintos.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "movimiento_dentario",
+        "tags": [
+          "tipping",
+          "inclinacion",
+          "movimiento"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.torque",
+      "term": "torque ortodóncico",
+      "term_en": "orthodontic torque",
+      "aliases": [
+        "torque"
+      ],
+      "definition": "Control de la inclinación vestibulolingual de un diente mediante fuerzas aplicadas al sistema ortodóncico.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "movimiento_dentario",
+        "tags": [
+          "torque",
+          "inclinacion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.distalization",
+      "term": "distalización",
+      "term_en": "distalization",
+      "aliases": [],
+      "definition": "Movimiento de uno o más dientes en dirección distal, alejándose de la línea media.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "movimiento_dentario",
+        "tags": [
+          "distalizacion",
+          "movimiento"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.mesialization",
+      "term": "mesialización",
+      "term_en": "mesialization",
+      "aliases": [],
+      "definition": "Movimiento de uno o más dientes en dirección mesial, hacia la línea media.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "movimiento_dentario",
+        "tags": [
+          "mesializacion",
+          "movimiento"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.anchorage",
+      "term": "anclaje ortodóncico",
+      "term_en": "orthodontic anchorage",
+      "aliases": [],
+      "definition": "Resistencia utilizada para controlar movimientos dentarios no deseados durante la aplicación de fuerzas.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "biomecanica",
+        "tags": [
+          "anclaje",
+          "biomecanica"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.fixed_appliance",
+      "term": "aparatología fija",
+      "term_en": "fixed orthodontic appliance",
+      "aliases": [
+        "aparato fijo"
+      ],
+      "definition": "Sistema ortodóncico adherido o cementado a los dientes y no removible por el paciente.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "aparatologia_fija",
+          "brackets"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_ORTHO_2026"
+        ]
+      }
+    },
+    {
+      "id": "ortho.braces",
+      "term": "brackets y aparatos fijos",
+      "term_en": "braces",
+      "aliases": [
+        "frenillos",
+        "braces"
+      ],
+      "definition": "Nombre común para un aparato ortodóncico fijo compuesto habitualmente por brackets, arcos y elementos de sujeción.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "braces",
+          "brackets",
+          "aparato_fijo"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ],
+        "chile_usage": "En Chile «frenillos» es un alias coloquial frecuente."
+      }
+    },
+    {
+      "id": "ortho.bracket",
+      "term": "bracket",
+      "term_en": "bracket",
+      "aliases": [
+        "braquet",
+        "bráquet"
+      ],
+      "definition": "Adhesivo o aditamento pequeño fijado al diente que recibe y transmite fuerzas desde el arco ortodóncico.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "bracket",
+          "aparato_fijo"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.band",
+      "term": "banda ortodóncica",
+      "term_en": "orthodontic band",
+      "aliases": [],
+      "definition": "Anillo metálico cementado alrededor de un diente que puede servir de soporte para aparatología ortodóncica.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "banda",
+          "aparato_fijo"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.archwire",
+      "term": "arco ortodóncico",
+      "term_en": "archwire",
+      "aliases": [],
+      "definition": "Alambre que se inserta en los brackets y genera o transmite fuerzas para mover dientes.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "arco",
+          "archwire",
+          "alambre"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.ligature",
+      "term": "ligadura ortodóncica",
+      "term_en": "ligature",
+      "aliases": [
+        "o-ring",
+        "o-tie"
+      ],
+      "definition": "Elemento elástico o metálico que mantiene el arco dentro de la ranura del bracket.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "ligadura",
+          "bracket"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.power_chain",
+      "term": "cadena elástica",
+      "term_en": "power chain",
+      "aliases": [
+        "power chain",
+        "cadena de poder"
+      ],
+      "definition": "Serie continua de módulos elásticos usada para aplicar fuerzas, por ejemplo para cierre de espacios.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "power_chain",
+          "cadena",
+          "espacios"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.elastics",
+      "term": "elásticos intermaxilares",
+      "term_en": "orthodontic elastics",
+      "aliases": [
+        "gomas",
+        "elastics"
+      ],
+      "definition": "Elásticos usados entre dientes o aparatos de ambas arcadas para aplicar fuerzas dirigidas.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "elasticos",
+          "intermaxilares"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.aligner",
+      "term": "alineador transparente",
+      "term_en": "clear aligner",
+      "aliases": [
+        "alineadores",
+        "clear aligner"
+      ],
+      "definition": "Aparato removible transparente que aplica fuerzas secuenciales para modificar la posición dentaria.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "alineador",
+          "clear_aligner"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.retainer",
+      "term": "retenedor",
+      "term_en": "retainer",
+      "aliases": [],
+      "definition": "Aparato fijo o removible utilizado tras el movimiento ortodóncico para ayudar a mantener la posición alcanzada.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "retenedor",
+          "retencion"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.expander",
+      "term": "expansor palatino",
+      "term_en": "palatal expander",
+      "aliases": [
+        "disyuntor",
+        "expansor maxilar"
+      ],
+      "definition": "Aparato diseñado para aumentar transversalmente el ancho del arco maxilar en indicaciones seleccionadas.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "expansor",
+          "expansion",
+          "maxilar"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.expansion",
+      "term": "expansión maxilar",
+      "term_en": "maxillary expansion",
+      "aliases": [],
+      "definition": "Intervención destinada a aumentar el ancho transversal del maxilar o de la arcada superior.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "procedimiento",
+        "tags": [
+          "expansion",
+          "maxilar",
+          "transversal"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.space_maintainer",
+      "term": "mantenedor de espacio",
+      "term_en": "space maintainer",
+      "aliases": [
+        "space maintainer"
+      ],
+      "definition": "Aparato destinado a conservar espacio para la erupción de dientes permanentes tras una pérdida dentaria prematura u otra indicación.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "mantenedor",
+          "espacio",
+          "denticion_mixta"
+        ],
+        "source_ids": [
+          "MINSAL_ORTHO_2026",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.tad",
+      "term": "microtornillo de anclaje temporal",
+      "term_en": "temporary anchorage device",
+      "aliases": [
+        "TAD",
+        "minitornillo",
+        "mini-implante ortodóncico",
+        "orthodontic miniscrew"
+      ],
+      "definition": "Dispositivo pequeño fijado temporalmente al hueso para proporcionar anclaje ortodóncico adicional.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "TAD",
+          "microtornillo",
+          "minitornillo",
+          "anclaje"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.interceptive",
+      "term": "ortodoncia preventiva e interceptiva",
+      "term_en": "preventive and interceptive orthodontics",
+      "aliases": [
+        "ortodoncia interceptiva",
+        "OPI"
+      ],
+      "definition": "Intervenciones tempranas destinadas a prevenir, limitar o corregir el desarrollo de determinadas maloclusiones durante el crecimiento y recambio dentario.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "procedimiento",
+        "tags": [
+          "interceptiva",
+          "preventiva",
+          "crecimiento"
+        ],
+        "source_ids": [
+          "MINSAL_ORTHO_2026",
+          "MINSAL_GUIDES",
+          "AAO_GLOSSARY"
+        ],
+        "chile_usage": "MINSAL 2026 usa explícitamente «Ortodoncia Preventiva e Interceptiva (OPI)»."
+      }
+    },
+    {
+      "id": "ortho.orthognathic_surgery",
+      "term": "cirugía ortognática",
+      "term_en": "orthognathic surgery",
+      "aliases": [
+        "cirugía de maxilares"
+      ],
+      "definition": "Cirugía correctiva de los maxilares indicada para ciertas discrepancias esqueléticas que no pueden resolverse sólo con movimiento dentario.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "procedimiento",
+        "tags": [
+          "ortognatica",
+          "cirugia",
+          "maxilares"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.cephalometric_analysis",
+      "term": "análisis cefalométrico",
+      "term_en": "cephalometric analysis",
+      "aliases": [],
+      "definition": "Evaluación de relaciones craneofaciales mediante mediciones realizadas sobre registros cefalométricos.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "diagnostico",
+        "tags": [
+          "cefalometria",
+          "analisis",
+          "craneofacial"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES",
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.records",
+      "term": "registros ortodóncicos",
+      "term_en": "orthodontic records",
+      "aliases": [],
+      "definition": "Conjunto de antecedentes clínicos usados para diagnóstico y seguimiento, como fotografías, modelos o escaneos e imágenes radiográficas.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "diagnostico",
+        "tags": [
+          "registros",
+          "fotografias",
+          "modelos",
+          "radiografias"
+        ],
+        "source_ids": [
+          "MINSAL_ORTHO_2026",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.impression",
+      "term": "impresión dental",
+      "term_en": "dental impression",
+      "aliases": [],
+      "definition": "Registro negativo de dientes y tejidos utilizado para obtener modelos o dispositivos, aunque hoy puede sustituirse por escaneo digital en algunos flujos.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "diagnostico",
+        "tags": [
+          "impresion",
+          "modelo"
+        ],
+        "source_ids": [
+          "MINSAL_ORTHO_2026",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.model",
+      "term": "modelo de estudio",
+      "term_en": "study model",
+      "aliases": [],
+      "definition": "Representación física o digital de las arcadas utilizada para evaluar relaciones dentarias y planificar tratamiento.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "diagnostico",
+        "tags": [
+          "modelo",
+          "arcada",
+          "planificacion"
+        ],
+        "source_ids": [
+          "MINSAL_ORTHO_2026",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.functional_appliance",
+      "term": "aparato funcional",
+      "term_en": "functional appliance",
+      "aliases": [],
+      "definition": "Aparato ortodóncico u ortopédico diseñado para modificar relaciones dentales y/o maxilares aprovechando o guiando función y crecimiento.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "funcional",
+          "ortopedia",
+          "crecimiento"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.lip_bumper",
+      "term": "lip bumper",
+      "term_en": "lip bumper",
+      "aliases": [
+        "parachoques labial"
+      ],
+      "definition": "Aparato que utiliza la presión de labios y mejillas para modificar fuerzas sobre la arcada, principalmente inferior.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "aparatologia",
+        "tags": [
+          "lip_bumper",
+          "labio"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.tongue_thrust",
+      "term": "interposición lingual",
+      "term_en": "tongue thrust",
+      "aliases": [
+        "empuje lingual",
+        "tongue thrust"
+      ],
+      "definition": "Patrón funcional en que la lengua se posiciona o empuja entre los dientes durante reposo o deglución y puede asociarse a alteraciones oclusales.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "habito",
+        "tags": [
+          "lengua",
+          "interposicion",
+          "habito"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.lip_incompetence",
+      "term": "incompetencia labial",
+      "term_en": "lip incompetence",
+      "aliases": [],
+      "definition": "Incapacidad de mantener los labios juntos en reposo sin esfuerzo muscular evidente.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "hallazgo",
+        "tags": [
+          "labios",
+          "competencia_labial"
+        ],
+        "source_ids": [
+          "AAO_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.premature_contact",
+      "term": "contacto prematuro",
+      "term_en": "premature occlusal contact",
+      "aliases": [],
+      "definition": "Contacto dentario que aparece antes que otros durante el cierre y puede desviar la trayectoria mandibular.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "contacto_prematuro",
+          "interferencia"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.occlusal_interference",
+      "term": "interferencia oclusal",
+      "term_en": "occlusal interference",
+      "aliases": [],
+      "definition": "Contacto dentario que interfiere con una trayectoria mandibular funcional o con el cierre esperado.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "oclusion",
+        "tags": [
+          "interferencia",
+          "oclusion"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "ortho.neutroclusion",
+      "term": "neutroclusión",
+      "term_en": "normal molar/canine relation",
+      "aliases": [
+        "neutroclusión canina",
+        "neutroclusión molar"
+      ],
+      "definition": "Relación anteroposterior considerada de referencia entre dientes antagonistas, usada en descripciones clínicas de relación molar o canina.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "clasificacion",
+        "tags": [
+          "neutroclusion",
+          "relacion_molar",
+          "relacion_canina"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ],
+        "chile_usage": "Término frecuente en literatura y registros clínicos chilenos."
+      }
+    },
+    {
+      "id": "ortho.distocclusion",
+      "term": "distoclusión",
+      "term_en": "distocclusion",
+      "aliases": [
+        "distoclusión canina"
+      ],
+      "definition": "Relación anteroposterior en que la referencia inferior se encuentra relativamente distal respecto de la superior.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "clasificacion",
+        "tags": [
+          "distoclusion",
+          "sagital"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "ortho.mesiocclusion",
+      "term": "mesioclusión",
+      "term_en": "mesiocclusion",
+      "aliases": [
+        "mesioclusión canina"
+      ],
+      "definition": "Relación anteroposterior en que la referencia inferior se encuentra relativamente mesial respecto de la superior.",
+      "metadata": {
+        "domain": "ortodoncia",
+        "category": "clasificacion",
+        "tags": [
+          "mesioclusion",
+          "sagital"
+        ],
+        "source_ids": [
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "common.bruxism",
+      "term": "bruxismo",
+      "term_en": "bruxism",
+      "aliases": [
+        "apretamiento dental",
+        "rechinar dientes"
+      ],
+      "definition": "Actividad de apretar o rechinar los dientes que puede ocurrir durante vigilia o sueño.",
+      "metadata": {
+        "domain": "dolor_orofacial",
+        "category": "condicion",
+        "tags": [
+          "bruxismo",
+          "apretamiento",
+          "rechinar"
+        ],
+        "source_ids": [
+          "NIDCR_BRUXISM",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "common.xerostomia",
+      "term": "xerostomía",
+      "term_en": "xerostomia",
+      "aliases": [
+        "boca seca",
+        "dry mouth"
+      ],
+      "definition": "Sensación o condición de boca seca asociada a una cantidad de saliva insuficiente para mantener la boca adecuadamente húmeda.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "condicion",
+        "tags": [
+          "xerostomia",
+          "saliva",
+          "boca_seca"
+        ],
+        "source_ids": [
+          "NIDCR_DRY_MOUTH"
+        ]
+      }
+    },
+    {
+      "id": "common.halitosis",
+      "term": "halitosis",
+      "term_en": "halitosis",
+      "aliases": [],
+      "definition": "Olor desagradable persistente del aliento; puede tener causas orales o extraorales.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "sintoma",
+        "tags": [
+          "halitosis",
+          "aliento"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "common.sensitivity",
+      "term": "hipersensibilidad dentinaria",
+      "term_en": "dentin hypersensitivity",
+      "aliases": [
+        "sensibilidad dental"
+      ],
+      "definition": "Dolor breve provocado por estímulos sobre dentina expuesta, típicamente térmicos, táctiles, osmóticos o químicos.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "sintoma",
+        "tags": [
+          "sensibilidad",
+          "dentina",
+          "dolor"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "common.tmd",
+      "term": "trastorno temporomandibular",
+      "term_en": "temporomandibular disorder",
+      "aliases": [
+        "TTM",
+        "TMD"
+      ],
+      "definition": "Grupo de condiciones que pueden causar dolor o disfunción en la articulación temporomandibular y/o músculos de la masticación.",
+      "metadata": {
+        "domain": "dolor_orofacial",
+        "category": "condicion",
+        "tags": [
+          "TTM",
+          "TMD",
+          "ATM",
+          "dolor"
+        ],
+        "source_ids": [
+          "NIDCR_TMD",
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "common.trismus",
+      "term": "trismus",
+      "term_en": "trismus",
+      "aliases": [],
+      "definition": "Limitación de la apertura bucal, frecuentemente relacionada con dolor, inflamación o alteración de los músculos masticatorios.",
+      "metadata": {
+        "domain": "dolor_orofacial",
+        "category": "hallazgo",
+        "tags": [
+          "trismus",
+          "apertura_bucal"
+        ],
+        "source_ids": [
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "common.mobility",
+      "term": "movilidad dentaria",
+      "term_en": "tooth mobility",
+      "aliases": [],
+      "definition": "Movimiento de un diente mayor al esperado fisiológicamente; puede relacionarse con soporte periodontal, trauma u otras causas.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "hallazgo",
+        "tags": [
+          "movilidad",
+          "periodonto"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "common.tooth_loss",
+      "term": "pérdida dentaria",
+      "term_en": "tooth loss",
+      "aliases": [],
+      "definition": "Ausencia adquirida de uno o más dientes por extracción, enfermedad, trauma u otras causas.",
+      "metadata": {
+        "domain": "odontologia_general",
+        "category": "condicion",
+        "tags": [
+          "perdida_dentaria",
+          "ausencia"
+        ],
+        "source_ids": [
+          "NIDCR_PERIODONTAL",
+          "NIDCR_CARIES"
+        ]
+      }
+    },
+    {
+      "id": "specialty.endodontics",
+      "term": "endodoncia",
+      "term_en": "endodontics",
+      "aliases": [],
+      "definition": "Especialidad centrada en diagnóstico y tratamiento de enfermedades de la pulpa y tejidos perirradiculares.",
+      "metadata": {
+        "domain": "endodoncia",
+        "category": "especialidad",
+        "tags": [
+          "endodoncia",
+          "pulpa"
+        ],
+        "source_ids": [
+          "MINSAL_FHIR_SPECIALTIES",
+          "ADA_GLOSSARY"
+        ]
+      }
+    },
+    {
+      "id": "specialty.periodontics",
+      "term": "periodoncia",
+      "term_en": "periodontics",
+      "aliases": [],
+      "definition": "Especialidad centrada en prevención, diagnóstico y tratamiento de enfermedades de los tejidos de soporte dentario.",
+      "metadata": {
+        "domain": "periodoncia",
+        "category": "especialidad",
+        "tags": [
+          "periodoncia",
+          "periodonto"
+        ],
+        "source_ids": [
+          "MINSAL_FHIR_SPECIALTIES",
+          "NIDCR_PERIODONTAL"
+        ]
+      }
+    },
+    {
+      "id": "specialty.pediatric_dentistry",
+      "term": "odontopediatría",
+      "term_en": "pediatric dentistry",
+      "aliases": [],
+      "definition": "Especialidad odontológica orientada a la atención de niños y adolescentes y a las particularidades de su desarrollo bucodental.",
+      "metadata": {
+        "domain": "odontopediatria",
+        "category": "especialidad",
+        "tags": [
+          "odontopediatria",
+          "ninos"
+        ],
+        "source_ids": [
+          "MINSAL_FHIR_SPECIALTIES",
+          "MINSAL_GUIDES"
+        ]
+      }
+    },
+    {
+      "id": "specialty.oral_radiology",
+      "term": "imagenología oral y maxilofacial",
+      "term_en": "oral and maxillofacial radiology",
+      "aliases": [],
+      "definition": "Especialidad dedicada al uso e interpretación de imágenes de dientes y estructuras maxilofaciales.",
+      "metadata": {
+        "domain": "imagenologia",
+        "category": "especialidad",
+        "tags": [
+          "imagenologia",
+          "radiologia"
+        ],
+        "source_ids": [
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "specialty.oral_pathology",
+      "term": "patología oral y maxilofacial",
+      "term_en": "oral and maxillofacial pathology",
+      "aliases": [],
+      "definition": "Especialidad dedicada al diagnóstico de enfermedades que afectan tejidos orales y maxilofaciales.",
+      "metadata": {
+        "domain": "patologia_oral",
+        "category": "especialidad",
+        "tags": [
+          "patologia",
+          "oral",
+          "maxilofacial"
+        ],
+        "source_ids": [
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "specialty.oral_surgery",
+      "term": "cirugía y traumatología bucomaxilofacial",
+      "term_en": "oral and maxillofacial surgery",
+      "aliases": [],
+      "definition": "Especialidad quirúrgica de patologías, traumatismos y alteraciones de la región oral y maxilofacial.",
+      "metadata": {
+        "domain": "cirugia_oral",
+        "category": "especialidad",
+        "tags": [
+          "cirugia",
+          "trauma",
+          "maxilofacial"
+        ],
+        "source_ids": [
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    },
+    {
+      "id": "specialty.oral_rehabilitation",
+      "term": "rehabilitación oral",
+      "term_en": "oral rehabilitation",
+      "aliases": [],
+      "definition": "Área orientada a restablecer función, estructura y estética mediante restauraciones y prótesis fijas o removibles.",
+      "metadata": {
+        "domain": "rehabilitacion_oral",
+        "category": "especialidad",
+        "tags": [
+          "rehabilitacion",
+          "protesis"
+        ],
+        "source_ids": [
+          "MINSAL_FHIR_SPECIALTIES"
+        ]
+      }
+    }
+  ],
+  "stats": {
+    "entry_count": 161,
+    "domains": {
+      "cirugia_oral": 4,
+      "dolor_orofacial": 4,
+      "endodoncia": 9,
+      "imagenologia": 6,
+      "implantologia": 1,
+      "odontologia_general": 42,
+      "odontopediatria": 5,
+      "ortodoncia": 62,
+      "patologia_oral": 2,
+      "periodoncia": 16,
+      "rehabilitacion_oral": 10
+    },
+    "categories": {
+      "alineacion": 5,
+      "anatomia": 20,
+      "aparatologia": 15,
+      "biomecanica": 1,
+      "clasificacion": 6,
+      "condicion": 5,
+      "denticion": 3,
+      "desarrollo": 6,
+      "diagnostico": 12,
+      "especialidad": 9,
+      "habito": 1,
+      "hallazgo": 7,
+      "material": 2,
+      "medicion": 1,
+      "movimiento_dentario": 7,
+      "nomenclatura": 3,
+      "oclusion": 11,
+      "orientacion": 2,
+      "patologia": 9,
+      "posicion_dentaria": 2,
+      "prevencion": 2,
+      "procedimiento": 16,
+      "proceso_biologico": 2,
+      "sintoma": 2,
+      "superficie_dentaria": 7,
+      "tipo_dentario": 4,
+      "trauma": 1
+    }
+  }
+}

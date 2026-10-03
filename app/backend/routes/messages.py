@@ -19,8 +19,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -40,10 +41,12 @@ from backend.rag.tools import TOOL_SCHEMAS, execute_tool, serialize_tool_result
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+_cancelled_runs: dict[str, asyncio.Event] = {}
 
 
 class MessageCreate(BaseModel):
     content: str = Field(..., min_length=1, description="Message content (non-empty)")
+    run_id: str | None = Field(default=None, min_length=1, max_length=100)
 
     @field_validator("content", mode="before")
     @classmethod
@@ -73,6 +76,7 @@ async def create_message(
         Final event: "data: [DONE]\n\n"
     """
     user_id = str(current_user["id"])
+    run_started_at = time.monotonic()
 
     # 1. Verify conversation exists AND belongs to current user.
     # 404 (not 403) — don't leak existence of other users' conversations.
@@ -97,6 +101,10 @@ async def create_message(
                 "reset_at": exc.reset_at.isoformat(),
             },
         )
+
+    cancel_event = asyncio.Event()
+    if body.run_id:
+        _cancelled_runs[f"{user_id}:{conv_id}:{body.run_id}"] = cancel_event
 
     # Content is already validated non-empty by Pydantic; strip for storage
     user_content = body.content.strip()
@@ -158,7 +166,7 @@ async def create_message(
             )
             if result.get("ok") and result.get("chunks"):
                 tool_chunks_acc.extend(result["chunks"])
-            return serialize_tool_result(result)
+            return cast(str, serialize_tool_result(result))
 
         tools_param = TOOL_SCHEMAS
         executor = _executor
@@ -171,9 +179,11 @@ async def create_message(
     async def event_generator() -> AsyncGenerator[str, None]:
         full_response: list[str] = []
         final_text_buf: list[str] = []
+        termination_reason_out: list[str] = []
         # Two-tier citations (issue #176): strip `[c:<id>]` markers from the
         # stream; use them at [DONE] to flag is_cited on retrieved chunks.
         marker_stripper = CitationMarkerStripper()
+        completed = False
         try:
             async for sse_chunk in stream_chat(
                 llm_messages,
@@ -181,8 +191,17 @@ async def create_message(
                 tool_executor=executor,
                 max_tool_calls=max_tool_calls,
                 final_text_out=final_text_buf,
+                cancel_event=cancel_event,
+                termination_reason_out=termination_reason_out,
             ):
+                if cancel_event.is_set():
+                    break
                 if sse_chunk == "data: [DONE]\n\n":
+                    completed = True
+                    terminal_reason = (
+                        termination_reason_out[-1] if termination_reason_out else "completed"
+                    )
+                    yield f"event: termination\ndata: {terminal_reason}\n\n"
                     # Flush any text held back as a partial marker.
                     tail = marker_stripper.flush()
                     if tail:
@@ -245,6 +264,15 @@ async def create_message(
             # state; we catch the re-raised CancelledError so the generator
             # can exit cleanly.
             assistant_text = _extract_text_from_sse(full_response)
+            termination_reason = (
+                "user_cancelled"
+                if cancel_event.is_set()
+                else termination_reason_out[-1]
+                if termination_reason_out
+                else "completed"
+                if completed
+                else "client_disconnected"
+            )
             if assistant_text:
                 # Apply the same refusal detection used for the live SSE
                 # `event: sources` suppression so reloading the conversation
@@ -270,6 +298,7 @@ async def create_message(
                             role="assistant",
                             content=assistant_text,
                             sources=sources_to_persist,
+                            termination_reason=termination_reason,
                         )
                     )
                 except asyncio.CancelledError:
@@ -289,12 +318,38 @@ async def create_message(
                     pass
                 except Exception as exc:
                     logger.warning("Failed to update conversation title: %s", exc)
+            if body.run_id:
+                _cancelled_runs.pop(f"{user_id}:{conv_id}:{body.run_id}", None)
+            logger.info(
+                "conversation.run.settled",
+                extra={
+                    "conversation_id": conv_id,
+                    "run_id": body.run_id,
+                    "termination_reason": termination_reason,
+                    "duration_ms": round((time.monotonic() - run_started_at) * 1000),
+                },
+            )
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/conversations/{conv_id}/runs/{run_id}/cancel", status_code=202)
+async def cancel_run(
+    conv_id: str,
+    run_id: str,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    user_id = str(current_user["id"])
+    if not await repository.get_conversation(conv_id, user_id=user_id):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    event = _cancelled_runs.get(f"{user_id}:{conv_id}:{run_id}")
+    if event:
+        event.set()
+    return {"status": "cancelling"}
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +503,7 @@ async def _maybe_set_conversation_title(
     conv = await repository.get_conversation(conv_id, user_id=user_id)
     if not conv:
         return
-    if conv.get("title") == "New Conversation":
+    if conv.get("title") in {"New Conversation", "Nueva conversación"}:
         if len(first_user_message) > 50:
             title = first_user_message[:47].strip() + "…"
         else:

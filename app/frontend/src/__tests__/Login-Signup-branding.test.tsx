@@ -14,11 +14,13 @@ import { Signup } from '../pages/Signup';
 // Mock useAuth to provide a valid context
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({
-    status: 'anon',
+    status: 'unauthenticated-local',
     user: null,
     error: null,
+    authConfig: null,
     login: vi.fn(),
     signup: vi.fn(),
+    loginWithGoogle: vi.fn(),
     logout: vi.fn(),
     refresh: vi.fn(),
   }),
@@ -48,7 +50,7 @@ vi.mock('../lib/authApi', () => ({
   }),
 }));
 
-const brandingText = "Ask Cole Medin's YouTube library anything";
+const brandingText = 'Tu espacio clínico, con el paciente en contexto.';
 
 describe('Login page', () => {
   it('renders branding header with logo, title, and tagline', () => {
@@ -58,8 +60,7 @@ describe('Login page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByAltText('DynaChat logo')).toBeInTheDocument();
-    expect(screen.getByText('DynaChat')).toBeInTheDocument();
+    expect(screen.getByText('Dental AI Assistant')).toBeInTheDocument();
     expect(screen.getByText(brandingText)).toBeInTheDocument();
   });
 
@@ -70,10 +71,10 @@ describe('Login page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: /log in/i })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /log in/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /iniciar sesión/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /correo electrónico/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /iniciar sesión/i })).toBeInTheDocument();
   });
 
   it('renders a link to the signup page', () => {
@@ -83,7 +84,7 @@ describe('Login page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: /sign up/i })).toHaveAttribute('href', '/signup');
+    expect(screen.getByRole('link', { name: /regístrate/i })).toHaveAttribute('href', '/signup');
   });
 });
 
@@ -95,8 +96,7 @@ describe('Signup page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByAltText('DynaChat logo')).toBeInTheDocument();
-    expect(screen.getByText('DynaChat')).toBeInTheDocument();
+    expect(screen.getByText('Dental AI Assistant')).toBeInTheDocument();
     expect(screen.getByText(brandingText)).toBeInTheDocument();
   });
 
@@ -107,10 +107,10 @@ describe('Signup page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: /create account/i })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /crear cuenta/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /correo electrónico/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /registrarse/i })).toBeInTheDocument();
   });
 
   it('renders a link to the login page', () => {
@@ -120,7 +120,7 @@ describe('Signup page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: /log in/i })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: /iniciar sesión/i })).toHaveAttribute('href', '/login');
   });
 });
 
@@ -137,17 +137,19 @@ describe('Login and Signup branding consistency', () => {
       </MemoryRouter>,
     );
 
-    // Both should have the logo img with same alt text
-    const loginLogo = loginContainer.querySelector('img[alt="DynaChat logo"]');
-    const signupLogo = signupContainer.querySelector('img[alt="DynaChat logo"]');
+    // Both should have the same decorative tooth icon
+    const loginLogo = loginContainer.querySelector('svg[aria-hidden="true"]');
+    const signupLogo = signupContainer.querySelector('svg[aria-hidden="true"]');
     expect(loginLogo).toBeInTheDocument();
     expect(signupLogo).toBeInTheDocument();
+    expect(loginLogo).toHaveAttribute('viewBox', '0 0 24 24');
+    expect(signupLogo).toHaveAttribute('viewBox', '0 0 24 24');
 
-    // Both should have DynaChat title
+    // Both should have Dental AI Assistant title
     const loginTitle = loginContainer.querySelector('.text-xl.font-semibold');
     const signupTitle = signupContainer.querySelector('.text-xl.font-semibold');
-    expect(loginTitle?.textContent).toBe('DynaChat');
-    expect(signupTitle?.textContent).toBe('DynaChat');
+    expect(loginTitle?.textContent).toBe('Dental AI Assistant');
+    expect(signupTitle?.textContent).toBe('Dental AI Assistant');
 
     // Both should have the tagline
     expect(loginContainer.textContent).toContain(brandingText);

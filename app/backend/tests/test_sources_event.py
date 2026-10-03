@@ -752,7 +752,12 @@ class TestRefusalSourcesSuppressionIntegration:
         ]
 
         async def mock_stream_chat(
-            messages, tools=None, tool_executor=None, max_tool_calls=0, final_text_out=None
+            messages,
+            tools=None,
+            tool_executor=None,
+            max_tool_calls=0,
+            final_text_out=None,
+            **kwargs,
         ):
             if tool_executor is not None:
                 await tool_executor("search_videos", json.dumps({"query": "test"}))
@@ -851,7 +856,12 @@ class TestRefusalSourcesSuppressionIntegration:
         # an injected closure. We simulate a successful search + then a refusal
         # response by calling the executor ourselves inside mock_stream_chat.
         async def mock_stream_chat(
-            messages, tools=None, tool_executor=None, max_tool_calls=0, final_text_out=None
+            messages,
+            tools=None,
+            tool_executor=None,
+            max_tool_calls=0,
+            final_text_out=None,
+            **kwargs,
         ):
             if tool_executor is not None:
                 await tool_executor("search_videos", json.dumps({"query": "test"}))
@@ -951,7 +961,12 @@ class TestRefusalSourcesSuppressionIntegration:
         ]
 
         async def mock_stream_chat(
-            messages, tools=None, tool_executor=None, max_tool_calls=0, final_text_out=None
+            messages,
+            tools=None,
+            tool_executor=None,
+            max_tool_calls=0,
+            final_text_out=None,
+            **kwargs,
         ):
             if tool_executor is not None:
                 await tool_executor("search_videos", json.dumps({"query": "test"}))
@@ -989,7 +1004,10 @@ class TestRefusalSourcesSuppressionIntegration:
                 }
             return None
 
+        persisted_messages = []
+
         async def mock_create_message(**kwargs):
+            persisted_messages.append(kwargs)
             return {"id": str(uuid4()), **kwargs}
 
         async def mock_list_messages(conv_id, user_id):
@@ -1021,6 +1039,7 @@ class TestRefusalSourcesSuppressionIntegration:
             f"Expected 'event: sources' in output for normal answer, but got: {output}"
         )
         assert "data: [DONE]" in output
+        assert persisted_messages[-1]["termination_reason"] == "completed"
 
 
 class TestChunkExpansionIntegration:
@@ -1066,6 +1085,7 @@ class TestChunkExpansionIntegration:
             tool_executor=None,
             max_tool_calls=0,
             final_text_out=None,
+            **kwargs,
         ):
             if tool_executor is not None:
                 await tool_executor("search_videos", json.dumps({"query": "test"}))

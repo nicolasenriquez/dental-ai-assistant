@@ -35,6 +35,13 @@ def frontend_dist_with_index(monkeypatch, tmp_path):
 class TestServeSpaOrStatic:
     """Tests for GET /{path:path} catch-all."""
 
+    async def test_responses_include_gis_popup_coop_header(self):
+        """GIS popup pages keep opener communication when FedCM is disabled."""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/auth/config")
+        assert response.headers["cross-origin-opener-policy"] == "same-origin-allow-popups"
+
     async def test_api_path_returns_404(self):
         """Paths starting with api/ must be blocked with 404."""
         transport = ASGITransport(app=app)
