@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TransitionGuardProvider, useTransitionGuard } from '../hooks/useTransitionGuard';
 import * as api from '../lib/api';
 import { Sidebar } from './Sidebar';
 
@@ -57,6 +59,12 @@ vi.mock('../hooks/useToast', () => ({
 }));
 
 afterEach(cleanup);
+
+function DirtyWork({ blocker }: { blocker: (resume: () => void) => boolean }) {
+  const guard = useTransitionGuard();
+  useEffect(() => guard.registerBlocker(blocker), [guard, blocker]);
+  return <textarea aria-label="Nota sin enviar" defaultValue="Trabajo clínico" />;
+}
 
 describe('Sidebar handleNewChat', () => {
   beforeEach(() => {
@@ -297,6 +305,45 @@ describe('Sidebar clinical variant', () => {
 });
 
 describe('Sidebar common navigation', () => {
+  it('guards brand and compact route selection while preserving unsent work', () => {
+    const blocker = vi.fn(() => true);
+    render(
+      <MemoryRouter initialEntries={['/assistant']}>
+        <TransitionGuardProvider>
+          <Sidebar isOpen isCollapsed onClose={vi.fn()} showConversations={false} />
+          <DirtyWork blocker={blocker} />
+        </TransitionGuardProvider>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('link', { name: 'Dental AI Assistant' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Chat' }));
+    expect(blocker).toHaveBeenCalledOnce();
+    expect(screen.getByRole('link', { name: 'Asistente' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('textbox', { name: 'Nota sin enviar' })).toHaveValue('Trabajo clínico');
+  });
+  it.each([false, true])(
+    'links brand to patients with separate toggle (collapsed=%s)',
+    (isCollapsed) => {
+      render(
+        <MemoryRouter initialEntries={['/patients/patient-1/evolutions/evolution-1']}>
+          <Sidebar isOpen isCollapsed={isCollapsed} onClose={vi.fn()} showConversations={false} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole('link', { name: 'Dental AI Assistant' })).toHaveAttribute(
+        'href',
+        '/patients',
+      );
+      expect(screen.getByRole('link', { name: 'Pacientes' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      expect(
+        screen.getByRole('button', {
+          name: isCollapsed ? 'Expandir navegación' : 'Colapsar navegación',
+        }),
+      ).toBeVisible();
+    },
+  );
   it('puts the Chat creation action after the three destinations', () => {
     render(
       <MemoryRouter initialEntries={['/chat']}>

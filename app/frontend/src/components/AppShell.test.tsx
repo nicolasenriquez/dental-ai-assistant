@@ -342,28 +342,35 @@ describe('AppShell mobile sidebar', () => {
     vi.unstubAllGlobals();
   });
 
-  it('hides the chat sidebar completely and restores it from the workspace', () => {
-    vi.stubGlobal(
-      'matchMedia',
-      vi.fn().mockReturnValue({
-        matches: false,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      }),
-    );
-    render(
-      <AppShell showConversations>
-        <main>Chat</main>
-      </AppShell>,
-    );
-    const collapse = screen.getByRole('button', { name: 'Cerrar navegación' });
-    collapse.focus();
-    fireEvent.click(collapse);
-    expect(document.querySelector('#app-sidebar')).toHaveAttribute('inert');
-    const restore = screen.getByRole('button', { name: 'Abrir navegación' });
-    expect(restore).toHaveFocus();
-    fireEvent.click(restore);
-    expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('inert');
-    vi.unstubAllGlobals();
-  });
+  it.each([{ showConversations: true }, { clinicalSidebar: true }])(
+    'keeps compact navigation accessible without unmounting work (%o)',
+    (props) => {
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn().mockReturnValue({
+          matches: false,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }),
+      );
+      const onUnmount = vi.fn();
+      render(
+        <AppShell {...props}>
+          <MountProbe onUnmount={onUnmount} />
+        </AppShell>,
+      );
+      const collapse = screen.getByRole('button', { name: 'Cerrar navegación' });
+      collapse.focus();
+      fireEvent.click(collapse);
+      expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('inert');
+      expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('aria-hidden');
+      expect(screen.getByRole('link', { name: 'Pacientes' })).toBeVisible();
+      const restore = screen.getByRole('button', { name: 'Abrir navegación' });
+      expect(restore).toHaveFocus();
+      fireEvent.click(restore);
+      expect(document.querySelector('#app-sidebar')).not.toHaveAttribute('inert');
+      expect(onUnmount).not.toHaveBeenCalled();
+      vi.unstubAllGlobals();
+    },
+  );
 });

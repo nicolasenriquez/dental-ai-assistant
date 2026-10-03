@@ -1,5 +1,6 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { Link } from 'react-router-dom';
 import { DentalToothIcon } from '../DentalToothIcon';
 import { SIDEBAR_MOTION } from './sidebarMotion';
 
@@ -24,7 +25,14 @@ export function SidebarHeader({
 
   return (
     <header className="sidebar-header">
-      <div className="sidebar-brand" title="Dental AI Assistant">
+      <Link
+        to="/patients"
+        onClick={onClose}
+        className="sidebar-brand"
+        aria-label="Dental AI Assistant"
+        title="Dental AI Assistant"
+        data-tooltip={isCollapsed ? 'Dental AI Assistant' : undefined}
+      >
         <span
           className="sidebar-brand-mark inline-flex items-center justify-center text-white"
           aria-hidden="true"
@@ -44,7 +52,7 @@ export function SidebarHeader({
             </motion.span>
           )}
         </AnimatePresence>
-      </div>
+      </Link>
       <button
         type="button"
         className="sidebar-icon-button"

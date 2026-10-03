@@ -86,7 +86,6 @@ export function AppShell({
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const hideSidebarRail = showConversations || clinicalSidebar;
   const [isMobileSidebar, setIsMobileSidebar] = useState(
     () => window.matchMedia?.('(max-width: 767px)').matches ?? true,
   );
@@ -145,13 +144,11 @@ export function AppShell({
     const sidebar = sidebarRef.current;
     if (!sidebar) return;
 
-    const hidden =
-      (isMobileSidebar && !sidebarOpen) ||
-      (!isMobileSidebar && sidebarCollapsed && hideSidebarRail);
+    const hidden = isMobileSidebar && !sidebarOpen;
     if (hidden && sidebar.contains(document.activeElement)) menuButtonRef.current?.focus();
     sidebar.toggleAttribute('inert', hidden);
     return () => sidebar.removeAttribute('inert');
-  }, [isMobileSidebar, sidebarCollapsed, sidebarOpen, hideSidebarRail]);
+  }, [isMobileSidebar, sidebarOpen]);
 
   useEffect(() => {
     if (sidebarOpen) {
@@ -219,7 +216,6 @@ export function AppShell({
             showConversations={showConversations}
             isMobile={isMobileSidebar}
             isCollapsed={sidebarCollapsed}
-            hideCollapsed={hideSidebarRail}
             onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
             runtimeByConversationId={runtimeByConversationId}
             secondaryContent={secondarySidebarContent?.(
@@ -235,22 +231,8 @@ export function AppShell({
           <div
             id="main-content"
             tabIndex={-1}
-            className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}${!isMobileSidebar && sidebarCollapsed && hideSidebarRail ? ' has-sidebar-restore' : ''}`}
+            className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}`}
           >
-            {!isMobileSidebar && sidebarCollapsed && hideSidebarRail && (
-              <button
-                ref={menuButtonRef}
-                type="button"
-                className="sidebar-workspace-trigger"
-                onClick={() => setSidebarCollapsed(false)}
-                aria-expanded={false}
-                aria-controls="app-sidebar"
-                aria-label="Abrir navegación"
-                title="Abrir navegación"
-              >
-                <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
-              </button>
-            )}
             {isMobileSidebar && !sidebarOpen && (
               <button
                 key="mobile-navigation-trigger"
