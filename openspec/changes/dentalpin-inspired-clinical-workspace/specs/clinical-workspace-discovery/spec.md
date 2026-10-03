@@ -178,12 +178,14 @@ All new discovery surfaces SHALL follow PRODUCT.md, DESIGN.md, and docs/design/U
 The existing owner-scoped POST /api/patients/search SHALL match normalized names, stored phone digits, a complete valid RUT, and a partial numeric RUT body. It SHALL keep raw search text out of the URL, navigation state, storage, analytics and logs. Results SHALL expose masked RUT and the existing summary fields, not the matched phone value merely because it was searched.
 
 #### Scenario: Partial and complete identifier
-- **WHEN** an owner enters a valid complete RUT in formatted or compact form
+- **WHEN** an owner enters a valid explicit RUT or nine-digit compact RUT as classified by patient-clinical-contract.md
 - **THEN** the exact owned patient is returned
-- **WHEN** the owner enters a partial numeric RUT body
+- **WHEN** the owner enters 1–8 bare digits as a numeric fragment
 - **THEN** owned patients with that numeric portion are returned without requiring a check digit
-- **WHEN** a purported complete RUT has an invalid check digit
-- **THEN** it is not treated as a verified exact RUT match
+- **WHEN** an explicit RUT has an invalid check digit
+- **THEN** no patient is returned and the query does not silently become a fragment
+- **WHEN** a nine-digit compact candidate has an invalid check digit
+- **THEN** it may match phone digits but never a RUT-body fragment
 
 #### Scenario: Phone and privacy
 - **WHEN** an owner enters a formatted or digits-only phone fragment
@@ -250,3 +252,108 @@ Actividad SHALL project only persisted owner-scoped approved evolutions, general
 - **THEN** it leads to the exact evolution, note or condition within that patient
 - **WHEN** a source fails
 - **THEN** Actividad shows an error and retry, never a false empty timeline
+
+### Requirement: Professional chart-first clinical composition
+Clínica > Diagnóstico SHALL follow the chart-first hierarchy extracted in `clinical-visual-review-2026-10-02.md` while preserving Dental AI Assistant's dark semantic palette, tooth brand, Spanish copy and existing navigation. The diagnostic workspace SHALL present a labelled chart and dentition control, illustrated diagnostic tools, an explicit draft review region, a collapsible legend and saved conditions grouped by tooth. General notes SHALL retain their Información owner; this requirement does not introduce DentalPin's treatment notes, plans or attachment workflows.
+
+#### Scenario: Anatomical chart and orientation
+- **WHEN** the clinician opens either dentition
+- **THEN** the chart distinguishes incisor, canine, premolar where present, and molar forms with lateral outlines and readable occlusal/surface geometry, preserves the specified FDI order in upper/lower arches separated at the midline, and labels orientation in text
+- **AND** one repeated brand-tooth glyph or an undifferentiated numbered-button grid does not satisfy the chart requirement
+
+#### Scenario: Clinical section access on narrow screens
+- **WHEN** Clínica is selected on a narrow viewport
+- **THEN** patient identity/actions and the four-section tab strip precede the clinical mode controls and chart; Resumen metrics, pending-work rows and summary starter actions do not render above the clinical content
+- **AND** the existing exact evolution route remains focused on its selected evolution rather than acquiring an extra summary or diagnostic overview
+
+#### Scenario: Tool recognition and persisted marks
+- **WHEN** a diagnostic tool is selected
+- **THEN** its tile combines a Spanish label and a consistent condition symbol, visibly identifies selection and shows that the selection is an unsaved draft
+- **WHEN** saved conditions render
+- **THEN** chart marks encode their supported condition and surfaces using symbols or patterns plus text equivalents; multiple conditions remain individually discoverable, and draft/selected/active/resolved states are distinguishable without color alone
+
+#### Scenario: Available-width composition
+- **WHEN** the diagnostic region has at least 960 CSS px of available width
+- **THEN** the chart/list column and 280–320px draft inspector are side by side with a 16–24px gap and the anatomical drawing does not grow beyond 900px
+- **WHEN** that region is narrower, including when contextual Assistant reduces it
+- **THEN** the same inspector is stacked in document order, title/dentition controls wrap deliberately, and a compact labelled arch overview is paired with an enlarged tooth/surface editor and named textual tooth selector with 44px coarse-pointer controls; page-wide overflow and tiny surface-only interaction are forbidden
+
+#### Scenario: Chart and list linkage
+- **WHEN** a tooth or corresponding saved-condition row receives hover or keyboard focus
+- **THEN** the other representation highlights the same FDI tooth without changing draft tooth, surfaces or persisted state
+- **WHEN** Ver diente is activated
+- **THEN** the correct dentition opens and focus reaches the named tooth; editing remains an explicit separate action
+
+#### Scenario: Pointer-accessible contextual controls
+- **WHEN** the page is used at 375×667 or another narrow viewport with contextual Assistant available
+- **THEN** every diagnostic action is reachable by ordinary pointer and keyboard interaction, no floating Assistant control covers another action, and fixed controls do not obscure the final condition row or save/cancel controls
+
+#### Scenario: State-specific visual evidence
+- **WHEN** the diagnostic implementation is verified
+- **THEN** synthetic ready, empty, loading, error, selected-tool, selected-tooth/surfaces, saved, resolved and conflict states are captured at 1440×900, 1024×768 and 375×667, with additional 320px overflow and keyboard checks; screenshots use matching viewports and never substitute a wireframe for production proof
+
+### Requirement: Stable patient clinical API contracts
+New notes, conditions, revisions, catalogue and Activity endpoints SHALL implement the DTOs, methods, errors and cursor order in patient-api-contract.md. Catalogue SHALL be authenticated GET /api/patients/condition-catalog, version1, containing only the twelve supported codes, Spanish labels and allowed surfaces. New DTOs SHALL reject unknown fields. All nested resources SHALL verify owner and parent. Notes and conditions SHALL support single-record reads for deep links beyond list page1.
+
+#### Scenario: Bounded reads and exact record focus
+- **WHEN** a note, condition or revision list is requested
+- **THEN** default limit is20, allowed range1–50, total is calculated before cursor, and invalid/mismatched cursors return422
+- **WHEN** Activity opens a resource absent from the first list page
+- **THEN** an exact owned read focuses it without depending on list position; an inaccessible record shows not-found recovery
+- **WHEN** conditions have more than one page
+- **THEN** chart loads all condition pages for selected dentition before presenting a complete saved-state map; partial failure is labelled incomplete with retry, never no-conditions
+
+#### Scenario: Distinct activity revisions
+- **WHEN** the same note has multiple revisions
+- **THEN** every revision has a distinct event_id, shares resource_id, retains deterministic cursor ordering, and links to the latest resource with revision history available
+- **WHEN** an evolution is backdated by its clinician
+- **THEN** Activity orders its save event by persisted created_at, not editable evolution_at
+
+### Requirement: Retry-safe explicit clinical mutations
+New note/condition creation SHALL use a client UUID reused for identical retry. Resources and revision1 SHALL commit together. An identical owned UUID and creation snapshot SHALL return current resource without another revision; changed payload SHALL return409. PATCH SHALL use expected_revision and the response-lost retry rule in patient-api-contract.md, without overwriting newer work.
+
+#### Scenario: Response lost after creation
+- **WHEN** creation commits but response is lost and the same UUID/payload is retried
+- **THEN** exactly one resource and one creation revision exist, and retry returns200
+- **WHEN** UUID belongs to another owner or parent
+- **THEN** the request returns404 without revealing it
+
+#### Scenario: Optimistic update and retry
+- **WHEN** an identical PATCH is retried after its update committed and the current latest revision is exactly expected_revision+1 representing that patch
+- **THEN** return existing resource without another revision
+- **WHEN** a different or later revision conflicts
+- **THEN** return409 and preserve the UI draft until explicit reload/rebase, never force overwrite
+
+### Requirement: Fixed tooth-condition identity and recurrence
+Dentition, FDI tooth and condition code SHALL be immutable after creation. Active duplicate identity SHALL be owner/patient/dentition/tooth/code/canonical surfaces, enforced by database partial uniqueness. Resolved records SHALL be read-only. Different surfaces may coexist; recurrence after resolution SHALL create a new resource. Resolver SHALL prepare a draft, with only Guardar persisting resolution.
+
+#### Scenario: Concurrent active duplicate
+- **WHEN** two distinct UUIDs create the same active identity concurrently
+- **THEN** one record is created and the other receives409 active_condition_exists with its owned existing resource
+- **WHEN** an existing active record edits surfaces into another active identity
+- **THEN** the same uniqueness rule rejects conflict without writing a revision
+
+#### Scenario: Correction and recurrence
+- **WHEN** tooth/code must be corrected
+- **THEN** clinician explicitly resolves the incorrect record and creates a correct record; history retains both
+- **WHEN** a resolved condition recurs
+- **THEN** a new UUID records it; old record is neither reopened nor overwritten
+
+### Requirement: Predictable clinical draft continuity
+Draft transitions SHALL follow patient-clinical-contract.md. Highlight SHALL remain independent. Dirty navigation SHALL offer save/discard/remain. Contextual Assistant and layout changes SHALL preserve draft. Uncertain mutations SHALL retain UUID/frozen payload for retry. No clinical draft SHALL be persisted to browser storage.
+
+#### Scenario: Tool and context changes
+- **WHEN** a new draft changes tool
+- **THEN** tooth/note remain, compatible surfaces remain, incompatible surfaces clear with an announcement
+- **WHEN** dirty draft changes dentition, patient, tab or record
+- **THEN** discard/remain or save/discard/remain guard runs as specified; save failure does not complete navigation
+- **WHEN** contextual Assistant opens or layout changes
+- **THEN** draft remains intact and nothing is submitted
+
+#### Scenario: Resolve and refresh
+- **WHEN** Resolver is selected then cancelled
+- **THEN** persisted condition remains active
+- **WHEN** Guardar confirms resolve
+- **THEN** status/revision/activity update transactionally
+- **WHEN** browser refresh is attempted with dirty draft
+- **THEN** beforeunload warns; confirmed reload clears in-memory draft and no automatic recovery from browser storage is promised

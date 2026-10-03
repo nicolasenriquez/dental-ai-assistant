@@ -1,6 +1,6 @@
 # Implementation blueprint and measurable UI contract
 
-The normative scenarios are in `specs/clinical-workspace-discovery/spec.md`. `patient-clinical-contract.md` specifies the new schema, API, FDI/catalog validation, revision and activity behavior. `dentalpin-patients-e2e-2026-10-02.md` is source evidence. `wireframes/clinical-workspace.html` and `wireframes/patient-detail.html` are target-only structural references with synthetic data; production components use current tokens and patterns.
+The normative scenarios are in `specs/clinical-workspace-discovery/spec.md`. `patient-clinical-contract.md` fixes schema/identity/search/draft rules; `patient-api-contract.md` fixes DTOs/routes/cursors/errors/retry. `wireframes/diagnosis.html` is the current diagnostic reference; clinical-workspace.html and patient-detail.html retain directory/other-ficha references with synthetic data. Production uses existing components/tokens, not wireframe CSS.
 
 ## Source-to-target map
 
@@ -11,6 +11,7 @@ The normative scenarios are in `specs/clinical-workspace-discovery/spec.md`. `pa
 | Centered create modal, required/optional fields | `PatientFormModal.tsx` | Reuse names + valid RUT required; optional birth date/phone/email; exact ficha after create. General notes live after creation. |
 | Patient identity header and owner-linked summary cards | `PatientDetail.tsx`, `PatientOverview.tsx`, `PatientWorkspace.tsx` | Four ficha tabs; only approved evolution, pending work, notes, tooth conditions and real activity. |
 | Diagnosis chart, condition list and legend | No target resource | Separate manual patient-owned condition/revision model, accessible FDI chart and text path; explicit Guardar. |
+| Anatomical chart-first workspace and contextual rail | Existing ficha with optional contextual Assistant | Anatomical lateral/occlusal tooth families, illustrated tools, linked grouped conditions and an available-width draft inspector. General notes stay in Información. See clinical-visual-review-2026-10-02.md. |
 | Timeline with category chips and day-grouped cards | No target timeline | Bounded read projection over approved evolutions, note revisions and tooth-condition revisions. |
 | Guided Copilot and pending work | Existing clinical Assistant and pending projection | Supported unsent starters; direct pending mode without automatic thread acquisition. |
 
@@ -59,6 +60,8 @@ Page → domain → pattern → primitive → token. Typed HTTP clients stay in 
 | Create | One existing modal; required first/last name and DV-valid RUT; optional birth date/phone/email | Current form plus contact migration. |
 | Ficha | Four local sections; Clínica has manual Diagnóstico and approved Evoluciones; no unsupported tabs | User comments and product scope. |
 | Chart | 32 permanent/20 primary FDI teeth, twelve diagnostic codes, five supported surface codes only where applicable, zero writes before explicit Guardar | DentalPin source + patient-clinical-contract.md. |
+| Diagnostic geometry | Chart first; distinct tooth families, upper/lower and midline; max900px drawing; available width >=960px uses280–320px inspector/gap16–24px, otherwise stack; mobile overview + enlarged tooth editor and44px selector | Current diagnosis.html and chart-first requirement. |
+| Diagnostic interaction | Symbols/text agree across tools/chart/list; hover/focus highlights without changing draft; ordinary pointer access without colliding fixed controls | clinical-visual-review-2026-10-02.md, including observed source mobile collision. |
 | Activity | Four filters Todos/Evoluciones/Notas/Diagnósticos; 20 persisted entries per page; no fabricated source | New bounded API projection. |
 | Accessibility | 44px coarse-pointer targets, named icons, visible focus, non-color legend/text list, reduced motion | PRODUCT.md, DESIGN.md, UX principles. |
 
@@ -71,4 +74,4 @@ Page → domain → pattern → primitive → token. Typed HTTP clients stay in 
 - Notes create/edit revision and 409 conflict; conditions with valid permanent/primary teeth, invalid mismatch, active/resolved revision, optional surfaces and failed save draft; Activity filter/cursor/tie and exact owned links.
 - Browser/ARIA views at 320, 713, 1024 CSS px and desktop, including compact rail route selection without expansion.
 
-The two retained HTML files are implementation aids. `clinical-workspace.html` shows directory/create and compact route states; `patient-detail.html` shows ficha/notes/diagnosis/activity. Their custom HTML rows and icon glyphs illustrate layout only; production uses a semantic desktop table, existing Lucide route icons, the current mobile drawer and real typed components. The PNG previews are generated from synthetic target HTML. The prose audit is the source reference; no source-only interactive clone remains.
+The three HTML files are implementation aids. clinical-workspace.html covers directory/create; patient-detail.html covers other ficha sections and routes its Clínica tab to diagnosis.html. diagnosis.html demonstrates permanent/primary anatomical families, illustrated tools, active/resolved records, surface selection, explicit save/cancel/resolve, context-panel reflow and synthetic state controls. Old patient-detail diagnostic PNG/glyphs are historical and not acceptance baselines. Diagram geometry is independently authored. Production preserves target logo/global icons and mobile drawer rather than copying prototype navigation links. Wireframe save is local simulation, not API proof. readiness-review.md records browser assertions and remaining implementation gates.
