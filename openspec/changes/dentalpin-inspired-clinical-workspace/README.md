@@ -1,0 +1,9 @@
+# dentalpin-inspired-clinical-workspace
+
+Patient-first clinical workspace and contextual navigation informed by the DentalPin handoff. The existing sidebar and `/patients` entry remain; the logo opens Pacientes.
+
+Read codebase-prime.md for current architecture, live-baseline-2026-10-02.md for the current app's browser evidence, dentalpin-patients-e2e-2026-10-02.md for the focused DentalPin patients journey and source/target map, proposal.md for scope and decisions, evidence.md for the cross-product audit, implementation-blueprint.md for UI boundaries, patient-clinical-contract.md for precise search/notes/odontogram/activity API and schema, wireframes/clinical-workspace.html for the target directory/create/compact-rail states, wireframes/patient-detail.html for interactive ficha states, references/dentalpin-user-flow-handoff.md for the original broad observation record, design.md for ownership, specs/clinical-workspace-discovery/spec.md for observable requirements, and tasks.md for fail-first vertical slices.
+
+The two HTML files are synthetic, structural implementation references rather than deployable screens. Playwright CLI previews: `wireframes/patient-directory-preview.png`, `wireframes/patient-create-preview.png`, `wireframes/patient-collapsed-preview.png`, `wireframes/patient-detail-preview.png`, `wireframes/patient-info-preview.png` and `wireframes/patient-activity-preview.png`. They use synthetic data and the current dark/blue visual language; the normative spec owns behavior. The directory wireframe illustrates cards below 1024px and click-anywhere rows, while production retains the existing mobile drawer.
+
+The evidence and full handoff are inside this change so the sibling DentalPin repository and the original artifact location are optional references. This change is a specification; no runtime feature has been implemented here.
