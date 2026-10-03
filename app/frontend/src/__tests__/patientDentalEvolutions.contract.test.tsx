@@ -40,7 +40,7 @@ describe('patient pages and evolution workspace contracts', () => {
   it('covers one-field patient search and recoverable states', () => {
     const source = pages();
     for (const text of [
-      'Buscar por nombre o RUT',
+      'Buscar por nombre, teléfono o RUT',
       'No encontramos pacientes',
       'Reintentar',
       'Abrir paciente',

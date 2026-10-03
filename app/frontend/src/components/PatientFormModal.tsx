@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -23,6 +24,8 @@ export interface PatientFormValues {
   last_name: string;
   rut: string | null;
   birth_date: string | null;
+  phone: string | null;
+  email: string | null;
 }
 
 interface PatientFormModalProps {
@@ -34,7 +37,7 @@ interface PatientFormModalProps {
   onSuccess: (patient: Patient) => void;
 }
 
-type PatientField = 'first_name' | 'last_name' | 'rut' | 'birth_date';
+type PatientField = 'first_name' | 'last_name' | 'rut' | 'birth_date' | 'phone' | 'email';
 type PatientFieldErrors = Partial<Record<PatientField, string>>;
 
 function rutError(value: string): string {
@@ -66,6 +69,8 @@ function getInitialValues(mode: PatientFormModalProps['mode'], patient?: Patient
     last_name: patient?.last_name ?? '',
     rut: mode === 'create' ? '' : null,
     birth_date: patient?.birth_date?.split('-').reverse().join('/') ?? null,
+    phone: patient?.phone ?? null,
+    email: patient?.email ?? null,
   } satisfies PatientFormValues;
 }
 
@@ -81,6 +86,8 @@ export function PatientFormModal({
   const lastInput = useRef<HTMLInputElement>(null);
   const rutInput = useRef<HTMLInputElement>(null);
   const birthDateInput = useRef<HTMLInputElement>(null);
+  const phoneInput = useRef<HTMLInputElement>(null);
+  const emailInput = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
   const rutSelection = useRef<{ start: number; end: number } | null>(null);
@@ -128,6 +135,8 @@ export function PatientFormModal({
     form.first_name !== initialForm.first_name ||
     form.last_name !== initialForm.last_name ||
     form.birth_date !== initialForm.birth_date ||
+    form.phone !== initialForm.phone ||
+    form.email !== initialForm.email ||
     (mode === 'create' ? form.rut !== initialForm.rut : rutChangeOpen);
 
   const requestClose = () => {
@@ -149,9 +158,9 @@ export function PatientFormModal({
   };
 
   const focusFirstInvalid = (errors: PatientFieldErrors) => {
-    const firstInvalid = (['first_name', 'last_name', 'rut', 'birth_date'] as PatientField[]).find(
-      (field) => errors[field],
-    );
+    const firstInvalid = (
+      ['first_name', 'last_name', 'rut', 'birth_date', 'phone', 'email'] as PatientField[]
+    ).find((field) => errors[field]);
     if (!firstInvalid) return;
 
     window.requestAnimationFrame(() => {
@@ -159,6 +168,8 @@ export function PatientFormModal({
       if (firstInvalid === 'last_name') lastInput.current?.focus();
       if (firstInvalid === 'rut') rutInput.current?.focus();
       if (firstInvalid === 'birth_date') birthDateInput.current?.focus();
+      if (firstInvalid === 'phone') phoneInput.current?.focus();
+      if (firstInvalid === 'email') emailInput.current?.focus();
     });
   };
 
@@ -169,6 +180,26 @@ export function PatientFormModal({
     const rut = form.rut?.trim() ?? '';
     const birthDate = normalizeClinicalDateInput(form.birth_date ?? '');
     const parsedBirthDate = birthDate ? parseClinicalDateInput(birthDate) : null;
+    const phone = form.phone?.trim() || null;
+    const email = form.email?.trim() || null;
+    if (
+      phone &&
+      (phone.length > 40 ||
+        !/^\+?[0-9 ()-]+$/.test(phone) ||
+        !/^[0-9]{1,15}$/.test(phone.replace(/[^0-9]/g, '')))
+    )
+      errors.phone = 'Ingresa un teléfono de 1 a 15 dígitos, sin extensiones.';
+    if (
+      email &&
+      (email.length > 254 ||
+        [...email].some(
+          (character) =>
+            character.charCodeAt(0) < 32 ||
+            (character.charCodeAt(0) >= 127 && character.charCodeAt(0) <= 159),
+        ) ||
+        !/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email))
+    )
+      errors.email = 'Ingresa un correo válido, como nombre@dominio.cl.';
 
     if (!firstName) errors.first_name = 'Ingresa los nombres.';
     if (!lastName) errors.last_name = 'Ingresa los apellidos.';
@@ -187,6 +218,8 @@ export function PatientFormModal({
         last_name: lastName,
         rut: mode === 'create' || rutChangeOpen ? formatRutInput(rut, true) : null,
         birth_date: parsedBirthDate,
+        phone,
+        email,
       } satisfies PatientFormValues,
     };
   };
@@ -271,7 +304,7 @@ export function PatientFormModal({
       <form
         onSubmit={submit}
         noValidate
-        className="relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-2xl"
+        className="relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-2xl"
       >
         <button
           type="button"
@@ -280,7 +313,7 @@ export function PatientFormModal({
           onClick={requestClose}
           className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-lg text-xl text-[var(--text-secondary)] hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
         >
-          ×
+          <X aria-hidden="true" size={18} strokeWidth={1.8} />
         </button>
         <h2 id="patient-dialog-title" className="text-lg font-semibold">
           {mode === 'create' ? 'Nuevo paciente' : 'Editar paciente'}
@@ -290,6 +323,7 @@ export function PatientFormModal({
             ? 'Crea la ficha básica. Podrás agregar una evolución después.'
             : 'Actualiza los datos básicos sin modificar sus evoluciones clínicas.'}
         </p>
+        <p className="mt-2 text-xs text-muted">Nombres, apellidos y RUT son obligatorios.</p>
 
         {duplicate ? (
           <div className="mt-4">
@@ -312,7 +346,7 @@ export function PatientFormModal({
           </div>
         ) : (
           <>
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,272px),1fr))] gap-4">
               <label className="text-sm">
                 <span className="text-[var(--text-secondary)]">Nombres</span>
                 <input
@@ -480,6 +514,37 @@ export function PatientFormModal({
                   }
                 }}
               />
+              {(['phone', 'email'] as const).map((field) => (
+                <label key={field} className="text-sm">
+                  <span className="text-muted">
+                    {field === 'phone' ? 'Teléfono' : 'Correo'}{' '}
+                    <span className="text-xs">Opcional</span>
+                  </span>
+                  <input
+                    ref={field === 'phone' ? phoneInput : emailInput}
+                    type={field === 'phone' ? 'tel' : 'email'}
+                    value={form[field] ?? ''}
+                    disabled={submitting}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setForm((current) => ({ ...current, [field]: value }));
+                      clearFieldError(field);
+                    }}
+                    aria-invalid={fieldErrors[field] ? true : undefined}
+                    aria-describedby={fieldErrors[field] ? `patient-${field}-error` : undefined}
+                    className="mt-1 min-h-11 w-full rounded border border-border bg-surface-raised px-3 py-2 outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                  {fieldErrors[field] && (
+                    <p
+                      id={`patient-${field}-error`}
+                      role="alert"
+                      className="mt-1 text-sm text-danger"
+                    >
+                      {fieldErrors[field]}
+                    </p>
+                  )}
+                </label>
+              ))}
             </div>
             {formError && (
               <p role="alert" className="mt-4 text-sm text-[var(--danger)]">

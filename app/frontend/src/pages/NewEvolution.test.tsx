@@ -44,7 +44,7 @@ async function enterNote() {
 
 describe('NewEvolution generation states', () => {
   beforeEach(() => {
-    vi.spyOn(api, 'getPatient').mockResolvedValue(patient);
+    vi.spyOn(api, 'getPatient').mockResolvedValue({ ...patient, phone: null, email: null });
     vi.spyOn(api, 'getPatientEvolutions').mockResolvedValue([]);
   });
 

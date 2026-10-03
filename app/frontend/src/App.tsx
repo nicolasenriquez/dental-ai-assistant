@@ -22,6 +22,7 @@ import {
   useAuth,
 } from './hooks/useAuth';
 import { useChatRuntime } from './hooks/useChatRuntime';
+import { PatientDirectoryProvider } from './hooks/usePatientDirectory';
 import { AdminVideos } from './pages/AdminVideos';
 import { ClinicalAssistant } from './pages/ClinicalAssistant';
 import { Login } from './pages/Login';
@@ -104,7 +105,9 @@ const router = createBrowserRouter(
           <RequireAuth>
             <ChatRuntimeProvider>
               <ClinicalRuntimeProvider>
-                <Outlet />
+                <PatientDirectoryProvider>
+                  <Outlet />
+                </PatientDirectoryProvider>
               </ClinicalRuntimeProvider>
             </ChatRuntimeProvider>
           </RequireAuth>

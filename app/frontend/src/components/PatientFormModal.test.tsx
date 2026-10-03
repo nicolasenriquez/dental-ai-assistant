@@ -4,6 +4,42 @@ import { ApiError, type Patient } from '../lib/api';
 import { PatientFormModal } from './PatientFormModal';
 
 describe('PatientFormModal', () => {
+  it('loads contact in edit, rejects invalid contact and explicitly clears it', async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ id: 'patient-1' });
+    render(
+      <PatientFormModal
+        open
+        mode="edit"
+        patient={
+          {
+            id: 'patient-1',
+            first_name: 'Ana',
+            last_name: 'Pérez',
+            rut_masked: '••.•••.678-5',
+            last_evolution_at: null,
+            phone: '123',
+            email: 'a@b.com',
+          } as Patient
+        }
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        onSuccess={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText(/Teléfono/)).toHaveValue('123');
+    fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: 'invalid' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    expect(screen.getByLabelText(/Correo/)).toHaveAttribute('aria-invalid', 'true');
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(/Teléfono/), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: null, email: null, rut: null }),
+      ),
+    );
+  });
   it('closes the birth-date calendar with Escape without closing the patient form', () => {
     const onClose = vi.fn();
     render(

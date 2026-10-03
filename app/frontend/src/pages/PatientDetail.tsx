@@ -9,6 +9,7 @@ import { PatientOverview } from '../components/patients/PatientOverview';
 import { Button } from '../components/ui/Button';
 import { buttonVariants } from '../components/ui/Button';
 import { useContextualAssistant } from '../hooks/useContextualAssistant';
+import { usePatientDirectory } from '../hooks/usePatientDirectory';
 import { useToast } from '../hooks/useToast';
 import {
   ApiError,
@@ -28,6 +29,7 @@ export function PatientDetail() {
   }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const directory = usePatientDirectory();
   const { addToast } = useToast();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [evolutions, setEvolutions] = useState<EvolutionSummary[]>([]);
@@ -113,6 +115,8 @@ export function PatientDetail() {
       first_name: values.first_name,
       last_name: values.last_name,
       birth_date: values.birth_date,
+      phone: values.phone,
+      email: values.email,
       ...(values.rut ? { rut: values.rut } : {}),
     });
   };
@@ -122,7 +126,7 @@ export function PatientDetail() {
       <div className="mx-auto flex max-w-7xl gap-6">
         <div className="min-w-0 flex-1">
           <Link
-            to="/patients"
+            to={`/patients${directory.returnSearch}`}
             className="text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
             ‹ Pacientes

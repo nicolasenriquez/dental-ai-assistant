@@ -105,6 +105,13 @@ export interface Patient {
   rut_masked: string;
   last_evolution_at: string | null;
   birth_date?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}
+
+export interface PatientDetail extends Patient {
+  phone: string | null;
+  email: string | null;
 }
 
 export interface CreatePatientBody {
@@ -112,6 +119,8 @@ export interface CreatePatientBody {
   last_name: string;
   rut: string;
   birth_date?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
 
 export interface UpdatePatientBody {
@@ -119,6 +128,8 @@ export interface UpdatePatientBody {
   last_name: string;
   rut?: string | null;
   birth_date?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
 
 export interface ReviewFlag {
@@ -349,7 +360,7 @@ export const searchPatients = (query: string) =>
   request<Patient[]>('/patients/search', { method: 'POST', body: JSON.stringify({ query }) });
 export const createPatient = (body: CreatePatientBody) =>
   request<Patient>('/patients', { method: 'POST', body: JSON.stringify(body) });
-export const getPatient = (id: string) => request<Patient>(`/patients/${id}`);
+export const getPatient = (id: string) => request<PatientDetail>(`/patients/${id}`);
 export const updatePatient = (id: string, body: UpdatePatientBody) =>
   request<Patient>(`/patients/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
 export const generateEvolution = (patientId: string, rawNote: string) =>

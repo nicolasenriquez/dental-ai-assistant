@@ -1,10 +1,239 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PatientDirectoryProvider, usePatientDirectory } from '../hooks/usePatientDirectory';
 import * as api from '../lib/api';
 import { Patients } from './Patients';
 
 describe('Patients birth-date dialog', () => {
+  it.each([
+    ['last_name_asc', ['a', 'b', 'c']],
+    ['last_name_desc', ['c', 'a', 'b']],
+    ['first_name_asc', ['a', 'b', 'c']],
+    ['first_name_desc', ['c', 'a', 'b']],
+    ['last_evolution_asc', ['a', 'c', 'b']],
+    ['last_evolution_desc', ['c', 'a', 'b']],
+    ['unknown', ['a', 'b', 'c']],
+  ])('sorts %s with ascending ID ties and missing evolution last', async (sort, expected) => {
+    vi.spyOn(api, 'getPatients').mockResolvedValue([
+      {
+        id: 'c',
+        first_name: 'Zulu',
+        last_name: 'Zulu',
+        rut_masked: 'masked',
+        last_evolution_at: '2026-02-01T00:00:00Z',
+      },
+      {
+        id: 'b',
+        first_name: 'Ana',
+        last_name: 'Alba',
+        rut_masked: 'masked',
+        last_evolution_at: null,
+      },
+      {
+        id: 'a',
+        first_name: 'Ana',
+        last_name: 'Alba',
+        rut_masked: 'masked',
+        last_evolution_at: '2026-01-01T00:00:00Z',
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={[`/patients?sort=${sort}&evolutions=unknown`]}>
+        <Patients />
+      </MemoryRouter>,
+    );
+    await screen.findByText('3 pacientes');
+    expect(
+      screen.getAllByRole('link').map((link) => link.getAttribute('href')?.split('/').pop()),
+    ).toEqual(expected);
+    expect(screen.getByLabelText('Evoluciones')).toHaveValue('all');
+  });
+
+  it('ignores a stale response during debounce and clears query at session unmount', async () => {
+    vi.spyOn(api, 'getPatients').mockResolvedValue([]);
+    let resolveOld!: (patients: api.Patient[]) => void;
+    vi.spyOn(api, 'searchPatients').mockImplementation((query) =>
+      query === 'old'
+        ? new Promise((resolve) => {
+            resolveOld = resolve;
+          })
+        : Promise.resolve([]),
+    );
+    const view = render(
+      <MemoryRouter>
+        <PatientDirectoryProvider>
+          <Patients />
+        </PatientDirectoryProvider>
+      </MemoryRouter>,
+    );
+    await screen.findByText('Aún no hay pacientes');
+    fireEvent.change(screen.getByLabelText('Buscar por nombre, teléfono o RUT'), {
+      target: { value: 'old' },
+    });
+    await waitFor(() => expect(api.searchPatients).toHaveBeenCalledWith('old'));
+    fireEvent.change(screen.getByLabelText('Buscar por nombre, teléfono o RUT'), {
+      target: { value: 'new' },
+    });
+    await act(async () =>
+      resolveOld([
+        {
+          id: 'old',
+          first_name: 'Old',
+          last_name: 'Result',
+          rut_masked: 'masked',
+          last_evolution_at: null,
+        },
+      ]),
+    );
+    expect(screen.queryByRole('link', { name: /Old Result/ })).not.toBeInTheDocument();
+    view.unmount();
+    render(
+      <MemoryRouter>
+        <PatientDirectoryProvider>
+          <Patients />
+        </PatientDirectoryProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByLabelText('Buscar por nombre, teléfono o RUT')).toHaveValue('');
+  });
+  it('restores private query on return, refetches, and follows safe back/forward state', async () => {
+    const rows: api.Patient[] = [
+      {
+        id: 'patient-1',
+        first_name: 'Ana',
+        last_name: 'Pérez',
+        rut_masked: '••.•••.678-5',
+        last_evolution_at: null,
+      },
+    ];
+    vi.spyOn(api, 'getPatients').mockResolvedValue(rows);
+    vi.spyOn(api, 'searchPatients').mockResolvedValue(rows);
+    const storage = vi.spyOn(Storage.prototype, 'setItem');
+    function Detail() {
+      const directory = usePatientDirectory();
+      return <Link to={`/patients${directory.returnSearch}`}>Volver</Link>;
+    }
+    function History() {
+      const navigate = useNavigate();
+      const location = useLocation();
+      return (
+        <>
+          <output data-testid="url">
+            {location.pathname + location.search + JSON.stringify(location.state)}
+          </output>
+          <button type="button" onClick={() => navigate(-1)}>
+            Atrás
+          </button>
+          <button type="button" onClick={() => navigate(1)}>
+            Adelante
+          </button>
+        </>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={['/patients']}>
+        <PatientDirectoryProvider>
+          <Routes>
+            <Route path="/patients" element={<Patients />} />
+            <Route path="/patients/:id" element={<Detail />} />
+          </Routes>
+          <History />
+        </PatientDirectoryProvider>
+      </MemoryRouter>,
+    );
+    await screen.findByRole('link', { name: /Ana Pérez/ });
+    fireEvent.change(screen.getByLabelText('Buscar por nombre, teléfono o RUT'), {
+      target: { value: '123' },
+    });
+    await waitFor(() => expect(api.searchPatients).toHaveBeenCalledWith('123'));
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'first_name' } });
+    fireEvent.change(screen.getByLabelText('Evoluciones'), { target: { value: 'without' } });
+    fireEvent.click(screen.getByRole('link', { name: /Ana Pérez/ }));
+    fireEvent.click(screen.getByRole('link', { name: 'Volver' }));
+    expect(screen.getByLabelText('Buscar por nombre, teléfono o RUT')).toHaveValue('123');
+    await waitFor(() => expect(api.searchPatients).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText('Evoluciones')).toHaveValue('without');
+    fireEvent.click(screen.getByRole('button', { name: 'Orden descendente' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Atrás' }));
+    expect(screen.getByRole('button', { name: 'Orden descendente' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Adelante' }));
+    expect(screen.getByRole('button', { name: 'Orden ascendente' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar búsqueda' }));
+    expect(screen.getByLabelText('Evoluciones')).toHaveValue('without');
+    expect(screen.getByTestId('url').textContent).not.toContain('123');
+    expect(storage).not.toHaveBeenCalled();
+  });
+
+  it('keeps stale links usable on failure and retries without losing query', async () => {
+    vi.spyOn(api, 'getPatients').mockResolvedValue([
+      {
+        id: 'patient-1',
+        first_name: 'Ana',
+        last_name: 'Pérez',
+        rut_masked: 'masked',
+        last_evolution_at: null,
+      },
+    ]);
+    const search = vi
+      .spyOn(api, 'searchPatients')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <Patients />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('link', { name: /Ana Pérez/ });
+    fireEvent.change(screen.getByLabelText('Buscar por nombre, teléfono o RUT'), {
+      target: { value: '123' },
+    });
+    await screen.findByText('No pudimos actualizar la lista');
+    expect(screen.getByRole('link', { name: /Ana Pérez/ })).toHaveAttribute(
+      'href',
+      '/patients/patient-1',
+    );
+    expect(screen.getByText(/Resultados anteriores/)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await screen.findByText('No encontramos pacientes para «123»');
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText('Buscar por nombre, teléfono o RUT')).toHaveValue('123');
+  });
+  it('filters and sorts complete results with safe URL state and no visible RUT', async () => {
+    vi.spyOn(api, 'getPatients').mockResolvedValue([
+      {
+        id: 'b',
+        first_name: 'Ana',
+        last_name: 'Zulu',
+        rut_masked: '••.•••.678-5',
+        last_evolution_at: null,
+      },
+      {
+        id: 'a',
+        first_name: 'Bea',
+        last_name: 'Alba',
+        rut_masked: '••.•••.679-3',
+        last_evolution_at: '2026-01-01T00:00:00Z',
+      },
+    ]);
+    function Location() {
+      return <output data-testid="url">{useLocation().search}</output>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/patients?sort=first_name_desc&evolutions=with']}>
+        <Patients />
+        <Location />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('link', { name: /Bea Alba/ })).toBeVisible();
+    expect(screen.queryByRole('link', { name: /Ana Zulu/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/••\.•••/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Evoluciones'), { target: { value: 'all' } });
+    expect(screen.getByText('2 pacientes')).toBeVisible();
+    expect(screen.getByTestId('url')).toHaveTextContent('evolutions=all');
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'last_name' } });
+    expect(screen.getByTestId('url')).toHaveTextContent('sort=last_name_desc');
+  });
   beforeEach(() => {
     vi.spyOn(api, 'getPatients').mockResolvedValue([]);
   });
@@ -47,7 +276,7 @@ describe('Patients birth-date dialog', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: '+ Nuevo paciente' }));
     fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: 'Ana' } });
-    fireEvent.change(screen.getByPlaceholderText('Buscar por nombre o RUT...'), {
+    fireEvent.change(screen.getByPlaceholderText('Buscar por nombre, teléfono o RUT...'), {
       target: { value: 'ana' },
     });
 
@@ -137,6 +366,8 @@ describe('Patients birth-date dialog', () => {
         last_name: 'Perez',
         rut: '12.345.678-5',
         birth_date: null,
+        phone: null,
+        email: null,
       }),
     );
   });
@@ -171,11 +402,13 @@ describe('Patients birth-date dialog', () => {
         last_name: 'Perez',
         rut: '12.345.678-5',
         birth_date: '1990-01-02',
+        phone: null,
+        email: null,
       }),
     );
   });
 
-  it('shows derived age and masked RUT in patient rows', async () => {
+  it('shows derived age without RUT in patient rows', async () => {
     vi.mocked(api.getPatients).mockResolvedValue([
       {
         id: 'patient-1',
@@ -195,7 +428,7 @@ describe('Patients birth-date dialog', () => {
 
     const row = await screen.findByRole('link', { name: /Ana Perez/ });
     expect(row).toHaveTextContent(/\d+ años/);
-    expect(row).toHaveTextContent('RUT 12.***.***-*');
+    expect(row).not.toHaveTextContent('RUT');
   });
 
   it('distinguishes a search with no results and can clear it', async () => {
@@ -218,7 +451,7 @@ describe('Patients birth-date dialog', () => {
     );
 
     expect(await screen.findByRole('link', { name: /Ana Perez/ })).toBeVisible();
-    const search = screen.getByPlaceholderText('Buscar por nombre o RUT...');
+    const search = screen.getByPlaceholderText('Buscar por nombre, teléfono o RUT...');
     fireEvent.change(search, { target: { value: 'inexistente' } });
 
     expect(await screen.findByText('No encontramos pacientes para «inexistente»')).toBeVisible();

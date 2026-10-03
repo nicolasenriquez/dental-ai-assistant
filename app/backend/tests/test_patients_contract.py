@@ -2,12 +2,16 @@
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
 
+from backend.auth.dependencies import get_current_user
 from backend.main import app
+from backend.routes import patients
 
 
 @pytest.fixture
@@ -78,7 +82,130 @@ def test_patient_update_contract_has_no_clinical_fields() -> None:
         "last_name",
         "rut",
         "birth_date",
+        "phone",
+        "email",
     }
+
+
+@pytest.mark.parametrize(
+    "phone,email", [(" +56 (9) 1234-5678 ", " Ana@Example.com "), (None, None), ("  ", " ")]
+)
+def test_contact_normalization(phone, email) -> None:
+    request = patients.CreatePatientRequest(
+        first_name="Ana", last_name="Pérez", rut="12.345.678-5", phone=phone, email=email
+    )
+    assert request.phone == (phone.strip() or None if phone is not None else None)
+    assert request.email == (email.strip() or None if email is not None else None)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("phone", 123),
+        ("phone", "+"),
+        ("phone", "123 ext 2"),
+        ("phone", "1+2"),
+        ("phone", "1" * 16),
+        ("phone", " " + "1 " * 21),
+        ("phone", "\uff11\uff12\uff13"),
+        ("email", 123),
+        ("email", "a@b"),
+        ("email", "a@@b.com"),
+        ("email", "a b@c.com"),
+        ("email", "a@b..com"),
+        ("email", "a" * 250 + "@b.com"),
+    ],
+)
+async def test_invalid_contact_is_field_located_without_writes(
+    client, monkeypatch, field, value
+) -> None:
+    create = AsyncMock(
+        return_value={
+            "id": uuid4(),
+            "first_name": "Ana",
+            "last_name": "Pérez",
+            "rut_number": 12345678,
+            "rut_dv": "5",
+        }
+    )
+    monkeypatch.setattr(patients.patients_repo, "create_patient", create)
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4())}
+    try:
+        response = await client.post(
+            "/api/patients",
+            json={"first_name": "Ana", "last_name": "Pérez", "rut": "12.345.678-5", field: value},
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"][0]["loc"] == ["body", field]
+        create.assert_not_awaited()
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_contact_detail_patch_omission_clearing_and_owner404(client, monkeypatch) -> None:
+    owner, identifier = uuid4(), uuid4()
+    row = {
+        "id": identifier,
+        "first_name": "Ana",
+        "last_name": "Pérez",
+        "rut_number": 12345678,
+        "rut_dv": "5",
+        "phone": "123",
+        "email": "a@b.com",
+    }
+    get = AsyncMock(return_value=row)
+    update = AsyncMock(return_value=row)
+    monkeypatch.setattr(patients.patients_repo, "get_patient", get)
+    monkeypatch.setattr(patients.patients_repo, "update_patient", update)
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(owner)}
+    try:
+        response = await client.get(f"/api/patients/{identifier}")
+        assert response.json()["phone"] == "123"
+        body = {"first_name": "Ana", "last_name": "Pérez"}
+        assert (await client.patch(f"/api/patients/{identifier}", json=body)).status_code == 200
+        assert update.call_args.kwargs["update_phone"] is False
+        assert update.call_args.kwargs["update_email"] is False
+        await client.patch(
+            f"/api/patients/{identifier}", json={**body, "phone": None, "email": " "}
+        )
+        assert update.call_args.kwargs["update_phone"] is True
+        assert update.call_args.kwargs["phone"] is None
+        assert update.call_args.kwargs["email"] is None
+        get.assert_awaited_once_with(str(owner), identifier)
+        get.return_value = None
+        update.return_value = None
+        assert (await client.get(f"/api/patients/{identifier}")).status_code == 404
+        assert (await client.patch(f"/api/patients/{identifier}", json=body)).status_code == 404
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.parametrize(
+    "query,kind,value",
+    [
+        ("", "all", ""),
+        ("123", "fragment", "123"),
+        ("12345678", "fragment", "12345678"),
+        ("12.345.678-5", "rut", "12345678"),
+        ("123456785", "rut", "12345678"),
+        ("12.345.678-0", "none", ""),
+        ("123456780", "phone", "123456780"),
+        ("+56 9 1234 5678", "phone", "56912345678"),
+        ("(09) 1234-5678", "phone", "0912345678"),
+        ("1234567890", "phone", "1234567890"),
+        ("Ana María", "name", "ana maria"),
+        ("Ana 123", "name", "ana 123"),
+        ("  Ana   MARÍA ", "name", "ana maria"),
+        ("()", "name", "()"),
+        ("%_\\", "name", "%_\\"),
+        ("12-3-4", "phone", "1234"),
+        ("12.34.56", "name", "12.34.56"),
+    ],
+)
+def test_ordered_patient_search_classification(query, kind, value) -> None:
+    from backend.patients.search import classify_search
+
+    assert classify_search(query) == (kind, value)
 
 
 def test_patient_names_collapse_repeated_whitespace_at_the_boundary() -> None:

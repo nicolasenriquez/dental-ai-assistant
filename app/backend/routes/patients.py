@@ -8,14 +8,18 @@ from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Cookie, Depends, HTTPException, status
-from pydantic import BaseModel, Field, StringConstraints, field_validator
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints, field_validator
 
 from backend.auth.dependencies import get_current_user
 from backend.db import patients_repo
+from backend.patients.contact import normalize_email, normalize_phone
 from backend.patients.rut import normalize_rut, public_patient
+from backend.patients.search import classify_search
 
 MAX_PATIENT_SEARCH_LENGTH = 200
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+Phone = Annotated[str | None, AfterValidator(normalize_phone)]
+Email = Annotated[str | None, AfterValidator(normalize_email)]
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -30,7 +34,8 @@ class PatientSummary(BaseModel):
 
 
 class PatientDetail(PatientSummary):
-    pass
+    phone: str | None = None
+    email: str | None = None
 
 
 class CreatePatientRequest(BaseModel):
@@ -38,6 +43,8 @@ class CreatePatientRequest(BaseModel):
     last_name: Name
     rut: str = Field(min_length=1, max_length=32)
     birth_date: date | None = None
+    phone: Phone = None
+    email: Email = None
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -59,6 +66,8 @@ class UpdatePatientRequest(BaseModel):
     last_name: Name
     rut: str | None = Field(default=None, min_length=1, max_length=32)
     birth_date: date | None = None
+    phone: Phone = None
+    email: Email = None
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -96,16 +105,13 @@ async def search_patients(
     session: str | None = Cookie(default=None),
 ) -> list[PatientSummary]:
     user = await get_current_user(session)
-    term = " ".join(request.query.split())
-    if not term:
+    kind, value = classify_search(request.query)
+    if kind == "all":
         return [_summary(row) for row in await patients_repo.list_patients(user["id"])]
 
-    try:
-        rut_body, _ = normalize_rut(term)
-    except ValueError:
-        rows = await patients_repo.search_patients(user["id"], query=term)
-    else:
-        rows = await patients_repo.search_patients(user["id"], rut_body=rut_body)
+    if kind == "none":
+        return []
+    rows = await patients_repo.search_patients(user["id"], kind=kind, value=value)
     return [_summary(row) for row in rows]
 
 
@@ -123,6 +129,8 @@ async def create_patient(
             rut_body=rut_body,
             check_digit=check_digit,
             birth_date=request.birth_date,
+            phone=request.phone,
+            email=request.email,
         )
     except asyncpg.UniqueViolationError:
         existing = await patients_repo.get_patient_by_rut(user["id"], rut_body)
@@ -158,6 +166,10 @@ async def update_patient(
             birth_date=request.birth_date,
             rut_body=rut_body,
             check_digit=check_digit,
+            phone=request.phone,
+            email=request.email,
+            update_phone="phone" in request.model_fields_set,
+            update_email="email" in request.model_fields_set,
         )
     except asyncpg.UniqueViolationError:
         if rut_body is None:
@@ -175,7 +187,9 @@ async def update_patient(
 
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
-    return PatientDetail(**_summary(row).model_dump())
+    return PatientDetail(
+        **_summary(row).model_dump(), phone=row.get("phone"), email=row.get("email")
+    )
 
 
 @router.get("/{patient_id}", response_model=PatientDetail)
@@ -186,4 +200,6 @@ async def get_patient(
     row = await patients_repo.get_patient(user["id"], patient_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Paciente no encontrado")
-    return PatientDetail(**_summary(row).model_dump())
+    return PatientDetail(
+        **_summary(row).model_dump(), phone=row.get("phone"), email=row.get("email")
+    )
