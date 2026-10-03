@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type PendingWorkPage, getClinicalPendingWork } from '../lib/api';
+import { type PendingWorkItem, type PendingWorkPage, getClinicalPendingWork } from '../lib/api';
 
-export function useClinicalPendingWork(patientId?: string) {
+export function useClinicalPendingWork(
+  patientId?: string,
+  kind?: PendingWorkItem['kind'],
+  limit?: number,
+) {
   const [page, setPage] = useState<PendingWorkPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -12,7 +16,11 @@ export function useClinicalPendingWork(patientId?: string) {
       setLoading(true);
       setError(false);
       try {
-        const next = await getClinicalPendingWork(patientId, cursor);
+        const next = await getClinicalPendingWork(
+          patientId,
+          cursor,
+          kind || limit ? { kind, limit } : undefined,
+        );
         if (id !== sequence.current) return;
         setPage((current) =>
           cursor && current
@@ -31,7 +39,7 @@ export function useClinicalPendingWork(patientId?: string) {
         if (id === sequence.current) setLoading(false);
       }
     },
-    [patientId],
+    [patientId, kind, limit],
   );
   useEffect(() => {
     setPage(null);

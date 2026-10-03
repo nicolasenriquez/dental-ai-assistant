@@ -423,13 +423,89 @@ export interface PendingWorkPage {
   total: number;
 }
 
+export interface PatientActor {
+  user_id: string;
+  display_name: string | null;
+}
+export interface PatientNote {
+  id: string;
+  patient_id: string;
+  body: string;
+  revision: number;
+  created_by: PatientActor;
+  updated_by: PatientActor;
+  created_at: string;
+  updated_at: string;
+}
+export interface PatientNoteRevision {
+  id: string;
+  note_id: string;
+  revision: number;
+  action: 'created' | 'edited';
+  previous_body: string | null;
+  new_body: string;
+  actor: PatientActor;
+  changed_at: string;
+}
+export interface PatientNotePage {
+  items: PatientNote[];
+  next_cursor: string | null;
+  total: number;
+}
+export interface PatientNoteRevisionPage {
+  items: PatientNoteRevision[];
+  next_cursor: string | null;
+  total: number;
+}
+export function getPatientNotes(
+  patientId: string,
+  cursor?: string,
+  limit = 20,
+): Promise<PatientNotePage> {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (cursor) query.set('cursor', cursor);
+  return request(`/patients/${patientId}/notes?${query}`);
+}
+export function getPatientNote(patientId: string, noteId: string): Promise<PatientNote> {
+  return request(`/patients/${patientId}/notes/${noteId}`);
+}
+export function createPatientNote(
+  patientId: string,
+  body: { id: string; body: string },
+): Promise<PatientNote> {
+  return request(`/patients/${patientId}/notes`, { method: 'POST', body: JSON.stringify(body) });
+}
+export function updatePatientNote(
+  patientId: string,
+  noteId: string,
+  body: { expected_revision: number; body: string },
+): Promise<PatientNote> {
+  return request(`/patients/${patientId}/notes/${noteId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+export function getPatientNoteRevisions(
+  patientId: string,
+  noteId: string,
+  cursor?: string,
+  limit = 20,
+): Promise<PatientNoteRevisionPage> {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (cursor) query.set('cursor', cursor);
+  return request(`/patients/${patientId}/notes/${noteId}/revisions?${query}`);
+}
+
 export function getClinicalPendingWork(
   patientId?: string,
   cursor?: string,
+  options?: { kind?: PendingWorkItem['kind']; limit?: number },
 ): Promise<PendingWorkPage> {
   const query = new URLSearchParams();
   if (patientId) query.set('patient_id', patientId);
   if (cursor) query.set('cursor', cursor);
+  if (options?.kind) query.set('kind', options.kind);
+  if (options?.limit !== undefined) query.set('limit', String(options.limit));
   return request<PendingWorkPage>(`/clinical-pending-work?${query}`);
 }
 

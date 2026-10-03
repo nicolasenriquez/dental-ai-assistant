@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { useOptionalClinicalRuntime } from '../components/ClinicalRuntimeProvider';
+import { WorkspaceHeader } from '../components/WorkspaceHeader';
 import { ClinicalAssistantArea } from '../components/clinical-assistant/ClinicalAssistantArea';
+import { ClinicalPendingWork } from '../components/clinical-assistant/ClinicalPendingWork';
 import { ClinicalThreadList } from '../components/clinical-assistant/ClinicalThreadList';
 import { DriveWorkspace, type DriveWorkspaceHandle } from '../components/drive/DriveWorkspace';
 import type { DrivePatientContext } from '../components/drive/editors/types';
@@ -33,6 +35,8 @@ export function ClinicalAssistant() {
 function ClinicalAssistantContent() {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const pendingMode = !threadId && new URLSearchParams(location.search).get('view') === 'pending';
   const transitionGuard = useTransitionGuard();
   const [createdThreadId, setCreatedThreadId] = useState<string | null>(null);
   const [threadListVersion, setThreadListVersion] = useState(0);
@@ -118,7 +122,7 @@ function ClinicalAssistantContent() {
   };
 
   useEffect(() => {
-    if (threadId || createStarted.current) return;
+    if (pendingMode || threadId || createStarted.current) return;
     createStarted.current = true;
     setCreationFailed(false);
     void acquireClinicalThread()
@@ -130,7 +134,7 @@ function ClinicalAssistantContent() {
         createStarted.current = false;
         setCreationFailed(true);
       });
-  }, [createAttempt, navigate, threadId]);
+  }, [createAttempt, navigate, threadId, pendingMode]);
 
   const activeId = threadId ?? createdThreadId;
   const shared = useOptionalClinicalRuntime();
@@ -190,47 +194,65 @@ function ClinicalAssistantContent() {
         ) : null
       }
     >
-      {activeId && (!shared || shared.activeThreadId === activeId) ? (
-        <ClinicalAssistantArea
-          returnToFicha
-          threadId={activeId}
-          assistant={assistant}
-          onThreadStateChanged={() => setThreadListVersion((version) => version + 1)}
-          guardTransition={(continuation) => {
-            if (driveRef.current?.preservesPatientSwitch?.()) continuation();
-            else transitionGuard.guardTransition(continuation);
-          }}
-          onComposerInsertReady={(insert) => {
-            composerInsertRef.current = insert;
-          }}
-          driveOpen={driveOpen}
-          patientPickerOpen={patientPickerOpen}
-          onPatientPickerOpenChange={setPatientPickerOpen}
-          onToggleDrive={() => requestDriveVisibility(!driveOpen)}
-          onOpenDriveJournal={(target) => {
-            setDriveJournalTarget(target);
-            setDriveInitialSection('journals');
-            setDriveVisibility(true);
-          }}
-          onSaveToDrive={(seed) =>
-            transitionGuard.guardTransition(() => {
-              setDriveDraftSeed(seed);
-              setDriveVisibility(true);
-            })
-          }
-        />
-      ) : (
-        <main className="clinical-assistant-area">
-          {creationFailed && (
-            <section className="clinical-empty-state" role="alert">
-              <h2>No pudimos abrir un hilo clínico</h2>
-              <Button variant="clinical" onClick={() => setCreateAttempt((attempt) => attempt + 1)}>
-                Reintentar
+      {pendingMode && (
+        <main className="clinical-assistant-area overflow-y-auto">
+          <WorkspaceHeader
+            title="Trabajo pendiente"
+            actions={
+              <Button variant="clinicalSecondary" onClick={() => navigate('/assistant')}>
+                Iniciar consulta
               </Button>
-            </section>
-          )}
+            }
+          />
+          <ClinicalPendingWork />
         </main>
       )}
+      <div className={pendingMode ? 'hidden' : 'flex min-h-0 flex-1 flex-col'}>
+        {activeId && (!shared || shared.activeThreadId === activeId) ? (
+          <ClinicalAssistantArea
+            returnToFicha
+            threadId={activeId}
+            assistant={assistant}
+            onThreadStateChanged={() => setThreadListVersion((version) => version + 1)}
+            guardTransition={(continuation) => {
+              if (driveRef.current?.preservesPatientSwitch?.()) continuation();
+              else transitionGuard.guardTransition(continuation);
+            }}
+            onComposerInsertReady={(insert) => {
+              composerInsertRef.current = insert;
+            }}
+            driveOpen={driveOpen}
+            patientPickerOpen={patientPickerOpen}
+            onPatientPickerOpenChange={setPatientPickerOpen}
+            onToggleDrive={() => requestDriveVisibility(!driveOpen)}
+            onOpenDriveJournal={(target) => {
+              setDriveJournalTarget(target);
+              setDriveInitialSection('journals');
+              setDriveVisibility(true);
+            }}
+            onSaveToDrive={(seed) =>
+              transitionGuard.guardTransition(() => {
+                setDriveDraftSeed(seed);
+                setDriveVisibility(true);
+              })
+            }
+          />
+        ) : (
+          <main className="clinical-assistant-area">
+            {creationFailed && (
+              <section className="clinical-empty-state" role="alert">
+                <h2>No pudimos abrir un hilo clínico</h2>
+                <Button
+                  variant="clinical"
+                  onClick={() => setCreateAttempt((attempt) => attempt + 1)}
+                >
+                  Reintentar
+                </Button>
+              </section>
+            )}
+          </main>
+        )}
+      </div>
       {pendingTransition && (
         <AlertDialog open onOpenChange={(open) => !open && cancelDirtyTransition()}>
           <AlertDialogContent>

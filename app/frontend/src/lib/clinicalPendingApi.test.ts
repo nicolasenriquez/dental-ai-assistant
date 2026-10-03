@@ -6,8 +6,9 @@ afterEach(() => vi.unstubAllGlobals());
 it('task 1.4: sends exact kind and bounded limit without changing omitted-kind calls', async () => {
   const fetch = vi
     .fn()
-    .mockResolvedValue(
-      new Response(JSON.stringify({ items: [], total: 0, next_cursor: null }), { status: 200 }),
+    .mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ items: [], total: 0, next_cursor: null }), { status: 200 }),
     );
   vi.stubGlobal('fetch', fetch);
   // The third argument is the planned additive client contract for task2.5.

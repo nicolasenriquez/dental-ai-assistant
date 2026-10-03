@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useClinicalPendingWork } from '../../hooks/useClinicalPendingWork';
-import type { EvolutionSummary } from '../../lib/api';
+import type { EvolutionSummary, PendingWorkItem } from '../../lib/api';
 import { formatClinicalDateShort } from '../../lib/clinicalDate';
 import { Button } from '../ui/Button';
 
@@ -16,10 +16,26 @@ export function PatientOverview({
   revision?: string;
   onAssistant: (prefill?: string) => void;
 }): JSX.Element {
-  const pending = useClinicalPendingWork(patientId);
+  const approval = useClinicalPendingWork(patientId, 'approval_required', 1);
+  const draft = useClinicalPendingWork(patientId, 'recoverable_draft', 1);
+  const drive = useClinicalPendingWork(patientId, 'drive_export_failed', 1);
   useEffect(() => {
-    if (revision) void pending.refresh();
+    if (revision) {
+      void approval.refresh();
+      void draft.refresh();
+      void drive.refresh();
+    }
   }, [revision]);
+  const clinical =
+    !approval.error && !approval.loading && approval.page?.items[0]
+      ? approval.page.items[0]
+      : !approval.error && !approval.loading
+        ? draft.page?.items[0]
+        : undefined;
+  const href = (item: PendingWorkItem): string =>
+    item.action.kind === 'retry_drive_export' && !item.action.thread_id
+      ? `/patients/${patientId}/evolutions/${item.action.evolution_id}`
+      : `/a/${item.action.thread_id}`;
   return (
     <section
       aria-label="Resumen del paciente"
@@ -29,51 +45,61 @@ export function PatientOverview({
         <div>
           <dt className="text-muted">Última evolución</dt>
           <dd className="mt-1 font-medium">
-            {evolutions[0]
-              ? formatClinicalDateShort(evolutions[0].evolution_at)
-              : 'Sin evoluciones'}
+            {evolutions[0] ? (
+              <Link
+                className="text-primary hover:underline"
+                to={`/patients/${patientId}/evolutions/${evolutions[0].id}`}
+              >
+                {formatClinicalDateShort(evolutions[0].evolution_at)}
+              </Link>
+            ) : (
+              'Sin evoluciones aprobadas'
+            )}
           </dd>
         </div>
         <div>
           <dt className="text-muted">Evoluciones</dt>
           <dd className="mt-1 font-medium">{evolutions.length}</dd>
         </div>
-        <div>
-          <dt className="text-muted">Pendientes</dt>
-          <dd className="mt-1 font-medium">
-            {pending.loading
-              ? 'Cargando…'
-              : pending.error
-                ? 'No disponible'
-                : (pending.page?.total ?? 0)}
-          </dd>
-        </div>
+        {(
+          [
+            ['Por revisar', approval],
+            ['Borradores', draft],
+            ['Sincronización Drive', drive],
+          ] as const
+        ).map(([label, result]) => (
+          <div key={label}>
+            <dt className="text-muted">{label}</dt>
+            <dd className="mt-1 font-medium">
+              {result.error ? (
+                <span role="alert">
+                  No disponible ·{' '}
+                  <button type="button" className="underline" onClick={() => void result.refresh()}>
+                    Reintentar {label.toLowerCase()}
+                  </button>
+                </span>
+              ) : result.loading ? (
+                'Cargando…'
+              ) : (
+                (result.page?.total ?? 0)
+              )}
+            </dd>
+          </div>
+        ))}
       </dl>
-      {pending.error && (
-        <p role="alert" className="text-error">
-          No pudimos cargar el trabajo pendiente.{' '}
-          <button type="button" className="underline" onClick={() => void pending.refresh()}>
-            Reintentar
-          </button>
-        </p>
-      )}
-      {!pending.error && pending.page?.items[0] && (
+      {clinical && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <p>
-            {pending.page.items[0].kind === 'drive_export_failed'
-              ? 'Evolución guardada con sincronización por recuperar'
-              : 'Tienes trabajo clínico por continuar'}
-          </p>
-          <Link
-            className="py-2 text-primary hover:underline"
-            to={
-              pending.page.items[0].action.kind === 'retry_drive_export' &&
-              !pending.page.items[0].action.thread_id
-                ? `/patients/${patientId}/evolutions/${pending.page.items[0].action.evolution_id}`
-                : `/a/${pending.page.items[0].action.thread_id}`
-            }
-          >
-            Continuar trabajo
+          <p>Tienes trabajo clínico por continuar</p>
+          <Link className="py-2 text-primary hover:underline" to={href(clinical)}>
+            {clinical.kind === 'approval_required' ? 'Revisar' : 'Continuar trabajo'}
+          </Link>
+        </div>
+      )}
+      {!drive.error && drive.page?.items[0] && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p>Guardada en ficha · Sincronización por recuperar</p>
+          <Link className="py-2 text-primary hover:underline" to={href(drive.page.items[0])}>
+            Recuperar sincronización
           </Link>
         </div>
       )}
@@ -84,14 +110,15 @@ export function PatientOverview({
         >
           Preparar evolución
         </Button>
-        {evolutions.length > 0 && (
-          <Button
-            variant="clinicalSecondary"
-            onClick={() => onAssistant('Consulta las evoluciones anteriores de este paciente.')}
-          >
-            Consultar evoluciones anteriores
-          </Button>
-        )}
+        <Button
+          variant="clinicalSecondary"
+          onClick={() => onAssistant('Consulta las evoluciones anteriores de este paciente.')}
+        >
+          Consultar evoluciones anteriores
+        </Button>
+        <Link className="py-2 text-primary hover:underline" to="/assistant?view=pending">
+          Ver pendientes
+        </Link>
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 """Read-only pending work API, scoped to the authenticated owner."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,9 +17,10 @@ async def pending_work(
     patient_id: UUID | None = None,
     cursor: Annotated[str | None, Query(max_length=512)] = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    kind: Literal["approval_required", "recoverable_draft", "drive_export_failed"] | None = None,
 ) -> PendingWorkPage:
     try:
-        return await list_pending_work(UUID(str(user["id"])), patient_id, limit, cursor)
+        return await list_pending_work(UUID(str(user["id"])), patient_id, limit, cursor, kind=kind)
     except LookupError:
         raise HTTPException(status_code=404, detail="Paciente no encontrado") from None
     except ValueError:

@@ -12,6 +12,7 @@ async def list_pending_work(
     patient_id: UUID | None,
     limit: int,
     before: tuple[datetime, str] | None = None,
+    kind: str | None = None,
 ) -> list[dict[str, Any]]:
     async with get_pg_pool().acquire() as conn:
         rows = await conn.fetch(
@@ -43,19 +44,24 @@ async def list_pending_work(
               ) link ON true
               WHERE e.user_id = $1 AND e.status = 'failed'
             ), visible AS (
-              SELECT w.*, p.first_name, p.last_name, p.rut_number, p.rut_dv,
-                     count(*) OVER () AS total
+              SELECT w.*, p.first_name, p.last_name, p.rut_number, p.rut_dv
               FROM work w JOIN patients p ON p.id = w.patient_id AND p.owner_user_id = $1
               WHERE ($2::uuid IS NULL OR w.patient_id = $2)
-            )
-            SELECT * FROM visible
-            WHERE ($3::timestamptz IS NULL OR (updated_at, id) < ($3, $4::text))
-            ORDER BY updated_at DESC, id DESC LIMIT $5
+                AND ($6::text IS NULL OR w.kind = $6)
+            ), counts AS (SELECT count(*) AS total FROM visible)
+            SELECT page.*, counts.total FROM counts
+            LEFT JOIN LATERAL (
+              SELECT * FROM visible
+              WHERE ($3::timestamptz IS NULL OR (updated_at, id) < ($3, $4::text))
+              ORDER BY updated_at DESC, id DESC LIMIT $5
+            ) page ON true
+            ORDER BY page.updated_at DESC, page.id DESC
             """,
             owner,
             patient_id,
             before[0] if before else None,
             before[1] if before else None,
             limit + 1,
+            kind,
         )
     return [dict(row) for row in rows]

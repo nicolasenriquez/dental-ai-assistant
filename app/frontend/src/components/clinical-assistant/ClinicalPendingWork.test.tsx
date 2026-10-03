@@ -78,7 +78,7 @@ it('opens the saved evolution for a failed manual export', async () => {
       <PatientOverview patientId="p" evolutions={[]} onAssistant={vi.fn()} />
     </MemoryRouter>,
   );
-  expect(await screen.findByRole('link', { name: 'Continuar trabajo' })).toHaveAttribute(
+  expect(await screen.findByRole('link', { name: 'Recuperar sincronización' })).toHaveAttribute(
     'href',
     '/patients/p/evolutions/e',
   );

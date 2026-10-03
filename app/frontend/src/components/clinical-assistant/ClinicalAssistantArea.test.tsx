@@ -78,6 +78,30 @@ describe('ClinicalAssistantArea queue', () => {
     vi.mocked(getPatients).mockResolvedValue([]);
   });
 
+  it.each(['Preparar evolución', 'Consultar evoluciones'])(
+    'prefills %s without sending or overwriting work',
+    (label) => {
+      runtime.value = 'idle';
+      assistantState.thread = createThread({
+        id: 'p',
+        first_name: 'Ana',
+        last_name: 'Pérez',
+        rut_masked: '••••',
+      });
+      const assistant = createAssistant();
+      render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+      fireEvent.click(screen.getByRole('button', { name: label }));
+      const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
+      expect(composer).not.toHaveValue('');
+      expect(send).not.toHaveBeenCalled();
+      expect(assistant.prepareDraft).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: label })).toBeDisabled();
+      fireEvent.change(composer, { target: { value: 'Trabajo propio' } });
+      fireEvent.click(screen.getByRole('button', { name: label }));
+      expect(composer).toHaveValue('Trabajo propio');
+    },
+  );
+
   it('keeps the fourth draft when three messages are already queued', () => {
     render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
     const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });

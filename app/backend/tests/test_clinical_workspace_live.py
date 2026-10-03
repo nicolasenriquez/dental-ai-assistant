@@ -4,10 +4,11 @@ Creates only synthetic owned rows, then deletes those rows. Never truncates.
 """
 
 import asyncio
+import base64
 import json
 import os
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import asyncpg
 import pytest
@@ -17,7 +18,7 @@ from backend.auth.dependencies import get_current_user
 from backend.clinical_assistant import pending_work, service
 from backend.clinical_assistant.schemas import PrepareSaveRequest
 from backend.db import clinical_assistant_repo as repo
-from backend.db import clinical_pending_work_repo, patients_repo
+from backend.db import clinical_pending_work_repo, patient_notes_repo, patients_repo
 from backend.main import app
 from backend.routes import patients as patient_routes
 
@@ -28,7 +29,7 @@ pytestmark = pytest.mark.skipif(not DSN, reason="WORKSPACE_LIVE_TEST_DSN not set
 @pytest.fixture
 async def workspace_db(monkeypatch):
     pool = await asyncpg.create_pool(DSN, min_size=1, max_size=3)
-    for module in (repo, clinical_pending_work_repo, patients_repo):
+    for module in (repo, clinical_pending_work_repo, patients_repo, patient_notes_repo):
         monkeypatch.setattr(module, "get_pg_pool", lambda: pool)
     owner, other = uuid4(), uuid4()
     patient, second, foreign = uuid4(), uuid4(), uuid4()
@@ -62,6 +63,178 @@ async def workspace_db(monkeypatch):
         )
         await conn.execute("DELETE FROM users WHERE id = ANY($1::uuid[])", [owner, other])
     await pool.close()
+
+
+async def test_notes_lifecycle_retry_ownership_and_cursor(workspace_db):
+    pool, owner, other, patient, second, foreign = workspace_db
+    current_owner = owner
+
+    async def user(session=None):
+        return {"id": str(current_owner)}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            base = f"/api/patients/{patient}/notes"
+            identifier = str(uuid4())
+            payload = {"id": identifier, "body": "  Nota sintética  "}
+            created = await client.post(base, json=payload)
+            assert created.status_code == 201
+            record = created.json()
+            assert record["body"] == "Nota sintética" and record["revision"] == 1
+            assert record["created_by"]["user_id"] == str(owner)
+            assert record["created_by"]["display_name"] is None
+            assert (await client.post(base, json=payload)).status_code == 200
+            assert (
+                await client.post(base, json={**payload, "body": "Distinta"})
+            ).status_code == 409
+            patch = {"expected_revision": 1, "body": "Nueva versión"}
+            updated = await client.patch(f"{base}/{identifier}", json=patch)
+            assert updated.status_code == 200 and updated.json()["revision"] == 2
+            assert (await client.patch(f"{base}/{identifier}", json=patch)).json()["revision"] == 2
+            # Retry creation compares revision1, never the edited body.
+            assert (await client.post(base, json=payload)).json()["body"] == "Nueva versión"
+            assert (
+                await client.patch(
+                    f"{base}/{identifier}", json={"expected_revision": 2, "body": "Nueva versión"}
+                )
+            ).json()["revision"] == 2
+            conflict = await client.patch(
+                f"{base}/{identifier}", json={"expected_revision": 1, "body": "Otro cambio"}
+            )
+            assert (
+                conflict.status_code == 409
+                and conflict.json()["detail"]["code"] == "revision_conflict"
+            )
+            for body in (
+                {"id": str(uuid4()), "body": " "},
+                {"id": str(uuid4()), "body": "x" * 4001},
+                {"id": str(uuid4()), "body": "ok", "actor": str(other)},
+            ):
+                assert (await client.post(base, json=body)).status_code == 422
+            for body in (
+                {"expected_revision": 0, "body": "ok"},
+                {"expected_revision": 2, "body": None},
+                {"expected_revision": 2, "body": "ok", "unknown": 1},
+            ):
+                assert (await client.patch(f"{base}/{identifier}", json=body)).status_code == 422
+            revisions = await client.get(f"{base}/{identifier}/revisions?limit=1")
+            page = revisions.json()
+            assert revisions.status_code == 200 and page["total"] == 2
+            assert page["items"][0]["previous_body"] == "Nota sintética"
+            next_page = (
+                await client.get(
+                    f"{base}/{identifier}/revisions",
+                    params={"limit": 1, "cursor": page["next_cursor"]},
+                )
+            ).json()
+            assert next_page["total"] == 2 and next_page["items"][0]["revision"] == 1
+            assert next_page["items"][0]["previous_body"] is None
+            exhausted = (
+                await client.get(
+                    f"{base}/{identifier}/revisions", params={"cursor": page["next_cursor"]}
+                )
+            ).json()
+            assert exhausted["total"] == 2
+            for invalid in ("invalid", "e30="):
+                assert (await client.get(base, params={"cursor": invalid})).status_code == 422
+            for limit in (0, 51):
+                assert (await client.get(base, params={"limit": limit})).status_code == 422
+            new_id = str(uuid4())
+            assert (
+                await client.post(base, json={"id": new_id, "body": "Otra nota"})
+            ).status_code == 201
+            notes = (await client.get(base, params={"limit": 1})).json()
+            assert notes["total"] == 2 and notes["items"][0]["id"] == new_id
+            assert (await client.get(f"{base}/{identifier}")).json()["id"] == identifier
+            assert (
+                await client.get(
+                    f"/api/patients/{second}/notes", params={"cursor": notes["next_cursor"]}
+                )
+            ).status_code == 422
+            for path in (
+                f"/api/patients/{second}/notes/{identifier}",
+                f"/api/patients/{foreign}/notes",
+                f"/api/patients/{foreign}/notes/{identifier}/revisions",
+            ):
+                response = await client.get(path)
+                assert (
+                    response.status_code == 404 and response.json()["detail"]["code"] == "not_found"
+                )
+            assert (
+                await client.post(f"/api/patients/{second}/notes", json=payload)
+            ).status_code == 404
+            current_owner = other
+            assert (
+                await client.post(f"/api/patients/{foreign}/notes", json=payload)
+            ).status_code == 404
+            assert (await client.get(f"{base}/{identifier}")).status_code == 404
+            assert (await client.patch(f"{base}/{identifier}", json=patch)).status_code == 404
+            current_owner = owner
+            async with pool.acquire() as conn:
+                assert (
+                    await conn.fetchval(
+                        "SELECT count(*) FROM patient_note_revisions WHERE note_id=$1",
+                        UUID(identifier),
+                    )
+                    == 2
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_note_concurrent_retry_and_atomic_revision(workspace_db):
+    pool, owner, _, patient, _, _ = workspace_db
+
+    async def user(session=None):
+        return {"id": str(owner)}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            base = f"/api/patients/{patient}/notes"
+            payload = {"id": str(uuid4()), "body": "Concurrente"}
+            responses = await asyncio.gather(
+                client.post(base, json=payload), client.post(base, json=payload)
+            )
+            assert sorted(r.status_code for r in responses) == [200, 201]
+            path = f"{base}/{payload['id']}"
+            patches = await asyncio.gather(
+                client.patch(path, json={"expected_revision": 1, "body": "A"}),
+                client.patch(path, json={"expected_revision": 1, "body": "B"}),
+            )
+            assert sorted(r.status_code for r in patches) == [200, 409]
+            assert (await client.get(f"{path}/revisions")).json()["total"] == 2
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_note_revision_failure_rolls_back_resource(workspace_db, monkeypatch):
+    pool, owner, _, patient, _, _ = workspace_db
+    identifier = uuid4()
+
+    async def failed_revision(*args, **kwargs):
+        raise RuntimeError("synthetic revision failure")
+
+    original = patient_notes_repo._revision
+    monkeypatch.setattr(patient_notes_repo, "_revision", failed_revision)
+    with pytest.raises(RuntimeError, match="synthetic revision failure"):
+        await patient_notes_repo.create_note(owner, patient, identifier, "Synthetic")
+    async with pool.acquire() as conn:
+        assert (
+            await conn.fetchval("SELECT count(*) FROM patient_notes WHERE id=$1", identifier) == 0
+        )
+    monkeypatch.setattr(patient_notes_repo, "_revision", original)
+    await patient_notes_repo.create_note(owner, patient, identifier, "Original")
+    monkeypatch.setattr(patient_notes_repo, "_revision", failed_revision)
+    with pytest.raises(RuntimeError, match="synthetic revision failure"):
+        await patient_notes_repo.update_note(owner, patient, identifier, 1, "Changed")
+    confirmed = await patient_notes_repo.get_note(owner, patient, identifier)
+    assert confirmed["body"] == "Original" and confirmed["revision"] == 1
 
 
 async def test_patient_contact_and_search_live(workspace_db, monkeypatch, caplog):
@@ -323,6 +496,13 @@ async def test_pending_kind_totals_before_cursor_and_foreign_patient404(workspac
         assert first.total == 2 and len(first.items) == 1 and first.next_cursor
         assert first.items[0].kind == kind and first.items[0].patient.id == patient
         last = await pending_work.list_pending_work(owner, patient, 1, first.next_cursor, kind=kind)
+        exhausted_cursor = base64.urlsafe_b64encode(
+            json.dumps([last.items[0].updated_at.isoformat(), last.items[0].id]).encode()
+        ).decode()
+        exhausted = await pending_work.list_pending_work(
+            owner, patient, 1, exhausted_cursor, kind=kind
+        )
+        assert exhausted.total == 2 and exhausted.items == []
         assert last.total == 2 and len(last.items) == 1 and not last.next_cursor
         assert last.items[0].id != first.items[0].id
         with pytest.raises(LookupError):

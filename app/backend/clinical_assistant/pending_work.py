@@ -74,11 +74,16 @@ async def list_pending_work(
     patient_id: UUID | None,
     limit: int,
     cursor: str | None,
+    kind: Literal["approval_required", "recoverable_draft", "drive_export_failed"] | None = None,
 ) -> PendingWorkPage:
     before = decode_cursor(cursor)
     if patient_id is not None and await patients_repo.get_patient(owner, patient_id) is None:
         raise LookupError("Patient not found")
-    rows = await clinical_pending_work_repo.list_pending_work(owner, patient_id, limit, before)
+    rows = await clinical_pending_work_repo.list_pending_work(
+        owner, patient_id, limit, before, kind=kind
+    )
+    total = int(rows[0]["total"]) if rows else 0
+    rows = [row for row in rows if row["id"] is not None]
     items = []
     for row in rows[:limit]:
         resource = row["resource_id"]
@@ -109,6 +114,4 @@ async def list_pending_work(
         next_cursor = base64.urlsafe_b64encode(
             json.dumps([last.updated_at.isoformat(), last.id]).encode()
         ).decode()
-    return PendingWorkPage(
-        items=items, next_cursor=next_cursor, total=int(rows[0]["total"]) if rows else 0
-    )
+    return PendingWorkPage(items=items, next_cursor=next_cursor, total=total)

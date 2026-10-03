@@ -122,8 +122,12 @@ describe('PatientDetail evolution workspace', () => {
     await screen.findByRole('heading', { name: 'Ana Perez' });
     expect(screen.getByRole('button', { name: /teléfono/i })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Editar paciente' }));
-    fireEvent.change(screen.getByLabelText(/Teléfono/), { target: { value: '' } });
-    fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: '' } });
+    fireEvent.change(within(screen.getByRole('dialog')).getByLabelText(/Teléfono/), {
+      target: { value: '' },
+    });
+    fireEvent.change(within(screen.getByRole('dialog')).getByLabelText(/Correo/), {
+      target: { value: '' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Editar paciente' })).not.toBeInTheDocument(),
@@ -193,10 +197,10 @@ describe('PatientDetail evolution workspace', () => {
 
     renderPatient('/patients/patient-1');
 
-    expect(await screen.findByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+    expect(await screen.findByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
     expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1');
-    expect(screen.getByRole('link', { name: /Ver evolución del/ })).toBeVisible();
-    expect(screen.getByText('Nacimiento 02/01/1990')).toBeVisible();
+    expect(screen.getByRole('link', { name: /04 sep 2026/ })).toBeVisible();
+    expect(screen.getByText(/Nacimiento 02\/01\/1990/)).toBeVisible();
     expect(getEvolution).not.toHaveBeenCalled();
     expect(screen.getByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
   });
@@ -207,7 +211,7 @@ describe('PatientDetail evolution workspace', () => {
 
     renderPatient('/patients/patient-1', { preserveHistory: true });
 
-    expect(await screen.findByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Historial de evoluciones' })).toBeVisible();
     expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1');
     expect(getEvolution).not.toHaveBeenCalled();
   });
@@ -257,7 +261,7 @@ describe('PatientDetail evolution workspace', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Volver al historial' }));
 
-    expect(await screen.findByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Historial de evoluciones' })).toBeVisible();
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/patients\/patient-1$/);
   });
 

@@ -6,9 +6,11 @@ import {
 } from '../components/ClinicalRuntimeProvider';
 import { ApiError, type ClinicalContextConflict, openClinicalContext } from '../lib/api';
 import type { WorkspaceContext } from '../lib/workspaceContext';
+import { useOptionalTransitionGuard } from './useTransitionGuard';
 
 export function useContextualAssistant(context: WorkspaceContext) {
   const navigate = useNavigate();
+  const guard = useOptionalTransitionGuard();
   const shared = useOptionalClinicalRuntime();
   const memory = useClinicalComposerMemory();
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
@@ -71,8 +73,11 @@ export function useContextualAssistant(context: WorkspaceContext) {
           ...current,
           [result.thread.id]: current[result.thread.id] || prefill.current || '',
         }));
-      if (!shared || width < 768) navigate(`/a/${result.thread.id}`);
-      else {
+      if (!shared || width < 768) {
+        const continueToThread = (): void => navigate(`/a/${result.thread.id}`);
+        if (guard) guard.guardTransition(continueToThread);
+        else continueToThread();
+      } else {
         shared.activate(result.thread.id);
         setPanelThreadId(result.thread.id);
       }
@@ -104,10 +109,14 @@ export function useContextualAssistant(context: WorkspaceContext) {
   };
   useEffect(() => {
     if (width < 768 && panelThreadId) {
-      setPanelThreadId(null);
-      navigate(`/a/${panelThreadId}`);
+      const continueToThread = (): void => {
+        setPanelThreadId(null);
+        navigate(`/a/${panelThreadId}`);
+      };
+      if (guard) guard.guardTransition(continueToThread);
+      else continueToThread();
     }
-  }, [navigate, panelThreadId, width]);
+  }, [navigate, panelThreadId, width, guard]);
   return {
     panelThreadId,
     width,
@@ -117,7 +126,11 @@ export function useContextualAssistant(context: WorkspaceContext) {
     open,
     close,
     continueCurrent: () => {
-      if (conflict) navigate(`/a/${conflict.current.thread_id}`);
+      if (conflict) {
+        const continueToThread = (): void => navigate(`/a/${conflict.current.thread_id}`);
+        if (guard) guard.guardTransition(continueToThread);
+        else continueToThread();
+      }
       setConflict(null);
     },
     createNew: () => open(undefined, true),

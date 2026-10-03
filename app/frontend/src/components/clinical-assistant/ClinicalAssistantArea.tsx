@@ -285,19 +285,26 @@ export function ClinicalAssistantArea({
           ) : undefined
         }
         actions={
-          onToggleDrive ? (
-            <button
-              type="button"
-              className="clinical-secondary-button"
-              data-drive-utility="true"
-              aria-expanded={driveOpen}
-              aria-label={driveOpen ? 'Cerrar Google Drive' : 'Abrir Google Drive'}
-              onClick={onToggleDrive}
-            >
-              <HardDrive aria-hidden="true" size={16} />
-              Google Drive
-            </button>
-          ) : undefined
+          <div className="flex flex-wrap gap-2">
+            {returnToFicha && (
+              <Link className="clinical-secondary-button" to="/assistant?view=pending">
+                Ver pendientes
+              </Link>
+            )}
+            {onToggleDrive ? (
+              <button
+                type="button"
+                className="clinical-secondary-button"
+                data-drive-utility="true"
+                aria-expanded={driveOpen}
+                aria-label={driveOpen ? 'Cerrar Google Drive' : 'Abrir Google Drive'}
+                onClick={onToggleDrive}
+              >
+                <HardDrive aria-hidden="true" size={16} />
+                Google Drive
+              </button>
+            ) : null}
+          </div>
         }
         workspaceContext={
           <ClinicalPatientPicker
@@ -341,6 +348,48 @@ export function ClinicalAssistantArea({
                   >
                     Seleccionar paciente
                   </button>
+                )}
+                {activePatient && (
+                  <>
+                    <button
+                      type="button"
+                      className="clinical-secondary-button"
+                      disabled={
+                        !!value.trim() ||
+                        assistant.runtime !== 'idle' ||
+                        voiceInFlight ||
+                        contextItems.length > 0 ||
+                        queued.length > 0
+                      }
+                      onClick={() => {
+                        if (!value.trim() && assistant.runtime === 'idle') {
+                          setValue('Quiero preparar una evolución con mi nota clínica.');
+                          textareaRef.current?.focus();
+                        }
+                      }}
+                    >
+                      Preparar evolución
+                    </button>
+                    <button
+                      type="button"
+                      className="clinical-secondary-button"
+                      disabled={
+                        !!value.trim() ||
+                        assistant.runtime !== 'idle' ||
+                        voiceInFlight ||
+                        contextItems.length > 0 ||
+                        queued.length > 0
+                      }
+                      onClick={() => {
+                        if (!value.trim() && assistant.runtime === 'idle') {
+                          setValue('Consulta las evoluciones anteriores de este paciente.');
+                          textareaRef.current?.focus();
+                        }
+                      }}
+                    >
+                      Consultar evoluciones
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"

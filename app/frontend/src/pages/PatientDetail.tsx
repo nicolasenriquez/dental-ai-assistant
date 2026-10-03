@@ -1,16 +1,29 @@
+import {
+  ArrowLeft,
+  History,
+  LayoutDashboard,
+  Pencil,
+  Plus,
+  Stethoscope,
+  UserRound,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PatientFormModal, type PatientFormValues } from '../components/PatientFormModal';
-import { PatientIdentity } from '../components/PatientIdentity';
 import { PatientWorkspace, type PatientWorkspaceDetailError } from '../components/PatientWorkspace';
 import { ContextualAssistant } from '../components/clinical-assistant/ContextualAssistant';
+import { PatientHeaderDisclosure } from '../components/patients/PatientHeaderDisclosure';
+import { PatientInformation } from '../components/patients/PatientInformation';
+import { PatientNotes } from '../components/patients/PatientNotes';
 import { PatientOverview } from '../components/patients/PatientOverview';
 import { Button } from '../components/ui/Button';
 import { buttonVariants } from '../components/ui/Button';
 import { useContextualAssistant } from '../hooks/useContextualAssistant';
 import { usePatientDirectory } from '../hooks/usePatientDirectory';
 import { useToast } from '../hooks/useToast';
+import { useOptionalTransitionGuard } from '../hooks/useTransitionGuard';
+import { getPatientAge } from '../lib/age';
 import {
   ApiError,
   type EvolutionDetail,
@@ -21,6 +34,14 @@ import {
   getPatientEvolutions,
   updatePatient,
 } from '../lib/api';
+import { formatClinicalDate, formatClinicalDateShort } from '../lib/clinicalDate';
+
+const sections = [
+  { id: 'summary', label: 'Resumen', icon: LayoutDashboard },
+  { id: 'info', label: 'Información', icon: UserRound },
+  { id: 'clinical', label: 'Clínica', icon: Stethoscope },
+  { id: 'activity', label: 'Actividad', icon: History },
+] as const;
 
 export function PatientDetail() {
   const { patientId = '', evolutionId = '' } = useParams<{
@@ -31,6 +52,7 @@ export function PatientDetail() {
   const navigate = useNavigate();
   const directory = usePatientDirectory();
   const { addToast } = useToast();
+  const guard = useOptionalTransitionGuard();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [evolutions, setEvolutions] = useState<EvolutionSummary[]>([]);
   const [selectedEvolution, setSelectedEvolution] = useState<EvolutionDetail | null>(null);
@@ -39,6 +61,9 @@ export function PatientDetail() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<PatientWorkspaceDetailError>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [section, setSection] = useState<string>('summary');
+  const [clinicalSection, setClinicalSection] = useState('diagnosis');
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const patientRequest = useRef(0);
   const detailRequest = useRef(0);
   const contextual = useContextualAssistant({
@@ -109,6 +134,18 @@ export function PatientDetail() {
     void loadDetail();
   }, [loadDetail]);
 
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    setSection(
+      location.state?.preserveHistory
+        ? 'clinical'
+        : sections.some((item) => item.id === tab)
+          ? (tab ?? 'summary')
+          : 'summary',
+    );
+    setClinicalSection(location.state?.preserveHistory ? 'evolutions' : 'diagnosis');
+  }, [patientId, location.search, location.state]);
+
   const savePatient = async (values: PatientFormValues) => {
     if (!patient) throw new Error('Paciente no cargado');
     return updatePatient(patient.id, {
@@ -129,7 +166,8 @@ export function PatientDetail() {
             to={`/patients${directory.returnSearch}`}
             className="text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
-            ‹ Pacientes
+            <ArrowLeft size={18} aria-hidden="true" className="mr-2 inline" />
+            Pacientes
           </Link>
 
           {loading ? (
@@ -153,11 +191,35 @@ export function PatientDetail() {
           ) : (
             <>
               <header className="patient-page-header">
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-tight">
-                    {patient.first_name} {patient.last_name}
-                  </h1>
-                  <PatientIdentity patient={patient} showName={false} />
+                <div className="flex min-w-0 items-start gap-3">
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-primary"
+                    aria-hidden="true"
+                  >
+                    {patient.first_name[0]}
+                    {patient.last_name[0]}
+                  </span>
+                  <div className="min-w-0">
+                    <h1 className="text-3xl font-semibold tracking-tight">
+                      {patient.first_name} {patient.last_name}
+                    </h1>
+                    <p className="mt-2 text-sm text-muted">
+                      {getPatientAge(patient.birth_date) === null
+                        ? 'Sin fecha de nacimiento'
+                        : `${getPatientAge(patient.birth_date)} años`}
+                      {patient.birth_date &&
+                        ` · Nacimiento ${formatClinicalDate(`${patient.birth_date}T00:00:00`)}`}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {patient.phone && (
+                        <PatientHeaderDisclosure kind="Teléfono" value={patient.phone} />
+                      )}
+                      {patient.email && (
+                        <PatientHeaderDisclosure kind="Correo" value={patient.email} />
+                      )}
+                      <PatientHeaderDisclosure kind="RUT" value={patient.rut_masked} />
+                    </div>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -165,19 +227,23 @@ export function PatientDetail() {
                     onClick={() => setEditOpen(true)}
                     className="rounded border border-[var(--border)] px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                   >
+                    <Pencil size={16} aria-hidden="true" className="mr-2 inline" />
                     Editar paciente
                   </button>
                   <Link
                     to={`/patients/${patient.id}/evolutions/new`}
                     className={buttonVariants({ variant: 'primary' })}
                   >
-                    + Nueva evolución
+                    <Plus size={16} aria-hidden="true" />
+                    <span className="sr-only">+</span> Nueva evolución
                   </Link>
                   <Button
                     variant="clinicalSecondary"
+                    className="inline-flex items-center gap-2"
                     disabled={contextual.opening}
                     onClick={() => void contextual.open()}
                   >
+                    <Stethoscope size={16} aria-hidden="true" />
                     {contextual.opening ? 'Abriendo…' : 'Asistente'}
                   </Button>
                 </div>
@@ -195,26 +261,152 @@ export function PatientDetail() {
                 </p>
               )}
               {!evolutionId && (
-                <PatientOverview
-                  patientId={patient.id}
-                  evolutions={evolutions}
-                  onAssistant={(text) => void contextual.open(text)}
-                />
+                <>
+                  <div
+                    role="tablist"
+                    aria-label="Secciones del paciente"
+                    className="mt-6 flex flex-wrap gap-2 border-b border-border pb-3"
+                  >
+                    {sections.map((item, index) => (
+                      <button
+                        key={item.id}
+                        ref={(node) => {
+                          tabRefs.current[index] = node;
+                        }}
+                        type="button"
+                        role="tab"
+                        id={`patient-tab-${item.id}`}
+                        aria-controls={`patient-panel-${item.id}`}
+                        aria-selected={section === item.id}
+                        tabIndex={section === item.id ? 0 : -1}
+                        className={`flex min-h-11 items-center gap-2 rounded px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${section === item.id ? 'bg-surface text-foreground' : 'text-muted'}`}
+                        onClick={() => {
+                          const change = (): void => {
+                            setSection(item.id);
+                            if (location.search)
+                              navigate(`${location.pathname}?tab=${item.id}`, { replace: true });
+                          };
+                          if (guard) guard.guardTransition(change);
+                          else change();
+                        }}
+                        onKeyDown={(event) => {
+                          const next =
+                            event.key === 'Home'
+                              ? 0
+                              : event.key === 'End'
+                                ? 3
+                                : event.key === 'ArrowRight'
+                                  ? (index + 1) % 4
+                                  : event.key === 'ArrowLeft'
+                                    ? (index + 3) % 4
+                                    : null;
+                          if (next !== null) {
+                            event.preventDefault();
+                            tabRefs.current[next]?.focus();
+                          }
+                        }}
+                      >
+                        <item.icon size={18} aria-hidden="true" />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div
+                    role="tabpanel"
+                    id={`patient-panel-${section}`}
+                    aria-labelledby={`patient-tab-${section}`}
+                    className="mt-5"
+                  >
+                    {section === 'summary' && (
+                      <PatientOverview
+                        patientId={patient.id}
+                        evolutions={evolutions}
+                        onAssistant={(text) => void contextual.open(text)}
+                      />
+                    )}
+                    {section === 'info' && (
+                      <>
+                        <PatientInformation patient={patient} />
+                        <PatientNotes
+                          key={patient.id}
+                          patientId={patient.id}
+                          focusedNoteId={
+                            new URLSearchParams(location.search).get('note') ?? undefined
+                          }
+                        />
+                      </>
+                    )}
+                    {section === 'clinical' && (
+                      <section className="space-y-4">
+                        <div className="flex flex-wrap gap-2" aria-label="Contenido clínico">
+                          <Button
+                            variant="clinicalSecondary"
+                            aria-pressed={clinicalSection === 'diagnosis'}
+                            onClick={() => setClinicalSection('diagnosis')}
+                          >
+                            Diagnóstico
+                          </Button>
+                          <Button
+                            variant="clinicalSecondary"
+                            aria-pressed={clinicalSection === 'evolutions'}
+                            onClick={() => setClinicalSection('evolutions')}
+                          >
+                            Evoluciones
+                          </Button>
+                        </div>
+                        {clinicalSection === 'diagnosis' ? (
+                          <p className="text-muted">
+                            El diagnóstico manual estará disponible al completar su implementación.
+                          </p>
+                        ) : (
+                          <section aria-label="Evoluciones aprobadas">
+                            <h2 className="text-lg font-semibold">Historial de evoluciones</h2>
+                            {evolutions.length ? (
+                              <ol className="divide-y divide-border">
+                                {evolutions.map((item) => (
+                                  <li key={item.id} className="py-3">
+                                    <Link
+                                      className="text-primary hover:underline"
+                                      to={`/patients/${patient.id}/evolutions/${item.id}`}
+                                      aria-label={`Ver evolución del ${formatClinicalDateShort(item.evolution_at)}`}
+                                    >
+                                      {formatClinicalDateShort(item.evolution_at)}
+                                    </Link>
+                                    <p className="mt-1 text-sm text-muted">{item.preview}</p>
+                                  </li>
+                                ))}
+                              </ol>
+                            ) : (
+                              <p>Sin evoluciones aprobadas</p>
+                            )}
+                          </section>
+                        )}
+                      </section>
+                    )}
+                    {section === 'activity' && (
+                      <p className="text-muted">
+                        La actividad persistida estará disponible al completar su implementación.
+                      </p>
+                    )}
+                  </div>
+                </>
               )}
 
               <div aria-live="polite" className="sr-only">
                 {location.state?.announcement}
               </div>
 
-              <PatientWorkspace
-                patient={patient}
-                evolutions={evolutions}
-                selectedEvolution={selectedEvolution}
-                selectedEvolutionId={evolutionId || null}
-                detailLoading={detailLoading}
-                detailError={detailError}
-                onRetryDetail={() => void loadDetail()}
-              />
+              {evolutionId && (
+                <PatientWorkspace
+                  patient={patient}
+                  evolutions={evolutions}
+                  selectedEvolution={selectedEvolution}
+                  selectedEvolutionId={evolutionId || null}
+                  detailLoading={detailLoading}
+                  detailError={detailError}
+                  onRetryDetail={() => void loadDetail()}
+                />
+              )}
               <PatientFormModal
                 open={editOpen}
                 mode="edit"
