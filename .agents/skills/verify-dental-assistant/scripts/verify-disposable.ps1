@@ -3,12 +3,12 @@ $verificationRoot = (Resolve-Path (Join-Path $PSScriptRoot '../../../..')).Path
 $verificationProject = 'ai-tutor-verification'
 $verificationCompose = Join-Path $PSScriptRoot 'compose.verify.yml'
 $verificationArgs = @('compose', '-p', $verificationProject, '--project-directory', $verificationRoot, '--env-file', (Join-Path $verificationRoot '.env'), '-f', $verificationCompose)
-$verificationExisting = & rtk docker @verificationArgs ps -a -q
+$verificationExisting = & docker @verificationArgs ps -a -q
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect verification project ownership' }
 if ($verificationExisting) { throw 'Verification project already exists; refusing to double-drive or remove it' }
-$verificationVolumes = & rtk docker volume ls --filter "label=com.docker.compose.project=$verificationProject" --format '{{.Name}}'
+$verificationVolumes = & docker volume ls --filter "label=com.docker.compose.project=$verificationProject" --format '{{.Name}}'
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect verification volumes' }
-$verificationNetworks = & rtk docker network ls --filter "label=com.docker.compose.project=$verificationProject" --format '{{.Name}}'
+$verificationNetworks = & docker network ls --filter "label=com.docker.compose.project=$verificationProject" --format '{{.Name}}'
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect verification networks' }
 if ($verificationVolumes -or $verificationNetworks) { throw 'Verification project has existing resources; refusing to reuse or remove them' }
 $verificationOwned = $false
@@ -21,18 +21,18 @@ $verificationLaunch | ConvertTo-Json | Set-Content (Join-Path $verificationEvide
 try {
     # Ownership is established before launch so partial startup is cleaned on failure.
     $verificationOwned = $true
-    & rtk docker @verificationArgs up -d --build --wait --wait-timeout 180
+    & docker @verificationArgs up -d --build --wait --wait-timeout 180
     if ($LASTEXITCODE -ne 0) { throw 'Verification stack startup failed' }
     $verificationLaunch.startup = 'ready'
     $env:VERIFY_OWNED_PROJECT = $verificationProject
     $env:VERIFY_RUN_ID = $verificationRun
-    & rtk bun (Join-Path $PSScriptRoot 'verify-local.cjs') --disposable
+    & bun (Join-Path $PSScriptRoot 'verify-local.cjs') --disposable
     $verificationExit = $LASTEXITCODE
 } finally {
     Remove-Item Env:VERIFY_OWNED_PROJECT -ErrorAction SilentlyContinue
     Remove-Item Env:VERIFY_RUN_ID -ErrorAction SilentlyContinue
     if ($verificationOwned) {
-        & rtk docker @verificationArgs down --volumes
+        & docker @verificationArgs down --volumes
         if ($LASTEXITCODE -ne 0) {
             $verificationExit = 1
             $verificationLaunch.cleanup = 'failed'

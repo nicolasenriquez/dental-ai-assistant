@@ -12,7 +12,7 @@ Use this skill for browser verification of the running React/FastAPI/Postgres ap
 For a fully disposable local proof on Windows, run the owned helper from repo root:
 
 ```powershell
-rtk powershell -NoProfile -File .agents/skills/verify-dental-assistant/scripts/verify-disposable.ps1
+powershell -NoProfile -File .agents/skills/verify-dental-assistant/scripts/verify-disposable.ps1
 ```
 
 It refuses an existing `ai-tutor-verification` Compose project, rebuilds this checkout, starts its own Postgres volume and app at `http://localhost:8002`, waits for readiness, drives the browser, and tears down that project and volume in `finally`. Port 8002 must be free. Root `.env` needs Postgres/JWT settings and E2E credentials; those credentials are used only for a new account inside this disposable database. External models and Drive are disabled. Evidence survives stack removal. This is an additional owned launch model; keep the repo's standard local E2E commands below for port 8001.
@@ -25,7 +25,7 @@ Wait for the selected instance's `/api/health` to return JSON with `status: "ok"
 
 Before driving, check `just e2e-local-ps` (local) or `just dev-ps` (shared), `/api/health`, `/api/auth/config`, and a fresh `/login` browser visit on the selected port. For Google-mode Drive, also confirm the Google button loads without "origin is not allowed" errors and the configured callback/return origins match the browser URL; the Google client ID alone cannot prove this. Stop and report mismatches before requesting human sign-in. A healthy endpoint alone does not establish frontend build freshness, valid credentials, or provider readiness.
 
-For the owned port-8002 model, the wrapper waits for Docker readiness and the browser helper checks health, local mode, Drive disabled, and the actual login form before driving. Its read-only process check from repo root is `rtk docker compose -p ai-tutor-verification --project-directory . --env-file .env -f .agents/skills/verify-dental-assistant/scripts/compose.verify.yml ps`. Run it only while the wrapper owns that project; it is expected to be empty after teardown.
+For the owned port-8002 model, the wrapper waits for Docker readiness and the browser helper checks health, local mode, Drive disabled, and the actual login form before driving. Its read-only process check from repo root is `docker compose -p ai-tutor-verification --project-directory . --env-file .env -f .agents/skills/verify-dental-assistant/scripts/compose.verify.yml ps`. Run it only while the wrapper owns that project; it is expected to be empty after teardown.
 
 The isolated Compose runtime sets `CLINICAL_EXTERNAL_LLM_ENABLED=false`; an OpenRouter key alone does not enable clinical generation there. Successful generation/review/save needs a separately configured, exclusively owned instance with that flag enabled. Keep the standard isolated configuration intact during maintenance. A pre-existing E2E stack is shared unless exclusive ownership has been established; its dedicated project name alone does not authorize deleting its volume.
 
@@ -48,7 +48,7 @@ Opening `/assistant` may create a thread. Track its creation response and delete
 From repo root, with frontend dependencies installed through `bun install`, run:
 
 ```powershell
-rtk bun .agents/skills/verify-dental-assistant/scripts/verify-local.cjs
+bun .agents/skills/verify-dental-assistant/scripts/verify-local.cjs
 ```
 
 This helper drives an already-running port-8001 instance in one ephemeral browser. It reads existing `E2E_USER` and `E2E_PASSWORD` from the gitignored root `.env`, signs in through the actual form, and never bootstraps an account or saves browser storage state. It checks public auth navigation, patient search/dialog cancellation, existing patient detail and evolution capture controls, library search, assistant/pending-work entry, and the local-mode Drive prerequisite. It does not generate clinical content, approve/save an evolution, call a model, or change existing patient/thread context. For those actions, follow the mapped feature recipe on disposable data.
