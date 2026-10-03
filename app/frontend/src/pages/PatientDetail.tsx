@@ -195,7 +195,7 @@ export function PatientDetail() {
               <header className="patient-page-header">
                 <div className="flex min-w-0 items-start gap-3">
                   <span
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-primary"
+                    className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-surface text-primary"
                     aria-hidden="true"
                   >
                     {patient.first_name[0]}
@@ -281,7 +281,7 @@ export function PatientDetail() {
                         aria-controls={`patient-panel-${item.id}`}
                         aria-selected={section === item.id}
                         tabIndex={section === item.id ? 0 : -1}
-                        className={`flex min-h-11 items-center gap-2 rounded px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${section === item.id ? 'bg-surface text-foreground' : 'text-muted'}`}
+                        className={`flex min-h-[44px] items-center gap-2 rounded px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${section === item.id ? 'bg-surface text-foreground' : 'text-muted'}`}
                         onClick={() => {
                           const change = (): void => {
                             setSection(item.id);

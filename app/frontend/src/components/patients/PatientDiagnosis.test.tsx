@@ -60,6 +60,7 @@ function mount(items = [record], focusedConditionId?: string): void {
 it('selection is a draft, tool change preserves tooth/note and incompatible surfaces clear; uncertain retry freezes UUID', async () => {
   mount([]);
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
+  expect(screen.getByText('Borrador sin guardar')).toBeVisible();
   fireEvent.change(screen.getByLabelText('Pieza FDI'), { target: { value: '36' } });
   fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Nueva' } });
   fireEvent.click(screen.getByRole('checkbox', { name: 'Mesial (M)' }));
@@ -72,6 +73,7 @@ it('selection is a draft, tool change preserves tooth/note and incompatible surf
     .mockResolvedValueOnce({ ...record, condition_code: 'missing', surfaces: [] });
   fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
   await screen.findByRole('button', { name: 'Reintentar guardado' });
+  expect(screen.queryByText('Borrador sin guardar')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Nota de condición')).toBeDisabled();
   const body = mocks.create.mock.calls[0][1];
   fireEvent.click(screen.getByRole('button', { name: 'Reintentar guardado' }));

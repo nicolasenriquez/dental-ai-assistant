@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { type KeyboardEventHandler, type RefObject, useEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { SidebarCollapseProvider } from '../hooks/useSidebarCollapse';
 import { AppShell } from './AppShell';
 
 vi.mock('./DriveBootstrapBanner', () => ({
@@ -64,6 +65,60 @@ function MountProbe({ onUnmount }: { onUnmount: () => void }) {
 }
 
 describe('AppShell mobile sidebar', () => {
+  it('retains desktop collapse across shell remounts and mobile drawer transitions', () => {
+    let mobile = false;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        get matches() {
+          return query.includes('767') ? mobile : false;
+        },
+        addEventListener: (_event: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_event: string, listener: () => void) => listeners.delete(listener),
+      })),
+    );
+    const shell = (route: string): JSX.Element => (
+      <SidebarCollapseProvider>
+        <AppShell key={route}>
+          <main>{route}</main>
+        </AppShell>
+      </SidebarCollapseProvider>
+    );
+    try {
+      const { rerender } = render(shell('patients'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar navegación' }));
+      for (const route of ['assistant', 'chat', 'patients']) {
+        rerender(shell(route));
+        expect(screen.getByRole('button', { name: 'Abrir navegación' })).toHaveAttribute(
+          'aria-expanded',
+          'false',
+        );
+      }
+      act(() => {
+        mobile = true;
+        for (const listener of listeners) listener();
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Abrir navegación' }));
+      expect(screen.getByRole('button', { name: 'Cerrar navegación' })).toBeVisible();
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar navegación' }));
+      act(() => {
+        mobile = false;
+        for (const listener of listeners) listener();
+      });
+      expect(screen.getByRole('button', { name: 'Abrir navegación' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Abrir navegación' }));
+      expect(screen.getByRole('button', { name: 'Cerrar navegación' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it('keeps workspace content mounted across responsive breakpoints', () => {
     let mobile = false;
     let compact = true;

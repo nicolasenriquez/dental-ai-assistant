@@ -23,6 +23,7 @@ import {
 } from './hooks/useAuth';
 import { useChatRuntime } from './hooks/useChatRuntime';
 import { PatientDirectoryProvider } from './hooks/usePatientDirectory';
+import { SidebarCollapseProvider } from './hooks/useSidebarCollapse';
 import { AdminVideos } from './pages/AdminVideos';
 import { ClinicalAssistant } from './pages/ClinicalAssistant';
 import { Login } from './pages/Login';
@@ -106,7 +107,9 @@ const router = createBrowserRouter(
             <ChatRuntimeProvider>
               <ClinicalRuntimeProvider>
                 <PatientDirectoryProvider>
-                  <Outlet />
+                  <SidebarCollapseProvider>
+                    <Outlet />
+                  </SidebarCollapseProvider>
                 </PatientDirectoryProvider>
               </ClinicalRuntimeProvider>
             </ChatRuntimeProvider>

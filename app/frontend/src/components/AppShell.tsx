@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import type { GroupImperativeHandle } from 'react-resizable-panels';
+import { useSidebarCollapse } from '../hooks/useSidebarCollapse';
 import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
 import { TransitionGuardBoundary } from '../hooks/useTransitionGuard';
 import { DriveBootstrapBanner } from './DriveBootstrapBanner';
@@ -85,10 +86,11 @@ export function AppShell({
   workspaceAccessoryMode = 'compact',
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { sidebarCollapsed: desktopSidebarCollapsed, setSidebarCollapsed } = useSidebarCollapse();
   const [isMobileSidebar, setIsMobileSidebar] = useState(
     () => window.matchMedia?.('(max-width: 767px)').matches ?? true,
   );
+  const sidebarCollapsed = !isMobileSidebar && desktopSidebarCollapsed;
   const [workspaceLayout, setWorkspaceLayout] = useState(readDriveLayout);
   const [documentLayout, setDocumentLayout] = useState<{ main: number; accessory: number }>(
     DOCUMENT_WORKSPACE_LAYOUT,
@@ -133,7 +135,6 @@ export function AppShell({
 
     const update = () => {
       setIsMobileSidebar(mediaQuery.matches);
-      if (mediaQuery.matches) setSidebarCollapsed(false);
     };
     update();
     mediaQuery.addEventListener?.('change', update);

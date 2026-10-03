@@ -375,7 +375,10 @@ export function PatientDiagnosis({
         a.id.localeCompare(b.id),
     );
   return (
-    <section aria-label="Diagnóstico manual" className="space-y-5 [container-type:inline-size]">
+    <section
+      aria-label="Diagnóstico manual"
+      className="space-y-5 [container-type:inline-size] [&_button]:min-h-[44px]"
+    >
       {dataRouter && (
         <PatientNoteNavigationGuard dirty={dirty || saving} onBlocked={onRouteBlocked} />
       )}
@@ -465,6 +468,7 @@ export function PatientDiagnosis({
                 key={tool.code}
                 variant="clinicalSecondary"
                 aria-pressed={draft?.condition_code === tool.code}
+                className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
                 disabled={locked || draft?.expectedRevision !== undefined}
                 onClick={() => chooseTool(tool.code)}
               >
@@ -499,6 +503,9 @@ export function PatientDiagnosis({
                     ? 'Editar condición'
                     : 'Nueva condición'}
               </h3>
+              {dirty && !saving && !attempt && (
+                <p className="text-sm text-muted">Borrador sin guardar</p>
+              )}
               {draft.status === 'resolved' && (
                 <p>Al guardar se marcará como resuelta. El registro y su historial se conservan.</p>
               )}
