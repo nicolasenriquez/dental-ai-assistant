@@ -22,8 +22,8 @@
  *   browser-native confirmation; it is removed once the document is clean.
  */
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
 import { ClinicalAssistant } from './ClinicalAssistant';
@@ -110,6 +110,35 @@ const mocks = vi.hoisted(() => {
     ],
   };
 });
+
+it.each([1, 2])(
+  'task 1.4: direct/reloaded pending entry acquires zero threads (mount %s)',
+  async () => {
+    vi.mocked(api.acquireClinicalThread).mockReturnValue(new Promise(() => {}));
+    vi.spyOn(api, 'getClinicalPendingWork').mockResolvedValue({
+      items: [],
+      total: 0,
+      next_cursor: null,
+    });
+    function Location() {
+      const location = useLocation();
+      return <output data-testid="pending-url">{location.pathname + location.search}</output>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/assistant?view=pending']}>
+        <Routes>
+          <Route path="/assistant" element={<ClinicalAssistant />} />
+        </Routes>
+        <Location />
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+    expect(api.acquireClinicalThread).not.toHaveBeenCalled();
+    expect(screen.getByTestId('pending-url')).toHaveTextContent('/assistant?view=pending');
+    expect(screen.getByRole('region', { name: 'Trabajo pendiente' })).toBeVisible();
+    expect(mocks.send).not.toHaveBeenCalled();
+  },
+);
 
 vi.mock('../hooks/useClinicalAssistant', () => ({
   useClinicalAssistant: () => ({

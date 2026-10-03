@@ -168,6 +168,18 @@ async def test_context_route_status_and_typed_conflict(monkeypatch) -> None:
         ]
 
 
+async def test_pending_kind_rejects_unknown_filter(monkeypatch) -> None:
+    app = FastAPI()
+    app.include_router(clinical_pending_work.router, prefix="/api")
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(UUID(int=1))}
+    read = AsyncMock(return_value=pending_work.PendingWorkPage(items=[], total=0, next_cursor=None))
+    monkeypatch.setattr(clinical_pending_work, "list_pending_work", read)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/clinical-pending-work?kind=unknown&limit=1")
+        assert response.status_code == 422
+        read.assert_not_awaited()
+
+
 async def test_pending_cursor_and_route_bounds(monkeypatch) -> None:
     for cursor in ("bad", "e30=", "WyJubyIsICJkcmFmdDpiYWQiXQ=="):
         with pytest.raises(ValueError):

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
@@ -44,6 +44,135 @@ function renderPatient(path: string, state?: Record<string, unknown>) {
 }
 
 describe('PatientDetail evolution workspace', () => {
+  it('task 1.4: defaults to Resumen with four keyboard sections and no empty evolution pane', async () => {
+    mockPatientData();
+    renderPatient('/patients/patient-1');
+    await screen.findByRole('heading', { name: 'Ana Perez' });
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Resumen',
+      'Información',
+      'Clínica',
+      'Actividad',
+    ]);
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    expect(
+      screen.queryByRole('heading', { name: 'Selecciona una evolución' }),
+    ).not.toBeInTheDocument();
+    tabs[0].focus();
+    fireEvent.keyDown(tabs[0], { key: 'ArrowRight' });
+    expect(tabs[1]).toHaveFocus();
+    fireEvent.keyDown(tabs[1], { key: 'End' });
+    expect(tabs[3]).toHaveFocus();
+    fireEvent.keyDown(tabs[3], { key: 'Home' });
+    expect(tabs[0]).toHaveFocus();
+  });
+
+  it('task 1.4: discloses contact by focus/tap and masked RUT with Escape dismissal', async () => {
+    mockPatientData();
+    vi.mocked(api.getPatient).mockResolvedValue({
+      ...patient,
+      phone: '+56 9 1234 5678',
+      email: 'ana@example.com',
+    });
+    renderPatient('/patients/patient-1');
+    await screen.findByRole('heading', { name: 'Ana Perez' });
+    const phone = screen.getByRole('button', { name: /teléfono/i });
+    fireEvent.focus(phone);
+    expect(screen.getByText('+56 9 1234 5678')).toBeVisible();
+    fireEvent.keyDown(phone, { key: 'Escape' });
+    expect(screen.queryByText('+56 9 1234 5678')).not.toBeInTheDocument();
+    fireEvent.click(phone);
+    expect(screen.getByText('+56 9 1234 5678')).toBeVisible();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByText('+56 9 1234 5678')).not.toBeInTheDocument();
+    const mail = screen.getByRole('button', { name: /correo/i });
+    fireEvent.mouseEnter(mail);
+    expect(screen.getByText('ana@example.com')).toBeVisible();
+    fireEvent.mouseLeave(mail);
+    const rut = screen.getByRole('button', { name: /RUT/i });
+    fireEvent.click(rut);
+    expect(screen.getByText(/12\.\*\*\*\.\*\*\*-\*/)).toBeVisible();
+    expect(screen.queryByText('12.345.678-5')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar paciente' })).toBeVisible();
+    expect(screen.getByRole('link', { name: '+ Nueva evolución' })).toHaveAttribute(
+      'href',
+      '/patients/patient-1/evolutions/new',
+    );
+  });
+
+  it('task 1.4: absent or cleared contact hides icons and Información says No registrado', async () => {
+    mockPatientData();
+    renderPatient('/patients/patient-1');
+    await screen.findByRole('heading', { name: 'Ana Perez' });
+    expect(screen.queryByRole('button', { name: /teléfono|correo/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Información' }));
+    expect(screen.getAllByText('No registrado').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('task 1.4: saved contact clearing refreshes header and Información', async () => {
+    mockPatientData();
+    vi.mocked(api.getPatient).mockResolvedValue({
+      ...patient,
+      phone: '123',
+      email: 'ana@example.com',
+    });
+    vi.spyOn(api, 'updatePatient').mockResolvedValue({ ...patient, phone: null, email: null });
+    renderPatient('/patients/patient-1');
+    await screen.findByRole('heading', { name: 'Ana Perez' });
+    expect(screen.getByRole('button', { name: /teléfono/i })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Editar paciente' }));
+    fireEvent.change(screen.getByLabelText(/Teléfono/), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Editar paciente' })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: /teléfono|correo/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Información' }));
+    expect(screen.getAllByText('No registrado').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('task 1.4: summary links exact evolution and prioritizes older approval over newer Drive failure', async () => {
+    mockPatientData();
+    const identity = { id: 'patient-1', display_name: 'Ana Perez', rut_masked: patient.rut_masked };
+    const records: api.PendingWorkItem[] = [
+      {
+        id: 'drive:export',
+        kind: 'drive_export_failed',
+        patient: identity,
+        updated_at: '2026-10-03T12:00:00Z',
+        action: { kind: 'retry_drive_export', evolution_id: 'evolution-1', thread_id: null },
+      },
+      {
+        id: 'approval:approval',
+        kind: 'approval_required',
+        patient: identity,
+        updated_at: '2026-10-02T12:00:00Z',
+        action: { kind: 'review_approval', action_id: 'approval', thread_id: 'review-thread' },
+      },
+    ];
+    vi.mocked(api.getClinicalPendingWork).mockImplementation((...args) => {
+      const kind = ((args as readonly unknown[])[2] as { kind?: string })?.kind;
+      return Promise.resolve({
+        items: kind ? records.filter((item) => item.kind === kind) : records,
+        total: kind === 'approval_required' ? 7 : kind === 'drive_export_failed' ? 9 : 16,
+        next_cursor: null,
+      });
+    });
+    renderPatient('/patients/patient-1');
+    const summary = await screen.findByRole('region', { name: 'Resumen del paciente' });
+    await waitFor(() =>
+      expect(
+        within(summary).getByRole('link', { name: /Continuar trabajo|Revisar/ }),
+      ).toHaveAttribute('href', '/a/review-thread'),
+    );
+    expect(within(summary).getByRole('link', { name: /04 sep 2026/ })).toHaveAttribute(
+      'href',
+      '/patients/patient-1/evolutions/evolution-1',
+    );
+    expect(within(summary).getByText(/Drive/)).toBeVisible();
+  });
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -54,7 +183,7 @@ describe('PatientDetail evolution workspace', () => {
       total: 0,
       next_cursor: null,
     });
-    vi.spyOn(api, 'getPatient').mockResolvedValue(patient);
+    vi.spyOn(api, 'getPatient').mockResolvedValue({ ...patient, phone: null, email: null });
     vi.spyOn(api, 'getPatientEvolutions').mockResolvedValue([evolutionSummary]);
   }
 
@@ -162,6 +291,8 @@ describe('PatientDetail evolution workspace', () => {
         first_name: 'Lucia',
         last_name: 'Perez',
         birth_date: '1991-03-04',
+        phone: null,
+        email: null,
       }),
     );
     expect(await screen.findByRole('heading', { name: 'Lucia Perez' })).toBeVisible();
@@ -209,6 +340,8 @@ describe('PatientDetail evolution workspace', () => {
         last_name: 'Perez',
         birth_date: '1990-01-02',
         rut: '12.345.678-5',
+        phone: null,
+        email: null,
       }),
     );
   });
