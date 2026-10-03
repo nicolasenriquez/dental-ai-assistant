@@ -1,6 +1,6 @@
 # Patient contact, notes, conditions and activity API contract
 
-Normative companion to the delta spec and `patient-clinical-contract.md`. Runtime endpoints do not exist yet. JSON uses snake_case, UUID strings, UTC RFC3339 timestamps and null explicitly. Ordinary fetch stays in `lib/api.ts`. Every patient/resource/revision read and write checks authenticated ownership and matching parent before returning content. New request DTOs reject unknown fields. All new timestamps persist as TIMESTAMPTZ. No new auth mechanism.
+Normative companion to the delta spec and `patient-clinical-contract.md`. Runtime endpoints are verified by the completed slice checkpoints; maintained API documentation lives in `docs/API.md`. JSON uses snake_case, UUID strings, UTC RFC3339 timestamps and null explicitly. Ordinary fetch stays in `lib/api.ts`. Every patient/resource/revision read and write checks authenticated ownership and matching parent before returning content. New request DTOs reject unknown fields. All new timestamps persist as TIMESTAMPTZ. No new auth mechanism.
 
 ## Basic patient contact extension
 

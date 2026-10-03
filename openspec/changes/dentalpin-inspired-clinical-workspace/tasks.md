@@ -83,8 +83,9 @@
 - [x] 1.7 Add chart component/browser proof for anatomical families/order, symbol/surface agreement, multiple active/resolved marks, highlight independent of draft, both dentitions and available-width reflow with Assistant.
   Traceability: professional chart-first composition; diagnosis.html verified synthetic geometry, not a persistence proof.
   Notes: 2026-10-03 anatomical chart proof fails at absent PatientOdontogram import. Assertions cover both exact FDI orders, four distinct profiles, primary molar families, multiple active/resolved marks, mesial orientation, text equivalence and hover independent of draft. Scoped browser width/context proof added before runtime integration; verified slice5 prerequisite3.5 complete.
-- [ ] 1.8 Add Activity proof for revision event_id versus resource_id, persistence timestamps, filter/count/cursor ties, exact deep links and error versus empty/end.
+- [x] 1.8 Add Activity proof for revision event_id versus resource_id, persistence timestamps, filter/count/cursor ties, exact deep links and error versus empty/end.
   Traceability: backed activity/stable API requirements; two-owner API proof and typed component interactions.
+  Notes: 2026-10-03 fail-first host auth proof404, isolated Python3.11/Postgres five-event HTTP proof404 and component import absent, before runtime2.14/2.15. Tests cover multiple revisions/same timestamps/backdated evolution, filtered/pre-cursor/exhausted totals, foreign parent404, strict cursor422, exact resource links, page overlap, late filter responses and initial/page error versus empty/end.
 
 ## 2. Implementation
 
@@ -148,10 +149,12 @@
 
 ### Slice 7: Persisted activity
 
-- [ ] 2.14 Implement bounded Activity SQL read projection and typed route/client over approved evolution saves and note/condition revisions; preserve event/resource distinction and deterministic cursor/totals.
+- [x] 2.14 Implement bounded Activity SQL read projection and typed route/client over approved evolution saves and note/condition revisions; preserve event/resource distinction and deterministic cursor/totals.
   Traceability: backed activity/stable API and proof1.8; depends on2.8 and2.10 revisions, not chart rendering.
-- [ ] 2.15 Render day-grouped Activity with Todos/Evoluciones/Notas/Diagnósticos, source-backed metadata, exact context links and reset/retry/end states.
+  Notes: 2026-10-03 owner predicates on three UNION branches, independent pre-cursor count and limit+1 in an owned repeatable-read transaction. Strict patient/filter-bound cursor, fixed titles/UUID hrefs and truthful nullable actor. Host auth/422 and isolated Python3.11/Postgres Activity lifecycle pass, including same-time ties/backdated save/exhausted total5. Typed client added; no schema change.
+- [x] 2.15 Render day-grouped Activity with Todos/Evoluciones/Notas/Diagnósticos, source-backed metadata, exact context links and reset/retry/end states.
   Traceability: backed activity and proof1.8; depends on2.6,2.9,2.11 and2.14 for exact resource UI focus.
+  Notes: 2026-10-03 day-grouped component/feature hook render fixed source titles/type/time, unavailable actor name, exact hrefs and four native filters. Retry preserves known events/cursor; filter/unmount invalidates requests; kind+event UUID dedup preserves revisions. Three component and13 existing ficha tests pass; TypeScript/Biome/backend static checks pass. Browser checkpoint3.7 next.
 
 ## 3. Verification
 
@@ -173,21 +176,27 @@
 - [x] 3.6 Verify chart geometry/marks/text equivalence and ordinary interactions at1440×900,1024×768,375×667 plus320px. Include selected/saved/resolved/empty/loading/error/conflict and context-panel reflow; source DP-C1 overlap must not recur.
   Traceability: proof1.7 and slice6 checkpoint; production screenshots with synthetic records, not wireframe substitution.
   Notes: 2026-10-03 four Playwright checks (including real login) pass on isolated production assets/API: manual persistence/retry/conflict/resolve/history, exact deep links, permanent/primary charts,1440x900/1024x768/375x667/320px without page overflow, settled screenshots, enlarged375px editor, draft preserved with contextual Assistant and confirmed dentition discard. Loading/empty/error/retry/conflict and active/resolved/selected screenshots inspected under .playwright-cli/slice6-*.png. Full frontend623 passes; seven focused tests pass; backend Ruff/format/mypy and14 live workspace tests pass. Full backend894 passes/112 skips/one existing CHAT_MODEL mismatch, supplemental auth test passes; final counts in execution-slices-5-6-2026-10-03.md. Slice7 unlocked, not started.
-- [ ] 3.7 Verify Activity event/cursor/filter/count/deep-link behavior across multiple revisions of the same resource, same timestamps and backdated evolution.
+- [x] 3.7 Verify Activity event/cursor/filter/count/deep-link behavior across multiple revisions of the same resource, same timestamps and backdated evolution.
   Traceability: proof1.8 and slice7 checkpoint; source failure is never empty.
-- [ ] 3.8 Run integrated patient→notes/conditions/chart/activity→exact evolution flow; keyboard/44px/reduced-motion/privacy/dirty guards, including Assistant open/close while drafting.
+  Notes: 2026-10-03 real Python3.11/Postgres proof passes same-time mixed-kind/revision ties, filtered and exhausted totals, owner404, bound cursor422, persistence date versus backdated evolution and no clinical text. Production browser with26 synthetic events passes pagination/error/retry, distinct revision links, exact note outside20-record first page plus history, primary/resolved condition focus and exact evolution. Settled1440/1024/375/320 screenshots inspected; no overflow. Visible native filter selection corrected after review. No schema change; integrated gate unlocked.
+- [x] 3.8 Run integrated patient→notes/conditions/chart/activity→exact evolution flow; keyboard/44px/reduced-motion/privacy/dirty guards, including Assistant open/close while drafting.
   Traceability: integrated clinical safety/continuity and all slice checkpoints; UI-01…UI-09, actual CSS viewport and transition-settled measurements, real/synthetic distinction in audit-2026-10-03/report.md. Include ready/loading/empty/no-match/filter-empty/stale-error, unknown metadata, long name and modal duplicate/descarte states.
-- [ ] 3.9 Run repository backend/frontend lint, format/typecheck/tests; inspect production visual/ARIA results against DESIGN and the current diagnosis reference.
+  Notes: 2026-10-03 integrated real manual UI save→chart→activity→exact note passes; keyboard tab/filter, actual320px/no overflow,44px targets, reduced motion, note guard/zero writes and desktop Assistant open/close preserve draft. Activity deep-link test covers exact approved-save fixture/evolution.15 real-Postgres workspace tests pass. Browser workspace10 checks pass and older approval/Drive test passes after correcting obsolete confirmation locator to current auto-open dialog; no approval runtime change. Prior UI-09 directory/contact/modal proofs retained; Vitest final regression gate follows. ARIA and slice8-activity-320 capture inspected.
+- [x] 3.9 Run repository backend/frontend lint, format/typecheck/tests; inspect production visual/ARIA results against DESIGN and the current diagnosis reference.
   Traceability: AGENTS.md full validation and final regression gate.
+  Notes: 2026-10-03 full backend898 passed/113 skipped, frontend626 passed/76 files; Ruff lint/format205 files, mypy205 sources, TypeScript/Biome210 files and Docker production build pass.15 isolated Python3.11/Postgres tests and all10 workspace browser checks pass across combined run plus corrected approval-test rerun. Existing CHAT_MODEL mismatch is resolved in initial HEAD31453df; no config edit here. Production screenshots/ARIA inspected against dark semantic palette, four tabs and current anatomical reference;44px filter correction verified. Logs under .playwright-cli/slice8-{backend,frontend}-validation.log. No release blocker.
 
 ## 4. Release Hygiene and Closeout
 
-- [ ] 4.1 Update PRODUCT, DESIGN, affected surface briefs, README and API docs only for verified shipped behavior, including manual-save versus evolution approval and compact-rail change.
+- [x] 4.1 Update PRODUCT, DESIGN, affected surface briefs, README and API docs only for verified shipped behavior, including manual-save versus evolution approval and compact-rail change.
   Traceability: durable operational/visual truth after integration.
-- [ ] 4.2 Update CHANGELOG if ready to ship.
+  Notes: 2026-10-03 PRODUCT/DESIGN, both patient/Assistant briefs, root README and docs/API.md updated for verified navigation/search/contact/four sections/manual revisions/chart/Activity and supported pending starters. Approval wording distinguishes manual Guardar from evolution approval. API records strict DTOs/bounded cursor/retries and truthful actor metadata. OpenSpec README/API planning-status statements reconciled. Strict OpenSpec and diff whitespace checks pass.
+- [x] 4.2 Update CHANGELOG if ready to ship.
   Traceability: release history follows verified implementation.
-- [ ] 4.3 Reconcile OpenSpec with shipped code, record verification evidence and prepare sync/archive readiness.
+  Notes: 2026-10-03 no prior CHANGELOG existed; added an Unreleased entry for the verified patient workspace, compact rail, explicit manual saves and source-backed Activity. No version/deployment date or production release claimed.
+- [x] 4.3 Reconcile OpenSpec with shipped code, record verification evidence and prepare sync/archive readiness.
   Traceability: OpenSpec closeout; planning alone never marks runtime delivered.
+  Notes: 2026-10-03 execution-slices-7-8-2026-10-03.md maps every scoped requirement to its runtime/test seam and records final validation, inspected screenshots/ARIA, no-schema/dependency changes, two browser corrections and truthful synthetic/mocked distinction. All38 tasks complete; strict OpenSpec/diff checks pass. Main-spec sync/archive ready for explicit follow-up, not executed. Existing local services/data preserved; isolated E2E stopped with volumes retained. No commit/push/deployment requested.
 
 ## Execution Order
 

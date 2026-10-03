@@ -6,7 +6,7 @@ Dental AI Assistant and Chat share the dark workspace shell. The visual source o
 
 - Both sidebars put Pacientes, Asistente, and Chat first, in that order. Each surface places its own creation action and history beneath this navigation.
 - The expanded desktop sidebar is 260px on every surface and uses one shared brand mark.
-- In Assistant and Chat, closing desktop navigation gives its full width to the workspace; the restore control moves to the workspace header. Desktop Patients retains its compact rail.
+- Collapsed desktop navigation retains a 56px rail on Patients, Assistant and Chat. The guarded tooth brand links to `/patients` in its own row above the separate expansion toggle; all three global destinations remain selectable. Mobile retains the drawer.
 - The Assistant's Google Drive pane shares workspace width with the conversation. Its divider follows pointer movement immediately; open/close use a short spatial transition that respects reduced motion. Hiding Drive preserves its document state and leaves clinical work running.
 - Conversation content and composers stay centered in the available main pane. Narrow-pane composition follows that pane's width rather than only the browser viewport.
 - Both composers use the same surface color, border, radius, shadow, and focus ring. Assistant grows only when dictation or real document attachments require more room.
@@ -17,6 +17,10 @@ Dental AI Assistant and Chat share the dark workspace shell. The visual source o
   returning to ficha does not overlap the sidebar restore control on narrow screens.
 - Contextual clinical panels use the existing surfaces, composer and focus language.
   Closing a panel preserves work; the explicit Stop action cancels execution.
+- Patient sections and category filters keep selection separate from keyboard focus. Selected
+  controls use the existing surface, foreground and primary border tokens; focus has its own ring.
+- Clinical records use plain status text alongside symbols. Activity groups saved events by day
+  on a continuous guide and links to exact resources; missing author names are explicit.
 
 ## Clinical wording
 

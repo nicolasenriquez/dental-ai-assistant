@@ -13,12 +13,16 @@ This repository is the **running project for the Dynamous Agentic Engineering Co
 ## What it does
 
 1. **Clinical Assistant.** Clinicians can ask general questions, consult a selected patient's recent history, and create or revise evolution drafts in chat. Every save still requires explicit approval.
-2. **Patients and evolutions** — patient identity is owner-scoped and RUT values are masked outside the privacy boundary.
+2. **Patient workspace.** Private name/phone/RUT search, filter/sort and exact ficha links lead to Resumen, Información, Clínica and Actividad. Optional contact, manual notes with history, permanent/primary odontogram and approved evolution links stay owner-scoped. Notes and diagnoses require explicit Guardar; evolutions keep their human-approval flow. Activity reads saved events and revisions, with exact resource links and truthful metadata.
 3. **Voice dictation** — short-lived audio is transcribed by the Whisper sidecar and returned as editable text. Audio is not persisted.
 4. **RAG chat** — the secondary library chat ingests YouTube and Dynamous transcripts, retrieves with hybrid RRF search, and streams cited answers.
 
 Clinical terminology grounding and its catalog release hold are documented in
 [clinical grounding operations](docs/clinical-grounding.md).
+The [patient API reference](docs/API.md#patient-clinical-workspace) documents manual
+save/revision contracts, bounded Activity reads and retry/conflict handling. The
+existing dark sidebar keeps Pacientes, Asistente and Chat directly selectable in
+its compact desktop rail. Search text and clinical drafts are memory only.
 
 ---
 

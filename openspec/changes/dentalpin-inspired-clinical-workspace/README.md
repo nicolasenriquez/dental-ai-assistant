@@ -1,6 +1,6 @@
 # dentalpin-inspired-clinical-workspace
 
-Patient-first clinical workspace informed by DentalPin, preserving Dental AI Assistant's dark/blue identity, Pacientes/Asistente/Chat navigation and approved-evolution boundary. `/patients` remains entry and brand destination. This is an implementation-ready specification, not shipped runtime.
+Patient-first clinical workspace informed by DentalPin, preserving Dental AI Assistant's dark/blue identity, Pacientes/Asistente/Chat navigation and approved-evolution boundary. `/patients` remains entry and brand destination. All seven implementation slices and the integrated gate are verified in the local production build. See execution-slices-7-8-2026-10-03.md for final evidence; deployment, main-spec sync and archive remain separate operations.
 
 ## Reading order and authority
 
