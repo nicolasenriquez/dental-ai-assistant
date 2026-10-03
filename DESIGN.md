@@ -30,4 +30,13 @@ Dental AI Assistant and Chat share the dark workspace shell. The visual source o
 - A Drive selection is displayed as a named, removable document attachment. The word “contexto” does not label a patient action or an empty attachment slot.
 - An approved evolution says “Guardada en ficha”. Drive sync is shown separately. Review flags on a saved evolution are “observaciones”; before approval they are “por revisar”.
 
+## Motion and waiting
+
+- Pending manual saves pair their action text with the shared Spinner and `aria-busy`.
+  A navigation guard owns the indicator while open; no duplicate spinner behind the dialog.
+  Action widths stay stable through waiting, constrained to the available width.
+- Toasts enter over 180ms and leave over 120ms using opacity and an 8px horizontal transform,
+  with `cubic-bezier(0.23, 1, 0.32, 1)`. Reduced motion removes displacement and duration.
+  Notification reading time stays four seconds.
+
 Behavioral and safety priorities remain in `docs/design/UX_PRINCIPLES.md`.

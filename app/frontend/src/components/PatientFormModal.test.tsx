@@ -1,9 +1,41 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, type Patient } from '../lib/api';
 import { PatientFormModal } from './PatientFormModal';
 
 describe('PatientFormModal', () => {
+  it('shows one pending spinner and restores the action after failure', async () => {
+    let rejectSave!: (error: Error) => void;
+    const onSubmit = vi.fn(
+      () =>
+        new Promise<Patient>((_, reject) => {
+          rejectSave = reject;
+        }),
+    );
+    render(
+      <PatientFormModal
+        open
+        mode="create"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        onSuccess={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: 'Ana' } });
+    fireEvent.change(screen.getByLabelText('Apellidos'), { target: { value: 'Pérez' } });
+    fireEvent.change(screen.getByLabelText('RUT'), { target: { value: '12.345.678-5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear paciente' }));
+    const action = screen.getByRole('button', { name: 'Creando...' });
+    expect(action).toBeDisabled();
+    expect(action).toHaveAttribute('aria-busy', 'true');
+    expect(action.querySelectorAll('.animate-spin')).toHaveLength(1);
+    fireEvent.click(action);
+    expect(onSubmit).toHaveBeenCalledOnce();
+    await act(async () => rejectSave(new Error('network')));
+    expect(screen.getByRole('button', { name: 'Crear paciente' })).toBeEnabled();
+    expect(document.querySelector('.animate-spin')).toBeNull();
+    expect(screen.getByLabelText('Nombres')).toHaveValue('Ana');
+  });
   it('loads contact in edit, rejects invalid contact and explicitly clears it', async () => {
     const onSubmit = vi.fn().mockResolvedValue({ id: 'patient-1' });
     render(

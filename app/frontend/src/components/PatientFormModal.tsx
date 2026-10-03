@@ -16,6 +16,7 @@ import {
   validateRut,
 } from '../lib/rut';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Spinner } from './Spinner';
 import { ClinicalDateField } from './patterns/ClinicalDateField';
 import { Button } from './ui/Button';
 
@@ -299,12 +300,12 @@ export function PatientFormModal({
       onClick={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4"
+      className="motion-safe:animate-[patient-overlay-enter_150ms_cubic-bezier(0.23,1,0.32,1)] fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4"
     >
       <form
         onSubmit={submit}
         noValidate
-        className="relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-2xl"
+        className="motion-safe:animate-[patient-form-enter_180ms_cubic-bezier(0.23,1,0.32,1)] relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6 shadow-2xl"
       >
         <button
           type="button"
@@ -331,7 +332,7 @@ export function PatientFormModal({
             <p className="mt-2 text-[var(--text-secondary)]">
               {duplicate.first_name} {duplicate.last_name} · {duplicate.rut_masked}
             </p>
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={requestClose}
@@ -551,7 +552,7 @@ export function PatientFormModal({
                 {formError}
               </p>
             )}
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={requestClose}
@@ -560,7 +561,14 @@ export function PatientFormModal({
               >
                 Cancelar
               </button>
-              <Button type="submit" variant="primary" disabled={submitting}>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={submitting}
+                aria-busy={submitting}
+                className="inline-flex w-[180px] max-w-full items-center justify-center gap-2"
+              >
+                {submitting && <Spinner />}
                 {submitting
                   ? mode === 'create'
                     ? 'Creando...'

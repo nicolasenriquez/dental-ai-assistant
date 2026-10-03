@@ -190,15 +190,24 @@ body,
   }
 }
 
-/* ── Toast slide-in animation ───────────────────────────────────── */
-@keyframes toast-in {
+/* Patient form entrances; motion-safe utilities respect reduced motion. */
+@keyframes patient-overlay-enter {
   from {
     opacity: 0;
-    transform: translateX(24px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+  }
+}
+
+@keyframes patient-form-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 

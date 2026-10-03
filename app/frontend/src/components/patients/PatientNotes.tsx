@@ -12,6 +12,7 @@ import {
   updatePatientNote,
 } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
+import { Spinner } from '../Spinner';
 import { Button } from '../ui/Button';
 import {
   AlertDialog,
@@ -396,8 +397,11 @@ export function PatientNotes({
             <Button
               type="submit"
               variant="clinical"
+              aria-busy={saving}
+              className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
               disabled={saving || conflictPending || !draft.body.trim()}
             >
+              {saving && !pending && <Spinner />}
               {saving ? 'Guardando…' : attempt ? 'Reintentar guardado' : 'Guardar nota'}
             </Button>
           </div>
@@ -504,9 +508,12 @@ export function PatientNotes({
               </Button>
               <Button
                 variant="clinical"
+                aria-busy={saving}
+                className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
                 disabled={saving || conflictPending || !draft?.body.trim()}
                 onClick={() => void save()}
               >
+                {saving && <Spinner />}
                 {saving ? 'Guardando…' : 'Guardar y continuar'}
               </Button>
             </AlertDialogFooter>

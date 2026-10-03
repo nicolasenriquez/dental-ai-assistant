@@ -16,6 +16,7 @@ import {
   updatePatientCondition,
 } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
+import { Spinner } from '../Spinner';
 import { Button } from '../ui/Button';
 import {
   AlertDialog,
@@ -676,8 +677,11 @@ export function PatientDiagnosis({
                 <Button
                   type="submit"
                   variant="clinical"
+                  aria-busy={saving}
+                  className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
                   disabled={saving || conflictPending || !draft.tooth_fdi || !draft.condition_code}
                 >
+                  {saving && !pending && <Spinner />}
                   {saving ? 'Guardando…' : attempt ? 'Reintentar guardado' : 'Guardar condición'}
                 </Button>
               </div>
@@ -829,10 +833,13 @@ export function PatientDiagnosis({
               </Button>
               <Button
                 variant="clinical"
+                aria-busy={saving}
+                className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
                 disabled={saving || conflictPending || !draft?.tooth_fdi || !draft?.condition_code}
                 onClick={() => void save()}
               >
-                Guardar y continuar
+                {saving && <Spinner />}
+                {saving ? 'Guardando…' : 'Guardar y continuar'}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

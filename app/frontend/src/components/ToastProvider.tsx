@@ -1,3 +1,4 @@
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useCallback, useRef, useState } from 'react';
 import { type Toast, ToastContext } from '../hooks/useToast';
 
@@ -22,7 +23,6 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         minWidth: 280,
         maxWidth: 380,
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        animation: 'toast-in 0.2s ease',
       }}
     >
       {/* Icon */}
@@ -129,6 +129,7 @@ interface ToastProviderProps {
 }
 
 export function ToastProvider({ children }: ToastProviderProps) {
+  const reduceMotion = useReducedMotion();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -172,11 +173,24 @@ export function ToastProvider({ children }: ToastProviderProps) {
           pointerEvents: 'none',
         }}
       >
-        {toasts.map((toast) => (
-          <div key={toast.id} style={{ pointerEvents: 'auto' }}>
-            <ToastItem toast={toast} onDismiss={() => removeToast(toast.id)} />
-          </div>
-        ))}
+        <AnimatePresence initial={false}>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, transform: reduceMotion ? 'none' : 'translateX(8px)' }}
+              animate={{ opacity: 1, transform: reduceMotion ? 'none' : 'translateX(0)' }}
+              exit={{
+                opacity: 0,
+                transform: reduceMotion ? 'none' : 'translateX(8px)',
+                transition: { duration: reduceMotion ? 0 : 0.12, ease: [0.23, 1, 0.32, 1] },
+              }}
+              transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.23, 1, 0.32, 1] }}
+              style={{ pointerEvents: 'auto' }}
+            >
+              <ToastItem toast={toast} onDismiss={() => removeToast(toast.id)} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import { TransitionGuardProvider } from '../../hooks/useTransitionGuard';
@@ -152,3 +152,32 @@ it('keeps a draft on the selected dentition, confirms a change and clears only a
   expect(screen.queryByLabelText('Nota de condición')).toBeNull();
   expect(mocks.create).not.toHaveBeenCalled();
 });
+
+it.each([false, true])(
+  'shows one pending condition spinner, including continue guard=%s',
+  async (guard) => {
+    mount([]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
+    fireEvent.change(screen.getByLabelText('Pieza FDI'), { target: { value: '36' } });
+    let rejectSave!: (error: Error) => void;
+    mocks.create.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectSave = reject;
+        }),
+    );
+    if (guard) fireEvent.click(screen.getByRole('button', { name: 'Cancelar condición' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: guard ? 'Guardar y continuar' : 'Guardar condición' }),
+    );
+    const action = guard
+      ? screen.getByRole('dialog').querySelector('[aria-busy="true"]')
+      : screen.getByRole('button', { name: 'Guardando…' });
+    expect(action).toBeDisabled();
+    expect(action).toHaveTextContent('Guardando…');
+    expect(document.querySelectorAll('.animate-spin')).toHaveLength(1);
+    await act(async () => rejectSave(new TypeError('lost')));
+    expect(document.querySelector('.animate-spin')).toBeNull();
+    expect(screen.getByLabelText('Pieza FDI')).toHaveValue('36');
+  },
+);

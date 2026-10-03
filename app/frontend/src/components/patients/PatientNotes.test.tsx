@@ -154,3 +154,35 @@ it('keeps failed save-and-continue visible and does not complete navigation', as
   fireEvent.click(screen.getByRole('button', { name: 'Seguir editando' }));
   expect(screen.getByRole('textbox', { name: 'Nota general' })).toHaveValue('Draft');
 });
+
+it.each([false, true])(
+  'shows one pending-save spinner, including continue guard=%s',
+  async (guard) => {
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Nueva nota' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nota general' }), {
+      target: { value: 'Draft' },
+    });
+    let rejectSave!: (error: Error) => void;
+    mocks.create.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectSave = reject;
+        }),
+    );
+    if (guard) fireEvent.click(screen.getByRole('button', { name: 'Cancelar nota' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: guard ? 'Guardar y continuar' : 'Guardar nota' }),
+    );
+    const action = guard
+      ? screen.getByRole('dialog').querySelector('[aria-busy="true"]')
+      : screen.getByRole('button', { name: 'Guardando…' });
+    expect(action).toBeDisabled();
+    expect(action).toHaveTextContent('Guardando…');
+    expect(document.querySelectorAll('.animate-spin')).toHaveLength(1);
+    await act(async () => rejectSave(new TypeError('lost')));
+    expect(document.querySelector('.animate-spin')).toBeNull();
+    if (guard) fireEvent.click(screen.getByRole('button', { name: 'Seguir editando' }));
+    expect(screen.getByRole('textbox', { name: 'Nota general' })).toHaveValue('Draft');
+  },
+);

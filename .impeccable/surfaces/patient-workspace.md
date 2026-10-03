@@ -2,6 +2,10 @@
 
 Mode: Operate. Targets: `PatientDetail.tsx`, `PatientWorkspace.tsx`, `PatientOverview.tsx`.
 
+Patient create/edit form enters with opacity and scale(.98) over 180ms; its overlay fades
+over 150ms, both using cubic-bezier(0.23,1,0.32,1). Reduced motion skips these entrances.
+Closing stays immediate; focus and dirty-work guards do not wait for motion.
+
 The base patient route defaults to Resumen with four local sections: Resumen,
 Información, Clínica and Actividad. A specific evolution URL stays focused on that
 evolution. New evolution remains primary, Assistant secondary. Suggested actions
