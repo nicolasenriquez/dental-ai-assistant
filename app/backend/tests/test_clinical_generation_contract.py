@@ -157,7 +157,7 @@ def test_generation_constants_and_fail_closed_gate() -> None:
 
     assert clinical_evolutions.MAX_RAW_NOTE_LENGTH == 40_000
     assert clinical_evolutions.CLINICAL_HISTORY_LIMIT == 3
-    assert config.CHAT_MODEL == "anthropic/claude-sonnet-4.6"
+    assert config.CHAT_MODEL == "openai/gpt-6-luna"
     assert config.CLINICAL_EXTERNAL_LLM_ENABLED is False
 
 

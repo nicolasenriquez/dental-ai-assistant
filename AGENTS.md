@@ -278,7 +278,7 @@ These behaviors are part of the AI Tutor's contract and must not regress:
 1. **Chunking** uses Docling `HybridChunker` with `max_tokens=512` (`HYBRID_CHUNKER_MAX_TOKENS` in `config.py`). Do not swap to recursive-character splitters or LangChain chunkers.
 2. **Embeddings** come from OpenRouter's `openai/text-embedding-3-small` (1536-dim). Never call a different embedding model or provider. Never embed on the frontend.
 3. **Retrieval** is hybrid: Reciprocal Rank Fusion (RRF) combining Postgres `tsvector` keyword search with `pgvector` cosine similarity, top-5 chunks. See `app/backend/rag/retriever_hybrid.py`.
-4. **Chat completion** uses OpenRouter's Claude Sonnet via the `openai` SDK pointed at `https://openrouter.ai/api/v1`.
+4. **Chat completion** uses the configured `CHAT_MODEL` on OpenRouter via the `openai` SDK pointed at `https://openrouter.ai/api/v1`.
 5. **Streaming format:** Server-Sent Events with JSON-encoded tokens. Each token is framed as `data: <json-string>\n\n`. The `sources` event is emitted as `event: sources\ndata: <json-array>\n\n` **before** the `data: [DONE]\n\n` terminator. The frontend parser in `useStreamingResponse.ts` depends on this format exactly.
 6. **Citations** must include video title, video URL, exact-timestamp deep-link, and the quoted transcript snippet. The citation modal opens an embedded YouTube player at the timestamp.
 

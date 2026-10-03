@@ -41,9 +41,9 @@ Clinical terminology grounding and its catalog release hold are documented in
                                             │  (RRF hybrid: tsvector   │
                                             │   + pgvector cosine)     │
                                             │            │            │
-                                            │           LLM           │
-                                            │    (Claude via          │
-                                            │     OpenRouter)         │
+                                             │           LLM           │
+                                             │  (GPT-6 Luna via       │
+                                             │     OpenRouter)         │
                                             └─────────────────────────┘
 ```
 
@@ -51,7 +51,7 @@ Clinical terminology grounding and its catalog release hold are documented in
 - **Backend:** Python + FastAPI, single process handling API + RAG + LLM
 - **Database:** Postgres via `asyncpg`, with `pgvector` for hybrid retrieval; schema managed by Alembic migrations
 - **Auth:** Google OAuth + email/password sign-in, JWT session cookies
-- **LLM:** Claude Sonnet via OpenRouter, SSE streaming
+- **LLM:** GPT-6 Luna via OpenRouter, SSE streaming
 - **Embeddings:** `text-embedding-3-small` via OpenRouter (1536-dim)
 - **Chunking:** Docling `HybridChunker` (512-token target)
 - **Retrieval:** RRF hybrid (tsvector keyword + pgvector cosine), top-5 chunks
