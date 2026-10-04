@@ -42,6 +42,9 @@ jobs:
         run: uv run ruff check .
         working-directory: app/backend
 
+      - name: Lint operational Python
+        run: uv run --project app/backend ruff check --config app/backend/pyproject.toml scripts deploy/whisper fix_issue.py guard_deny_demo.py
+
       - name: Type-check backend
         run: uv run mypy .
         working-directory: app/backend

@@ -9,7 +9,7 @@
 # ----------------------------------------------------------------------------
 # Stage 1 — frontend build
 # ----------------------------------------------------------------------------
-FROM oven/bun:1.2-alpine AS frontend-build
+FROM oven/bun:1.4.2-alpine AS frontend-build
 
 WORKDIR /src/frontend
 

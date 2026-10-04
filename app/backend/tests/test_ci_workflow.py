@@ -19,6 +19,7 @@ def test_ci_setup_is_immutable_and_validation_cannot_ignore_failures() -> None:
         "uv sync --frozen --all-extras",
         "uv run ruff format --check .",
         "uv run ruff check .",
+        "uv run --project app/backend ruff check --config app/backend/pyproject.toml scripts deploy/whisper fix_issue.py guard_deny_demo.py",
         "uv run mypy .",
         "uv run pytest tests -q",
         "bun install --frozen-lockfile",

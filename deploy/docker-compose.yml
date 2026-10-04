@@ -38,9 +38,8 @@ services:
   # graceful `caddy reload` to swap. Neither publishes a host port — Caddy
   # reaches them via the internal docker network by service name.
   #
-  # Both mount the same named volume (app_data) for the SQLite DB so the
-  # swap preserves state. Brief overlap during swap is fine — SQLite WAL
-  # handles low-volume concurrent access.
+  # Both use the shared PostgreSQL service so the swap preserves state.
+  # Brief overlap during a swap uses separate database connections.
   app-blue:
     build:
       context: ..
