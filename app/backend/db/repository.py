@@ -59,10 +59,11 @@ async def create_video(
     transcript: str,
     channel_id: str | None = None,
     channel_title: str | None = None,
+    chunks: list[dict] | None = None,
 ) -> dict:
     vid_id = _new_id()
     now = _now()
-    async with _acquire() as conn:
+    async with _acquire() as conn, conn.transaction():
         await conn.execute(
             """
             INSERT INTO videos (id, title, description, url, transcript, channel_id, channel_title, created_at)
@@ -77,6 +78,8 @@ async def create_video(
             channel_title,
             now,
         )
+        if chunks:
+            await _insert_chunks(conn, vid_id, chunks)
     return {
         "id": vid_id,
         "title": title,
@@ -382,21 +385,26 @@ async def replace_chunks_for_video(
     """
     async with _acquire() as conn, conn.transaction():
         await conn.execute("DELETE FROM chunks WHERE video_id = $1", video_id)
-        for c in chunks:
-            await conn.execute(
-                """
-                    INSERT INTO chunks (id, video_id, content, embedding, chunk_index, start_seconds, end_seconds, snippet)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    """,
-                _new_id(),
-                video_id,
-                c["content"],
-                json.dumps(c["embedding"]),
-                c["chunk_index"],
-                c.get("start_seconds", 0.0),
-                c.get("end_seconds", 0.0),
-                c.get("snippet", ""),
-            )
+        await _insert_chunks(conn, video_id, chunks)
+
+
+async def _insert_chunks(conn: asyncpg.Connection, video_id: str, chunks: list[dict]) -> None:
+    """Insert prepared chunks on the caller's transaction connection."""
+    for chunk in chunks:
+        await conn.execute(
+            """
+            INSERT INTO chunks (id, video_id, content, embedding, chunk_index, start_seconds, end_seconds, snippet)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """,
+            _new_id(),
+            video_id,
+            chunk["content"],
+            json.dumps(chunk["embedding"]),
+            chunk["chunk_index"],
+            chunk.get("start_seconds", 0.0),
+            chunk.get("end_seconds", 0.0),
+            chunk.get("snippet", ""),
+        )
 
 
 # ---------------------------------------------------------------------------

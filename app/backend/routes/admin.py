@@ -16,6 +16,7 @@ here warrant careful human review.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
@@ -26,11 +27,15 @@ from supadata import SupadataError
 from backend.config import SUPADATA_API_KEY, YOUTUBE_CHANNEL_ID
 from backend.db import repository as repo
 from backend.ingest.youtube_url import parse_youtube_url
-from backend.rag import retriever_hybrid
-from backend.rag.chunker import chunk_video_fallback, chunk_video_timestamped
-from backend.rag.embeddings import embed_batch
+from backend.rag import catalog, retriever_hybrid
 from backend.routes.channels import sync_channel as _sync_channel_impl
-from backend.services.video_ingest import VideoIngestError, fetch_video_for_ingest
+from backend.services.video_ingest import (
+    VideoEmbeddingCountError,
+    VideoEmbeddingError,
+    VideoIngestError,
+    fetch_video_for_ingest,
+    prepare_video_chunks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,46 +105,23 @@ async def _fetch_chunks_and_embeddings(url_str: str) -> tuple[dict, list[dict]]:
     youtube_video_id = supadata_data["youtube_video_id"]
     segments = supadata_data.get("segments", [])
 
-    if segments:
-        chunk_dicts: list[dict]
-        chunk_dicts, had_errors = chunk_video_timestamped(segments)
-        if had_errors:
-            logger.warning("Chunker fell back to raw text for some segments for '%s'", url_str)
-    else:
-        chunk_dicts, had_errors = chunk_video_fallback({"title": title, "transcript": transcript})
-        if had_errors:
-            logger.warning("Chunker returned 0 chunks for '%s' — transcript may be empty", url_str)
-    if not chunk_dicts:
-        raise HTTPException(
-            status_code=422,
-            detail="Chunker returned 0 chunks — transcript may be empty or malformed.",
-        )
-
-    chunk_texts = [c["content"] for c in chunk_dicts]
     try:
-        embeddings = embed_batch(chunk_texts)
-    except Exception as exc:
+        chunks = await asyncio.to_thread(prepare_video_chunks, title, transcript, segments)
+    except VideoEmbeddingError as exc:
         logger.error("Embedding batch failed for '%s': %s", url_str, exc)
         raise HTTPException(
             status_code=502, detail=f"Embeddings API request failed: {exc}"
         ) from exc
 
-    if len(embeddings) != len(chunk_texts):
+    except VideoEmbeddingCountError as exc:
         raise HTTPException(
             status_code=500, detail="Mismatch between chunk count and embedding count."
+        ) from exc
+    if not chunks:
+        raise HTTPException(
+            status_code=422,
+            detail="Chunker returned 0 chunks — transcript may be empty or malformed.",
         )
-
-    chunks = [
-        {
-            "content": chunk["content"],
-            "embedding": embedding,
-            "chunk_index": idx,
-            "start_seconds": chunk["start_seconds"],
-            "end_seconds": chunk["end_seconds"],
-            "snippet": chunk["snippet"],
-        }
-        for idx, (chunk, embedding) in enumerate(zip(chunk_dicts, embeddings, strict=False))
-    ]
     metadata = {
         "title": title,
         "description": description,
@@ -196,13 +178,12 @@ async def add_video(body: AddVideoRequest) -> AddVideoResponse:
         description=metadata["description"],
         url=url_str,
         transcript=metadata["transcript"],
+        chunks=chunks,
     )
     video_id = video_record["id"]
 
-    try:
-        await repo.replace_chunks_for_video(video_id, chunks)
-    finally:
-        retriever_hybrid.invalidate_cache()
+    retriever_hybrid.invalidate_cache()
+    catalog.invalidate_catalog()
 
     logger.info("Admin added video %s (%s): %d chunks", video_id, metadata["title"], len(chunks))
     return AddVideoResponse(video_id=video_id, chunks_created=len(chunks), status="ok")
@@ -240,6 +221,7 @@ async def delete_video(video_id: str) -> None:
         raise HTTPException(status_code=404, detail="Video not found")
     retriever_hybrid.invalidate_cache()
     logger.info("Admin deleted video %s", video_id)
+    catalog.invalidate_catalog()
 
 
 @router.post("/videos/{video_id}/re-sync", response_model=ResyncResponse)

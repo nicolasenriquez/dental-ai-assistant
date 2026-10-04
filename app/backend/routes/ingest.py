@@ -9,6 +9,7 @@ All DB access goes through repository.py — no raw SQL here.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException
@@ -18,9 +19,13 @@ from supadata import SupadataError
 from backend.db import repository
 from backend.ingest.youtube_url import parse_youtube_url
 from backend.rag import catalog, retriever_hybrid
-from backend.rag.chunker import chunk_video_fallback, chunk_video_timestamped
-from backend.rag.embeddings import embed_batch
-from backend.services.video_ingest import VideoIngestError, fetch_video_for_ingest
+from backend.services.video_ingest import (
+    VideoEmbeddingCountError,
+    VideoEmbeddingError,
+    VideoIngestError,
+    fetch_video_for_ingest,
+    prepare_video_chunks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,84 +120,39 @@ async def ingest_video(body: IngestRequest) -> IngestResponse:
     url_str = str(body.url)
     logger.info("Ingesting video: '%s'", body.title)
 
-    # 1. Create the video record in the DB
-    video_record = await repository.create_video(
+    return await _store_video(
         title=body.title,
         description=body.description,
         url=url_str,
         transcript=body.transcript,
+        segments=body.segments,
     )
-    video_id = video_record["id"]
 
-    # 2. Chunk the transcript using Docling HybridChunker
-    #    Use timestamped path if segments are provided; otherwise fall back to
-    #    estimated timestamps derived from plain transcript.
-    video_dict = {
-        "title": body.title,
-        "transcript": body.transcript,
-    }
 
-    if body.segments:
-        # Precise timestamps from Supadata (#57)
-        chunk_dicts: list[dict]
-        chunk_dicts, had_errors = chunk_video_timestamped(body.segments)
-        if had_errors:
-            logger.warning("Chunker fell back to raw text for some segments in '%s'", body.title)
-    else:
-        # Legacy plain-text ingest: estimated timestamps
-        chunk_dicts, had_errors = chunk_video_fallback(video_dict)
-        if had_errors:
-            logger.warning(
-                "Chunker returned 0 chunks for '%s' — transcript may be empty", body.title
-            )
-
-    if not chunk_dicts:
-        logger.warning("Chunker returned 0 chunks for video '%s'", body.title)
-        return IngestResponse(video_id=video_id, chunks_created=0, status="stored_no_chunks")
-
-    logger.info("Generated %d chunks for '%s'", len(chunk_dicts), body.title)
-
-    # 3. Embed all chunks in a single batched API call
-    chunk_texts = [c["content"] for c in chunk_dicts]
+async def _store_video(
+    *, title: str, description: str, url: str, transcript: str, segments: list[dict] | None
+) -> IngestResponse:
+    """Prepare before writing, then atomically persist one video and its chunks."""
     try:
-        embeddings = embed_batch(chunk_texts)
-    except Exception as exc:
-        logger.error("Embedding batch failed for video '%s': %s", body.title, exc)
-        # Clean up the orphan video record to avoid leaving cruft
-        await repository.delete_video(video_id)
+        chunks = await asyncio.to_thread(prepare_video_chunks, title, transcript, segments)
+    except VideoEmbeddingError as exc:
         raise HTTPException(
-            status_code=502,
-            detail=f"Embeddings API request failed: {exc}",
+            status_code=502, detail=f"Embeddings API request failed: {exc}"
         ) from exc
-
-    if len(embeddings) != len(chunk_texts):
+    except VideoEmbeddingCountError as exc:
         raise HTTPException(
-            status_code=500,
-            detail="Mismatch between chunk count and embedding count.",
-        )
-
-    # 4. Store each chunk with its embedding and timestamp data
-    try:
-        for idx, (chunk, embedding) in enumerate(zip(chunk_dicts, embeddings, strict=False)):
-            await repository.create_chunk(
-                video_id=video_id,
-                content=chunk["content"],
-                embedding=embedding,
-                chunk_index=idx,
-                start_seconds=chunk["start_seconds"],
-                end_seconds=chunk["end_seconds"],
-                snippet=chunk["snippet"],
-            )
-    finally:
+            status_code=500, detail="Mismatch between chunk count and embedding count."
+        ) from exc
+    video = await repository.create_video(
+        title=title, description=description, url=url, transcript=transcript, chunks=chunks
+    )
+    catalog.invalidate_catalog()
+    if chunks:
         retriever_hybrid.invalidate_cache()
-        catalog.invalidate_catalog()
-
-    logger.info("Ingestion complete for '%s': %d chunks stored", body.title, len(chunk_dicts))
-
     return IngestResponse(
-        video_id=video_id,
-        chunks_created=len(chunk_dicts),
-        status="ok",
+        video_id=video["id"],
+        chunks_created=len(chunks),
+        status="ok" if chunks else "stored_no_chunks",
     )
 
 
@@ -233,74 +193,11 @@ async def ingest_from_url(body: IngestFromUrlRequest) -> IngestFromUrlResponse:
             detail=f"Transcript fetch failed: {exc}",
         ) from exc
 
-    title = supadata_data["title"]
-    description = supadata_data["description"]
-    transcript = supadata_data["transcript"]
-    segments = supadata_data.get("segments", [])
-
-    # 3. Create the video record in the DB
-    video_record = await repository.create_video(
-        title=title,
-        description=description,
+    result = await _store_video(
+        title=supadata_data["title"],
+        description=supadata_data["description"],
         url=url_str,
-        transcript=transcript,
+        transcript=supadata_data["transcript"],
+        segments=supadata_data.get("segments"),
     )
-    video_id = video_record["id"]
-
-    # 4. Chunk the transcript using Docling HybridChunker
-    if segments:
-        chunk_dicts: list[dict]
-        chunk_dicts, had_errors = chunk_video_timestamped(segments)
-        if had_errors:
-            logger.warning("Chunker fell back to raw text for some segments in '%s'", title)
-    else:
-        chunk_dicts, had_errors = chunk_video_fallback({"title": title, "transcript": transcript})
-        if had_errors:
-            logger.warning("Chunker returned 0 chunks for '%s' — transcript may be empty", title)
-
-    if not chunk_dicts:
-        logger.warning("Chunker returned 0 chunks for video '%s'", title)
-        return IngestFromUrlResponse(video_id=video_id, chunks_created=0, status="stored_no_chunks")
-
-    logger.info("Generated %d chunks for '%s'", len(chunk_dicts), title)
-
-    # 5. Embed all chunks in a single batched API call
-    chunk_texts = [c["content"] for c in chunk_dicts]
-    try:
-        embeddings = embed_batch(chunk_texts)
-    except Exception as exc:
-        logger.error("Embedding batch failed for video '%s': %s", title, exc)
-        raise HTTPException(
-            status_code=502,
-            detail=f"Embeddings API request failed: {exc}",
-        ) from exc
-
-    if len(embeddings) != len(chunk_texts):
-        raise HTTPException(
-            status_code=500,
-            detail="Mismatch between chunk count and embedding count.",
-        )
-
-    # 6. Store each chunk with its embedding and timestamp data
-    try:
-        for idx, (chunk, embedding) in enumerate(zip(chunk_dicts, embeddings, strict=False)):
-            await repository.create_chunk(
-                video_id=video_id,
-                content=chunk["content"],
-                embedding=embedding,
-                chunk_index=idx,
-                start_seconds=chunk["start_seconds"],
-                end_seconds=chunk["end_seconds"],
-                snippet=chunk["snippet"],
-            )
-    finally:
-        retriever_hybrid.invalidate_cache()
-        catalog.invalidate_catalog()
-
-    logger.info("Ingestion complete for '%s': %d chunks stored", title, len(chunk_dicts))
-
-    return IngestFromUrlResponse(
-        video_id=video_id,
-        chunks_created=len(chunk_texts),
-        status="ok",
-    )
+    return IngestFromUrlResponse(**result.model_dump())

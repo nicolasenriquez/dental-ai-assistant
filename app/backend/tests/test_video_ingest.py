@@ -266,11 +266,11 @@ async def test_ingest_from_url_happy_path():
             return_value=mock_video,
         ) as mock_create_video,
         patch(
-            "backend.routes.ingest.chunk_video_timestamped",
+            "backend.services.video_ingest.chunk_video_timestamped",
             return_value=([chunk_dict], False),
         ) as mock_chunk,
         patch(
-            "backend.routes.ingest.embed_batch",
+            "backend.services.video_ingest.embed_batch",
             return_value=[[0.1, 0.2, 0.3]],
         ) as mock_embed,
         patch(
@@ -299,7 +299,8 @@ async def test_ingest_from_url_happy_path():
     mock_create_video.assert_awaited_once()
     mock_chunk.assert_called_once()
     mock_embed.assert_called_once()
-    mock_create_chunk.assert_awaited_once()
+    mock_create_chunk.assert_not_awaited()
+    assert mock_create_video.await_args.kwargs["chunks"][0]["end_seconds"] == 3.0
     mock_invalidate.assert_called_once()
     mock_cat_invalidate.assert_called_once()
 
@@ -371,7 +372,7 @@ async def test_ingest_from_url_empty_chunks_returns_stored_no_chunks():
             return_value=mock_video,
         ),
         patch(
-            "backend.routes.ingest.chunk_video_fallback",
+            "backend.services.video_ingest.chunk_video_fallback",
             return_value=([], True),  # empty transcript → 0 chunks
         ),
     ):
