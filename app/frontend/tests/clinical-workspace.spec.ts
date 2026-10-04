@@ -10,6 +10,39 @@ const now = '2026-10-01T12:00:00Z';
 const patient = { id: patientId, first_name: 'Camila', last_name: 'Soto', rut_masked: '••.•••.678-5', birth_date: '1992-01-01' };
 const draft = { context: 'Control', findings: 'Sin dolor', assessment: '', treatment: '', follow_up: 'Control en seis meses', review_flags: [] };
 
+test('assistant header preserves identity and aligned secondary actions at narrow widths', async ({ page }) => {
+  await installWorkspace(page);
+  await page.goto(`/a/${threadId}`);
+  await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toBeVisible();
+  for (const width of [320, 375, 834, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const header = page.locator('.clinical-assistant-area .workspace-header');
+    const title = header.locator('.workspace-header__copy > strong');
+    const back = header.getByRole('link', { name: /Volver a ficha/ });
+    const drive = header.getByRole('button', { name: 'Abrir Google Drive' });
+    const pending = header.getByRole('link', { name: 'Ver pendientes' });
+    await expect(title).toBeVisible();
+    await expect(pending).toHaveText('Pendientes');
+    const titleBox = await title.boundingBox();
+    const backBox = await back.boundingBox();
+    expect(titleBox!.width).toBeGreaterThan(0);
+    expect(await title.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
+    if (width <= 834) expect((await drive.boundingBox())!.y).toBeGreaterThan(titleBox!.y + titleBox!.height);
+    expect(backBox!.height).toBeLessThan(40);
+    expect(await drive.evaluate((button) => getComputedStyle(button).flexDirection)).toBe('row');
+    const driveBox = (await drive.boundingBox())!;
+    const iconBox = (await drive.locator('svg').boundingBox())!;
+    expect(Math.abs(iconBox.y + iconBox.height / 2 - driveBox.y - driveBox.height / 2)).toBeLessThan(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+    await page.screenshot({ path: test.info().outputPath(`assistant-header-${width}.png`), animations: 'disabled' });
+  }
+  await page.getByRole('textbox', { name: 'Nota clínica' }).fill('Nota aún sin enviar');
+  await page.getByRole('link', { name: 'Ver pendientes' }).click();
+  await expect(page).toHaveURL('/assistant?view=pending');
+  await page.goBack();
+  await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue('Nota aún sin enviar');
+});
+
 async function installWorkspace(page: Page, initialEvolutions: EvolutionSummary[] = []): Promise<{ saves: () => number; retries: () => number }> {
   const thread: ClinicalThread = { id: threadId, owner_user_id: 'owner', title: 'Camila Soto', active_patient: patient, pending_action_patient: null, active_turn_id: null, created_at: now, updated_at: now, messages: [], artifacts: [], pending_action: null, actions: [] };
   const evolutions: EvolutionSummary[] = [...initialEvolutions];

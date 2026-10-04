@@ -205,7 +205,7 @@ export function ClinicalThreadList({
         <div className="flex gap-2 px-3 py-2" role="group" aria-label="Vista del asistente">
           <button
             type="button"
-            className="py-2 text-sm"
+            className="min-h-11 rounded border border-transparent px-2 py-2 text-sm text-muted aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
             aria-pressed={tab === 'threads'}
             onClick={() => setTab('threads')}
           >
@@ -213,7 +213,7 @@ export function ClinicalThreadList({
           </button>
           <button
             type="button"
-            className="py-2 text-sm"
+            className="min-h-11 rounded border border-transparent px-2 py-2 text-sm text-muted aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
             aria-pressed={tab === 'pending'}
             onClick={() => setTab('pending')}
           >

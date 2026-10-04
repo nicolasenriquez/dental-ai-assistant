@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as api from '../../lib/api';
@@ -7,6 +7,43 @@ import { ClinicalPendingWork } from './ClinicalPendingWork';
 import { ClinicalReadResult } from './ClinicalReadResult';
 
 afterEach(() => vi.restoreAllMocks());
+
+it('groups clinical work separately from Drive failures and identifies exact saved evolutions', async () => {
+  vi.spyOn(api, 'getClinicalPendingWork').mockResolvedValue({
+    items: [
+      {
+        id: 'draft:a',
+        kind: 'recoverable_draft',
+        patient: { id: 'p', display_name: 'Camila Soto', rut_masked: '•••' },
+        updated_at: '2026-10-01T12:00:00Z',
+        action: { kind: 'continue_draft', artifact_id: 'a', thread_id: 't' },
+      },
+      {
+        id: 'drive:e',
+        kind: 'drive_export_failed',
+        patient: { id: 'p', display_name: 'Camila Soto', rut_masked: '•••' },
+        updated_at: '2026-10-01T13:30:00Z',
+        action: { kind: 'retry_drive_export', evolution_id: 'e', thread_id: null },
+      },
+    ],
+    total: 2,
+    next_cursor: null,
+  });
+  render(
+    <MemoryRouter>
+      <ClinicalPendingWork />
+    </MemoryRouter>,
+  );
+  const clinical = await screen.findByRole('region', { name: 'Borradores y revisión' });
+  const drive = screen.getByRole('region', { name: 'Sincronización de Drive' });
+  expect(within(clinical).getByRole('link', { name: 'Continuar' })).toHaveAttribute('href', '/a/t');
+  expect(within(clinical).queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+  expect(within(drive).getByRole('link', { name: 'Ver evolución' })).toHaveAttribute(
+    'href',
+    '/patients/p/evolutions/e',
+  );
+  expect(drive.querySelector('time')).toHaveTextContent(/\d{2}:\d{2}/);
+});
 
 it('distinguishes pending query failure from empty and supports explicit recovery', async () => {
   const query = vi

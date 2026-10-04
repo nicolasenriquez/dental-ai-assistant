@@ -285,10 +285,14 @@ export function ClinicalAssistantArea({
           ) : undefined
         }
         actions={
-          <div className="flex flex-wrap gap-2">
+          <>
             {returnToFicha && (
-              <Link className="clinical-secondary-button" to="/assistant?view=pending">
-                Ver pendientes
+              <Link
+                className="clinical-secondary-button"
+                aria-label="Ver pendientes"
+                to="/assistant?view=pending"
+              >
+                Pendientes
               </Link>
             )}
             {onToggleDrive ? (
@@ -304,7 +308,7 @@ export function ClinicalAssistantArea({
                 Google Drive
               </button>
             ) : null}
-          </div>
+          </>
         }
         workspaceContext={
           <ClinicalPatientPicker

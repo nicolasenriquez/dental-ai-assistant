@@ -106,7 +106,7 @@ export function DriveFileBrowser({
 
   const noMatch = searchSubmitted && query.trim() && !searchLoading && files.length === 0;
   const displayFiles = newestFirst(files);
-  const quickFiles = query.trim() || files.length < 3 ? [] : displayFiles.slice(0, 3);
+  const quickFiles = query.trim() || files.length <= 3 ? [] : displayFiles.slice(0, 3);
 
   const changeViewMode = (nextMode: DriveViewMode): void => {
     setViewMode(nextMode);

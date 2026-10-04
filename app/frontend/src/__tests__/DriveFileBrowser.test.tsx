@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DriveFileBrowser } from '../components/drive/DriveFileBrowser';
+import { DriveWorkspaceHome } from '../components/drive/DriveWorkspaceHome';
 import type { DriveFile } from '../lib/api';
 
 const file: DriveFile = {
@@ -164,6 +165,7 @@ describe('DriveFileBrowser', () => {
       file,
       { ...file, id: 'file-2', name: 'indicaciones.txt', modifiedTime: '2026-09-15T12:00:00Z' },
       { ...file, id: 'file-3', name: 'plan.pdf', modifiedTime: '2026-09-14T12:00:00Z' },
+      { ...file, id: 'file-4', name: 'control.txt', modifiedTime: '2026-09-13T12:00:00Z' },
     ];
     const view = renderBrowser({ files, query: '', searchSubmitted: false });
 
@@ -196,5 +198,23 @@ describe('DriveFileBrowser', () => {
     renderBrowser({ files, query: 'plan', searchSubmitted: true });
 
     expect(screen.queryByRole('region', { name: 'Acceso rápido' })).not.toBeInTheDocument();
+  });
+
+  it('avoids duplicating three files in Quick Access and names the general notes context', () => {
+    const files = [file, { ...file, id: 'file-2' }, { ...file, id: 'file-3' }];
+    const view = renderBrowser({ files, query: '', searchSubmitted: false });
+    expect(screen.queryByRole('region', { name: 'Acceso rápido' })).not.toBeInTheDocument();
+    view.unmount();
+    render(
+      <DriveWorkspaceHome
+        files={[]}
+        loading={false}
+        picking={false}
+        onPick={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Fuentes generales')).toBeVisible();
+    expect(screen.queryByText('Paciente')).not.toBeInTheDocument();
   });
 });

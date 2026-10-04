@@ -1587,23 +1587,35 @@ body,
   .clinical-assistant-area .workspace-header {
     height: auto;
     flex: 0 0 auto;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     padding-top: 8px;
     padding-bottom: 8px;
   }
 
   .clinical-assistant-area .workspace-header__copy {
-    flex: 1 1 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .clinical-assistant-area .workspace-header__copy > a {
+    white-space: nowrap;
+  }
+
+  .clinical-assistant-area .workspace-header__copy strong {
+    max-width: 100%;
   }
 
   .clinical-assistant-area .workspace-header__context {
-    order: 2;
+    order: 1;
     max-width: none;
     flex-basis: 100%;
   }
 
   .clinical-assistant-area .workspace-header__actions {
-    order: 1;
+    order: 2;
+    flex-wrap: wrap;
   }
 
   .clinical-assistant-area .workspace-header__context .clinical-patient-context {
@@ -5033,6 +5045,14 @@ body,
   .main-area > .chat-area > .workspace-header,
   .workspace-mode .workspace-panel-main .workspace-header {
     padding-left: 72px;
+  }
+
+  .workspace-mode .workspace-panel-main .clinical-assistant-area .workspace-header {
+    padding-left: 12px;
+  }
+
+  .workspace-mode .workspace-panel-main .clinical-assistant-area .workspace-header__copy {
+    padding-left: 60px;
   }
 }
 

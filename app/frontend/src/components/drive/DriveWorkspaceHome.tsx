@@ -27,7 +27,7 @@ export function DriveWorkspaceHome({
     file.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   );
   const visibleFiles = newestFirst(filtered);
-  const quickFiles = query.trim() || files.length < 3 ? [] : visibleFiles.slice(0, 3);
+  const quickFiles = query.trim() || files.length <= 3 ? [] : visibleFiles.slice(0, 3);
 
   return (
     <div className="drive-workspace-home min-h-0 flex-1 overflow-auto p-3">
@@ -55,7 +55,7 @@ export function DriveWorkspaceHome({
       <div className="drive-context-trail" aria-label="Contexto del workspace">
         <span>Google Drive</span>
         <span aria-hidden="true">›</span>
-        <span>{patient?.displayName ?? 'Paciente'}</span>
+        <span>{patient?.displayName ?? 'Fuentes generales'}</span>
         {patient && (
           <>
             <span aria-hidden="true">·</span>
