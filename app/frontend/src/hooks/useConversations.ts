@@ -26,6 +26,7 @@ export function useConversations(searchQuery?: string, enabled = true) {
     }
     try {
       setLoading(true);
+      setError(null);
       const data = await getConversations();
       if (myId === fetchIdRef.current) setConversations(data);
     } catch (e) {
@@ -38,7 +39,10 @@ export function useConversations(searchQuery?: string, enabled = true) {
   }, [enabled]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => {
+      fetchIdRef.current += 1;
+    };
   }, [load]);
 
   const rename = async (id: string, title: string): Promise<{ ok: boolean; error?: string }> => {

@@ -155,7 +155,7 @@ describe('DriveFileBrowser', () => {
     expect(screen.getByRole('button', { name: 'Importando…' })).toBeDisabled();
     importing.unmount();
 
-    const imported = renderBrowser({ imported: true, nextPageToken: 'next-page' });
+    renderBrowser({ imported: true, nextPageToken: 'next-page' });
     expect(screen.getByRole('status')).toHaveTextContent('Documento importado');
     expect(screen.getByRole('button', { name: 'Cargar más' })).toBeInTheDocument();
   });

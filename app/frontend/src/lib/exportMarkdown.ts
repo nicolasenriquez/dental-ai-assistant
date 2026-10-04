@@ -10,14 +10,10 @@
  */
 import { saveAs } from 'file-saver';
 import type { Citation, Conversation, Message } from './api';
+import { formatTimestamp } from './timestamp';
 import { extractYouTubeVideoId } from './youtube';
 
-export function formatTimestamp(seconds: number): string {
-  const s = Math.floor(seconds);
-  const mins = Math.floor(s / 60);
-  const secs = s % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
+export { formatTimestamp } from './timestamp';
 
 export function formatCitation(citation: Citation): string {
   if (!citation.snippet?.trim()) return '';

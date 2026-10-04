@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Citation } from '../lib/api';
-import { formatTimestamp } from './CitationModal';
+import { formatTimestamp } from '../lib/timestamp';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface MessageProps {

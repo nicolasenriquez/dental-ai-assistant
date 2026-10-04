@@ -320,16 +320,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     }
     throw new Error('Not authenticated');
   }
-  if (!res.ok) {
-    const text = await res.text();
-    let body: unknown = text;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      // Keep non-JSON errors as text.
-    }
-    throw new ApiError(res.status, body);
-  }
+  if (!res.ok) return parseApiError(res);
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -344,7 +336,7 @@ export const acquireConversation = () =>
 export const getConversation = (id: string) =>
   request<ConversationWithMessages>(`/conversations/${id}`);
 export const deleteConversation = (id: string) =>
-  fetch(`${BASE}/conversations/${id}`, { method: 'DELETE', credentials: 'include' });
+  request<void>(`/conversations/${id}`, { method: 'DELETE' });
 export const renameConversation = (id: string, title: string) =>
   request<Conversation>(`/conversations/${id}`, {
     method: 'PATCH',
@@ -554,13 +546,8 @@ export const renameClinicalThread = (id: string, title: string) =>
     method: 'PATCH',
     body: JSON.stringify({ title }),
   });
-export const deleteClinicalThread = async (id: string): Promise<void> => {
-  const response = await fetch(`${BASE}/clinical-threads/${id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-  if (!response.ok) return parseApiError(response);
-};
+export const deleteClinicalThread = (id: string): Promise<void> =>
+  request<void>(`/clinical-threads/${id}`, { method: 'DELETE' });
 export const setClinicalActivePatient = (threadId: string, patientId: string | null) =>
   request<ClinicalThread>(`/clinical-threads/${threadId}/active-patient`, {
     method: 'PATCH',
@@ -709,7 +696,9 @@ export const ingestVideo = (body: IngestVideoBody) =>
 
 // Health
 export const getHealth = () =>
-  request<{ status: string; video_count: number; chunk_count: number; db_path: string }>('/health');
+  request<{ status: string; video_count: number; chunk_count: number; db_type: 'postgres' }>(
+    '/health',
+  );
 
 // ─── Admin ────────────────────────────────────────────────────────────────
 // All /api/admin/* endpoints require the configured ADMIN_USER_EMAIL; the
@@ -749,16 +738,8 @@ export const addVideoByUrl = (url: string) =>
     body: JSON.stringify({ url }),
   });
 
-export const deleteVideo = async (id: string): Promise<void> => {
-  const res = await fetch(`${BASE}/admin/videos/${id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-};
+export const deleteVideo = (id: string): Promise<void> =>
+  request<void>(`/admin/videos/${id}`, { method: 'DELETE' });
 
 export const resyncVideo = (id: string) =>
   request<AddVideoResponse>(`/admin/videos/${id}/re-sync`, { method: 'POST' });

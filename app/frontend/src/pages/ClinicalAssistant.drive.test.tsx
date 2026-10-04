@@ -535,7 +535,7 @@ describe('Clinical Assistant Drive transfer', () => {
   it('requests browser-native unload confirmation only while the editor is dirty', async () => {
     renderAssistant();
 
-    const editor = await openAssistantMessageDraft();
+    await openAssistantMessageDraft();
     expect(dispatchBeforeUnload().defaultPrevented).toBe(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));

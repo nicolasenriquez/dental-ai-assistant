@@ -30,10 +30,6 @@ function journalKey(journal: DriveJournalSelection): string {
   return `${journal.period_type}:${journal.period_key}:${journal.journal_part}`;
 }
 
-function groupKey(journal: DriveJournalSelection): string {
-  return `${journal.period_type}:${journal.period_key}`;
-}
-
 function modifiedLabel(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Fecha desconocida';

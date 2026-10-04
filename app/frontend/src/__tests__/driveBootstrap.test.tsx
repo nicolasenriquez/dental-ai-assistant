@@ -23,7 +23,7 @@
 
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '../components/AppShell';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import * as api from '../lib/api';

@@ -180,8 +180,7 @@ export function Sidebar({
     setDeleting(true);
     setDeleteError(false);
     try {
-      const response = await deleteConversation(conversationId);
-      if (!response.ok && response.status !== 204) throw new Error('Delete failed');
+      await deleteConversation(conversationId);
       setConfirmId(null);
       await refetch();
       if (activeConversationId === conversationId) navigate('/chat');

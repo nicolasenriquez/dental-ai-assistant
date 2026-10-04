@@ -10,11 +10,17 @@ export function useAdminVideos(searchQuery?: string, enabled = true) {
   const fetchIdRef = useRef(0);
 
   const load = useCallback(async () => {
-    if (!enabled) return;
-    const trimmed = (searchQuery ?? '').trim();
     const myId = ++fetchIdRef.current;
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      setVideos([]);
+      return;
+    }
+    const trimmed = (searchQuery ?? '').trim();
     try {
       setLoading(true);
+      setError(null);
       const data = trimmed ? await searchAdminVideos(trimmed) : await listAdminVideos();
       if (myId === fetchIdRef.current) setVideos(data.videos);
     } catch (e) {
@@ -27,7 +33,10 @@ export function useAdminVideos(searchQuery?: string, enabled = true) {
   }, [searchQuery, enabled]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => {
+      fetchIdRef.current += 1;
+    };
   }, [load]);
 
   return {

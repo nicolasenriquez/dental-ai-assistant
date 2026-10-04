@@ -61,7 +61,6 @@ export function EvolutionReviewArtifact({
   sourceNote,
   patient,
   draft,
-  generatedDraft,
   evolutionAt,
   stale,
   edited,

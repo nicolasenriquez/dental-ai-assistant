@@ -20,7 +20,7 @@ export function AdminVideos() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const authed = isAuthenticatedStatus(status);
-  const { videos, loading, refetch } = useAdminVideos(
+  const { videos, loading, error, refetch } = useAdminVideos(
     debouncedQuery,
     authed && Boolean(user?.is_admin),
   );
@@ -158,12 +158,22 @@ export function AdminVideos() {
           className="w-full px-3 py-2 mb-3 rounded-lg bg-[var(--surface-1)] border border-[var(--border)] text-[var(--text-primary)] text-[13px] outline-none transition-colors focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         />
 
+        {error && (
+          <div
+            role="alert"
+            className="mb-3 rounded border border-border bg-surface p-4 text-foreground"
+          >
+            No pudimos cargar la biblioteca. Usa Actualizar para reintentar.
+            {videos.length > 0 && ' Mostramos los resultados anteriores.'}
+          </div>
+        )}
+
         <p className="admin-video-table-hint">Desliza horizontalmente para ver las acciones.</p>
 
         <div className="admin-video-table-surface bg-[var(--surface-1)] border border-[var(--border)] rounded-lg">
           {loading ? (
             <div className="p-6 text-center text-[var(--text-secondary)]">Cargando…</div>
-          ) : videos.length === 0 ? (
+          ) : error && videos.length === 0 ? null : videos.length === 0 ? (
             <div className="p-6 text-center text-[var(--text-secondary)]">
               {debouncedQuery.trim()
                 ? `No hay coincidencias para "${debouncedQuery}"`

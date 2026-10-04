@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { Citation } from '../lib/api';
+import { formatTimestamp } from '../lib/timestamp';
 import { extractYouTubeVideoId } from '../lib/youtube';
 
 interface CitationModalProps {
@@ -7,12 +8,7 @@ interface CitationModalProps {
   onClose: () => void;
 }
 
-export function formatTimestamp(seconds: number): string {
-  const s = Math.floor(seconds);
-  const mins = Math.floor(s / 60);
-  const secs = s % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
+export { formatTimestamp } from '../lib/timestamp';
 
 export function CitationModal({ citation, onClose }: CitationModalProps) {
   // Issue #147: paid Dynamous course / workshop citations render without an

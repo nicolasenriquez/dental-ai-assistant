@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
 import { useConversations } from './useConversations';
@@ -46,6 +46,21 @@ describe('useConversations', () => {
   });
 
   describe('load error handling', () => {
+    it('clears the previous error after a successful retry', async () => {
+      vi.spyOn(api, 'getConversations')
+        .mockRejectedValueOnce(new Error('Offline'))
+        .mockResolvedValueOnce([
+          { id: 'fresh', title: 'Fresh', created_at: '', updated_at: '', preview: 'Message' },
+        ]);
+      const { result } = renderHook(() => useConversations());
+      await waitFor(() => expect(result.current.error).toBe('Offline'));
+      await act(async () => {
+        await result.current.refetch();
+      });
+      expect(result.current.error).toBeNull();
+      expect(result.current.filteredConversations[0].id).toBe('fresh');
+    });
+
     it('sets error and clears loading when load fails', async () => {
       vi.spyOn(api, 'getConversations').mockRejectedValueOnce(new Error('Network error'));
 

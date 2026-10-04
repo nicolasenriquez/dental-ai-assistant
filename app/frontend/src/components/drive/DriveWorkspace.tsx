@@ -102,12 +102,6 @@ function apiErrorCode(error: unknown): string | null {
   return null;
 }
 
-function diagnosticError(error: unknown): string {
-  if (error instanceof ApiError) return `API error ${error.status}`;
-  if (error instanceof Error && error.message.length <= 120) return error.message;
-  return 'unknown error';
-}
-
 export function DriveWorkspace({
   patientId,
   patient = null,
