@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
 import { PatientDetail } from './PatientDetail';
@@ -39,7 +39,21 @@ const evolutionDetail: api.EvolutionDetail = {
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
+  const navigate = useNavigate();
+  return (
+    <>
+      <output data-testid="location">
+        {location.pathname}
+        {location.search}
+      </output>
+      <button type="button" onClick={() => navigate(-1)}>
+        Atrás
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        Adelante
+      </button>
+    </>
+  );
 }
 
 function renderPatient(path: string, state?: Record<string, unknown>) {
@@ -55,6 +69,56 @@ function renderPatient(path: string, state?: Record<string, unknown>) {
 }
 
 describe('PatientDetail evolution workspace', () => {
+  it('keeps exact evolution detail inside the clinical ficha through tabs and history', async () => {
+    mockPatientData();
+    vi.spyOn(api, 'getPatientNotes').mockResolvedValue({ items: [], total: 0, next_cursor: null });
+    vi.spyOn(api, 'getEvolution').mockResolvedValue(evolutionDetail);
+    renderPatient('/patients/patient-1/evolutions/evolution-1');
+    const detail = await screen.findByRole('heading', { name: 'Evolución dental' });
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
+    expect(screen.getByRole('tab', { name: 'Clínica' })).toHaveAttribute('aria-selected', 'true');
+    expect(
+      within(screen.getByRole('tabpanel', { name: 'Clínica' })).getByRole('heading', {
+        name: 'Evolución dental',
+      }),
+    ).toBe(detail);
+    expect(screen.getByRole('button', { name: 'Evoluciones' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Información' }));
+    expect(await screen.findByRole('heading', { name: 'Información personal' })).toBeVisible();
+    expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1?tab=info');
+    expect(screen.queryByRole('heading', { name: 'Evolución dental' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Atrás' }));
+    expect(await screen.findByRole('heading', { name: 'Evolución dental' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Clínica' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Adelante' }));
+    expect(await screen.findByRole('heading', { name: 'Información personal' })).toBeVisible();
+  });
+
+  it('uses one history with distinct times for same-day evolutions and retries detail errors', async () => {
+    mockPatientData();
+    const second = { ...evolutionSummary, id: 'evolution-2', evolution_at: '2026-09-04T10:00:00' };
+    vi.mocked(api.getPatientEvolutions).mockResolvedValue([evolutionSummary, second]);
+    const getEvolution = vi
+      .spyOn(api, 'getEvolution')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ ...evolutionDetail, ...second });
+    renderPatient('/patients/patient-1', { preserveHistory: true });
+    const links = await screen.findAllByRole('link', { name: /Ver evolución del/ });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAccessibleName('Ver evolución del 04 sep 2026 a las 23:28');
+    expect(links[1]).toHaveAccessibleName('Ver evolución del 04 sep 2026 a las 10:00');
+    fireEvent.click(links[1]);
+    expect(await screen.findByText('No pudimos cargar esta evolución')).toBeVisible();
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(await screen.findByRole('heading', { name: 'Evolución dental' })).toBeVisible();
+    expect(getEvolution).toHaveBeenLastCalledWith('evolution-2');
+    expect(screen.getByRole('link', { name: /10:00/ })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('preserves a dirty patient form through pending, failed and successful assistant refresh', async () => {
     mockPatientData();
     renderPatient('/patients/patient-1');
@@ -322,7 +386,9 @@ describe('PatientDetail evolution workspace', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Volver al historial' }));
 
     expect(await screen.findByRole('heading', { name: 'Historial de evoluciones' })).toBeVisible();
-    expect(screen.getByTestId('location')).toHaveTextContent(/^\/patients\/patient-1$/);
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/patients/patient-1?tab=clinical&clinical=evolutions',
+    );
   });
 
   it('edits patient data without changing the selected history', async () => {

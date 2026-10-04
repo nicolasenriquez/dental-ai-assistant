@@ -125,7 +125,7 @@ describe('patient pages and evolution workspace contracts', () => {
     expect(evolutionContent).toContain('parseClinicalText(evolution.final_text)');
     expect(evolutionFields).toContain("normalize('NFD')");
     expect(evolutionFields).toContain("block.indexOf(':')");
-    expect(workspace).toContain('Selecciona una evolución');
+    expect(workspace).not.toContain('Selecciona una evolución');
     expect(workspace).toContain("aria-current={selected ? 'page' : undefined}");
     expect(workspace).toContain('patient-workspace__detail');
   });
