@@ -264,7 +264,7 @@ Clínica > Diagnóstico SHALL follow the chart-first hierarchy extracted in `cli
 #### Scenario: Clinical section access on narrow screens
 - **WHEN** Clínica is selected on a narrow viewport
 - **THEN** patient identity/actions and the four-section tab strip precede the clinical mode controls and chart; Resumen metrics, pending-work rows and summary starter actions do not render above the clinical content
-- **AND** the existing exact evolution route remains focused on its selected evolution rather than acquiring an extra summary or diagnostic overview
+- **AND** the existing exact evolution URL selects Clínica > Evoluciones inside the four-tab ficha, retaining its selected detail without an extra summary or diagnostic overview
 
 #### Scenario: Tool recognition and persisted marks
 - **WHEN** a diagnostic tool is selected
@@ -376,7 +376,7 @@ Directory, ficha and modal SHALL implement UI-01 through UI-09 in implementation
 #### Scenario: Stable ficha context
 - **WHEN** a plain patient URL opens
 - **THEN** Resumen is selected beneath the shared back/avatar/full-name/metadata/actions header, with four named sections and icons
-- **AND** no empty focused-evolution detail pane displaces Resumen content; the exact evolution route retains its existing detail
+- **AND** no empty focused-evolution detail pane displaces Resumen content; the exact evolution route retains its detail inside Clínica > Evoluciones and preserves all four named sections
 - **WHEN** the contextual Assistant changes available width
 - **THEN** identity and actions wrap without clipping or obscuring the tabs and drafts remain intact
 

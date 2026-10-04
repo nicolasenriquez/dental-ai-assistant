@@ -17,6 +17,8 @@ Dental AI Assistant and Chat share the dark workspace shell. The visual source o
   returning to ficha does not overlap the sidebar restore control on narrow screens.
 - Contextual clinical panels use the existing surfaces, composer and focus language.
   Closing a panel preserves work; the explicit Stop action cancels execution.
+- Clinical evolution fields adapt to their container width, including within a narrow
+  contextual panel on a wide desktop viewport.
 - Patient sections and category filters keep selection separate from keyboard focus. Selected
   controls use the existing surface, foreground and primary border tokens; focus has its own ring.
 - Clinical records use plain status text alongside symbols. Activity groups saved events by day

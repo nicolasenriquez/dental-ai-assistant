@@ -27,10 +27,10 @@ The normative scenarios are in `specs/clinical-workspace-discovery/spec.md`. `pa
           PatientNotes → notes + revisions
           PatientDiagnosis → FDI chart + editor + condition list/legend
           PatientActivity → approved evolution/note/condition projection
-          PatientWorkspace → existing selected evolution route
+          PatientWorkspace → shared history/detail inside Clínica > Evoluciones
         ClinicalAssistant → existing picker/composer/runtime + pending route
 
-Page → domain → pattern → primitive → token. Typed HTTP clients stay in `app/frontend/src/lib/api.ts`; SQL stays in `app/backend/db/`. The four patient sections do not create another patient route. Exact Activity destinations may use safe record UUID query keys to focus an owned note/condition; evolution keeps its existing focused route.
+Page → domain → pattern → primitive → token. Typed HTTP clients stay in `app/frontend/src/lib/api.ts`; SQL stays in `app/backend/db/`. The four patient sections do not create another patient route. Exact Activity destinations may use safe record UUID query keys to focus an owned note/condition; evolution keeps its exact URL and focuses Clínica > Evoluciones within the four-tab ficha.
 
 ## Route and state contract
 
@@ -40,10 +40,10 @@ Page → domain → pattern → primitive → token. Typed HTTP clients stay in 
 | Expanded or compact tooth brand | Opens `/patients` through guarded navigation | No patient mutation. |
 | Compact global icon | Opens existing Pacientes/Asistente/Chat route without expanding desktop rail | Existing route state/active indicator. |
 | `/patients?sort=...&evolutions=...` | Only allowed sort and evolution filter values; invalid normalizes to last_name_asc/all | Safe URL only. |
-| Name, phone or RUT query | 250ms debounced, owner-scoped POST; private in-app return/restoration; reload/logout clears | Authenticated React memory and POST body only. |
+| Name, phone or RUT query | 250ms debounced, owner-scoped POST; private in-app return/restoration; reload/logout clears | PatientDirectoryProvider under RequireAuth and POST body only. |
 | Directory Nuevo paciente | Existing modal; Save follows current duplicate/dirty-close/focus and exact ficha route | Patient API. |
 | Plain patient URL | Resumen default; other local ficha tabs selectable | Local tab state; safe tab/record UUID query for Activity deep links. |
-| Evolution URL | Focused approved evolution, no extra overview above it | Existing route. |
+| Evolution URL | Clínica > Evoluciones selected inside the four-tab ficha; no summary or diagnostic overview above detail | Existing route. |
 | `/assistant?view=pending` | Read-only work in narrow main pane; no auto thread acquisition | Safe URL view only. |
 
 ## Quantitative UI rules
@@ -55,7 +55,7 @@ Page → domain → pattern → primitive → token. Typed HTTP clients stay in 
 | Mobile navigation | Existing drawer/focus/inert behavior; no new fourth destination | AppShell/Sidebar source. |
 | Directory controls | One `last_evolution_at` presence filter; three sort fields × two directions; visible count equals displayed records | Current PatientSummary. |
 | Desktop directory | At >=1024 CSS px, semantic Paciente/Edad/Última evolución table with exact ficha links | Source row hierarchy + target accessibility. |
-| Narrow directory | Below 1024 CSS px, full-card links with same four fields; no horizontal page scroll at 320/713px | Target shell contract. |
+| Narrow directory | Below 1024 CSS px, full-card links with same displayed fields; no horizontal page scroll at 320/713px | Target shell contract. |
 | Search privacy | Zero raw terms in URL, navigation state, browser storage, analytics or logs; result contains masked RUT and no phone/email | Existing POST contract + new normalized search. |
 | Create | One existing modal; required first/last name and DV-valid RUT; optional birth date/phone/email | Current form plus contact migration. |
 | Ficha | Four local sections; Clínica has manual Diagnóstico and approved Evoluciones; no unsupported tabs | User comments and product scope. |
@@ -78,7 +78,7 @@ This section supplies the missing directory/header/form detail. See audit-2026-1
 | UI-05 | Ficha header | Back link with ArrowLeft and Pacientes; avatar44 with initials derived from names, not status. h1 uses existing text-3xl scale and wraps full name; age or Sin fecha de nacimiento and optional birth date below. Add Phone/Mail icons only when their values exist, and IdCard for masked RUT; icon18–20, effective target44 and gap8. Hover/focus reveals labelled value; click/tap toggles the same disclosure, Escape/outside dismissal and focus return are supported. No automatic copy, call, email or raw RUT reveal. Editar paciente (Pencil), primary Nueva evolución (Plus), Asistente (Stethoscope). Gap8–12 between actions,16 between identity and actions,24 before sections. Wrap/stack by available content width including Assistant, not viewport alone. No fictitious green status dot or allergy badge. Contact remains editable/copyable in Información; no communication-provider integration. |
 | UI-06 | Sections and panels | Resumen/LayoutDashboard, Información/UserRound, Clínica/Stethoscope, Actividad/History, icons18–20 and text labels. Four accessible tabs with aria-selected, tabpanel relationship, roving focus and arrow/Home/End keyboard behavior. Min44 effective area; narrow layouts wrap without truncating labels. Clínica subselects only Diagnóstico/Evoluciones. Panel header icon/text/action,16–20 padding and16–24 section gaps; use existing border/radius tokens, one panel boundary without nested decorative cards. |
 | UI-07 | Alta/edición | Reuse PatientFormModal. Nombres/Apellidos first pair, RUT/Fecha de nacimiento second, optional Teléfono/Correo third at usable width; below560 available width stack. Keep existing date picker, masked edit RUT/reveal action, DV validation and duplicate recovery. Label required fields and Opcional explicitly; initial focus Nombres. Footer Cancelar then Crear paciente/Guardar cambios. Close named button44 effective area; dirty Escape/backdrop/cancel guards and restore focus retained. General notes are created in Información after patient creation. |
-| UI-08 | Summary, information, activity | Resumen uses source-backed latest evolution and clinical pending links, with Drive recovery separately labelled. Do not mount the full empty evolution-detail pane on default Resumen; preserve it on exact evolution routes. Información groups identity/contact and general notes. Phone/email use labelled Copy controls (Copy16), absent fields No registrado; failures preserve value and show retry. Activity uses four existing contract filters, day headings, one continuous1px guide, icon by kind and cards with title/date/available author/context link. Never show fabricated authors, communications or finances. |
+| UI-08 | Summary, information, activity | Resumen uses source-backed latest evolution and clinical pending links, with Drive recovery separately labelled. Do not mount the full empty evolution-detail pane on default Resumen; show selected detail inside Clínica > Evoluciones on exact evolution routes. Información groups identity/contact and general notes. Phone/email use labelled Copy controls (Copy16), absent fields No registrado; failures preserve value and show retry. Activity uses four existing contract filters, day headings, one continuous1px guide, icon by kind and cards with title/date/available author/context link. Never show fabricated authors, communications or finances. |
 | UI-09 | State/accessibility evidence | Capture ready, loading, empty-directory, no-match, filter-empty, stale-error, modal-invalid/duplicate/dirty-close, unknown-age/contact and long-name states. Keep inputs/drafts on error and links usable in stale results. Verify computed layout at320,713,1024,1440 CSS widths, compact rail and Assistant open. Record actual innerWidth/innerHeight, not requested viewport. At coarse pointer every action has44px area; contrast/focus/keyboard require production proof. |
 
 Icon owner is existing lucide-react and DentalToothIcon. New patient-domain controls use Search, X, ChevronRight, ArrowLeft, Plus, Pencil, ArrowUp/ArrowDown, Copy, Phone, Mail, IdCard, LayoutDashboard, UserRound, Stethoscope, History and FileText as applicable. Retain existing sidebar UsersRound/Stethoscope/MessageCircle and PanelLeftOpen/Close at16px/stroke1.7. Other UI icons use16–20px/stroke1.7–1.8, aria-hidden when beside text. Icon-only controls require a name and hover/focus tooltip; chart illustrations remain independent authored SVG. Do not use glyph characters as icons.

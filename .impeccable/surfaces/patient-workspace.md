@@ -7,13 +7,18 @@ over 150ms, both using cubic-bezier(0.23,1,0.32,1). Reduced motion skips these e
 Closing stays immediate; focus and dirty-work guards do not wait for motion.
 
 The base patient route defaults to Resumen with four local sections: Resumen,
-Información, Clínica and Actividad. A specific evolution URL stays focused on that
-evolution. New evolution remains primary, Assistant secondary. Suggested actions
+Información, Clínica and Actividad. A specific evolution URL selects Clínica >
+Evoluciones inside the same ficha, retaining all four tabs and the selected detail.
+History uses one shared list with date/time and an explicit return on narrow panes.
+Leaving detail through a tab clears its UUID path; history return uses safe
+`tab=clinical&clinical=evolutions` query state and survives reload.
+Patient identity wraps by available width, including with the Assistant open.
+New evolution remains primary, Assistant secondary. Suggested actions
 prefill but never send. Summary prioritizes clinical approval/drafts; Drive recovery
 is separate. A failed read is unavailable with retry, never a fabricated zero.
 
 Directory uses a semantic table at 1024px and mobile links below. Name/phone/RUT
-search stays in authenticated memory and POST bodies; only sort/evolution filter
+search stays in PatientDirectoryProvider under RequireAuth and POST bodies; only sort/evolution filter
 enter the URL. Directory rows hide RUT. Header Phone/Mail appear only when present;
 IdCard reveals masked RUT. Hover/focus/tap disclosure supports Escape and outside
 dismissal; Información provides contact and labelled copy actions.
@@ -41,6 +46,8 @@ Contextual Assistant is a nonmodal desktop panel >=1024px, modal right Sheet fro
 768px to 1023px, and the full Assistant route below 768px. Panel width is
 `clamp(420px,38vw,520px)`; Sheet width `min(88vw,560px)`. Drive is available only
 in the full Assistant. Escape closes contextual UI and restores the trigger.
+The Sheet has one visible title and one close control. Evolution fields stack by
+their own container width rather than the browser viewport.
 
 Patient identity must stay visible. Context conflict names both patients or explains
 a patient-less conversation's history; it never offers to reassign historical work.
