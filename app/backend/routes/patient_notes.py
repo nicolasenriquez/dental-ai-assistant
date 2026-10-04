@@ -18,17 +18,13 @@ from backend.patients.notes import (
     decode_cursor,
     encode_cursor,
 )
+from backend.patients.schemas import Actor
 
 router = APIRouter(prefix="/patients/{patient_id}/notes", tags=["patient-notes"])
 User = Annotated[dict[str, Any], Depends(get_current_user)]
 Limit = Annotated[int, Query(ge=1, le=50)]
 Cursor = Annotated[str | None, Query(max_length=1024)]
 T = TypeVar("T")
-
-
-class Actor(BaseModel):
-    user_id: UUID
-    display_name: str | None = None
 
 
 class NoteResponse(BaseModel):

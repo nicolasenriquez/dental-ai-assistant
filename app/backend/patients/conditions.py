@@ -1,13 +1,13 @@
 """Fixed clinician-entered condition vocabulary and strict FDI/cursor validation."""
 
-import base64
 import binascii
-import json
 from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+
+from .cursors import decode_cursor_payload, encode_cursor_payload
 
 Dentition = Literal["permanent", "primary"]
 Surface = Literal["M", "D", "O", "V", "L"]
@@ -98,9 +98,7 @@ def decode_cursor(
     if value is None:
         return None
     try:
-        data = json.loads(
-            base64.b64decode(value + "=" * (-len(value) % 4), altchars=b"-_", validate=True)
-        )
+        data = decode_cursor_payload(value)
         if not isinstance(data, dict) or type(data.get("v")) is not int:
             raise ValueError
         if resource is not None:
@@ -126,4 +124,4 @@ def decode_cursor(
 
 
 def encode_cursor(cursor: ConditionsCursor | ConditionRevisionsCursor) -> str:
-    return base64.urlsafe_b64encode(cursor.model_dump_json().encode()).decode().rstrip("=")
+    return encode_cursor_payload(cursor)

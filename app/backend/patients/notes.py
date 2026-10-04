@@ -1,13 +1,13 @@
 """Validation and cursor contract for manual notes, never model context."""
 
-import base64
 import binascii
-import json
 from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+from .cursors import decode_cursor_payload, encode_cursor_payload
 
 NoteBody = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
@@ -45,9 +45,7 @@ def decode_cursor(
     if cursor is None:
         return None
     try:
-        value = json.loads(
-            base64.b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True)
-        )
+        value = decode_cursor_payload(cursor)
         if not isinstance(value, dict) or type(value.get("v")) is not int:
             raise ValueError
         if note is None:
@@ -69,4 +67,4 @@ def decode_cursor(
 
 
 def encode_cursor(cursor: NotesCursor | RevisionsCursor) -> str:
-    return base64.urlsafe_b64encode(cursor.model_dump_json().encode()).decode().rstrip("=")
+    return encode_cursor_payload(cursor)

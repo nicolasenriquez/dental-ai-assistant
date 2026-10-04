@@ -16,7 +16,7 @@ from backend.patients.activity import (
     decode_cursor,
     encode_cursor,
 )
-from backend.routes.patient_notes import Actor
+from backend.patients.schemas import Actor
 
 router = APIRouter(prefix="/patients/{patient_id}/activity", tags=["patient-activity"])
 

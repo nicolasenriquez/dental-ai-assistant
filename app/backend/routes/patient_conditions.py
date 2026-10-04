@@ -26,7 +26,7 @@ from backend.patients.conditions import (
     encode_cursor,
     valid_tooth,
 )
-from backend.routes.patient_notes import Actor
+from backend.patients.schemas import Actor
 
 router = APIRouter(prefix="/patients", tags=["patient-conditions"])
 User = Annotated[dict[str, Any], Depends(get_current_user)]

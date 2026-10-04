@@ -1,13 +1,13 @@
 """Strict, patient/filter-bound Activity cursor."""
 
-import base64
 import binascii
-import json
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
+
+from .cursors import decode_cursor_payload, encode_cursor_payload
 
 ActivityKind = Literal["evolutions", "notes", "diagnoses"]
 ActivityFilter = Literal["all", "evolutions", "notes", "diagnoses"]
@@ -27,9 +27,7 @@ def decode_cursor(value: str | None, patient: UUID, kind: ActivityFilter) -> Act
     if value is None:
         return None
     try:
-        payload = json.loads(
-            base64.b64decode(value + "=" * (-len(value) % 4), altchars=b"-_", validate=True)
-        )
+        payload = decode_cursor_payload(value)
         if (
             not isinstance(payload, dict)
             or type(payload.get("v")) is not int
@@ -50,4 +48,4 @@ def decode_cursor(value: str | None, patient: UUID, kind: ActivityFilter) -> Act
 
 
 def encode_cursor(cursor: ActivityCursor) -> str:
-    return base64.urlsafe_b64encode(cursor.model_dump_json().encode()).decode().rstrip("=")
+    return encode_cursor_payload(cursor)
