@@ -10,7 +10,7 @@ Dental AI Assistant and Chat share the dark workspace shell. The visual source o
 - The Assistant's Google Drive pane shares workspace width with the conversation. Its divider follows pointer movement immediately; open/close use a short spatial transition that respects reduced motion. Hiding Drive preserves its document state and leaves clinical work running.
 - Conversation content and composers stay centered in the available main pane. Narrow-pane composition follows that pane's width rather than only the browser viewport.
 - Both composers use the same surface color, border, radius, shadow, and focus ring. Assistant grows only when dictation or real document attachments require more room.
-- On narrow screens, the Assistant header places its title and Google Drive action on the first row and the active patient on the second. The patient control includes the masked RUT and is the place to change patient.
+- In a narrow main pane, the Assistant header keeps its return link and title together, followed by the active patient and a separate row of compact secondary actions. The patient control includes the masked RUT and is the place to change patient. Header actions align icons and labels horizontally.
 - The public login and signup pages use the same dark palette and tooth mark as the workspace. Desktop pairs the clinical purpose with the form; mobile stacks them with a short gap. Clinical language leads; the video library stays a secondary surface.
 - In Drive, the selected section has a filled tab treatment. Keyboard focus has its own visible outline, so moving focus does not imply loading a different section.
 - Clinical route navigation lives inside the workspace header's copy region, so
