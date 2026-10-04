@@ -25,15 +25,6 @@ function EmptyHistory({ patientId }: { patientId: string }) {
   );
 }
 
-function EvolutionSelectionEmpty() {
-  return (
-    <div className="patient-workspace__empty patient-workspace__empty--detail">
-      <h2 id="evolution-detail-title">Selecciona una evolución</h2>
-      <p>Elige una evolución del historial para revisar su detalle clínico.</p>
-    </div>
-  );
-}
-
 function EvolutionDetailSkeleton() {
   return (
     <div aria-live="polite" aria-busy="true" className="patient-detail-skeleton">
@@ -63,7 +54,7 @@ function EvolutionNotFound({ patientId }: { patientId: string }) {
     <div role="alert" className="patient-workspace__empty patient-workspace__empty--detail">
       <h2 id="evolution-detail-title">No se encontró esta evolución</h2>
       <p>La evolución solicitada no está disponible para este paciente.</p>
-      <Link to={`/patients/${patientId}`} state={{ preserveHistory: true }}>
+      <Link to={`/patients/${patientId}?tab=clinical&clinical=evolutions`}>
         Volver al historial
       </Link>
     </div>
@@ -80,7 +71,10 @@ export function PatientWorkspace({
   onRetryDetail,
 }: PatientWorkspaceProps) {
   return (
-    <section className={`patient-workspace${selectedEvolutionId ? ' has-selection' : ''}`}>
+    <section
+      aria-label="Evoluciones aprobadas"
+      className={`patient-workspace${selectedEvolutionId ? ' has-selection' : ''}`}
+    >
       <div className="patient-workspace__columns">
         <section className="patient-workspace__history" aria-labelledby="history-title">
           <div className="patient-workspace__history-heading">
@@ -129,32 +123,33 @@ export function PatientWorkspace({
           )}
         </section>
 
-        <aside
-          className="patient-workspace__detail"
-          aria-label="Detalle de la evolución"
-          aria-busy={detailLoading}
-        >
-          {detailLoading && <EvolutionDetailSkeleton />}
-          {!detailLoading && detailError === 'not-found' && (
-            <EvolutionNotFound patientId={patient.id} />
-          )}
-          {!detailLoading && detailError === 'generic' && (
-            <EvolutionDetailError onRetry={onRetryDetail} />
-          )}
-          {!detailLoading && !detailError && selectedEvolution && (
-            <>
-              <div className="patient-detail-mobile-back">
-                <Link to={`/patients/${patient.id}`} state={{ preserveHistory: true }}>
-                  ‹ Volver a {patient.first_name} {patient.last_name}
-                </Link>
-              </div>
-              <div key={selectedEvolution.id} className="patient-workspace__detail-transition">
-                <EvolutionDetailContent evolution={selectedEvolution} />
-              </div>
-            </>
-          )}
-          {!detailLoading && !detailError && !selectedEvolution && <EvolutionSelectionEmpty />}
-        </aside>
+        {selectedEvolutionId && (
+          <aside
+            className="patient-workspace__detail"
+            aria-label="Detalle de la evolución"
+            aria-busy={detailLoading}
+          >
+            {detailLoading && <EvolutionDetailSkeleton />}
+            {!detailLoading && detailError === 'not-found' && (
+              <EvolutionNotFound patientId={patient.id} />
+            )}
+            {!detailLoading && detailError === 'generic' && (
+              <EvolutionDetailError onRetry={onRetryDetail} />
+            )}
+            {!detailLoading && !detailError && selectedEvolution && (
+              <>
+                <div className="patient-detail-mobile-back">
+                  <Link to={`/patients/${patient.id}?tab=clinical&clinical=evolutions`}>
+                    ‹ Volver al historial
+                  </Link>
+                </div>
+                <div key={selectedEvolution.id} className="patient-workspace__detail-transition">
+                  <EvolutionDetailContent evolution={selectedEvolution} />
+                </div>
+              </>
+            )}
+          </aside>
+        )}
       </div>
     </section>
   );

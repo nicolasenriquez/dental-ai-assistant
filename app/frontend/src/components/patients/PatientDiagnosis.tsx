@@ -396,6 +396,7 @@ export function PatientDiagnosis({
               key={mode}
               variant="clinicalSecondary"
               aria-pressed={dentition === mode}
+              className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
               disabled={saving || draft?.expectedRevision !== undefined}
               onClick={() => {
                 if (mode === dentition) return;

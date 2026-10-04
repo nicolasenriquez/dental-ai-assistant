@@ -36,7 +36,7 @@ import {
   getPatientEvolutions,
   updatePatient,
 } from '../lib/api';
-import { formatClinicalDate, formatClinicalDateShort } from '../lib/clinicalDate';
+import { formatClinicalDate } from '../lib/clinicalDate';
 
 const sections = [
   { id: 'summary', label: 'Resumen', icon: LayoutDashboard },
@@ -139,14 +139,20 @@ export function PatientDetail() {
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
     setSection(
-      location.state?.preserveHistory
+      evolutionId || location.state?.preserveHistory
         ? 'clinical'
         : sections.some((item) => item.id === tab)
           ? (tab ?? 'summary')
           : 'summary',
     );
-    setClinicalSection(location.state?.preserveHistory ? 'evolutions' : 'diagnosis');
-  }, [patientId, location.search, location.state]);
+    setClinicalSection(
+      evolutionId ||
+        location.state?.preserveHistory ||
+        new URLSearchParams(location.search).get('clinical') === 'evolutions'
+        ? 'evolutions'
+        : 'diagnosis',
+    );
+  }, [patientId, evolutionId, location.search, location.state]);
 
   const savePatient = async (values: PatientFormValues) => {
     if (!patient) throw new Error('Paciente no cargado');
@@ -165,7 +171,7 @@ export function PatientDetail() {
   return (
     <main className="min-h-full bg-[var(--bg)] p-6 text-[var(--text-primary)] md:p-8">
       <div className="mx-auto flex max-w-7xl gap-6">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 [container-type:inline-size]">
           <Link
             to={`/patients${directory.returnSearch}`}
             className="text-sm text-[var(--accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
@@ -277,163 +283,141 @@ export function PatientDetail() {
                   </button>
                 </p>
               )}
-              {!evolutionId && (
-                <>
-                  <div
-                    role="tablist"
-                    aria-label="Secciones del paciente"
-                    className="mt-6 flex flex-wrap gap-2 border-b border-border pb-3"
+              <div
+                role="tablist"
+                aria-label="Secciones del paciente"
+                className="mt-6 flex flex-wrap gap-2 border-b border-border pb-3"
+              >
+                {sections.map((item, index) => (
+                  <button
+                    key={item.id}
+                    ref={(node) => {
+                      tabRefs.current[index] = node;
+                    }}
+                    type="button"
+                    role="tab"
+                    id={`patient-tab-${item.id}`}
+                    aria-controls={`patient-panel-${item.id}`}
+                    aria-selected={section === item.id}
+                    tabIndex={section === item.id ? 0 : -1}
+                    className={`flex min-h-[44px] items-center gap-2 rounded px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${section === item.id ? 'bg-surface text-foreground' : 'text-muted'}`}
+                    onClick={() => {
+                      const change = (): void => {
+                        setSection(item.id);
+                        if (evolutionId && item.id !== 'clinical')
+                          navigate(`/patients/${patientId}?tab=${item.id}`);
+                        else if (location.search && !evolutionId)
+                          navigate(`${location.pathname}?tab=${item.id}`, { replace: true });
+                      };
+                      if (guard) guard.guardTransition(change);
+                      else change();
+                    }}
+                    onKeyDown={(event) => {
+                      const next =
+                        event.key === 'Home'
+                          ? 0
+                          : event.key === 'End'
+                            ? 3
+                            : event.key === 'ArrowRight'
+                              ? (index + 1) % 4
+                              : event.key === 'ArrowLeft'
+                                ? (index + 3) % 4
+                                : null;
+                      if (next !== null) {
+                        event.preventDefault();
+                        tabRefs.current[next]?.focus();
+                      }
+                    }}
                   >
-                    {sections.map((item, index) => (
-                      <button
-                        key={item.id}
-                        ref={(node) => {
-                          tabRefs.current[index] = node;
-                        }}
-                        type="button"
-                        role="tab"
-                        id={`patient-tab-${item.id}`}
-                        aria-controls={`patient-panel-${item.id}`}
-                        aria-selected={section === item.id}
-                        tabIndex={section === item.id ? 0 : -1}
-                        className={`flex min-h-[44px] items-center gap-2 rounded px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${section === item.id ? 'bg-surface text-foreground' : 'text-muted'}`}
+                    <item.icon size={18} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div
+                role="tabpanel"
+                id={`patient-panel-${section}`}
+                aria-labelledby={`patient-tab-${section}`}
+                className="mt-5"
+              >
+                {section === 'summary' && (
+                  <PatientOverview
+                    patientId={patient.id}
+                    evolutions={evolutions}
+                    onAssistant={(text) => void contextual.open(text)}
+                  />
+                )}
+                {section === 'info' && (
+                  <>
+                    <PatientInformation patient={patient} />
+                    <PatientNotes
+                      key={patient.id}
+                      patientId={patient.id}
+                      focusedNoteId={new URLSearchParams(location.search).get('note') ?? undefined}
+                    />
+                  </>
+                )}
+                {section === 'clinical' && (
+                  <section className="space-y-4">
+                    <div className="flex flex-wrap gap-2" aria-label="Contenido clínico">
+                      <Button
+                        variant="clinicalSecondary"
+                        aria-pressed={clinicalSection === 'diagnosis'}
+                        className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
                         onClick={() => {
                           const change = (): void => {
-                            setSection(item.id);
-                            if (location.search)
-                              navigate(`${location.pathname}?tab=${item.id}`, { replace: true });
+                            setClinicalSection('diagnosis');
+                            if (evolutionId) navigate(`/patients/${patientId}?tab=clinical`);
                           };
                           if (guard) guard.guardTransition(change);
                           else change();
                         }}
-                        onKeyDown={(event) => {
-                          const next =
-                            event.key === 'Home'
-                              ? 0
-                              : event.key === 'End'
-                                ? 3
-                                : event.key === 'ArrowRight'
-                                  ? (index + 1) % 4
-                                  : event.key === 'ArrowLeft'
-                                    ? (index + 3) % 4
-                                    : null;
-                          if (next !== null) {
-                            event.preventDefault();
-                            tabRefs.current[next]?.focus();
-                          }
+                      >
+                        Diagnóstico
+                      </Button>
+                      <Button
+                        variant="clinicalSecondary"
+                        aria-pressed={clinicalSection === 'evolutions'}
+                        className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
+                        onClick={() => {
+                          const change = (): void => setClinicalSection('evolutions');
+                          if (guard) guard.guardTransition(change);
+                          else change();
                         }}
                       >
-                        <item.icon size={18} aria-hidden="true" />
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div
-                    role="tabpanel"
-                    id={`patient-panel-${section}`}
-                    aria-labelledby={`patient-tab-${section}`}
-                    className="mt-5"
-                  >
-                    {section === 'summary' && (
-                      <PatientOverview
+                        Evoluciones
+                      </Button>
+                    </div>
+                    {clinicalSection === 'diagnosis' ? (
+                      <PatientDiagnosis
+                        key={patient.id}
                         patientId={patient.id}
+                        focusedConditionId={
+                          new URLSearchParams(location.search).get('condition') ?? undefined
+                        }
+                      />
+                    ) : (
+                      <PatientWorkspace
+                        patient={patient}
                         evolutions={evolutions}
-                        onAssistant={(text) => void contextual.open(text)}
+                        selectedEvolution={selectedEvolution}
+                        selectedEvolutionId={evolutionId || null}
+                        detailLoading={detailLoading}
+                        detailError={detailError}
+                        onRetryDetail={() => void loadDetail()}
                       />
                     )}
-                    {section === 'info' && (
-                      <>
-                        <PatientInformation patient={patient} />
-                        <PatientNotes
-                          key={patient.id}
-                          patientId={patient.id}
-                          focusedNoteId={
-                            new URLSearchParams(location.search).get('note') ?? undefined
-                          }
-                        />
-                      </>
-                    )}
-                    {section === 'clinical' && (
-                      <section className="space-y-4">
-                        <div className="flex flex-wrap gap-2" aria-label="Contenido clínico">
-                          <Button
-                            variant="clinicalSecondary"
-                            aria-pressed={clinicalSection === 'diagnosis'}
-                            onClick={() => {
-                              const change = (): void => setClinicalSection('diagnosis');
-                              if (guard) guard.guardTransition(change);
-                              else change();
-                            }}
-                          >
-                            Diagnóstico
-                          </Button>
-                          <Button
-                            variant="clinicalSecondary"
-                            aria-pressed={clinicalSection === 'evolutions'}
-                            onClick={() => {
-                              const change = (): void => setClinicalSection('evolutions');
-                              if (guard) guard.guardTransition(change);
-                              else change();
-                            }}
-                          >
-                            Evoluciones
-                          </Button>
-                        </div>
-                        {clinicalSection === 'diagnosis' ? (
-                          <PatientDiagnosis
-                            key={patient.id}
-                            patientId={patient.id}
-                            focusedConditionId={
-                              new URLSearchParams(location.search).get('condition') ?? undefined
-                            }
-                          />
-                        ) : (
-                          <section aria-label="Evoluciones aprobadas">
-                            <h2 className="text-lg font-semibold">Historial de evoluciones</h2>
-                            {evolutions.length ? (
-                              <ol className="divide-y divide-border">
-                                {evolutions.map((item) => (
-                                  <li key={item.id} className="py-3">
-                                    <Link
-                                      className="text-primary hover:underline"
-                                      to={`/patients/${patient.id}/evolutions/${item.id}`}
-                                      aria-label={`Ver evolución del ${formatClinicalDateShort(item.evolution_at)}`}
-                                    >
-                                      {formatClinicalDateShort(item.evolution_at)}
-                                    </Link>
-                                    <p className="mt-1 text-sm text-muted">{item.preview}</p>
-                                  </li>
-                                ))}
-                              </ol>
-                            ) : (
-                              <p>Sin evoluciones aprobadas</p>
-                            )}
-                          </section>
-                        )}
-                      </section>
-                    )}
-                    {section === 'activity' && (
-                      <PatientActivity key={patient.id} patientId={patient.id} />
-                    )}
-                  </div>
-                </>
-              )}
+                  </section>
+                )}
+                {section === 'activity' && (
+                  <PatientActivity key={patient.id} patientId={patient.id} />
+                )}
+              </div>
 
               <div aria-live="polite" className="sr-only">
                 {location.state?.announcement}
               </div>
 
-              {evolutionId && (
-                <PatientWorkspace
-                  patient={patient}
-                  evolutions={evolutions}
-                  selectedEvolution={selectedEvolution}
-                  selectedEvolutionId={evolutionId || null}
-                  detailLoading={detailLoading}
-                  detailError={detailError}
-                  onRetryDetail={() => void loadDetail()}
-                />
-              )}
               <PatientFormModal
                 open={editOpen}
                 mode="edit"
