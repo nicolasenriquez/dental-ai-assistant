@@ -28,13 +28,16 @@ async def wait_or_cancel(awaitable: Awaitable[T], cancel_event: asyncio.Event | 
         return await awaitable
     work = asyncio.ensure_future(awaitable)
     cancelled = asyncio.create_task(cancel_event.wait())
-    done, _ = await asyncio.wait({work, cancelled}, return_when=asyncio.FIRST_COMPLETED)
-    if cancelled in done:
-        work.cancel()
-        await asyncio.gather(work, return_exceptions=True)
-        raise RunCancelled
-    cancelled.cancel()
-    return await work
+    try:
+        done, _ = await asyncio.wait({work, cancelled}, return_when=asyncio.FIRST_COMPLETED)
+        if cancelled in done:
+            raise RunCancelled
+        return await work
+    finally:
+        for task in (work, cancelled):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(work, cancelled, return_exceptions=True)
 
 
 @dataclass(frozen=True)

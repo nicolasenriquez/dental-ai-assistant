@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
-from backend.llm.tool_loop import stream_tool_loop
+from backend.llm.tool_loop import RunCancelled, stream_tool_loop, wait_or_cancel
 
 
 class _AsyncStream:
@@ -75,6 +76,47 @@ async def test_tool_round_text_is_not_streamed_before_final_round() -> None:
 
     assert [event.text for event in events if event.kind == "text"] == ["Respuesta final"]
     assert events[-1].kind == "final"
+
+
+@pytest.mark.parametrize("mode", ["result", "failure", "event", "parent"])
+async def test_wait_or_cancel_cleans_up_owned_tasks(mode: str) -> None:
+    cancel_event = asyncio.Event()
+    started, release = asyncio.Event(), asyncio.Event()
+    before = asyncio.all_tasks()
+
+    async def operation() -> str:
+        started.set()
+        await release.wait()
+        if mode == "failure":
+            raise ValueError("provider failed")
+        return "result"
+
+    work = asyncio.create_task(operation())
+    parent = asyncio.create_task(wait_or_cancel(work, cancel_event))
+    await started.wait()
+    try:
+        if mode == "parent":
+            parent.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await parent
+        elif mode == "event":
+            cancel_event.set()
+            with pytest.raises(RunCancelled):
+                await parent
+        else:
+            release.set()
+            if mode == "failure":
+                with pytest.raises(ValueError, match="provider failed"):
+                    await parent
+            else:
+                assert await parent == "result"
+        assert work.done()
+        assert not (asyncio.all_tasks() - before)
+    finally:
+        pending = asyncio.all_tasks() - before
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
 
 
 @pytest.mark.asyncio
