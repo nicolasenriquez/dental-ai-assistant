@@ -65,6 +65,7 @@ function safeError(code: string): string {
     PROPOSAL_STALE: 'La propuesta cambió. Vuelve a prepararla antes de confirmar.',
     SENSITIVE_INPUT_FAILURE: 'No pudimos revisar la nota. Tu texto se conserva.',
     TURN_ALREADY_RUNNING: 'Ya hay una respuesta en curso. Espera a que termine.',
+    TURN_RETRY_INVALID: 'Este intento ya no se puede reintentar. Actualiza la conversación.',
     TOOL_EXECUTION_FAILED: 'No pudimos completar la consulta. Tu nota se conserva.',
     EVOLUTION_SAVE_FAILED: 'No pudimos guardar la evolución. Tu borrador se conserva.',
   };
@@ -92,6 +93,9 @@ function messageItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
         createdAt: message.created_at,
         type: message.role,
         content: message.content,
+        ...(message.role === 'user' && message.retry_of_turn_id
+          ? { retryOfTurnId: message.retry_of_turn_id }
+          : {}),
         ...(message.role === 'assistant'
           ? { clinicalResult: readClinicalResult(message.clinical_result) }
           : {}),
@@ -348,7 +352,11 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
 
   const send = useCallback(
-    async (content: string, contextItems: ComposerContextItem[] = []): Promise<boolean> => {
+    async (
+      content: string,
+      contextItems: ComposerContextItem[] = [],
+      retryOfTurnId?: string,
+    ): Promise<boolean> => {
       const currentThreadId = threadId;
       if (!currentThreadId || !content.trim()) return false;
       const turnId = crypto.randomUUID();
@@ -370,6 +378,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           createdAt,
           type: 'user',
           content: redactIdentifiers(content),
+          retryOfTurnId,
           contextItems: contextItems.map((item) => ({
             ...item,
             sourceName: redactIdentifiers(item.sourceName),
@@ -384,6 +393,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           currentThreadId,
           {
             turn_id: turnId,
+            ...(retryOfTurnId ? { retry_of_turn_id: retryOfTurnId } : {}),
             content,
             context_items: contextItems.map((item) => ({
               id: item.id,
@@ -470,6 +480,12 @@ export function useClinicalAssistant(threadId: string | undefined) {
                   createdAt: typeof payload.created_at === 'string' ? payload.created_at : now(),
                   type: 'user',
                   content: payload.user_content,
+                  retryOfTurnId,
+                  contextItems: contextItems.map((item) => ({
+                    ...item,
+                    sourceName: redactIdentifiers(item.sourceName),
+                    content: redactIdentifiers(item.content),
+                  })),
                 },
               });
             }
@@ -924,15 +940,29 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const retryTurn = useCallback(
     (turnId: string) => {
+      if (
+        abortRef.current ||
+        runtime === 'streaming' ||
+        runtime === 'stopping' ||
+        runtime === 'awaiting_approval'
+      )
+        return;
+      if (!clinicalState.items.some((item) => item.type === 'error' && item.turnId === turnId))
+        return;
+      if (clinicalState.items.some((item) => item.type === 'user' && item.retryOfTurnId === turnId))
+        return;
       const userItem = clinicalState.items.find(
         (item) => item.type === 'user' && item.turnId === turnId,
       );
       const content =
         turnInputRef.current[turnId] ?? (userItem?.type === 'user' ? userItem.content : undefined);
       const contextItems = userItem?.type === 'user' ? (userItem.contextItems ?? []) : [];
-      if (content) void send(content, contextItems);
+      const persisted = thread?.messages.some(
+        (message) => message.turn_id === turnId && message.turn_status === 'failed',
+      );
+      if (content) void send(content, contextItems, persisted ? turnId : undefined);
     },
-    [clinicalState.items, send],
+    [clinicalState.items, runtime, send, thread],
   );
 
   const cancelPatientSwitch = useCallback(

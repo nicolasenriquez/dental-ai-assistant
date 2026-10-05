@@ -15,7 +15,13 @@ _tasks: dict[tuple[UUID, UUID, UUID], asyncio.Task[None]] = {}
 
 
 def start(
-    owner: UUID, thread: UUID, turn: UUID, content: str, context_items: list[ClinicalContextItem]
+    owner: UUID,
+    thread: UUID,
+    turn: UUID,
+    content: str,
+    context_items: list[ClinicalContextItem],
+    *,
+    retry_of_turn_id: UUID | None = None,
 ) -> AsyncIterator[str]:
     key = (owner, thread, turn)
     if key in _tasks:
@@ -39,7 +45,14 @@ def start(
 
     async def run() -> None:
         try:
-            async for chunk in service.stream_turn(owner, thread, turn, content, context_items):
+            async for chunk in service.stream_turn(
+                owner,
+                thread,
+                turn,
+                content,
+                context_items,
+                **({"retry_of_turn_id": retry_of_turn_id} if retry_of_turn_id else {}),
+            ):
                 if subscribed:
                     with suppress(asyncio.QueueFull):
                         chunks.put_nowait(chunk)
@@ -50,6 +63,7 @@ def start(
             codes = {
                 service.TurnAlreadyRunningError: "TURN_ALREADY_RUNNING",
                 service.TurnIdempotencyConflictError: "TURN_IDEMPOTENCY_CONFLICT",
+                service.InvalidClinicalRetryError: "TURN_RETRY_INVALID",
                 service.ClinicalRateLimitError: "CLINICAL_RATE_LIMIT_EXCEEDED",
                 service.StaleClinicalTurnError: "CLINICAL_TURN_STALE",
                 LookupError: "THREAD_NOT_FOUND",

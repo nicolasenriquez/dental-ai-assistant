@@ -3,7 +3,8 @@
 Mode: Operate. Targets: `ClinicalAssistant.tsx`, `ClinicalAssistantArea.tsx`.
 
 Keep threads/conversation/optional Drive accessory. Conversations and Pending Work
-are alternate sidebar views. Pending rows offer review, continue or Drive retry,
+are route-backed views; the sidebar keeps thread navigation available without
+duplicating pending work in both panels. Pending rows offer review, continue or Drive retry,
 using their owning clinical endpoints. Pending query failure is never an empty state.
 Direct `/assistant?view=pending` remains read-only on open/reload and acquires no
 thread until Iniciar consulta. Supported starters prefill unsent editable text,
@@ -14,6 +15,14 @@ Pending Work separates clinical drafts/review from Drive synchronization, displa
 the update date and time, and links failed exports to the exact saved evolution.
 Grouping applies to loaded items and preserves pagination and explicit retry.
 The sidebar visibly distinguishes the selected Conversations/Pending view.
+Explicit retry links retain earlier attempts while showing the note once and
+offering recovery only on the latest failed attempt. Legacy attempts are not
+merged by matching their text. General replies offer Drive copy only with a patient.
+Shared dictation uses six fixed-width bars driven by microphone audio; silence
+settles the bars. Recording and transcription retain distinct controls, editable
+text and cancellation, with no inactive Send control during dictation.
+Empty draft rows remain visible and editable with less vertical spacing. Returning
+from review to edit restores focus and the artifact heading into view.
 Without an active patient, Drive Notes names its scope as general sources.
 Quick Access appears only when more than three loaded files make it a useful subset.
 

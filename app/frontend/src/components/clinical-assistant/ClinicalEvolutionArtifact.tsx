@@ -2,6 +2,7 @@ import { Check, ChevronRight, Copy, MoreHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
+import { motionSafeScrollBehavior } from '../../hooks/useChatAutoFollow';
 import type { ClinicalApprovalItem, ClinicalDraftItem } from '../../hooks/useClinicalAssistant';
 import type { ClinicalPatient, DriveExportState, DriveJournalTarget } from '../../lib/api';
 import {
@@ -291,6 +292,18 @@ export function ClinicalEvolutionArtifact({
 }: ClinicalEvolutionArtifactProps) {
   const locked = isLocked(item, approval);
   const stage = artifactStage(item, approval, result);
+  const articleRef = useRef<HTMLElement>(null);
+  const previousStage = useRef(stage);
+  useEffect(() => {
+    if (previousStage.current === 'review' && stage === 'draft') {
+      articleRef.current?.scrollIntoView({
+        block: 'start',
+        behavior: motionSafeScrollBehavior('smooth'),
+      });
+      articleRef.current?.focus({ preventScroll: true });
+    }
+    previousStage.current = stage;
+  }, [stage]);
   const resourceId = approval?.action.result_resource_id ?? result?.evolutionId ?? null;
   const resourcePatientId = approval?.action.patient_id ?? result?.patientId ?? item.patientId;
   const terminalApproval = approval?.status === 'declined' || approval?.status === 'failed';
@@ -300,6 +313,7 @@ export function ClinicalEvolutionArtifact({
 
   return (
     <article
+      ref={articleRef}
       className="clinical-artifact"
       data-artifact-id={item.id}
       data-clinical-stage={stage}

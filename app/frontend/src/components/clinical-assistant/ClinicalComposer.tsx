@@ -132,7 +132,7 @@ export function ClinicalComposer({
           />
         </div>
         <div className="clinical-composer-actions">
-          {queueAvailable && value.trim() && (
+          {queueAvailable && value.trim() && !voiceInFlight && (
             <button
               type="button"
               className="clinical-queue-button"
@@ -142,46 +142,48 @@ export function ClinicalComposer({
               Encolar
             </button>
           )}
-          <button
-            type="button"
-            className={`${primaryAction === 'send' ? 'chat-send-button' : 'chat-stop-button'} active:brightness-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none${primaryAction === 'send' && !value.trim() ? ' is-disabled' : ''}`}
-            onClick={onPrimaryAction}
-            disabled={
-              primaryAction === 'stopping' ||
-              (primaryAction === 'send' && (!value.trim() || submitDisabled || voiceInFlight))
-            }
-            aria-label={
-              primaryAction === 'send'
-                ? 'Enviar mensaje'
-                : primaryAction === 'stop'
-                  ? 'Detener respuesta'
-                  : 'Deteniendo respuesta'
-            }
-            title={primaryAction === 'send' ? 'Enviar' : 'Detener respuesta'}
-          >
-            {primaryAction === 'stopping' ||
-            (primaryAction === 'send' &&
-              (voice.state === 'stopping' || voice.state === 'transcribing')) ? (
-              <span aria-hidden="true" className="spinner" />
-            ) : primaryAction === 'stop' ? (
-              <Square aria-hidden="true" size={14} fill="currentColor" />
-            ) : (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <line x1="8" y1="14" x2="8" y2="3" />
-                <polyline points="3,8 8,3 13,8" />
-              </svg>
-            )}
-          </button>
+          {(!voiceInFlight || primaryAction !== 'send') && (
+            <button
+              type="button"
+              className={`${primaryAction === 'send' ? 'chat-send-button' : 'chat-stop-button'} active:brightness-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none${primaryAction === 'send' && !value.trim() ? ' is-disabled' : ''}`}
+              onClick={onPrimaryAction}
+              disabled={
+                primaryAction === 'stopping' ||
+                (primaryAction === 'send' && (!value.trim() || submitDisabled || voiceInFlight))
+              }
+              aria-label={
+                primaryAction === 'send'
+                  ? 'Enviar mensaje'
+                  : primaryAction === 'stop'
+                    ? 'Detener respuesta'
+                    : 'Deteniendo respuesta'
+              }
+              title={primaryAction === 'send' ? 'Enviar' : 'Detener respuesta'}
+            >
+              {primaryAction === 'stopping' ||
+              (primaryAction === 'send' &&
+                (voice.state === 'stopping' || voice.state === 'transcribing')) ? (
+                <span aria-hidden="true" className="spinner" />
+              ) : primaryAction === 'stop' ? (
+                <Square aria-hidden="true" size={14} fill="currentColor" />
+              ) : (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="8" y1="14" x2="8" y2="3" />
+                  <polyline points="3,8 8,3 13,8" />
+                </svg>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </ComposerShell>

@@ -155,6 +155,7 @@ export interface ClinicalMessage {
   clinical_result?: ClinicalReadResult | null;
   turn_status?: 'running' | 'completed' | 'failed' | null;
   turn_error_code?: string | null;
+  retry_of_turn_id?: string | null;
   context_items?: ClinicalContextItem[] | null;
   patient_switch?: {
     item_id: string;
@@ -564,7 +565,12 @@ export const resolveClinicalPatientSwitch = (
   });
 export const streamClinicalTurn = async (
   threadId: string,
-  body: { turn_id: string; content: string; context_items?: ClinicalContextItem[] },
+  body: {
+    turn_id: string;
+    content: string;
+    context_items?: ClinicalContextItem[];
+    retry_of_turn_id?: string;
+  },
   signal?: AbortSignal,
 ): Promise<Response> => {
   const res = await fetch(`${BASE}/clinical-threads/${threadId}/turns`, {

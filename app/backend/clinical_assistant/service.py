@@ -51,6 +51,7 @@ _FIELDS: tuple[tuple[str, str], ...] = (
 
 TurnAlreadyRunningError = repository.TurnAlreadyRunningError
 TurnIdempotencyConflictError = repository.TurnIdempotencyConflictError
+InvalidClinicalRetryError = repository.InvalidClinicalRetryError
 ClinicalRateLimitError = repository.ClinicalRateLimitError
 PendingActionExistsError = repository.PendingActionExistsError
 StaleClinicalTurnError = repository.StaleClinicalTurnError
@@ -588,13 +589,21 @@ async def stream_turn(
     turn_id: UUID | str,
     content: str,
     context_items: list[ClinicalContextItem] | None = None,
+    *,
+    retry_of_turn_id: UUID | None = None,
 ) -> AsyncIterator[str]:
     """Run one safe clinical turn and always release its thread lock."""
     claimed_new = {"value": False}
     cancellation_handled = False
     try:
         async for chunk in _stream_turn(
-            owner_user_id, thread_id, turn_id, content, context_items or [], claimed_new
+            owner_user_id,
+            thread_id,
+            turn_id,
+            content,
+            context_items or [],
+            claimed_new,
+            retry_of_turn_id,
         ):
             yield chunk
     except asyncio.CancelledError:
@@ -627,6 +636,7 @@ async def _stream_turn(
     content: str,
     context_items: list[ClinicalContextItem],
     claimed_new: dict[str, bool],
+    retry_of_turn_id: UUID | None = None,
 ) -> AsyncIterator[str]:
     """Run one safe clinical turn and emit typed lifecycle events."""
     owner = UUID(str(owner_user_id))
@@ -663,7 +673,12 @@ async def _stream_turn(
         for item in sanitized_context
     ]
     claimed = await repository.claim_turn(
-        owner, thread, turn, sanitized.display_text, stored_context
+        owner,
+        thread,
+        turn,
+        sanitized.display_text,
+        stored_context,
+        **({"retry_of_turn_id": retry_of_turn_id} if retry_of_turn_id else {}),
     )
     claimed_new["value"] = not claimed["replay"]
 
@@ -676,6 +691,7 @@ async def _stream_turn(
             "status": "running",
             "user_content": sanitized.display_text,
             "context_items": stored_context,
+            "retry_of_turn_id": str(retry_of_turn_id) if retry_of_turn_id else None,
         },
     )
 

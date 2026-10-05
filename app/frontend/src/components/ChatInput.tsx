@@ -215,33 +215,35 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={isSubmitDisabled || !inputValue.trim()}
-          aria-label={activeRun ? 'Poner mensaje en cola' : 'Enviar mensaje'}
-          title={activeRun ? 'Agregar a cola' : 'Enviar'}
-          className={`chat-send-button${!inputValue.trim() || isSubmitDisabled ? ' is-disabled' : ''} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none`}
-        >
-          {activeRun ? (
-            <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />
-          ) : (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="8" y1="14" x2="8" y2="3" />
-              <polyline points="3,8 8,3 13,8" />
-            </svg>
-          )}
-        </button>
+        {!voiceInFlight && (
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={isSubmitDisabled || !inputValue.trim()}
+            aria-label={activeRun ? 'Poner mensaje en cola' : 'Enviar mensaje'}
+            title={activeRun ? 'Agregar a cola' : 'Enviar'}
+            className={`chat-send-button${!inputValue.trim() || isSubmitDisabled ? ' is-disabled' : ''} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none`}
+          >
+            {activeRun ? (
+              <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />
+            ) : (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="8" y1="14" x2="8" y2="3" />
+                <polyline points="3,8 8,3 13,8" />
+              </svg>
+            )}
+          </button>
+        )}
       </ComposerShell>
     );
   },

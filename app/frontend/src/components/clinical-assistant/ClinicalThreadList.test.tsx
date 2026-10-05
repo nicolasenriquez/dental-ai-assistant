@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ClinicalThreadSummary } from '../../lib/api';
@@ -13,6 +13,30 @@ vi.mock('../../lib/api', () => ({
 }));
 
 afterEach(() => vi.clearAllMocks());
+
+it('uses the route for pending selection and switches back to conversations', async () => {
+  vi.mocked(getClinicalThreads).mockResolvedValue([]);
+  render(
+    <MemoryRouter initialEntries={['/assistant?view=pending']}>
+      <ClinicalThreadList />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole('button', { name: 'Pendientes' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Conversaciones' }));
+  expect(screen.getByRole('button', { name: 'Conversaciones' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Pendientes' }));
+  expect(screen.getByRole('button', { name: 'Pendientes' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await waitFor(() => expect(getClinicalThreads).toHaveBeenCalled());
+});
 
 function summary(id: string, activeTurnId: string | null = null): ClinicalThreadSummary {
   return {

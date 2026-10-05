@@ -120,6 +120,11 @@ export function ClinicalTranscript({
   const followItems = items.filter((item) => item.type !== 'activity');
   const latestItem = followItems[followItems.length - 1];
   const groups = groupByTurn(items);
+  const retriedTurns = new Set(
+    items.flatMap((item) =>
+      item.type === 'user' && item.retryOfTurnId ? [item.retryOfTurnId] : [],
+    ),
+  );
   const activeGroupExists = groups.some((group) => group[0]?.turnId === activeTurn?.turnId);
   const latestContentRevision =
     latestItem?.type === 'assistant'
@@ -183,7 +188,7 @@ export function ClinicalTranscript({
                 if (item.type === 'user')
                   return (
                     <div key={item.id}>
-                      {item.contextItems && item.contextItems.length > 0 && (
+                      {!item.retryOfTurnId && item.contextItems && item.contextItems.length > 0 && (
                         <div
                           className="mb-2 flex flex-wrap justify-end gap-2"
                           aria-label="Fuentes adjuntas"
@@ -198,7 +203,11 @@ export function ClinicalTranscript({
                           ))}
                         </div>
                       )}
-                      <Message role={item.type} content={item.content} />
+                      {item.retryOfTurnId ? (
+                        <p className="text-sm text-muted">Reintento de la nota anterior</p>
+                      ) : (
+                        <Message role={item.type} content={item.content} />
+                      )}
                       {activeTurn?.turnId === item.turnId && (
                         <ClinicalTurnProgress
                           key={activeTurn.turnId}
@@ -221,7 +230,7 @@ export function ClinicalTranscript({
                       role={item.type}
                       content={item.content}
                       onSaveToDrive={
-                        item.status === 'completed' && onSaveToDrive
+                        item.status === 'completed' && activePatientId && onSaveToDrive
                           ? () => onSaveToDrive(item)
                           : undefined
                       }
@@ -306,12 +315,20 @@ export function ClinicalTranscript({
                     </output>
                   );
                 }
+                if (retriedTurns.has(item.turnId))
+                  return (
+                    <details key={item.id} className="text-sm text-muted">
+                      <summary>Intento anterior · Nota reintentada</summary>
+                      <p>{item.message}</p>
+                    </details>
+                  );
                 return (
                   <div key={item.id} className="clinical-error" role="alert">
                     <span>{item.message}</span>
                     <button
                       type="button"
                       className="clinical-secondary-button"
+                      disabled={busy}
                       onClick={() => onRetry(item.turnId)}
                     >
                       Reintentar

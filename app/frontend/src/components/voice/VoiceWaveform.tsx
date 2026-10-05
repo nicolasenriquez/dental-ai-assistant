@@ -4,7 +4,7 @@ interface VoiceWaveformProps {
   stream: MediaStream | null;
 }
 
-const BAR_COUNT = 12;
+const BAR_COUNT = 6;
 const FRAME_INTERVAL_MS = 1000 / 30;
 
 export function VoiceWaveform({ stream }: VoiceWaveformProps) {

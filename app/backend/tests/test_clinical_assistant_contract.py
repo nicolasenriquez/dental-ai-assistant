@@ -428,7 +428,7 @@ async def test_clinical_turn_marks_cancellation_as_expected_failure(monkeypatch)
     release = asyncio.Event()
     finished: list[tuple[object, ...]] = []
 
-    async def stalled(_owner, _thread, _turn, _content, _context_items, claimed_new):
+    async def stalled(_owner, _thread, _turn, _content, _context_items, claimed_new, _retry=None):
         claimed_new["value"] = True
         yield "started"
         blocked.set()

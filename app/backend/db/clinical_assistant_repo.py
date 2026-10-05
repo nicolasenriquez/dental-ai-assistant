@@ -37,6 +37,9 @@ def _artifact_dict(row: Any) -> dict[str, Any]:
 
 def _message_dict(row: Any) -> dict[str, Any]:
     message = dict(row)
+    context = message.get("context_items")
+    if isinstance(context, str):
+        message["context_items"] = json.loads(context)
     result = message.get("clinical_result")
     if isinstance(result, str):
         message["clinical_result"] = json.loads(result)
@@ -49,6 +52,10 @@ class TurnAlreadyRunningError(Exception):
 
 class TurnIdempotencyConflictError(Exception):
     """A turn UUID was reused with different content."""
+
+
+class InvalidClinicalRetryError(Exception):
+    """Retry target is not an unchanged failed turn in this owned thread."""
 
 
 class ProposalStaleError(Exception):
@@ -398,7 +405,7 @@ async def get_thread(owner_user_id: UUID | str, thread_id: UUID | str) -> dict[s
         messages = await conn.fetch(
             """
             SELECT id, thread_id, turn_id, role, content, context_items, patient_switch, clinical_result,
-                   turn_status, turn_error_code, created_at
+                   turn_status, turn_error_code, retry_of_turn_id, created_at
             FROM clinical_messages WHERE thread_id = $1
             ORDER BY created_at ASC
             """,
@@ -790,6 +797,8 @@ async def claim_turn(
     turn_id: UUID | str,
     content: str,
     context_items: list[dict[str, Any]] | None = None,
+    *,
+    retry_of_turn_id: UUID | None = None,
 ) -> dict[str, Any]:
     owner = _uuid(owner_user_id)
     thread = _uuid(thread_id)
@@ -813,7 +822,8 @@ async def claim_turn(
             raise LookupError("Thread not found")
         existing = await conn.fetch(
             """
-            SELECT m.id, m.role, m.content, m.context_items, m.turn_status, m.turn_error_code
+            SELECT m.id, m.role, m.content, m.context_items, m.turn_status, m.turn_error_code,
+                   m.retry_of_turn_id
             FROM clinical_messages m
             JOIN clinical_threads t ON t.id = m.thread_id
             WHERE m.turn_id = $1 AND m.thread_id = $2 AND t.owner_user_id = $3
@@ -823,11 +833,13 @@ async def claim_turn(
             owner,
         )
         if existing:
+            existing = [_message_dict(msg) for msg in existing]
             if any(
                 msg["role"] == "user"
                 and (
                     msg["content"] != content
                     or (msg["context_items"] or []) != (context_items or [])
+                    or msg.get("retry_of_turn_id") != retry_of_turn_id
                 )
                 for msg in existing
             ):
@@ -845,6 +857,31 @@ async def claim_turn(
                 "turn_status": turn_status,
                 "turn_error_code": user_message["turn_error_code"],
             }
+        if retry_of_turn_id is not None:
+            previous = await conn.fetchrow(
+                """
+                SELECT content, context_items, turn_status, turn_error_code
+                FROM clinical_messages m
+                WHERE thread_id = $1 AND turn_id = $2 AND role = 'user'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM clinical_messages r
+                      WHERE r.thread_id = $1 AND r.retry_of_turn_id = $2
+                  )
+                """,
+                thread,
+                retry_of_turn_id,
+            )
+            if previous is not None:
+                previous = _message_dict(previous)
+            if (
+                previous is None
+                or previous["turn_status"] != "failed"
+                or previous["turn_error_code"] == "PATIENT_SWITCH_REQUIRED"
+                or previous["content"] != content
+                or (previous["context_items"] or []) != (context_items or [])
+                or retry_of_turn_id == turn
+            ):
+                raise InvalidClinicalRetryError
         stale_turn = (
             row["active_turn_id"]
             if row["active_turn_id"] is not None
@@ -891,16 +928,18 @@ async def claim_turn(
         message = await conn.fetchrow(
             """
             INSERT INTO clinical_messages (
-                id, thread_id, turn_id, role, content, context_items, turn_status, created_at
+                id, thread_id, turn_id, role, content, context_items, retry_of_turn_id,
+                turn_status, created_at
             )
-            VALUES ($1, $2, $3, 'user', $4, $5::jsonb, 'running', now())
-            RETURNING id, thread_id, turn_id, role, content, context_items, created_at
+            VALUES ($1, $2, $3, 'user', $4, $5::jsonb, $6, 'running', now())
+            RETURNING id, thread_id, turn_id, role, content, context_items, retry_of_turn_id, created_at
             """,
             uuid4(),
             thread,
             turn,
             content,
             json.dumps(context_items, ensure_ascii=False) if context_items else None,
+            retry_of_turn_id,
         )
     return {
         "replay": False,

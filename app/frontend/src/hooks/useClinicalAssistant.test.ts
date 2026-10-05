@@ -257,9 +257,14 @@ describe('clinical redaction and artifact ordering', () => {
       { type: 'error', code: 'CLINICAL_TURN_CANCELLED' },
     ]);
     vi.mocked(streamClinicalTurn).mockResolvedValue(new Response(''));
-    act(() => result.current.retryTurn('turn-failed'));
+    act(() => {
+      result.current.retryTurn('turn-failed');
+      result.current.retryTurn('turn-failed');
+    });
     await waitFor(() => expect(streamClinicalTurn).toHaveBeenCalled());
+    expect(streamClinicalTurn).toHaveBeenCalledTimes(1);
     expect(vi.mocked(streamClinicalTurn).mock.calls[0][1].content).toBe('Nota conservada');
+    expect(vi.mocked(streamClinicalTurn).mock.calls[0][1].retry_of_turn_id).toBe('turn-failed');
   });
 
   it.each(['12.345.6785', '12.345.678 5', '12 345 678 - 5', '123456785'])(

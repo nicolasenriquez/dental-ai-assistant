@@ -185,7 +185,12 @@ async def start_turn(
 ) -> StreamingResponse:
     return StreamingResponse(
         turn_runner.start(
-            _user_id(user), thread_id, request.turn_id, request.content, request.context_items
+            _user_id(user),
+            thread_id,
+            request.turn_id,
+            request.content,
+            request.context_items,
+            **({"retry_of_turn_id": request.retry_of_turn_id} if request.retry_of_turn_id else {}),
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

@@ -1,6 +1,6 @@
 import { SquarePen } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import {
   type ClinicalThreadSummary,
@@ -12,7 +12,6 @@ import {
 import { ConfirmDialog } from '../ConfirmDialog';
 import { ConversationRow } from '../sidebar/ConversationList';
 import { WorkspaceThreadList } from '../sidebar/WorkspaceThreadList';
-import { ClinicalPendingWork } from './ClinicalPendingWork';
 
 interface ClinicalThreadListProps {
   activeThreadId?: string;
@@ -50,7 +49,9 @@ export function ClinicalThreadList({
   const navigate = useNavigate();
   const transitionGuard = useOptionalTransitionGuard();
   const [threads, setThreads] = useState<ClinicalThreadSummary[]>([]);
-  const [tab, setTab] = useState<'threads' | 'pending'>('threads');
+  const location = useLocation();
+  const tab =
+    new URLSearchParams(location.search).get('view') === 'pending' ? 'pending' : 'threads';
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -207,7 +208,7 @@ export function ClinicalThreadList({
             type="button"
             className="min-h-11 rounded border border-transparent px-2 py-2 text-sm text-muted aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
             aria-pressed={tab === 'threads'}
-            onClick={() => setTab('threads')}
+            onClick={() => guardTransition(() => navigate('/assistant'))}
           >
             Conversaciones
           </button>
@@ -215,88 +216,84 @@ export function ClinicalThreadList({
             type="button"
             className="min-h-11 rounded border border-transparent px-2 py-2 text-sm text-muted aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
             aria-pressed={tab === 'pending'}
-            onClick={() => setTab('pending')}
+            onClick={() => guardTransition(() => navigate('/assistant?view=pending'))}
           >
             Pendientes
           </button>
         </div>
       )}
-      {tab === 'pending' && !isCollapsed ? (
-        <ClinicalPendingWork key={refreshKey} />
-      ) : (
-        <>
-          {!isCollapsed && (
-            <button
-              type="button"
-              className="clinical-sidebar-create"
-              onClick={() => guardTransition(() => void create())}
-              disabled={creating}
-            >
-              <SquarePen aria-hidden="true" size={16} strokeWidth={1.7} />
-              {creating ? 'Creando…' : 'Nueva conversación'}
-            </button>
+      <>
+        {!isCollapsed && (
+          <button
+            type="button"
+            className="clinical-sidebar-create"
+            onClick={() => guardTransition(() => void create())}
+            disabled={creating}
+          >
+            <SquarePen aria-hidden="true" size={16} strokeWidth={1.7} />
+            {creating ? 'Creando…' : 'Nueva conversación'}
+          </button>
+        )}
+        <WorkspaceThreadList
+          ariaLabel="Hilos del asistente clínico"
+          title="Conversaciones"
+          isCollapsed={isCollapsed}
+          running={activeTurnRunning || hasRunningThread}
+          items={threads.map((thread) => ({
+            id: thread.id,
+            title: thread.title,
+            updatedAt: thread.updated_at,
+            active: thread.id === activeThreadId,
+            statusLabel: thread.approval_pending ? 'Pendiente de aprobación' : undefined,
+          }))}
+          loading={loading}
+          error={error}
+          query={query}
+          onQueryChange={setQuery}
+          onCreate={() => guardTransition(() => void create())}
+          onSelect={(id) =>
+            guardTransition(() => {
+              navigate(`/a/${id}`);
+              onNavigate?.();
+            })
+          }
+          creating={creating}
+          onRetry={() => void refresh()}
+          onRequestExpand={onRequestExpand}
+          createLabel="Nueva conversación"
+          showHeaderTitle={false}
+          showHeaderCreate={false}
+          emptyMessage="Aún no hay conversaciones"
+          emptyActionLabel="Nueva conversación"
+          renderItem={(item) => (
+            <ConversationRow
+              conversation={{
+                id: item.id,
+                title: item.title,
+                created_at: item.updatedAt,
+                updated_at: item.updatedAt,
+              }}
+              query={query}
+              isActive={Boolean(item.active)}
+              isRunning={Boolean(
+                threads.find((thread) => thread.id === item.id)?.active_turn_id ||
+                  startingThreads.has(item.id) ||
+                  (item.id === activeThreadId && activeTurnRunning),
+              )}
+              statusLabel={item.statusLabel}
+              secondaryLabel={formatClinicalUpdatedAt(item.updatedAt)}
+              onSelect={() =>
+                guardTransition(() => {
+                  navigate(`/a/${item.id}`);
+                  onNavigate?.();
+                })
+              }
+              onDeleteRequest={() => requestRemove(item.id)}
+              onRename={(title) => void rename(item.id, title)}
+            />
           )}
-          <WorkspaceThreadList
-            ariaLabel="Hilos del asistente clínico"
-            title="Conversaciones"
-            isCollapsed={isCollapsed}
-            running={activeTurnRunning || hasRunningThread}
-            items={threads.map((thread) => ({
-              id: thread.id,
-              title: thread.title,
-              updatedAt: thread.updated_at,
-              active: thread.id === activeThreadId,
-              statusLabel: thread.approval_pending ? 'Pendiente de aprobación' : undefined,
-            }))}
-            loading={loading}
-            error={error}
-            query={query}
-            onQueryChange={setQuery}
-            onCreate={() => guardTransition(() => void create())}
-            onSelect={(id) =>
-              guardTransition(() => {
-                navigate(`/a/${id}`);
-                onNavigate?.();
-              })
-            }
-            creating={creating}
-            onRetry={() => void refresh()}
-            onRequestExpand={onRequestExpand}
-            createLabel="Nueva conversación"
-            showHeaderTitle={false}
-            showHeaderCreate={false}
-            emptyMessage="Aún no hay conversaciones"
-            emptyActionLabel="Nueva conversación"
-            renderItem={(item) => (
-              <ConversationRow
-                conversation={{
-                  id: item.id,
-                  title: item.title,
-                  created_at: item.updatedAt,
-                  updated_at: item.updatedAt,
-                }}
-                query={query}
-                isActive={Boolean(item.active)}
-                isRunning={Boolean(
-                  threads.find((thread) => thread.id === item.id)?.active_turn_id ||
-                    startingThreads.has(item.id) ||
-                    (item.id === activeThreadId && activeTurnRunning),
-                )}
-                statusLabel={item.statusLabel}
-                secondaryLabel={formatClinicalUpdatedAt(item.updatedAt)}
-                onSelect={() =>
-                  guardTransition(() => {
-                    navigate(`/a/${item.id}`);
-                    onNavigate?.();
-                  })
-                }
-                onDeleteRequest={() => requestRemove(item.id)}
-                onRename={(title) => void rename(item.id, title)}
-              />
-            )}
-          />
-        </>
-      )}
+        />
+      </>
       {confirmId && (
         <ConfirmDialog
           title="¿Eliminar conversación clínica?"

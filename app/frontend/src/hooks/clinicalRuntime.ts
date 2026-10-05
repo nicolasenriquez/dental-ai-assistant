@@ -20,6 +20,7 @@ export interface ClinicalUserItem extends ClinicalBaseItem {
   type: 'user';
   content: string;
   contextItems?: ComposerContextItem[];
+  retryOfTurnId?: string;
 }
 
 export interface ClinicalAssistantItem extends ClinicalBaseItem {

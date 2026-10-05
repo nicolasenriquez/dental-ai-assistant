@@ -71,6 +71,7 @@ class ClinicalTurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     turn_id: UUID
+    retry_of_turn_id: UUID | None = None
     content: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40_000)
     ]

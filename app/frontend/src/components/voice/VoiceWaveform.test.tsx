@@ -5,7 +5,7 @@ import { VoiceWaveform } from './VoiceWaveform';
 class FakeMediaStream {}
 
 describe('VoiceWaveform', () => {
-  it('uses a calm 12-bar analyser driven by the provided stream', () => {
+  it('responds to audio, settles on silence, and releases the analyser', () => {
     let fftSize = 2048;
     let drawFrame: FrameRequestCallback | undefined;
     const analyser = {
@@ -22,7 +22,7 @@ describe('VoiceWaveform', () => {
       getByteFrequencyData: vi.fn((data: Uint8Array) => {
         data.fill(0, 0, fftSize / 2);
         data[0] = 255;
-        data[2] = 128;
+        data[5] = 128;
       }),
     };
     const source = { connect: vi.fn(), disconnect: vi.fn() };
@@ -49,7 +49,7 @@ describe('VoiceWaveform', () => {
       const stream = new FakeMediaStream();
       const view = render(<VoiceWaveform stream={stream as MediaStream} />);
 
-      expect(view.container.querySelectorAll('i')).toHaveLength(12);
+      expect(view.container.querySelectorAll('i')).toHaveLength(6);
       expect(analyser.fftSize).toBe(64);
       expect(analyser.smoothingTimeConstant).toBe(0.82);
       expect(audioContext.createMediaStreamSource).toHaveBeenCalledWith(stream);
@@ -61,7 +61,15 @@ describe('VoiceWaveform', () => {
       expect((bars[0] as HTMLElement).style.transform).toBe('scaleY(1)');
       expect((bars[1] as HTMLElement).style.transform).toBe('scaleY(0.5019607843137255)');
 
+      analyser.getByteFrequencyData.mockImplementation((data) => data.fill(0));
+      act(() => drawFrame?.(68));
+      expect(
+        Array.from(bars).every((bar) => (bar as HTMLElement).style.transform === 'scaleY(0.12)'),
+      ).toBe(true);
+
       view.unmount();
+      expect(source.disconnect).toHaveBeenCalledOnce();
+      expect(audioContext.close).toHaveBeenCalledOnce();
     } finally {
       vi.unstubAllGlobals();
     }

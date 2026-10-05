@@ -135,6 +135,7 @@ function resultItem(): ClinicalResultItem {
 
 beforeAll(() => {
   HTMLElement.prototype.scrollTo = vi.fn();
+  HTMLElement.prototype.scrollIntoView = vi.fn();
   HTMLDialogElement.prototype.showModal = function showModal() {
     this.open = true;
   };
@@ -143,6 +144,62 @@ beforeAll(() => {
   };
 });
 afterEach(cleanup);
+
+it('shows one note across persisted retries and only the latest recovery action', () => {
+  const items: ClinicalTranscriptItem[] = [
+    { ...base, id: 'u1', type: 'user', status: 'completed', content: 'Nota conservada' },
+    {
+      ...base,
+      id: 'e1',
+      type: 'error',
+      status: 'failed',
+      code: 'FAILED',
+      message: 'Respuesta interrumpida.',
+    },
+    {
+      ...base,
+      turnId: 'turn-2',
+      id: 'u2',
+      type: 'user',
+      status: 'completed',
+      content: 'Nota conservada',
+      retryOfTurnId: base.turnId,
+    },
+    {
+      ...base,
+      turnId: 'turn-2',
+      id: 'e2',
+      type: 'error',
+      status: 'failed',
+      code: 'FAILED',
+      message: 'No pudimos responder.',
+    },
+  ];
+  const view = renderTranscript(items, false);
+  expect(screen.getAllByText('Nota conservada')).toHaveLength(1);
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Reintentar' })).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+  expect(callbacks.onRetry).toHaveBeenLastCalledWith('turn-2');
+  view.unmount();
+  renderTranscript([...items.slice(0, 3), { ...assistantItem(), turnId: 'turn-2' }], false);
+  expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('does not offer Drive copy without a selected patient', () => {
+  render(
+    <MemoryRouter>
+      <ClinicalTranscript
+        threadId="thread-1"
+        items={[assistantItem()]}
+        {...callbacks}
+        onSaveToDrive={vi.fn()}
+      />
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole('button', { name: /Guardar copia en Drive/i })).not.toBeInTheDocument();
+});
 
 function renderTranscript(
   items: ClinicalTranscriptItem[],
@@ -188,6 +245,21 @@ function expectNoPeerCards(container: HTMLElement): void {
 }
 
 describe('ClinicalTranscript', () => {
+  it('returns focus and the heading into view when returning to edit', () => {
+    const view = renderTranscript(
+      [draftItem({ artifactStatus: 'pending' }), approvalItem('pending')],
+      false,
+    );
+    const article = getArtifact(view.container);
+    const scroll = vi.spyOn(article, 'scrollIntoView');
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={[draftItem()]} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(scroll).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
+    expect(article).toHaveFocus();
+  });
   it('places one progress block beside the matching optimistic user', () => {
     const user: ClinicalTranscriptItem = {
       ...base,

@@ -113,7 +113,7 @@ describe('ChatInput', () => {
 
       const input = screen.getByRole('textbox');
       expect(input).toBeEnabled();
-      expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Enviar mensaje' })).not.toBeInTheDocument();
       fireEvent.change(input, { target: { value: 'Edited draft' } });
       fireEvent.keyDown(input, { key: 'Enter' });
       expect(onValueChange).toHaveBeenCalledWith('Edited draft');

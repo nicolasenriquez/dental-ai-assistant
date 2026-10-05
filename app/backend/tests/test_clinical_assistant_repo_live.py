@@ -72,6 +72,72 @@ async def _make_patient(db, owner: UUID) -> UUID:
     return patient_id
 
 
+async def test_live_retry_retains_history_and_rejects_changed_or_duplicate_attempts(db):
+    owner = await _make_user(db)
+    thread = await _make_thread(db, owner)
+    failed, retry = uuid4(), uuid4()
+    context = [{"id": "synthetic", "content": "Synthetic attachment"}]
+    await clinical_assistant_repo.claim_turn(owner, thread, failed, "Synthetic note", context)
+    await clinical_assistant_repo.finish_turn(
+        owner, thread, failed, "failed", "CLINICAL_TURN_CANCELLED"
+    )
+    with pytest.raises(clinical_assistant_repo.InvalidClinicalRetryError):
+        await clinical_assistant_repo.claim_turn(
+            owner, thread, retry, "Changed note", context, retry_of_turn_id=failed
+        )
+    with pytest.raises(clinical_assistant_repo.InvalidClinicalRetryError):
+        await clinical_assistant_repo.claim_turn(
+            owner, thread, retry, "Synthetic note", retry_of_turn_id=failed
+        )
+    claimed = await clinical_assistant_repo.claim_turn(
+        owner, thread, retry, "Synthetic note", context, retry_of_turn_id=failed
+    )
+    assert claimed["message"]["retry_of_turn_id"] == failed
+    replay = await clinical_assistant_repo.claim_turn(
+        owner, thread, retry, "Synthetic note", context, retry_of_turn_id=failed
+    )
+    assert replay["replay"]
+    with pytest.raises(clinical_assistant_repo.TurnIdempotencyConflictError):
+        await clinical_assistant_repo.claim_turn(owner, thread, retry, "Synthetic note")
+    await clinical_assistant_repo.finish_turn(owner, thread, retry, "completed")
+    with pytest.raises(clinical_assistant_repo.InvalidClinicalRetryError):
+        await clinical_assistant_repo.claim_turn(
+            owner, thread, uuid4(), "Synthetic note", retry_of_turn_id=failed
+        )
+    hydrated = await clinical_assistant_repo.get_thread(owner, thread)
+    assert hydrated is not None
+    assert len(hydrated["messages"]) == 2
+    assert hydrated["messages"][0]["turn_status"] == "failed"
+    assert hydrated["messages"][1]["retry_of_turn_id"] == failed
+    assert hydrated["messages"][1]["context_items"] == context
+
+
+async def test_live_retry_cannot_target_another_thread_owner_or_completed_turn(db):
+    owner, other = await _make_user(db), await _make_user(db)
+    thread = await _make_thread(db, owner)
+    other_thread = await _make_thread(db, other)
+    completed = uuid4()
+    await clinical_assistant_repo.claim_turn(owner, thread, completed, "Synthetic note")
+    await clinical_assistant_repo.finish_turn(owner, thread, completed, "completed")
+    with pytest.raises(clinical_assistant_repo.InvalidClinicalRetryError):
+        await clinical_assistant_repo.claim_turn(
+            owner, thread, uuid4(), "Synthetic note", retry_of_turn_id=completed
+        )
+    failed = uuid4()
+    await clinical_assistant_repo.claim_turn(other, other_thread, failed, "Synthetic note")
+    await clinical_assistant_repo.finish_turn(
+        other, other_thread, failed, "failed", "CLINICAL_TURN_CANCELLED"
+    )
+    with pytest.raises(clinical_assistant_repo.InvalidClinicalRetryError):
+        await clinical_assistant_repo.claim_turn(
+            owner, thread, uuid4(), "Synthetic note", retry_of_turn_id=failed
+        )
+    with pytest.raises(LookupError):
+        await clinical_assistant_repo.claim_turn(
+            owner, other_thread, uuid4(), "Synthetic note", retry_of_turn_id=failed
+        )
+
+
 async def test_live_advisory_lock_serializes_quota_count_and_insert(db):
     owner = await _make_user(db)
     history_thread = await _make_thread(db, owner)
