@@ -29,17 +29,21 @@ export function PatientActivity({ patientId }: { patientId: string }) {
   }
   return (
     <section aria-label="Actividad del paciente" className="space-y-5">
-      <h2 className="text-lg font-semibold">Actividad persistida</h2>
+      <h2 className="text-lg font-semibold">Actividad del paciente</h2>
       <p className="text-sm text-muted">
         Evoluciones aprobadas y cambios guardados en notas y diagnósticos.
       </p>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar actividad">
+      <div
+        className="patient-activity-filters flex flex-wrap gap-2"
+        role="group"
+        aria-label="Filtrar actividad"
+      >
         {filters.map((filter) => (
           <button
             key={filter.kind}
             type="button"
             aria-pressed={kind === filter.kind}
-            className={`min-h-[44px] min-w-[44px] rounded border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${kind === filter.kind ? 'border-primary bg-surface font-semibold text-foreground' : 'border-border text-muted'}`}
+            className={`min-h-[44px] min-w-[44px] rounded border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${kind === filter.kind ? 'border-primary bg-surface font-semibold text-foreground' : 'border-border text-muted hover:bg-surface hover:text-foreground'}`}
             onClick={() => setKind(filter.kind)}
           >
             {filter.label}

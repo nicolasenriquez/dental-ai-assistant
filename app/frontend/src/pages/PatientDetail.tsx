@@ -244,15 +244,7 @@ export function PatientDetail() {
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen(true)}
-                    className="rounded border border-[var(--border)] px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                  >
-                    <Pencil size={16} aria-hidden="true" className="mr-2 inline" />
-                    Editar paciente
-                  </button>
+                <div className="patient-header-actions flex flex-wrap gap-2">
                   <Link
                     to={`/patients/${patient.id}/evolutions/new`}
                     className={buttonVariants({ variant: 'primary' })}
@@ -260,6 +252,14 @@ export function PatientDetail() {
                     <Plus size={16} aria-hidden="true" />
                     <span className="sr-only">+</span> Nueva evolución
                   </Link>
+                  <Button
+                    variant="clinicalSecondary"
+                    type="button"
+                    onClick={() => setEditOpen(true)}
+                  >
+                    <Pencil size={16} aria-hidden="true" />
+                    Editar paciente
+                  </Button>
                   <Button
                     variant="clinicalSecondary"
                     className="inline-flex items-center gap-2"
@@ -286,7 +286,7 @@ export function PatientDetail() {
               <div
                 role="tablist"
                 aria-label="Secciones del paciente"
-                className="mt-6 flex flex-wrap gap-2 border-b border-border pb-3"
+                className="patient-section-tabs mt-6 flex flex-wrap gap-2 border-b border-border pb-3"
               >
                 {sections.map((item, index) => (
                   <button
@@ -300,7 +300,7 @@ export function PatientDetail() {
                     aria-controls={`patient-panel-${item.id}`}
                     aria-selected={section === item.id}
                     tabIndex={section === item.id ? 0 : -1}
-                    className={`flex min-h-[44px] items-center gap-2 rounded px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${section === item.id ? 'bg-surface text-foreground' : 'text-muted'}`}
+                    className={`flex min-h-[44px] items-center gap-2 rounded px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary ${section === item.id ? 'bg-surface text-foreground' : 'text-muted hover:bg-surface hover:text-foreground'}`}
                     onClick={() => {
                       const change = (): void => {
                         setSection(item.id);

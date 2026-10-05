@@ -65,7 +65,7 @@ export function PatientOverview({
           [
             ['Por revisar', approval],
             ['Borradores', draft],
-            ['Sincronización Drive', drive],
+            ['Exportaciones Drive fallidas', drive],
           ] as const
         ).map(([label, result]) => (
           <div key={label}>
@@ -88,7 +88,7 @@ export function PatientOverview({
         ))}
       </dl>
       {clinical && (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
           <p>Tienes trabajo clínico por continuar</p>
           <Link className="py-2 text-primary hover:underline" to={href(clinical)}>
             {clinical.kind === 'approval_required' ? 'Revisar' : 'Continuar trabajo'}
@@ -96,7 +96,7 @@ export function PatientOverview({
         </div>
       )}
       {!drive.error && drive.page?.items[0] && (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
           <p>Guardada en ficha · Sincronización por recuperar</p>
           <Link className="py-2 text-primary hover:underline" to={href(drive.page.items[0])}>
             Recuperar sincronización

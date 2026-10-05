@@ -13,7 +13,12 @@ History uses one shared list with date/time and an explicit return on narrow pan
 Leaving detail through a tab clears its UUID path; history return uses safe
 `tab=clinical&clinical=evolutions` query state and survives reload.
 Patient identity wraps by available width, including with the Assistant open.
-New evolution remains primary, Assistant secondary. Suggested actions
+New evolution remains primary, Assistant secondary.
+New evolution comes first in the header action order. At <=480px pane width it
+fills the first action row; Edit and Assistant share the second. Header actions
+have 44px minimum targets. Patient tabs and activity filters use two equal columns
+at that pane width. Mobile patient navigation reserves space outside the scrolling
+main pane, so content never passes beneath its fixed trigger. Suggested actions
 prefill but never send. Summary prioritizes clinical approval/drafts; Drive recovery
 is separate. A failed read is unavailable with retry, never a fabricated zero.
 

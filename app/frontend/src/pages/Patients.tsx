@@ -16,7 +16,7 @@ const SORTS = [
   'last_evolution_desc',
 ];
 const control =
-  'min-h-11 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+  'min-h-11 min-w-0 rounded-lg border border-border hover:border-muted bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
 
 export function Patients() {
   const navigate = useNavigate();
@@ -124,7 +124,7 @@ export function Patients() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 maxLength={200}
-                placeholder="Buscar por nombre, teléfono o RUT..."
+                placeholder="Buscar paciente…"
                 aria-describedby="patient-search-help"
                 className={`${control} w-full pl-10 pr-11`}
               />

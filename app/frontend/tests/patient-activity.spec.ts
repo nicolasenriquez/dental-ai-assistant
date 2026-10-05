@@ -43,7 +43,7 @@ test('slice7 persisted activity pages, filters, errors and exact deep links', as
   const out = path.resolve('../../.playwright-cli'); fs.mkdirSync(out, { recursive: true });
   for (const width of [1440, 1024, 375, 320]) {
     await page.setViewportSize({ width, height: width === 1440 ? 900 : 768 });
-    await page.getByRole('heading', { name: 'Actividad persistida' }).scrollIntoViewIfNeeded();
+    await page.getByRole('heading', { name: 'Actividad del paciente' }).scrollIntoViewIfNeeded();
     await page.waitForTimeout(400);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width < 768) {

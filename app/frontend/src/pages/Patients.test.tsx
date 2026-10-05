@@ -276,7 +276,7 @@ describe('Patients birth-date dialog', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: '+ Nuevo paciente' }));
     fireEvent.change(screen.getByLabelText('Nombres'), { target: { value: 'Ana' } });
-    fireEvent.change(screen.getByPlaceholderText('Buscar por nombre, teléfono o RUT...'), {
+    fireEvent.change(screen.getByLabelText('Buscar por nombre, teléfono o RUT'), {
       target: { value: 'ana' },
     });
 
@@ -451,7 +451,7 @@ describe('Patients birth-date dialog', () => {
     );
 
     expect(await screen.findByRole('link', { name: /Ana Perez/ })).toBeVisible();
-    const search = screen.getByPlaceholderText('Buscar por nombre, teléfono o RUT...');
+    const search = screen.getByLabelText('Buscar por nombre, teléfono o RUT');
     fireEvent.change(search, { target: { value: 'inexistente' } });
 
     expect(await screen.findByText('No encontramos pacientes para «inexistente»')).toBeVisible();

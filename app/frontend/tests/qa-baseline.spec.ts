@@ -941,6 +941,45 @@ test.afterEach(async ({ page }, testInfo) => {
   expect(diagnostics.unexpectedApiRequests).toEqual([]);
 });
 
+test('patient polish keeps mobile navigation clear and header actions aligned', async ({ page }) => {
+  await installQaRoutes(page);
+  await page.route('**/api/clinical-pending-work?**', (route) =>
+    route.fulfill(json({ items: [], total: 0, next_cursor: null })),
+  );
+  await page.goto(`/patients/${patientId}`);
+  await expect(page.getByRole('heading', { name: 'Ana Pérez', exact: true })).toBeVisible();
+  await expect(page.getByText('Exportaciones Drive fallidas', { exact: true })).toBeVisible();
+  for (const width of [320, 375, 390, 1440]) {
+    await page.setViewportSize({ width, height: 600 });
+    await assertNoHorizontalOverflow(page);
+    const actions = page.locator('.patient-header-actions');
+    for (const action of await actions.locator('button, a').all()) {
+      expect((await action.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+    if (width >= 768) continue;
+    const main = page.locator('#main-content > main');
+    const navigation = page.getByRole('button', { name: 'Abrir navegación', exact: true });
+    await main.evaluate((element) => { element.scrollTop = 36; });
+    const mainBox = (await main.boundingBox())!;
+    const navigationBox = (await navigation.boundingBox())!;
+    expect(mainBox.y).toBeGreaterThanOrEqual(navigationBox.y + navigationBox.height);
+    const primary = (await actions.getByRole('link', { name: /Nueva evolución/ }).boundingBox())!;
+    const edit = (await actions.getByRole('button', { name: 'Editar paciente' }).boundingBox())!;
+    const assistant = (await actions.getByRole('button', { name: 'Asistente', exact: true }).boundingBox())!;
+    expect(edit.y).toBeCloseTo(assistant.y, 0);
+    expect(primary.y + primary.height).toBeLessThanOrEqual(edit.y);
+    expect(primary.width).toBeGreaterThan(edit.width);
+    const tabs = page.getByRole('tablist', { name: 'Secciones del paciente' });
+    const summary = (await tabs.getByRole('tab', { name: 'Resumen', exact: true }).boundingBox())!;
+    const info = (await tabs.getByRole('tab', { name: 'Información', exact: true }).boundingBox())!;
+    const activity = (await tabs.getByRole('tab', { name: 'Actividad', exact: true }).boundingBox())!;
+    expect(summary.y).toBeCloseTo(info.y, 0);
+    expect(summary.width).toBeCloseTo(info.width, 0);
+    expect(activity.y).toBeGreaterThan(summary.y);
+    await main.evaluate((element) => { element.scrollTop = 0; });
+  }
+});
+
 test('public auth and not-found views expose their controls and outcomes', async ({ page }) => {
   await installQaRoutes(page, { authenticated: false });
   await page.goto('/login');
@@ -1002,7 +1041,7 @@ test('patients, patient detail, and new evolution preserve dialog contracts', as
   await expect(page.getByRole('link', { name: /Ana Pérez/ })).toBeVisible();
   await captureView(page, 'qa-patients');
 
-  await page.getByPlaceholder('Buscar por nombre o RUT...').fill('sin resultado');
+  await page.getByRole('textbox', { name: 'Buscar por nombre, teléfono o RUT' }).fill('sin resultado');
   await expect(page.getByText(/No encontramos pacientes/)).toBeVisible();
   await page.getByRole('button', { name: 'Limpiar búsqueda' }).click();
   await expect(page.getByRole('link', { name: /Ana Pérez/ })).toBeVisible();

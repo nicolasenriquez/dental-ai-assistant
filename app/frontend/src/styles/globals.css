@@ -1033,6 +1033,34 @@ body,
   margin-top: 32px;
 }
 
+.patient-header-actions > :is(a, button) {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+@media (hover: hover) {
+  .patient-header-actions > .clinical-secondary-button:hover:not(:disabled) {
+    background: var(--surface-2);
+    color: var(--text-primary);
+  }
+}
+
+@container (max-width: 480px) {
+  .patient-header-actions,
+  .patient-section-tabs,
+  .patient-activity-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .patient-header-actions > .btn-primary {
+    grid-column: 1 / -1;
+  }
+}
+
 @container (max-width: 700px) {
   .patient-page-header {
     align-items: stretch;
@@ -5032,8 +5060,12 @@ body,
     background: rgba(0, 0, 0, 0.62);
   }
 
-  .patient-shell > main {
-    padding-top: 4.5rem;
+  .patient-shell:not(.workspace-mode) {
+    padding-top: 72px;
+  }
+
+  .patient-shell:not(.workspace-mode) > main {
+    padding-top: 24px;
   }
 
   .workspace-mode > main {
