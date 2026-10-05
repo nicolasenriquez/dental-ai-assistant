@@ -130,7 +130,7 @@ export function DriveDocumentWorkspace({
               disabled={!patient}
               onClick={() => onInsert(selection)}
             >
-              Incorporar al borrador
+              Adjuntar selección al mensaje
             </button>
           )}
           <button
@@ -139,7 +139,7 @@ export function DriveDocumentWorkspace({
             disabled={!patient}
             onClick={() => onInsert(content)}
           >
-            Incorporar nota completa al borrador
+            Adjuntar documento al mensaje
           </button>
           {!patient && !selection.trim() && (
             <p className="drive-insert-prerequisite">

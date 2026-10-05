@@ -758,11 +758,12 @@ export function DriveWorkspace({
         sourceName: sourceName.replace(/\s+/g, ' ').trim() || 'Nota de Drive',
         content: text,
       });
-      setInsertionFeedback('Incorporado al borrador');
+      setInsertionFeedback('Adjunto al próximo mensaje');
       setErrorMessage(null);
+      if (isSheet) onClose?.();
     } catch {
       setInsertionFeedback(null);
-      setErrorMessage('No se pudo añadir el contenido al borrador.');
+      setErrorMessage('No se pudo adjuntar el contenido al mensaje.');
     }
   };
 

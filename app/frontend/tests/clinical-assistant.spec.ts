@@ -533,7 +533,16 @@ for (const viewport of [
     await editor.click();
     await page.keyboard.press('ControlOrMeta+A');
     await expect(page.getByText('2 palabras seleccionadas')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Incorporar al borrador' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Adjuntar selección al mensaje' })).toBeVisible();
+    const clippedActions = await page.locator('.drive-doc-actions > .drive-btn').evaluateAll((buttons) =>
+      buttons.flatMap((button) => {
+        const bounds = button.getBoundingClientRect();
+        const panel = button.closest('.drive-document-workspace')?.getBoundingClientRect();
+        if (!panel || bounds.right <= panel.right + 1) return [];
+        return [{ text: button.textContent, right: bounds.right, panelRight: panel.right, flex: getComputedStyle(button).flex, direction: getComputedStyle(button.parentElement as HTMLElement).flexDirection }];
+      }),
+    );
+    expect(clippedActions).toEqual([]);
     await expectNoHorizontalOverflow(page);
     if (viewport.width > 1024) {
       const main = await page.locator('.workspace-panel-main').boundingBox();
@@ -548,13 +557,21 @@ for (const viewport of [
       });
     }
 
-    if (viewport.name === 'desktop') {
-      await page.getByRole('button', { name: 'Incorporar al borrador' }).click();
-      await expect(page.getByRole('status', { name: 'Incorporado al borrador' })).toBeVisible();
+    if (viewport.name === 'desktop' || viewport.name === 'mobile') {
+      await page.getByRole('button', { name: 'Adjuntar selección al mensaje' }).click();
+      if (viewport.name === 'desktop') {
+        await expect(page.getByRole('status', { name: 'Adjunto al próximo mensaje' })).toBeVisible();
+      } else {
+        await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toBeFocused();
+      }
       await expect(page.getByRole('group', { name: 'Documentos adjuntos' })).toContainText(
         'Nota remota.txt · Google Drive',
       );
       await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue('');
+      if (viewport.name === 'mobile') {
+        await driveUtility.click();
+        await expect(editor).toHaveValue('Contenido remoto.');
+      }
     }
     if (viewport.width < 1024) {
       await page.keyboard.press('Escape');
@@ -802,7 +819,7 @@ test('keeps the assistant header and sidebar consistent across viewport boundari
   page,
 }) => {
   await setupClinicalHarness(page, thread());
-  const title = page.locator('.workspace-header__copy strong');
+  const title = page.locator('.workspace-header__copy h1');
   const context = page.locator('.workspace-header__context');
   const actions = page.locator('.workspace-header__actions');
   for (const width of [1440, 1024, 900, 768, 767, 390]) {
@@ -826,6 +843,43 @@ test('keeps the assistant header and sidebar consistent across viewport boundari
     }
     await expectNoHorizontalOverflow(page);
   }
+});
+
+test('resumes exact review with usable narrow headers and a scrollable confirmation', async ({ page }) => {
+  const pending = approval({
+    status: 'pending',
+    proposal_payload: { ...(approval().proposal_payload as Record<string, unknown>), final_text: 'Contenido revisado. '.repeat(600) },
+  });
+  await setupClinicalHarness(page, thread([pending], {
+    artifacts: [hydratedArtifact({ status: 'pending' })],
+    pending_action: pending, pending_action_patient: patient,
+  }));
+  await page.goto(`/a/${threadId}#approval=${actionId}`);
+  const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
+  await expect(artifact).toBeFocused();
+  for (const width of [320, 375, 834, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectNoHorizontalOverflow(page);
+    const collision = await page.locator('.workspace-header a, .workspace-header button, .hamburger-btn').evaluateAll((elements) => {
+      const rects = elements.map((element) => element.getBoundingClientRect()).filter((rect) => rect.width > 0 && rect.height > 0);
+      return rects.some((left, index) => rects.slice(index + 1).some((right) =>
+        Math.min(left.right, right.right) > Math.max(left.left, right.left) &&
+        Math.min(left.bottom, right.bottom) > Math.max(left.top, right.top)));
+    });
+    expect(collision).toBe(false);
+    if (width <= 375) {
+      expect((await artifact.locator('.clinical-evolution-approval-prompt').boundingBox())?.height).toBeLessThan(240);
+    }
+  }
+  await page.setViewportSize({ width: 375, height: 740 });
+  await artifact.getByRole('button', { name: 'Revisar y guardar' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Guardar evolución' });
+  await expect(dialog.getByRole('region', { name: 'Contenido de la evolución a guardar' })).toContainText('Contenido revisado.');
+  expect(await dialog.locator('.clinical-approval-dialog__body').evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await expect(dialog.getByRole('button', { name: 'Guardar evolución' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(artifact).toHaveAttribute('data-clinical-stage', 'review');
 });
 
 function sseEvent(
@@ -1295,16 +1349,16 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   }, `/a/${threadId}`);
   await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(2);
   await expect(page.locator('[data-clinical-stage="saved"]')).toHaveCount(1);
-  await expect(page.getByText('Guardado pendiente')).toBeVisible();
+  await expect(page.getByText('Revisión pendiente')).toBeVisible();
 
   await page.reload();
   await expect(page.locator('[aria-label="Evolución clínica"]')).toHaveCount(2);
   await expect(page.locator('[data-clinical-stage="saved"]')).toHaveCount(1);
-  await expect(page.getByText('Guardado pendiente')).toBeVisible();
+  await expect(page.getByText('Revisión pendiente')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await settleClinicalItem(page, page.getByText('Guardado pendiente'));
+  await settleClinicalItem(page, page.getByText('Revisión pendiente'));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -1388,10 +1442,10 @@ test('clinical review exposes primary confirmation and secondary editing actions
   await setupClinicalHarness(page, state);
   const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
   await expect(artifact).toHaveAttribute('data-clinical-stage', 'review');
-  await expect(artifact.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
-  await expect(artifact.getByRole('button', { name: 'Seguir editando' })).toBeVisible();
+  await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
+  await expect(artifact.getByRole('button', { name: 'Volver a editar' })).toBeVisible();
   await expect(artifact.getByRole('button', { name: 'Copiar' })).toBeVisible();
-  await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toHaveCount(0);
+  await expect(artifact.getByRole('button', { name: 'Confirmar guardado' })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await expect(page).toHaveScreenshot('assistant-review-desktop.png', {
     animations: 'disabled',

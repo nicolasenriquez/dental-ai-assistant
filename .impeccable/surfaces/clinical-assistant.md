@@ -13,6 +13,9 @@ Collapsed desktop navigation retains the shared 56px global rail.
 
 Pending Work separates clinical drafts/review from Drive synchronization, displays
 the update date and time, and links failed exports to the exact saved evolution.
+Rows may show a 160-character excerpt of persisted content, redacted before truncation;
+this is a read-only projection, not an AI-generated summary. Continue/review links retain
+the thread route and carry the artifact/action ID in the fragment for exact focus.
 Grouping applies to loaded items and preserves pagination and explicit retry.
 The sidebar visibly distinguishes the selected Conversations/Pending view.
 Explicit retry links retain earlier attempts while showing the note once and
@@ -53,7 +56,15 @@ use explicit text and existing progress indicators without moving clinical text.
 Full and contextual views consume one attached runtime. Per-thread unsent notes,
 queue and attachments are memory only. Logout clears them; hard reload restores
 only server-persisted clinical work. Return to running detached work reconciles GET.
+Unsent memory registers a native unload guard; confirming reload still loses it.
+Queue entries are claimed before dispatch and rejected delivery requires explicit retry.
+Send acceptance is independent of generation success or detaching the SSE subscriber.
 
 Read results dispatch by `result_kind`; fallback never prints internal payloads.
 Terminology is general evidence, not patient findings. Approval names patient,
 reviewed content and effect; clinical save stays separate from Drive synchronization.
+The existing approval dialog shows the prepared final text, masked RUT and draft review
+observations. New and resumed artifacts use the same review action. Narrow headers
+separate navigation from utilities; the resumed prompt has no growing vertical basis.
+Drive patient selection returns to the requested section. Attaching content names the
+next message; mobile returns to the composer without discarding the document buffer.

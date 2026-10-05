@@ -23,7 +23,7 @@
 - main:
   - link "‹ Volver a ficha":
     - /url: /patients/22222222-2222-4222-8222-222222222222
-  - strong: Ana Pérez · Control
+  - heading "Ana Pérez · Control" [level=1]
   - button "Cambiar paciente activo":
     - strong: Ana Pérez
     - text: /\d+\.\d+\.•••-6/

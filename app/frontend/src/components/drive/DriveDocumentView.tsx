@@ -149,7 +149,7 @@ export function DriveDocumentView({
                 disabled={!canTransfer}
                 onClick={() => onInsert(selectedText)}
               >
-                Incorporar al borrador
+                Adjuntar selección al mensaje
               </button>
             )}
             <button
@@ -158,7 +158,7 @@ export function DriveDocumentView({
               disabled={!canTransfer}
               onClick={() => onInsert(doc.content)}
             >
-              Incorporar nota completa al borrador
+              Adjuntar documento al mensaje
             </button>
           </>
         )}

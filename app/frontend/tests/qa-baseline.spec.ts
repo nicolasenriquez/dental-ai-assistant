@@ -1316,7 +1316,7 @@ test('clinical assistant exposes the review lifecycle and Drive surface', async 
   await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeHidden();
 
   await page.goto(`/a/${threadId}`);
-  const approvalOpener = page.getByRole('button', { name: 'Confirmar guardado' });
+  const approvalOpener = page.getByRole('button', { name: 'Revisar y guardar' });
   await approvalOpener.click();
   await auditDialog(page, 'Guardar evolución');
   await page.keyboard.press('Escape');

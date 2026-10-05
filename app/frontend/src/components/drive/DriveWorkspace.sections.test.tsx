@@ -407,7 +407,7 @@ describe('Drive-to-composer insertion', () => {
     renderWorkspace('p1', insert);
 
     await openNote();
-    fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar documento al mensaje' }));
 
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -417,7 +417,7 @@ describe('Drive-to-composer insertion', () => {
         content: source.content,
       }),
     );
-    expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Adjunto al próximo mensaje' })).toBeInTheDocument();
     expect(api.createDriveFile).not.toHaveBeenCalled();
     expect(api.updateDriveFile).not.toHaveBeenCalled();
     expect(api.importDriveCopy).not.toHaveBeenCalled();
@@ -430,7 +430,7 @@ describe('Drive-to-composer insertion', () => {
     const editor = (await openNote()) as HTMLTextAreaElement;
     editor.setSelectionRange(0, 4);
     fireEvent.select(editor);
-    fireEvent.click(screen.getByRole('button', { name: 'Incorporar al borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar selección al mensaje' }));
 
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -441,9 +441,9 @@ describe('Drive-to-composer insertion', () => {
       }),
     );
     expect(
-      screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }),
+      screen.getByRole('button', { name: 'Adjuntar documento al mensaje' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Adjunto al próximo mensaje' })).toBeInTheDocument();
   });
 
   it('requires a patient and leaves note state unchanged', async () => {
@@ -454,8 +454,8 @@ describe('Drive-to-composer insertion', () => {
     editor.setSelectionRange(0, 4);
     fireEvent.select(editor);
 
-    const complete = screen.getByRole('button', { name: 'Incorporar nota completa al borrador' });
-    const selection = screen.getByRole('button', { name: 'Incorporar al borrador' });
+    const complete = screen.getByRole('button', { name: 'Adjuntar documento al mensaje' });
+    const selection = screen.getByRole('button', { name: 'Adjuntar selección al mensaje' });
     expect(complete).toBeDisabled();
     expect(selection).toBeDisabled();
     expect(screen.getByText('Selecciona un paciente antes de usar este fragmento.')).toBeVisible();
@@ -471,12 +471,12 @@ describe('Drive-to-composer insertion', () => {
     renderWorkspace('p1', insert);
 
     const editor = await openNote();
-    fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar documento al mensaje' }));
 
     expect(editor).toHaveValue(source.content);
-    expect(screen.getByText('No se pudo añadir el contenido al borrador.')).toBeVisible();
+    expect(screen.getByText('No se pudo adjuntar el contenido al mensaje.')).toBeVisible();
     expect(
-      screen.queryByRole('status', { name: 'Incorporado al borrador' }),
+      screen.queryByRole('status', { name: 'Adjunto al próximo mensaje' }),
     ).not.toBeInTheDocument();
   });
 });
