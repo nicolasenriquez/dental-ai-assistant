@@ -94,6 +94,22 @@ EXAMPLE-CLAUDE.md
 .agents/skills/*
 !.agents/skills/verify-dental-assistant/
 !.agents/skills/verify-dental-assistant/**
+!.agents/skills/animate/
+!.agents/skills/animate/**
+!.agents/skills/break-ui/
+!.agents/skills/break-ui/**
+!.agents/skills/emil-design-eng/
+!.agents/skills/emil-design-eng/**
+!.agents/skills/find-animation-opportunities/
+!.agents/skills/find-animation-opportunities/**
+!.agents/skills/improve-animations/
+!.agents/skills/improve-animations/**
+!.agents/skills/mobile-native/
+!.agents/skills/mobile-native/**
+!.agents/skills/prototype/
+!.agents/skills/prototype/**
+!.agents/skills/review-animations/
+!.agents/skills/review-animations/**
 
 # Impeccable — shared config and surface briefs are tracked; machine-local
 # overrides and live sessions are not.
