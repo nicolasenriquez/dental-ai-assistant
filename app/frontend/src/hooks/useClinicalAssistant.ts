@@ -191,6 +191,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const stopInFlightRef = useRef<string | null>(null);
   const activeTurnRef = useRef<string | null>(null);
   const threadIdRef = useRef(threadId);
+  const threadEpochRef = useRef(0);
   threadIdRef.current = threadId;
   const detach = useCallback(() => {
     abortRef.current?.abort();
@@ -274,6 +275,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     });
     return () => {
       cancelled = true;
+      threadEpochRef.current += 1;
       threadIdRef.current = undefined;
       loadSeqRef.current += 1;
       // turn_runner owns execution; this only detaches the previous SSE subscriber.
@@ -767,22 +769,35 @@ export function useClinicalAssistant(threadId: string | undefined) {
 
   const prepareDraft = useCallback(
     async (item: ClinicalDraftItem): Promise<ClinicalApprovalItem | null> => {
-      if (!threadId || item.stale || busyArtifactsRef.current.has(item.id)) return null;
+      if (
+        !threadId ||
+        threadIdRef.current !== threadId ||
+        item.stale ||
+        busyArtifactsRef.current.has(item.id)
+      )
+        return null;
+      // ponytail: navigation invalidates preparation, including a return to the same thread.
+      const epoch = threadEpochRef.current;
+      const isCurrent = (): boolean =>
+        threadIdRef.current === threadId && threadEpochRef.current === epoch;
       busyArtifactsRef.current.add(item.id);
       dispatch({ type: 'setDraftBusy', itemId: item.id, busy: true });
       try {
         const syncTimer = artifactTimersRef.current[item.id];
         if (syncTimer) clearTimeout(syncTimer);
         await artifactSyncsRef.current[item.id]?.catch(() => undefined);
+        if (!isCurrent()) return null;
         await updateClinicalArtifact(threadId, item.id, {
           source_note: item.sourceNote,
           draft: item.draft,
           evolution_at: item.evolutionAt,
         });
+        if (!isCurrent()) return null;
         const action = await prepareClinicalSave(threadId, {
           turn_id: item.turnId,
           artifact_id: item.id,
         });
+        if (!isCurrent()) return null;
         const approval: ClinicalApprovalItem = {
           id: action.id,
           turnId: item.turnId,
@@ -796,13 +811,14 @@ export function useClinicalAssistant(threadId: string | undefined) {
         setRuntime('awaiting_approval');
         return approval;
       } catch (caught) {
+        if (!isCurrent()) return null;
         const code = apiErrorCode(caught) ?? 'CLINICAL_PREPARE_FAILED';
         setError(safeError(code));
         setRuntime(code === 'CLINICAL_PENDING_ACTION_EXISTS' ? 'awaiting_approval' : 'failed');
         return null;
       } finally {
         busyArtifactsRef.current.delete(item.id);
-        dispatch({ type: 'setDraftBusy', itemId: item.id, busy: false });
+        if (isCurrent()) dispatch({ type: 'setDraftBusy', itemId: item.id, busy: false });
       }
     },
     [threadId],

@@ -556,7 +556,7 @@ describe('clinical redaction and artifact ordering', () => {
 });
 
 describe('clinical export status reconciliation', () => {
-  const action: ClinicalPendingAction = {
+  const action: ClinicalPendingAction & { patient: ClinicalPatient } = {
     id: 'action-1',
     thread_id: 'thread-1',
     turn_id: 'turn-1',
@@ -571,6 +571,89 @@ describe('clinical export status reconciliation', () => {
   };
 
   beforeEach(() => vi.resetAllMocks());
+
+  it.each([false, true])('prepares in the current thread (failure: %s)', async (fails) => {
+    vi.mocked(getClinicalThread).mockResolvedValue({ ...thread(patientA), artifacts: [artifact] });
+    vi.mocked(updateClinicalArtifact).mockResolvedValue(artifact);
+    if (fails) vi.mocked(prepareClinicalSave).mockRejectedValue(new Error('offline'));
+    else vi.mocked(prepareClinicalSave).mockResolvedValue(action);
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    await act(async () => {
+      const approval = await result.current.prepareDraft(
+        result.current.items[0] as ClinicalDraftItem,
+      );
+      expect(approval?.id ?? null).toBe(fails ? null : action.id);
+    });
+    expect(result.current.runtime).toBe(fails ? 'failed' : 'awaiting_approval');
+    expect(result.current.items[0].status).toBe('completed');
+    expect(result.current.error === null).toBe(!fails);
+  });
+
+  it.each([
+    { stage: 'save', fails: false, returnToOrigin: false },
+    { stage: 'save', fails: true, returnToOrigin: false },
+    { stage: 'approval', fails: false, returnToOrigin: false },
+    { stage: 'approval', fails: true, returnToOrigin: false },
+    { stage: 'approval', fails: false, returnToOrigin: true },
+    { stage: 'approval', fails: true, returnToOrigin: true },
+  ])('discards preparation after navigation: %j', async ({ stage, fails, returnToOrigin }) => {
+    vi.mocked(getClinicalThread).mockImplementation(async (id) => ({
+      ...thread(id === 'thread-1' ? patientA : patientB),
+      id,
+      artifacts: id === 'thread-1' ? [artifact] : [],
+    }));
+    const response = deferred<null>();
+    vi.mocked(updateClinicalArtifact).mockImplementation(async () => {
+      if (stage === 'save') {
+        await response.promise;
+        if (fails) throw new Error('offline');
+      }
+      return artifact;
+    });
+    vi.mocked(prepareClinicalSave).mockImplementation(async () => {
+      await response.promise;
+      if (fails) throw new Error('offline');
+      return action;
+    });
+    const { result, rerender } = renderHook(({ id }) => useClinicalAssistant(id), {
+      initialProps: { id: 'thread-1' },
+    });
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    let preparing!: Promise<ClinicalApprovalItem | null>;
+    act(() => {
+      preparing = result.current.prepareDraft(result.current.items[0] as ClinicalDraftItem);
+    });
+    await waitFor(() =>
+      expect(
+        stage === 'save' ? updateClinicalArtifact : prepareClinicalSave,
+      ).toHaveBeenCalledOnce(),
+    );
+    rerender({ id: 'thread-2' });
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-2'));
+    if (returnToOrigin) {
+      rerender({ id: 'thread-1' });
+      await waitFor(() => expect(result.current.thread?.id).toBe('thread-1'));
+    }
+    const items = result.current.items;
+    await act(async () => {
+      response.resolve(null);
+      expect(await preparing).toBeNull();
+    });
+    expect(result.current.items).toBe(items);
+    expect(result.current.error).toBeNull();
+    expect(result.current.runtime).toBe('idle');
+    if (stage === 'save') expect(prepareClinicalSave).not.toHaveBeenCalled();
+    // The old operation must still release its lock so the draft can be prepared again.
+    if (returnToOrigin) {
+      vi.mocked(prepareClinicalSave).mockResolvedValue(action);
+      await act(async () => {
+        expect(
+          await result.current.prepareDraft(result.current.items[0] as ClinicalDraftItem),
+        ).not.toBeNull();
+      });
+    }
+  });
 
   it('refreshes approved export to synced without discarding unsaved draft edits', async () => {
     const approved: ClinicalPendingAction = {
