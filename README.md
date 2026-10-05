@@ -1,10 +1,10 @@
-# AI Tutor
+# Dental AI Assistant
 
-A production RAG chat application — ask questions about a creator's video catalog and get streaming, **cited** answers that deep-link to the exact timestamp in the source video.
+Dental AI Assistant helps clinicians manage patients, prepare dental evolutions with AI, and review every proposed change before saving it.
 
 This repository is the **running project for the Dynamous Agentic Engineering Course**. Across the course you onboard onto this codebase, plan an epic against it, and ship real features using the PIV loop (Plan → Implement → Validate). It is a genuine production application deployed at `chat.dynamous.ai` — real features, real bugs, real architectural decisions — not a toy demo.
 
-> The application is internally named **DynaChat** (you'll see `dynachat` in config and deploy files). Throughout the course it is referred to as **the AI Tutor**. Same application.
+> The repository began as the AI Tutor / DynaChat course project. Those names remain in deployment identifiers and the secondary RAG chat, while the primary product is Dental AI Assistant.
 
 ![Main chat interface](app/screenshots/screenshot-main.png)
 
@@ -12,10 +12,17 @@ This repository is the **running project for the Dynamous Agentic Engineering Co
 
 ## What it does
 
-1. **Ingest** — content sources are chunked with Docling's `HybridChunker` and embedded via OpenRouter. Two ingestion paths exist today: YouTube transcripts (fetched via Supadata) and paid Dynamous course transcripts (parsed from markdown).
-2. **Sync** — `POST /api/channels/sync` enumerates and ingests new videos from a YouTube channel automatically.
-3. **Retrieve** — user queries run through **Reciprocal Rank Fusion (RRF)**: Postgres `tsvector` full-text search combined with `pgvector` cosine similarity, top-5 chunks.
-4. **Generate** — retrieved chunks are passed to Claude (via OpenRouter), which streams a cited response over Server-Sent Events. Every citation carries the video title, link, exact-timestamp deep-link, and the quoted transcript snippet.
+1. **Clinical Assistant.** Clinicians can ask general questions, consult a selected patient's recent history, and create or revise evolution drafts in chat. Every save still requires explicit approval.
+2. **Patient workspace.** Private name/phone/RUT search, filter/sort and exact ficha links lead to Resumen, Información, Clínica and Actividad. Optional contact, manual notes with history, permanent/primary odontogram and approved evolution links stay owner-scoped. Notes and diagnoses require explicit Guardar; evolutions keep their human-approval flow. Activity reads saved events and revisions, with exact resource links and truthful metadata.
+3. **Voice dictation** — short-lived audio is transcribed by the Whisper sidecar and returned as editable text. Audio is not persisted.
+4. **RAG chat** — the secondary library chat ingests YouTube and Dynamous transcripts, retrieves with hybrid RRF search, and streams cited answers.
+
+Clinical terminology grounding and its catalog release hold are documented in
+[clinical grounding operations](docs/clinical-grounding.md).
+The [patient API reference](docs/API.md#patient-clinical-workspace) documents manual
+save/revision contracts, bounded Activity reads and retry/conflict handling. The
+existing dark sidebar keeps Pacientes, Asistente and Chat directly selectable in
+its compact desktop rail. Search text and clinical drafts are memory only.
 
 ---
 
@@ -38,9 +45,9 @@ This repository is the **running project for the Dynamous Agentic Engineering Co
                                             │  (RRF hybrid: tsvector   │
                                             │   + pgvector cosine)     │
                                             │            │            │
-                                            │           LLM           │
-                                            │    (Claude via          │
-                                            │     OpenRouter)         │
+                                             │           LLM           │
+                                             │  (GPT-6 Luna via       │
+                                             │     OpenRouter)         │
                                             └─────────────────────────┘
 ```
 
@@ -48,7 +55,7 @@ This repository is the **running project for the Dynamous Agentic Engineering Co
 - **Backend:** Python + FastAPI, single process handling API + RAG + LLM
 - **Database:** Postgres via `asyncpg`, with `pgvector` for hybrid retrieval; schema managed by Alembic migrations
 - **Auth:** Google OAuth + email/password sign-in, JWT session cookies
-- **LLM:** Claude Sonnet via OpenRouter, SSE streaming
+- **LLM:** GPT-6 Luna via OpenRouter, SSE streaming
 - **Embeddings:** `text-embedding-3-small` via OpenRouter (1536-dim)
 - **Chunking:** Docling `HybridChunker` (512-token target)
 - **Retrieval:** RRF hybrid (tsvector keyword + pgvector cosine), top-5 chunks
@@ -59,6 +66,45 @@ For full code conventions, repo layout, and the rules AI coding agents should fo
 
 ## Quick Start
 
+### Docker + just (default)
+
+Starts PostgreSQL and `app-blue`, serving the built frontend and FastAPI at
+`http://localhost:8000`. Does not start Caddy or `app-green`.
+
+Prerequisites:
+
+- [Docker Desktop](https://docs.docker.com/desktop/)
+- [`just`](https://just.systems/man/en/)
+- An [OpenRouter](https://openrouter.ai) API key
+
+Create the root environment file and fill in the required values:
+
+```powershell
+Copy-Item deploy\.env.example .env
+```
+
+Start local services from repository root:
+
+```bash
+just dev-up-build
+```
+
+Subsequent starts can use `just dev-up`. Stop containers with `just dev-down`.
+Logs with `just dev-logs`. The app runs Alembic migrations automatically on
+startup, so a fresh Postgres database is brought up to schema on first run.
+
+### Local Google Sign-In
+
+Set `AUTH_MODE=google` and provide `GOOGLE_CLIENT_ID` in `.env`. In Google Cloud
+Console, configure the Web OAuth client with exact authorized JavaScript origins
+for the URL you open: `http://localhost:5173` for Vite and
+`http://localhost:8000` for the Docker-served app. `localhost` and `127.0.0.1`
+are different origins; add the latter explicitly if you use it. Do not add
+paths, trailing slashes, wildcards, or unused origins.
+
+<details>
+<summary>Host fallback (only when Docker unavailable)</summary>
+
 ### Prerequisites
 
 - Python 3.11+ and [`uv`](https://docs.astral.sh/uv/)
@@ -66,18 +112,27 @@ For full code conventions, repo layout, and the rules AI coding agents should fo
 - A Postgres database with the `pgvector` extension (the simplest local option is the `postgres` service in [`deploy/docker-compose.yml`](deploy/docker-compose.yml))
 - An [OpenRouter](https://openrouter.ai) API key
 
-### Setup
+### Native setup
 
 1. Create a `.env` file in the project root. At minimum:
 
    ```
    OPENROUTER_API_KEY=sk-or-...
    DATABASE_URL=postgresql://dynachat:<password>@127.0.0.1:5433/dynachat
+   APP_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
    ```
 
    See [`deploy/.env.example`](deploy/.env.example) for the full list of variables (`SUPADATA_API_KEY`, `JWT_SECRET`, `ADMIN_USER_EMAIL`, ...).
 
-2. Start everything (creates the Python venv via `uv`, installs frontend deps, runs both dev servers):
+   `APP_ORIGINS` is required for clinical recovery, Google sign-in, and Drive
+   mutations, including when `AUTH_MODE=local`. If reusing a Docker `.env`,
+   append these Vite origins to its existing `APP_ORIGINS` value. Use exact
+   origins without trailing slashes; add other ports only when used. Keep
+   browser API calls on Vite's `/api` proxy. Restart the backend after changes.
+   Exported environment variables override `.env`; the backend loads the
+   nearest `.env` from `app/backend/` upward.
+
+2. Start native FastAPI and Vite servers:
 
    ```bash
    cd app && ./start.sh        # macOS / Linux
@@ -97,7 +152,10 @@ uv --project backend run uvicorn backend.main:app --reload --port 8000
 cd app/frontend && bun install && bun run dev
 ```
 
-The app runs Alembic migrations automatically on startup, so a fresh Postgres database is brought up to schema on first run.
+Use `just dev-up` to start local PostgreSQL and `app-blue`. Use `just dev-down`
+to stop Compose services without deleting database data.
+
+</details>
 
 ---
 

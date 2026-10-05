@@ -1,0 +1,137 @@
+{
+  "elements": [
+    {
+      "box": {
+        "height": 27.98295211791992,
+        "width": 27.98295211791992
+      },
+      "font": "12px",
+      "icons": [
+        "iconify i-lucide:arrow-left shrink-0 size-4"
+      ],
+      "label": "Back",
+      "text": "",
+      "weight": "500"
+    },
+    {
+      "box": {
+        "height": 27.490528106689453,
+        "width": 239.6117248535156
+      },
+      "font": "22px",
+      "icons": [],
+      "label": null,
+      "text": "Javier Sánchez Muñoz",
+      "weight": "700"
+    },
+    {
+      "box": {
+        "height": 27.98295211791992,
+        "width": 63.759464263916016
+      },
+      "font": "12px",
+      "icons": [
+        "iconify i-lucide:pencil shrink-0 size-4"
+      ],
+      "label": "Edit patient",
+      "text": "Edit",
+      "weight": "500"
+    },
+    {
+      "box": {
+        "height": 27.98295211791992,
+        "width": 107.35794830322266
+      },
+      "font": "12px",
+      "icons": [
+        "iconify i-lucide:plus shrink-0 size-4",
+        "iconify i-lucide:chevron-down shrink-0 size-4"
+      ],
+      "label": null,
+      "text": "Actions",
+      "weight": "500"
+    },
+    {
+      "box": {
+        "height": 31.98863410949707,
+        "width": 175.5018768310547
+      },
+      "font": "14px",
+      "icons": [
+        "iconify i-lucide:layout-dashboard shrink-0 size-5"
+      ],
+      "label": null,
+      "text": "Summary",
+      "weight": "500"
+    },
+    {
+      "box": {
+        "height": 31.98863410949707,
+        "width": 137.16854858398438
+      },
+      "font": "14px",
+      "icons": [
+        "iconify i-lucide:user shrink-0 size-5"
+      ],
+      "label": null,
+      "text": "Info",
+      "weight": "500"
+    },
+    {
+      "box": {
+        "height": 31.98863410949707,
+        "width": 160.49241638183594
+      },
+      "font": "14px",
+      "icons": [
+        "iconify i-lucide:stethoscope shrink-0 size-5"
+      ],
+      "label": null,
+      "text": "Clinical",
+      "weight": "500"
+    },
+    {
+      "box": {
+        "height": 31.98863410949707,
+        "width": 208.6931610107422
+      },
+      "font": "14px",
+      "icons": [
+        "iconify i-lucide:briefcase shrink-0 size-5"
+      ],
+      "label": null,
+      "text": "Administration",
+      "weight": "500"
+    },
+    {
+      "box": {
+        "height": 31.98863410949707,
+        "width": 158.91098022460938
+      },
+      "font": "14px",
+      "icons": [
+        "iconify i-lucide:images shrink-0 size-5"
+      ],
+      "label": null,
+      "text": "Gallery",
+      "weight": "500"
+    },
+    {
+      "box": {
+        "height": 31.98863410949707,
+        "width": 162.3958282470703
+      },
+      "font": "14px",
+      "icons": [
+        "iconify i-lucide:history shrink-0 size-5"
+      ],
+      "label": null,
+      "text": "Activity",
+      "weight": "500"
+    }
+  ],
+  "viewport": [
+    1309,
+    818
+  ]
+}

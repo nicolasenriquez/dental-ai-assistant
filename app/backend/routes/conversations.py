@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 class ConversationCreate(BaseModel):
-    title: str = "New Conversation"
+    title: str = repository.DEFAULT_CONVERSATION_TITLE
 
 
 class ConversationRename(BaseModel):
@@ -35,12 +35,18 @@ async def create_conversation(
     body: ConversationCreate | None = None,
     current_user: dict[str, Any] = Depends(get_current_user),
 ):
-    """Create a new empty conversation. Body is optional; defaults to title='New Conversation'."""
-    title = body.title if body else "New Conversation"
+    """Create a new empty conversation using Spanish default title."""
+    title = body.title if body else repository.DEFAULT_CONVERSATION_TITLE
     return await repository.create_conversation(
         user_id=str(current_user["id"]),
         title=title,
     )
+
+
+@router.post("/conversations/acquire")
+async def acquire_conversation(current_user: dict[str, Any] = Depends(get_current_user)):
+    conversation, reused = await repository.acquire_conversation(user_id=str(current_user["id"]))
+    return {"conversation": conversation, "reused": reused}
 
 
 @router.get("/conversations/search")

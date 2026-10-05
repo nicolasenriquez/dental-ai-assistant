@@ -12,10 +12,12 @@
  * This test verifies the wiring in ChatArea works correctly.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatArea } from '../components/ChatArea';
+import { ToastContext } from '../hooks/useToast';
 import * as api from '../lib/api';
 
 // Mock useNavigate
@@ -28,58 +30,6 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-// Mock the hooks that ChatArea depends on
-vi.mock('../hooks/useMessages', () => ({
-  useMessages: () => ({
-    messages: [],
-    setMessages: vi.fn(),
-    loading: false,
-    error: null,
-    conversation: null,
-  }),
-}));
-
-vi.mock('../hooks/useStreamingResponse', () => ({
-  useStreamingResponse: () => ({
-    streamingContent: '',
-    streamingSources: [],
-    isStreaming: false,
-    startStream: vi.fn().mockImplementation(async (conversationId, content, onComplete) => {
-      // Actually call the real fetch logic to properly test error handling
-      const res = await fetch(`/api/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      if (!res.body) throw new Error('No response body');
-
-      // Simulate successful SSE completion
-      onComplete({ fullText: 'Test response', sources: [] });
-    }),
-    abortStream: vi.fn(),
-  }),
-}));
-
-vi.mock('../hooks/useToast', () => ({
-  useToast: () => ({
-    addToast: addToastRef.current,
-    removeToast: vi.fn(),
-  }),
-}));
-
-vi.mock('../hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: { id: 'test-user', email: 'test@test', is_admin: false },
-    refresh: vi.fn(),
-  }),
-}));
-
 // Mock scrollIntoView for jsdom
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -87,45 +37,45 @@ beforeEach(() => {
 
 // Mutable ref captured by the useToast mock factory - updated in beforeEach
 const addToastRef = { current: vi.fn() };
+const startStreamMock = vi.fn().mockResolvedValue({ fullText: 'Test response', sources: [] });
+const abortStreamMock = vi.fn();
+const getConversationMock = vi.spyOn(api, 'getConversation');
+
+function renderChat(ui: ReactElement) {
+  return render(
+    <ToastContext.Provider value={{ addToast: addToastRef.current, removeToast: vi.fn() }}>
+      {ui}
+    </ToastContext.Provider>,
+  );
+}
+
+afterEach(cleanup);
 
 describe('ChatArea refreshConversationsRef', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(api, 'getConversations').mockResolvedValue([]);
+    getConversationMock.mockResolvedValue({
+      id: 'conv-1',
+      title: 'Test conversation',
+      created_at: '',
+      updated_at: '',
+      messages: [],
+    });
     // Reset addToastRef to a fresh spy for each test
     addToastRef.current = vi.fn();
   });
-
-  /**
-   * Create a mock ReadableStream for SSE response
-   */
-  function createSSEStream(body: string): ReadableStream<Uint8Array> {
-    const encoder = new TextEncoder();
-    const data = `data: ${JSON.stringify(body)}\n\ndata: [DONE]\n\n`;
-    return new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(data));
-        controller.close();
-      },
-    });
-  }
 
   it('should call refreshConversationsRef after successful message send', async () => {
     const mockRefetch = vi.fn().mockResolvedValue(undefined);
     const refreshConversationsRef = { current: mockRefetch };
 
-    // Mock the streaming fetch response
-    const mockResponse = {
-      ok: true,
-      status: 200,
-      body: createSSEStream('Test response'),
-    };
-    vi.spyOn(global, 'fetch').mockResolvedValue(mockResponse as unknown as Response);
-
-    render(
+    renderChat(
       <MemoryRouter>
         <ChatArea
           conversationId="conv-1"
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
           refreshConversationsRef={
             refreshConversationsRef as React.MutableRefObject<(() => Promise<void>) | null>
           }
@@ -140,7 +90,7 @@ describe('ChatArea refreshConversationsRef', () => {
 
     // Type and send a message
     const input = screen.getByRole('textbox');
-    const sendButton = screen.getByRole('button', { name: /send/i });
+    const sendButton = screen.getByRole('button', { name: /enviar mensaje/i });
 
     fireEvent.change(input, { target: { value: 'Hello test message' } });
     fireEvent.click(sendButton);
@@ -154,22 +104,252 @@ describe('ChatArea refreshConversationsRef', () => {
     );
   });
 
+  it('should keep one editable follow-up while a response is streaming', async () => {
+    renderChat(
+      <MemoryRouter>
+        <ChatArea
+          conversationId="conv-1"
+          runtime={{
+            status: 'running',
+            phase: 'streaming',
+            content: 'Respuesta parcial',
+            sources: [],
+            streamingStatus: null,
+            error: null,
+            failedMessage: null,
+            canRetry: false,
+          }}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
+      </MemoryRouter>,
+    );
+
+    const input = await screen.findByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Primer follow-up' } });
+    await waitFor(() => expect(input).toHaveValue('Primer follow-up'));
+    fireEvent.click(screen.getByRole('button', { name: /poner mensaje en cola/i }));
+
+    expect(screen.getByLabelText('Mensaje en cola')).toHaveTextContent('Primer follow-up');
+    expect(screen.getAllByText('Mensaje en cola')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /editar mensaje en cola/i }));
+    expect(input).toHaveValue('Primer follow-up');
+    expect(screen.queryByLabelText('Mensaje en cola')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /poner mensaje en cola/i }));
+    fireEvent.click(screen.getByRole('button', { name: /eliminar mensaje en cola/i }));
+    expect(screen.queryByLabelText('Mensaje en cola')).not.toBeInTheDocument();
+  });
+
+  it('dispatches a queued follow-up after an off-screen stream stops', async () => {
+    let resolveFirst!: (value: null) => void;
+    const firstStream = new Promise<null>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const startStream = vi
+      .fn()
+      .mockReturnValueOnce(firstStream)
+      .mockResolvedValueOnce({ fullText: 'Queued response', sources: [] });
+    getConversationMock.mockImplementation(async (id) => ({
+      id,
+      title: `Conversation ${id}`,
+      created_at: '',
+      updated_at: '',
+      messages: [],
+    }));
+
+    const tree = (conversationId: string) => (
+      <ToastContext.Provider value={{ addToast: addToastRef.current, removeToast: vi.fn() }}>
+        <MemoryRouter>
+          <ChatArea
+            conversationId={conversationId}
+            startStream={startStream}
+            abortStream={abortStreamMock}
+          />
+        </MemoryRouter>
+      </ToastContext.Provider>
+    );
+    const view = render(tree('conv-1'));
+
+    const input = await screen.findByRole('textbox');
+    fireEvent.change(input, { target: { value: 'First message' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
+    await waitFor(() => expect(startStream).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(input, { target: { value: 'Queued message' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
+    expect(screen.getByLabelText('Mensaje en cola')).toHaveTextContent('Queued message');
+
+    view.rerender(tree('conv-2'));
+    await act(async () => {
+      resolveFirst(null);
+      await firstStream;
+    });
+
+    await waitFor(() => {
+      expect(startStream).toHaveBeenNthCalledWith(2, 'conv-1', 'Queued message');
+    });
+    expect(screen.queryByText('Queued message')).not.toBeInTheDocument();
+  });
+
+  it('does not dispatch a queued follow-up after unmount', async () => {
+    let resolveFirst!: (value: null) => void;
+    const firstStream = new Promise<null>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const startStream = vi.fn().mockReturnValueOnce(firstStream);
+    const view = renderChat(
+      <MemoryRouter>
+        <ChatArea conversationId="conv-1" startStream={startStream} abortStream={abortStreamMock} />
+      </MemoryRouter>,
+    );
+
+    const input = await screen.findByRole('textbox');
+    fireEvent.change(input, { target: { value: 'First message' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
+    await waitFor(() => expect(startStream).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(input, { target: { value: 'Queued message' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
+    view.unmount();
+    await act(async () => {
+      resolveFirst(null);
+      await firstStream;
+    });
+
+    expect(startStream).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles a completed off-screen run before clearing its runtime', async () => {
+    getConversationMock
+      .mockResolvedValueOnce({
+        id: 'conv-1',
+        title: 'Conversation',
+        created_at: '',
+        updated_at: '',
+        messages: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv-1',
+        title: 'Conversation',
+        created_at: '',
+        updated_at: '',
+        messages: [
+          {
+            id: 'persisted-assistant',
+            conversation_id: 'conv-1',
+            role: 'assistant',
+            content: 'Respuesta terminada',
+            created_at: '',
+          },
+        ],
+      });
+    const clearRuntime = vi.fn();
+    renderChat(
+      <MemoryRouter>
+        <ChatArea
+          conversationId="conv-1"
+          runtime={{
+            status: 'running',
+            phase: 'completed',
+            content: 'Respuesta terminada',
+            sources: [],
+            streamingStatus: null,
+            error: null,
+            failedMessage: null,
+            canRetry: false,
+          }}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+          clearRuntime={clearRuntime}
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('Respuesta terminada')).toBeInTheDocument());
+    expect(getConversationMock).toHaveBeenCalledTimes(2);
+    expect(clearRuntime).toHaveBeenCalledWith('conv-1');
+  });
+
+  it('shows a retry action when loading messages fails', async () => {
+    getConversationMock.mockRejectedValueOnce(new Error('HTTP 500'));
+
+    renderChat(
+      <MemoryRouter>
+        <ChatArea
+          conversationId="conv-1"
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+  });
+
+  it('gives every loading skeleton line an explicit height', async () => {
+    getConversationMock.mockImplementationOnce(() => new Promise<never>(() => {}));
+
+    renderChat(
+      <MemoryRouter>
+        <ChatArea
+          conversationId="conv-1"
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(document.querySelectorAll('.skeleton').length).toBeGreaterThan(0));
+    for (const line of document.querySelectorAll('.skeleton')) {
+      expect(line).toHaveClass('h-4');
+    }
+  });
+
+  it('keeps completed assistant response keys unique across turns', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    startStreamMock
+      .mockResolvedValueOnce({ fullText: 'First response', sources: [] })
+      .mockResolvedValueOnce({ fullText: 'Second response', sources: [] });
+
+    renderChat(
+      <MemoryRouter>
+        <ChatArea
+          conversationId="conv-1"
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
+      </MemoryRouter>,
+    );
+
+    const input = await screen.findByRole('textbox');
+    fireEvent.change(input, { target: { value: 'First message' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
+    expect(await screen.findByText('First response')).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: 'Second message' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
+    expect(await screen.findByText('Second response')).toBeInTheDocument();
+
+    expect(consoleError.mock.calls.some(([message]) => String(message).includes('same key'))).toBe(
+      false,
+    );
+    consoleError.mockRestore();
+  });
+
   it('should NOT call refreshConversationsRef when send fails', async () => {
     const mockRefetch = vi.fn().mockResolvedValue(undefined);
     const refreshConversationsRef = { current: mockRefetch };
 
-    // Mock fetch to return an error
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-      body: null,
-    } as unknown as Response);
+    startStreamMock.mockRejectedValueOnce(new Error('HTTP 500'));
 
-    render(
+    renderChat(
       <MemoryRouter>
         <ChatArea
           conversationId="conv-1"
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
           refreshConversationsRef={
             refreshConversationsRef as React.MutableRefObject<(() => Promise<void>) | null>
           }
@@ -182,7 +362,7 @@ describe('ChatArea refreshConversationsRef', () => {
     });
 
     const input = screen.getByRole('textbox');
-    const sendButton = screen.getByRole('button', { name: /send/i });
+    const sendButton = screen.getByRole('button', { name: /enviar mensaje/i });
 
     fireEvent.change(input, { target: { value: 'Test message' } });
     fireEvent.click(sendButton);
@@ -198,58 +378,14 @@ describe('ChatArea refreshConversationsRef', () => {
     // This tests that refreshConversationsRef?.current?.() doesn't throw
     // when ref is undefined/null
 
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: createSSEStream('Response'),
-    } as unknown as Response);
-
     // No error should be thrown when refreshConversationsRef is undefined
-    render(
-      <MemoryRouter>
-        <ChatArea conversationId="conv-1" refreshConversationsRef={undefined} />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole('textbox')).toBeInTheDocument();
-    });
-
-    const input = screen.getByRole('textbox');
-    const sendButton = screen.getByRole('button', { name: /send/i });
-
-    fireEvent.change(input, { target: { value: 'Test' } });
-
-    // Should not throw even though refreshConversationsRef is undefined
-    expect(() => fireEvent.click(sendButton)).not.toThrow();
-  });
-
-  it('should defer scrollToBottom inside requestAnimationFrame when autoScrollRef is true', async () => {
-    const mockRefetch = vi.fn().mockResolvedValue(undefined);
-    const refreshConversationsRef = { current: mockRefetch };
-
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: createSSEStream('Test response'),
-    } as unknown as Response);
-
-    // Spy on requestAnimationFrame
-    let rafCallback: ((time: number) => void) | null = null;
-    const mockRaf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
-      rafCallback = cb as (time: number) => void;
-      return 1;
-    });
-
-    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
-
-    render(
+    renderChat(
       <MemoryRouter>
         <ChatArea
           conversationId="conv-1"
-          refreshConversationsRef={
-            refreshConversationsRef as React.MutableRefObject<(() => Promise<void>) | null>
-          }
+          refreshConversationsRef={undefined}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
         />
       </MemoryRouter>,
     );
@@ -258,25 +394,30 @@ describe('ChatArea refreshConversationsRef', () => {
       expect(screen.getByRole('textbox')).toBeInTheDocument();
     });
 
-    // Verify requestAnimationFrame was called
-    expect(mockRaf).toHaveBeenCalled();
+    const input = screen.getByRole('textbox');
+    const sendButton = screen.getByRole('button', { name: /enviar mensaje/i });
 
-    // Call the RAF callback to simulate the next paint cycle
-    if (rafCallback) {
-      (rafCallback as (time: number) => void)(0);
-    }
+    fireEvent.change(input, { target: { value: 'Test' } });
 
-    // Verify scrollIntoView was called AFTER RAF
-    expect(scrollSpy).toHaveBeenCalled();
+    // Should not throw even though refreshConversationsRef is undefined
+    expect(() => fireEvent.click(sendButton)).not.toThrow();
   });
 
   it('should create conversation and navigate when sending with no conversationId', async () => {
     const mockConv = { id: 'new-conv-123', title: 'New Chat', created_at: '', updated_at: '' };
-    vi.spyOn(api, 'createConversation').mockResolvedValue(mockConv as api.Conversation);
+    vi.spyOn(api, 'acquireConversation').mockResolvedValue({
+      conversation: mockConv as api.Conversation,
+      reused: false,
+    });
 
-    render(
+    renderChat(
       <MemoryRouter>
-        <ChatArea conversationId={undefined} refreshConversationsRef={undefined} />
+        <ChatArea
+          conversationId={undefined}
+          refreshConversationsRef={undefined}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
       </MemoryRouter>,
     );
 
@@ -284,35 +425,40 @@ describe('ChatArea refreshConversationsRef', () => {
 
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'Hello world' } });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
 
     await waitFor(() => {
-      expect(api.createConversation).toHaveBeenCalledTimes(1);
+      expect(api.acquireConversation).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('/c/new-conv-123');
+    expect(mockNavigate).toHaveBeenCalledWith('/c/new-conv-123', {
+      state: { pendingMessage: 'Hello world' },
+    });
   });
 
-  it('should handle createConversation error gracefully', async () => {
-    vi.spyOn(api, 'createConversation').mockRejectedValue(new Error('Server error'));
+  it('should handle acquireConversation error gracefully', async () => {
+    vi.spyOn(api, 'acquireConversation').mockRejectedValue(new Error('Server error'));
 
-    render(
+    renderChat(
       <MemoryRouter>
-        <ChatArea conversationId={undefined} />
+        <ChatArea
+          conversationId={undefined}
+          startStream={startStreamMock}
+          abortStream={abortStreamMock}
+        />
       </MemoryRouter>,
     );
 
     await waitFor(() => expect(screen.getByRole('textbox')).toBeInTheDocument());
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Test' } });
-    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }));
 
-    // Wait for the error to propagate
-    await new Promise((r) => setTimeout(r, 200));
-
-    expect(addToastRef.current).toHaveBeenCalledWith(
-      'Could not create conversation. Please try again.',
-      'error',
-    );
+    await waitFor(() => {
+      expect(addToastRef.current).toHaveBeenCalledWith(
+        'No pudimos crear la conversación. Intenta nuevamente.',
+        'error',
+      );
+    });
   });
 });

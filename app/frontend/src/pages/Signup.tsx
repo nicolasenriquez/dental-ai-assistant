@@ -19,7 +19,7 @@ export function Signup() {
     e.preventDefault();
     setFormError(null);
     if (password.length < 8) {
-      setFormError({ kind: 'error', msg: 'Password must be at least 8 characters' });
+      setFormError({ kind: 'error', msg: 'La contraseña debe tener al menos 8 caracteres' });
       return;
     }
     setSubmitting(true);
@@ -32,7 +32,7 @@ export function Signup() {
       if (err instanceof AuthError && err.status === 429 && err.rateLimitScope) {
         setFormError({ kind: 'warning', msg: err.message });
       } else {
-        const msg = err instanceof Error ? err.message : 'Signup failed';
+        const msg = err instanceof Error ? err.message : 'No se pudo crear la cuenta.';
         setFormError({ kind: 'error', msg });
       }
     } finally {
@@ -41,26 +41,23 @@ export function Signup() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--bg)] text-[var(--text-primary)] p-4 gap-8">
+    <div className="auth-page">
       <BrandingHeader />
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-lg p-6 space-y-4"
-      >
-        <h1 className="text-xl font-semibold">Create account</h1>
+      <form onSubmit={handleSubmit} aria-busy={submitting} className="auth-card space-y-4">
+        <h1 className="text-xl font-semibold">Crear cuenta</h1>
         <label className="block text-sm">
-          <span className="text-[var(--text-secondary)]">Email</span>
+          <span className="text-[var(--text-secondary)]">Correo electrónico</span>
           <input
             type="email"
             required
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full px-3 py-2 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+            className="auth-field"
           />
         </label>
         <label className="block text-sm">
-          <span className="text-[var(--text-secondary)]">Password (8+ characters)</span>
+          <span className="text-[var(--text-secondary)]">Contraseña (8+ caracteres)</span>
           <input
             type="password"
             required
@@ -68,7 +65,7 @@ export function Signup() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full px-3 py-2 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+            className="auth-field"
           />
         </label>
         {formError && formError.kind === 'error' && (
@@ -89,17 +86,13 @@ export function Signup() {
             {formError.msg}
           </div>
         )}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full py-2 rounded bg-[var(--accent)] text-white font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-        >
-          {submitting ? 'Creating account…' : 'Sign up'}
+        <button type="submit" disabled={submitting} className="auth-submit">
+          {submitting ? 'Creando cuenta…' : 'Registrarse'}
         </button>
         <div className="text-sm text-[var(--text-secondary)] text-center">
-          Already have an account?{' '}
+          ¿Ya tienes una cuenta?{' '}
           <Link to="/login" className="text-[var(--accent)] hover:underline">
-            Log in
+            Iniciar sesión
           </Link>
         </div>
       </form>

@@ -10,6 +10,7 @@ All DB access goes through repository.py — no raw SQL here.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -20,10 +21,8 @@ from backend.config import CHANNEL_SYNC_TYPE, SUPADATA_API_KEY, YOUTUBE_CHANNEL_
 from backend.db import repository as repo
 from backend.db.repository import _new_id, _now
 from backend.rag import catalog, retriever_hybrid
-from backend.rag.chunker import chunk_video_fallback, chunk_video_timestamped
-from backend.rag.embeddings import embed_batch
 from backend.services import supadata
-from backend.services.video_ingest import fetch_video_for_ingest
+from backend.services.video_ingest import fetch_video_for_ingest, prepare_video_chunks
 from backend.services.youtube_meta import get_video_title
 
 logger = logging.getLogger(__name__)
@@ -211,73 +210,15 @@ async def sync_channel(limit: int | None = None, force: bool = False) -> SyncRes
                     YOUTUBE_CHANNEL_ID,
                 )
 
-            # Ingest through chunk → embed → store pipeline.
-            # When force=True and the video already exists, reuse its row and
-            # replace its chunks in a single transaction below; otherwise create
-            # a new video record.
-            if existing is not None:
-                video_id = existing["id"]
-            else:
-                try:
-                    video_record = await repo.create_video(
-                        title=title,
-                        description=description,
-                        url=youtube_url,
-                        transcript=transcript,
-                        channel_id=YOUTUBE_CHANNEL_ID,
-                        channel_title=channel_title,
-                    )
-                except Exception as exc:
-                    logger.error(
-                        "Failed to create video record for %s: %s",
-                        youtube_video_id,
-                        exc,
-                    )
-                    videos_error += 1
-                    await repo.update_sync_video_status(
-                        video_id=sync_video_record["id"],
-                        status="error",
-                        error_message=f"Video creation failed: {exc}",
-                    )
-                    continue
-
-                video_id = video_record["id"]
-
-            # Chunk the transcript
-            if video_segments:
-                chunk_dicts, had_errors = chunk_video_timestamped(video_segments)
-                if had_errors:
-                    logger.warning(
-                        "Chunker fell back to raw text for some segments for video %s",
-                        youtube_video_id,
-                    )
-            else:
-                chunk_dicts, had_errors = chunk_video_fallback(
-                    {"title": title, "transcript": transcript}
-                )
-                if had_errors:
-                    logger.warning("Chunker returned 0 chunks for video %s", youtube_video_id)
-
-            if not chunk_dicts:
-                logger.warning(
-                    "Chunker returned 0 chunks for video %s",
-                    youtube_video_id,
-                )
-                videos_error += 1
-                await repo.update_sync_video_status(
-                    video_id=sync_video_record["id"],
-                    status="error",
-                    error_message="Chunker returned 0 chunks",
-                )
-                continue
-
-            # Embed all chunks
-            chunk_texts = [c["content"] for c in chunk_dicts]
             try:
-                embeddings = embed_batch(chunk_texts)
+                chunks = await asyncio.to_thread(
+                    prepare_video_chunks, title, transcript, video_segments
+                )
+                if not chunks:
+                    raise ValueError("Chunker returned 0 chunks")
             except Exception as exc:
                 logger.error(
-                    "Embedding batch failed for video %s: %s",
+                    "Chunk preparation failed for video %s: %s",
                     youtube_video_id,
                     exc,
                 )
@@ -285,7 +226,7 @@ async def sync_channel(limit: int | None = None, force: bool = False) -> SyncRes
                 await repo.update_sync_video_status(
                     video_id=sync_video_record["id"],
                     status="error",
-                    error_message=f"Embedding failed: {exc}",
+                    error_message=f"Chunk preparation failed: {exc}",
                 )
                 continue
 
@@ -295,33 +236,19 @@ async def sync_channel(limit: int | None = None, force: bool = False) -> SyncRes
             # can't leave the video with a half-old / half-new chunk set.
             try:
                 if existing is not None:
-                    chunks_for_replace = [
-                        {
-                            "content": chunk["content"],
-                            "embedding": embedding,
-                            "chunk_index": idx,
-                            "start_seconds": chunk["start_seconds"],
-                            "end_seconds": chunk["end_seconds"],
-                            "snippet": chunk["snippet"],
-                        }
-                        for idx, (chunk, embedding) in enumerate(
-                            zip(chunk_dicts, embeddings, strict=False)
-                        )
-                    ]
-                    await repo.replace_chunks_for_video(video_id, chunks_for_replace)
+                    video_id = existing["id"]
+                    await repo.replace_chunks_for_video(video_id, chunks)
                 else:
-                    for idx, (chunk, embedding) in enumerate(
-                        zip(chunk_dicts, embeddings, strict=False)
-                    ):
-                        await repo.create_chunk(
-                            video_id=video_id,
-                            content=chunk["content"],
-                            embedding=embedding,
-                            chunk_index=idx,
-                            start_seconds=chunk["start_seconds"],
-                            end_seconds=chunk["end_seconds"],
-                            snippet=chunk["snippet"],
-                        )
+                    video_record = await repo.create_video(
+                        title=title,
+                        description=description,
+                        url=youtube_url,
+                        transcript=transcript,
+                        channel_id=YOUTUBE_CHANNEL_ID,
+                        channel_title=channel_title,
+                        chunks=chunks,
+                    )
+                    video_id = video_record["id"]
             except Exception as exc:
                 logger.error(
                     "Failed to store chunks for video %s: %s",
@@ -346,7 +273,7 @@ async def sync_channel(limit: int | None = None, force: bool = False) -> SyncRes
                 "Re-synced" if existing is not None else "Ingested",
                 youtube_video_id,
                 title,
-                len(chunk_dicts),
+                len(chunks),
             )
     finally:
         # Invalidate retriever + catalog caches — runs even if the loop raises

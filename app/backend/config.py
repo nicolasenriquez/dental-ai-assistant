@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
@@ -24,7 +25,16 @@ def _find_and_load_env() -> None:
 
     In containerized deploys there is no .env file on disk — env vars are
     injected by docker-compose. Missing .env is therefore not an error.
+
+    Tests run under pytest and never load an ambient .env: pytest injects its
+    own pinned defaults in ``tests/conftest.py`` and sets
+    ``AI_TUTOR_DISABLE_DOTENV`` before any backend import, so a developer's
+    gitignored docker-compose .env (e.g. ``AUTH_MODE=google``) cannot leak
+    into the test process.
     """
+    if os.environ.get("AI_TUTOR_DISABLE_DOTENV") == "1":
+        logger.info("AI_TUTOR_DISABLE_DOTENV set; skipping ambient .env load")
+        return
     current = Path(__file__).resolve()
     # Try each parent directory up to the filesystem root
     for parent in current.parents:
@@ -85,7 +95,29 @@ MEMBERSHIP_REFRESH_SECONDS: int = int(os.environ.get("MEMBERSHIP_REFRESH_SECONDS
 
 OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
-CHAT_MODEL: str = "anthropic/claude-sonnet-4.6"
+CHAT_MODEL: str = "openai/gpt-6-luna"
+CLINICAL_EXTERNAL_LLM_ENABLED: bool = os.environ.get(
+    "CLINICAL_EXTERNAL_LLM_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "on")
+CLINICAL_TURN_LIMIT_PER_24H: int = int(os.environ.get("CLINICAL_TURN_LIMIT_PER_24H", "25"))
+CLINICAL_TIMEZONE: str = os.environ.get("CLINICAL_TIMEZONE", "America/Santiago").strip()
+try:
+    CLINICAL_TIMEZONE_INFO: ZoneInfo = ZoneInfo(CLINICAL_TIMEZONE)
+except (ValueError, ZoneInfoNotFoundError) as exc:
+    raise RuntimeError(
+        f"CLINICAL_TIMEZONE must be a valid IANA timezone, got {CLINICAL_TIMEZONE!r}"
+    ) from exc
+EXPORT_SYNC_STALE_AFTER_SECONDS: int = 300
+
+VOICE_TRANSCRIPTION_ENABLED: bool = os.environ.get(
+    "VOICE_TRANSCRIPTION_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "on")
+VOICE_LANGUAGE: str = os.environ.get("VOICE_LANGUAGE", "es")
+WHISPER_URL: str = os.environ.get("WHISPER_URL", "http://whisper:9000").rstrip("/")
+WHISPER_HTTP_TIMEOUT_SECONDS: int = 100
+VOICE_MAX_BYTES: int = 12 * 1024 * 1024
+VOICE_MAX_DURATION_SECONDS: int = 120
+VOICE_RATE_LIMIT_PER_HOUR: int = 20
 
 # Postgres — required for all data (chat + auth). The app fails fast without it.
 # In prod, docker-compose injects DATABASE_URL from the POSTGRES_* vars.
@@ -201,3 +233,115 @@ _cors_raw: str = os.environ.get(
     f"http://localhost:{FRONTEND_PORT},http://127.0.0.1:{FRONTEND_PORT}",
 )
 CORS_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+
+# Authentication mode — backend-owned provider selection, not only presentation.
+# `local` preserves email/password signup/login and disables Google auth;
+# `google` enables Google auth and disables local signup/login. Unknown values
+# fail startup. Google mode requires a public Google client ID.
+AUTH_MODE: str = os.environ.get("AUTH_MODE", "local").strip().lower()
+if AUTH_MODE not in ("local", "google"):
+    raise RuntimeError(f"AUTH_MODE must be 'local' or 'google', got {AUTH_MODE!r}")
+
+GOOGLE_CLIENT_ID: str = os.environ.get("GOOGLE_CLIENT_ID", "")
+if AUTH_MODE == "google" and not GOOGLE_CLIENT_ID:
+    raise RuntimeError("AUTH_MODE=google requires GOOGLE_CLIENT_ID")
+
+# Exact allowed application origins for the GIS same-origin JSON request-context
+# guard. Comma-separated; empty list fails the guard closed.
+_app_origins_raw: str = os.environ.get("APP_ORIGINS", "")
+APP_ORIGINS: list[str] = [o.strip() for o in _app_origins_raw.split(",") if o.strip()]
+
+# Google Drive workspace feature switches (Phase 2+). Default off until the
+# Drive connection boundary exists.
+GOOGLE_DRIVE_ENABLED: bool = os.environ.get("GOOGLE_DRIVE_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+GOOGLE_DRIVE_AUTO_ONBOARD: bool = os.environ.get(
+    "GOOGLE_DRIVE_AUTO_ONBOARD", "false"
+).strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
+# Google Drive connection boundary. Complete absence starts the app with
+# GOOGLE_DRIVE_CONFIGURED=False (Drive endpoints report 503); partial or
+# malformed configuration fails startup. The token keyring is an independent
+# version-to-32-byte-key mapping and is never derived from JWT_SECRET.
+GOOGLE_DRIVE_CLIENT_ID: str = os.environ.get("GOOGLE_DRIVE_CLIENT_ID", "")
+GOOGLE_DRIVE_CLIENT_SECRET: str = os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET", "")
+GOOGLE_DRIVE_OAUTH_REDIRECT_URI: str = os.environ.get("GOOGLE_DRIVE_OAUTH_REDIRECT_URI", "")
+GOOGLE_DRIVE_RETURN_URL: str = os.environ.get("GOOGLE_DRIVE_RETURN_URL", "")
+
+
+def _parse_drive_token_keyring(raw: str) -> dict[str, bytes]:
+    """Parse ``GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS`` ("1:<b64>,2:<b64>").
+
+    Each value must URL-safe-base64-decode to exactly 32 bytes. Malformed
+    entries raise RuntimeError — partial key material fails startup closed.
+    """
+    import base64
+    import binascii
+
+    keyring: dict[str, bytes] = {}
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        version, _, b64 = chunk.partition(":")
+        if not version or not b64:
+            raise RuntimeError(
+                "Malformed GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS entry: expected 'version:<b64>'"
+            )
+        try:
+            key = base64.urlsafe_b64decode(b64.encode())
+        except (binascii.Error, ValueError) as exc:
+            raise RuntimeError(
+                "GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS contains a non-base64 key"
+            ) from exc
+        if len(key) != 32:
+            raise RuntimeError(
+                "GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS keys must decode to exactly 32 bytes"
+            )
+        keyring[version] = key
+    return keyring
+
+
+_drive_raw_values = (
+    GOOGLE_DRIVE_CLIENT_ID,
+    GOOGLE_DRIVE_CLIENT_SECRET,
+    GOOGLE_DRIVE_OAUTH_REDIRECT_URI,
+    GOOGLE_DRIVE_RETURN_URL,
+)
+_drive_keyring_raw: str = os.environ.get("GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS", "")
+_drive_active_version: str = os.environ.get("GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION", "")
+
+GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS: dict[str, bytes]
+GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION: str
+GOOGLE_DRIVE_CONFIGURED: bool
+
+if any(_drive_raw_values) or _drive_keyring_raw or _drive_active_version:
+    if not all(_drive_raw_values):
+        raise RuntimeError(
+            "Incomplete Google Drive configuration: GOOGLE_DRIVE_CLIENT_ID, "
+            "GOOGLE_DRIVE_CLIENT_SECRET, GOOGLE_DRIVE_OAUTH_REDIRECT_URI, and "
+            "GOOGLE_DRIVE_RETURN_URL must all be set"
+        )
+    GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS = _parse_drive_token_keyring(_drive_keyring_raw)
+    if not GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS:
+        raise RuntimeError("GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS must contain at least one key")
+    if _drive_active_version not in GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS:
+        raise RuntimeError(
+            "GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION must reference a key in "
+            "GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS"
+        )
+    GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION = _drive_active_version
+    GOOGLE_DRIVE_CONFIGURED = True
+else:
+    GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS = {}
+    GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION = ""
+    GOOGLE_DRIVE_CONFIGURED = False

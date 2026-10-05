@@ -1,0 +1,191 @@
+import type { Dispatch, SetStateAction } from 'react';
+import type { AuthoringRepresentation } from '../../lib/driveDocument';
+import { MarkdownRenderer } from '../MarkdownRenderer';
+import { Spinner } from '../Spinner';
+import { ScrollArea } from '../ui/scroll-area';
+import { driveTypeLabel } from './drivePresentation';
+
+export interface DriveDocumentViewModel {
+  fileId: string | null;
+  boundPatientId: string | null;
+  name: string;
+  version: string | null;
+  mimeType: string;
+  content: string;
+  baseline: string | null;
+  representation: AuthoringRepresentation;
+  uncertainOperationId?: string;
+}
+
+interface DriveDocumentViewProps {
+  doc: DriveDocumentViewModel;
+  docPhase: 'opening' | 'ready';
+  mode: 'viewing' | 'editing';
+  saving: boolean;
+  saved: boolean;
+  dirty: boolean;
+  selectedText: string;
+  patientId: string | null;
+  onBack: () => void;
+  onModeChange: (mode: 'viewing' | 'editing') => void;
+  onSave: () => void;
+  onInsert?: (text: string) => void;
+  setDoc: Dispatch<SetStateAction<DriveDocumentViewModel | null>>;
+  setSelectedText: (text: string) => void;
+  onNameChange: (name: string) => void;
+}
+
+export function DriveDocumentView({
+  doc,
+  docPhase,
+  mode,
+  saving,
+  saved,
+  dirty,
+  selectedText,
+  patientId,
+  onBack,
+  onModeChange,
+  onSave,
+  onInsert,
+  setDoc,
+  setSelectedText,
+  onNameChange,
+}: DriveDocumentViewProps) {
+  const canTransfer = Boolean(patientId && doc.boundPatientId === patientId);
+  const statusLabel = saving
+    ? 'Guardando…'
+    : docPhase === 'opening'
+      ? null
+      : dirty
+        ? 'Cambios sin guardar'
+        : saved || doc.fileId !== null
+          ? 'Guardado'
+          : null;
+
+  return (
+    <section className="drive-doc" aria-label={`Documento ${doc.name}`}>
+      <header className="drive-document-header drive-doc-header">
+        <button type="button" className="drive-btn drive-btn-secondary" onClick={onBack}>
+          Volver
+        </button>
+        <div className="drive-document-title-group min-w-0 flex-1">
+          {doc.fileId === null ? (
+            <label className="drive-doc-name-input">
+              Nombre del documento
+              <input
+                type="text"
+                value={doc.name}
+                onChange={(event) => onNameChange(event.target.value)}
+              />
+            </label>
+          ) : (
+            <span className="drive-doc-name" title={doc.name}>
+              {doc.name}
+            </span>
+          )}
+          <span className="drive-document-format">{driveTypeLabel(doc.mimeType, doc.name)}</span>
+        </div>
+        <div className="drive-doc-modes" role="group" aria-label="Modo de visualización">
+          <button
+            type="button"
+            aria-pressed={mode === 'viewing'}
+            onClick={() => onModeChange('viewing')}
+          >
+            Vista previa
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === 'editing'}
+            onClick={() => onModeChange('editing')}
+          >
+            Editar
+          </button>
+        </div>
+        {statusLabel && (
+          <span
+            className="drive-document-status drive-doc-saved"
+            role="status"
+            aria-label={statusLabel}
+          >
+            {statusLabel}
+          </span>
+        )}
+      </header>
+      <ScrollArea className="drive-doc-body">
+        {docPhase === 'opening' ? (
+          <div className="drive-document-skeleton" aria-busy="true" aria-label="Abriendo documento">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : mode === 'editing' ? (
+          <textarea
+            aria-label="Contenido del documento"
+            className="drive-doc-editor"
+            value={doc.content}
+            onChange={(event) =>
+              setDoc((prev) => (prev ? { ...prev, content: event.target.value } : prev))
+            }
+            onSelect={(event) => {
+              const target = event.currentTarget;
+              setSelectedText(target.value.slice(target.selectionStart, target.selectionEnd));
+            }}
+          />
+        ) : doc.representation === 'persisted_plain_text' ? (
+          <pre className="drive-doc-pre">{doc.content}</pre>
+        ) : (
+          <MarkdownRenderer content={doc.content} />
+        )}
+      </ScrollArea>
+      <footer className="drive-doc-actions">
+        {onInsert && (
+          <>
+            {mode === 'editing' && selectedText.trim() && (
+              <button
+                type="button"
+                className="drive-btn drive-btn-secondary"
+                disabled={!canTransfer}
+                onClick={() => onInsert(selectedText)}
+              >
+                Incorporar al borrador
+              </button>
+            )}
+            <button
+              type="button"
+              className="drive-btn drive-btn-secondary"
+              disabled={!canTransfer}
+              onClick={() => onInsert(doc.content)}
+            >
+              Incorporar nota completa al borrador
+            </button>
+          </>
+        )}
+        {onInsert && !canTransfer && (
+          <p className="drive-insert-prerequisite">
+            {patientId
+              ? 'Selecciona el paciente asociado para insertar este contenido.'
+              : 'Selecciona un paciente para insertar este contenido.'}
+          </p>
+        )}
+        {mode === 'editing' && (
+          <button
+            type="button"
+            className="drive-btn drive-btn-primary"
+            onClick={onSave}
+            disabled={saving || Boolean(doc.uncertainOperationId)}
+          >
+            {saving ? (
+              <>
+                <Spinner /> Guardando…
+              </>
+            ) : (
+              'Guardar cambios'
+            )}
+          </button>
+        )}
+      </footer>
+    </section>
+  );
+}

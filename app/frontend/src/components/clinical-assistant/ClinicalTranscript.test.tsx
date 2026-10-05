@@ -1,0 +1,571 @@
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { ClinicalResultItem } from '../../hooks/clinicalRuntime';
+import type {
+  ClinicalApprovalItem,
+  ClinicalDraftItem,
+  ClinicalTranscriptItem,
+} from '../../hooks/useClinicalAssistant';
+import type { ClinicalDraft, ClinicalPatient, ClinicalPendingAction } from '../../lib/api';
+import { ClinicalTranscript } from './ClinicalTranscript';
+import type { ActiveClinicalTurn } from './ClinicalTurnProgress';
+
+const base = { turnId: 'turn-1', createdAt: '2026-09-10T12:00:00Z' };
+const patient: ClinicalPatient = {
+  id: 'patient-1',
+  first_name: 'Ana',
+  last_name: 'Pérez',
+  rut_masked: '12.345.•••-6',
+};
+const draft: ClinicalDraft = {
+  context: 'Control preventivo',
+  findings: 'Sin hallazgos nuevos',
+  assessment: 'Salud periodontal estable',
+  treatment: 'Mantener higiene',
+  follow_up: 'Control en seis meses',
+  review_flags: [],
+};
+const callbacks = {
+  onDraftChange: vi.fn(),
+  onDraftSourceChange: vi.fn(),
+  onDraftDateChange: vi.fn(),
+  onDraftRegenerate: vi.fn(),
+  onPrepare: vi.fn(),
+  onResolve: vi.fn(),
+  onBackToEdit: vi.fn(),
+  onRetry: vi.fn(),
+};
+
+const peerCardSelector = [
+  '.clinical-approval',
+  '.clinical-approval-prompt',
+  '.clinical-approval-terminal',
+  '.clinical-receipt',
+  '.clinical-result',
+  '.evolution-review-artifact',
+].join(', ');
+
+function draftItem(overrides: Partial<ClinicalDraftItem> = {}): ClinicalDraftItem {
+  return {
+    ...base,
+    id: 'artifact-1',
+    status: 'completed',
+    type: 'draft',
+    artifactStatus: 'draft',
+    draft,
+    baseline: draft,
+    sourceNote: 'Nota clínica original',
+    edited: false,
+    stale: false,
+    patientId: patient.id,
+    evolutionAt: '2026-09-10T12:00:00Z',
+    ...overrides,
+  };
+}
+
+function assistantItem(
+  content = 'La evolución requiere control preventivo.',
+): ClinicalTranscriptItem {
+  return {
+    ...base,
+    id: 'assistant-1',
+    status: 'completed',
+    type: 'assistant',
+    content,
+  };
+}
+
+function approvalItem(
+  status: ClinicalApprovalItem['status'],
+  resultResourceId: string | null = null,
+): ClinicalApprovalItem {
+  const actionStatus: ClinicalPendingAction['status'] =
+    status === 'pending' || status === 'running'
+      ? 'pending'
+      : status === 'completed'
+        ? 'approved'
+        : status === 'declined'
+          ? 'declined'
+          : 'failed';
+  return {
+    ...base,
+    id: 'approval-1',
+    status,
+    type: 'approval',
+    action: {
+      id: 'approval-1',
+      thread_id: 'thread-1',
+      turn_id: base.turnId,
+      artifact_id: 'artifact-1',
+      patient_id: patient.id,
+      action_type: 'save_evolution',
+      proposal_hash: 'a'.repeat(64),
+      status: actionStatus,
+      expires_at: '2026-09-10T13:00:00Z',
+      created_at: base.createdAt,
+      resolved_at: status === 'completed' ? '2026-09-10T12:05:00Z' : null,
+      result_resource_id: resultResourceId,
+      proposal_payload: {
+        evolution_id: 'evolution-1',
+        patient_id: patient.id,
+        evolution_at: '2026-09-10T12:00:00Z',
+        raw_note: 'Nota clínica original',
+        generated_text: 'Borrador generado',
+        final_text: 'Evolución final',
+      },
+      patient,
+    },
+    patient,
+  };
+}
+
+function resultItem(): ClinicalResultItem {
+  return {
+    ...base,
+    id: 'result-1',
+    status: 'completed',
+    type: 'result',
+    actionId: 'approval-1',
+    message: 'Evolución guardada',
+    evolutionId: 'evolution-1',
+    patientId: patient.id,
+  };
+}
+
+beforeAll(() => {
+  HTMLElement.prototype.scrollTo = vi.fn();
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function close() {
+    this.open = false;
+  };
+});
+afterEach(cleanup);
+
+it('shows one note across persisted retries and only the latest recovery action', () => {
+  const items: ClinicalTranscriptItem[] = [
+    { ...base, id: 'u1', type: 'user', status: 'completed', content: 'Nota conservada' },
+    {
+      ...base,
+      id: 'e1',
+      type: 'error',
+      status: 'failed',
+      code: 'FAILED',
+      message: 'Respuesta interrumpida.',
+    },
+    {
+      ...base,
+      turnId: 'turn-2',
+      id: 'u2',
+      type: 'user',
+      status: 'completed',
+      content: 'Nota conservada',
+      retryOfTurnId: base.turnId,
+    },
+    {
+      ...base,
+      turnId: 'turn-2',
+      id: 'e2',
+      type: 'error',
+      status: 'failed',
+      code: 'FAILED',
+      message: 'No pudimos responder.',
+    },
+  ];
+  const view = renderTranscript(items, false);
+  expect(screen.getAllByText('Nota conservada')).toHaveLength(1);
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Reintentar' })).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+  expect(callbacks.onRetry).toHaveBeenLastCalledWith('turn-2');
+  view.unmount();
+  renderTranscript([...items.slice(0, 3), { ...assistantItem(), turnId: 'turn-2' }], false);
+  expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('does not offer Drive copy without a selected patient', () => {
+  render(
+    <MemoryRouter>
+      <ClinicalTranscript
+        threadId="thread-1"
+        items={[assistantItem()]}
+        {...callbacks}
+        onSaveToDrive={vi.fn()}
+      />
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole('button', { name: /Guardar copia en Drive/i })).not.toBeInTheDocument();
+});
+
+function renderTranscript(
+  items: ClinicalTranscriptItem[],
+  busy = true,
+  threadId = 'thread-1',
+  options: {
+    onSaveDraftToDrive?: (item: ClinicalDraftItem) => void;
+    activeTurn?: ActiveClinicalTurn | null;
+  } = {},
+) {
+  return render(
+    <MemoryRouter>
+      <ClinicalTranscript
+        threadId={threadId}
+        items={items}
+        busy={busy}
+        {...callbacks}
+        {...options}
+      />
+    </MemoryRouter>,
+  );
+}
+
+function getArtifact(container: HTMLElement): HTMLElement {
+  const artifacts = container.querySelectorAll<HTMLElement>('[data-artifact-id="artifact-1"]');
+  expect(artifacts).toHaveLength(1);
+  return artifacts[0] as HTMLElement;
+}
+
+function expectSingleHighEmphasisArtifact(container: HTMLElement): HTMLElement {
+  const artifact = getArtifact(container);
+  expect(container.querySelectorAll(`[data-artifact-id], ${peerCardSelector}`)).toHaveLength(1);
+  expect(artifact.querySelectorAll(`[data-artifact-id], ${peerCardSelector}`)).toHaveLength(0);
+  return artifact;
+}
+
+function expectNoPeerCards(container: HTMLElement): void {
+  expect(
+    container.querySelectorAll(
+      '.clinical-approval-prompt, .clinical-approval-terminal, .clinical-receipt, .clinical-result',
+    ),
+  ).toHaveLength(0);
+}
+
+describe('ClinicalTranscript', () => {
+  it('returns focus and the heading into view when returning to edit', () => {
+    const view = renderTranscript(
+      [draftItem({ artifactStatus: 'pending' }), approvalItem('pending')],
+      false,
+    );
+    const article = getArtifact(view.container);
+    const scroll = vi.spyOn(article, 'scrollIntoView');
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={[draftItem()]} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(scroll).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
+    expect(article).toHaveFocus();
+  });
+  it('places one progress block beside the matching optimistic user', () => {
+    const user: ClinicalTranscriptItem = {
+      ...base,
+      id: 'user-1',
+      type: 'user',
+      status: 'completed',
+      content: 'Control preventivo',
+    };
+    const other = { ...user, id: 'user-2', turnId: 'turn-2', content: 'Otra consulta' };
+    const view = renderTranscript([user, other], true, 'thread-1', {
+      activeTurn: { turnId: 'turn-1', phase: 'running' },
+    });
+    expect(view.container.querySelectorAll('[data-turn-progress]')).toHaveLength(1);
+    expect(
+      view.container.querySelector('[data-turn-progress]')?.closest('[data-turn-id]'),
+    ).toHaveAttribute('data-turn-id', 'turn-1');
+    expect(view.container.querySelector('[data-turn-progress]')).toHaveTextContent('Trabajando');
+  });
+
+  it('does not schedule auto-follow when only an activity label changes', () => {
+    const user: ClinicalTranscriptItem = {
+      ...base,
+      id: 'user-1',
+      type: 'user',
+      status: 'completed',
+      content: 'Control',
+    };
+    const activity: ClinicalTranscriptItem = {
+      ...base,
+      id: 'activity-1',
+      type: 'activity',
+      status: 'running',
+      label: 'Revisando ficha',
+    };
+    const frame = vi.spyOn(window, 'requestAnimationFrame');
+    const activeTurn = { turnId: 'turn-1', phase: 'running' as const };
+    const view = renderTranscript([user, activity], true, 'thread-1', { activeTurn });
+    const scheduled = frame.mock.calls.length;
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript
+          threadId="thread-1"
+          items={[user, { ...activity, label: 'Preparando evolución' }]}
+          activeTurn={activeTurn}
+          busy
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+    expect(frame).toHaveBeenCalledTimes(scheduled);
+    frame.mockRestore();
+  });
+
+  it('moves progress to a new turn and removes it at terminal state', () => {
+    const first: ClinicalTranscriptItem = {
+      ...base,
+      id: 'user-1',
+      type: 'user',
+      status: 'completed',
+      content: 'Primero',
+    };
+    const second: ClinicalTranscriptItem = {
+      ...first,
+      id: 'user-2',
+      turnId: 'turn-2',
+      content: 'Segundo',
+    };
+    const view = renderTranscript([first, second], true, 'thread-1', {
+      activeTurn: { turnId: 'turn-1', phase: 'running' },
+    });
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript
+          threadId="thread-1"
+          items={[first, second]}
+          activeTurn={{ turnId: 'turn-2', phase: 'running' }}
+          busy
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+    expect(view.container.querySelector('[data-turn-progress]')).toHaveAttribute(
+      'data-turn-progress',
+      'turn-2',
+    );
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript
+          threadId="thread-1"
+          items={[first, second]}
+          activeTurn={null}
+          busy={false}
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+    expect(view.container.querySelector('[data-turn-progress]')).not.toBeInTheDocument();
+  });
+
+  it('does not show progress when inactive', () => {
+    renderTranscript(
+      [{ ...base, id: 'user-1', type: 'user', status: 'completed', content: 'Control' }],
+      false,
+    );
+    expect(screen.queryByText('Trabajando')).not.toBeInTheDocument();
+  });
+
+  it('suppresses completed internal activity when a draft is ready', () => {
+    const view = renderTranscript(
+      [
+        {
+          ...base,
+          id: 'activity-1',
+          type: 'activity',
+          status: 'completed',
+          label: 'Preparando borrador',
+        },
+        draftItem(),
+      ],
+      false,
+    );
+    expect(view.container.querySelector('[data-turn-progress]')).not.toBeInTheDocument();
+    expect(screen.getByText('Borrador')).toBeVisible();
+  });
+
+  it.each(['completed', 'failed', 'declined'] as const)(
+    'does not retain %s internal activity chrome',
+    (status) => {
+      renderTranscript([
+        { ...base, id: `activity-${status}`, type: 'activity', status, label: 'paso interno' },
+      ]);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    },
+  );
+
+  it('keeps assistant prose beside one clinical artifact without terminal progress', () => {
+    const activity: ClinicalTranscriptItem = {
+      ...base,
+      id: 'activity-1',
+      type: 'activity',
+      status: 'running',
+      label: 'Revisando antecedentes',
+    };
+    const view = renderTranscript([assistantItem(), activity, draftItem()], false);
+    const artifact = expectSingleHighEmphasisArtifact(view.container);
+    const prose = screen.getByRole('article', { name: 'Asistente' });
+    const stack = view.container.querySelector('.clinical-transcript-stack');
+
+    expect(prose).toHaveTextContent('La evolución requiere control preventivo.');
+    expect(prose.closest('[data-artifact-id]')).toBeNull();
+    expect(view.container.querySelector('[data-turn-progress]')).not.toBeInTheDocument();
+    expect(stack).toHaveClass('chat-message-stack');
+    expect(prose.parentElement).toBe(artifact.parentElement);
+
+    fireEvent.click(within(artifact).getByRole('button', { name: 'Ver evidencia' }));
+    expect(within(artifact).getByText('Nota clínica original')).toBeVisible();
+    expectSingleHighEmphasisArtifact(view.container);
+  });
+
+  it('keeps saving feedback, Drive state, and terminal success in one artifact', () => {
+    const view = renderTranscript([draftItem()], false);
+    const artifact = getArtifact(view.container);
+    const savingItems = [
+      draftItem({ status: 'running', artifactStatus: 'pending' }),
+      approvalItem('running'),
+    ];
+
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={savingItems} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(expectSingleHighEmphasisArtifact(view.container)).toBe(artifact);
+    expect(artifact).toHaveTextContent('Guardando…');
+    expect(artifact.querySelectorAll('.animate-spin')).toHaveLength(1);
+    expectNoPeerCards(view.container);
+
+    const onSaveDraftToDrive = vi.fn();
+    const savedItems = [
+      draftItem({ artifactStatus: 'approved' }),
+      approvalItem('completed', 'evolution-1'),
+      resultItem(),
+    ];
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript
+          threadId="thread-1"
+          items={savedItems}
+          busy={false}
+          onSaveDraftToDrive={onSaveDraftToDrive}
+          activePatientId={patient.id}
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(expectSingleHighEmphasisArtifact(view.container)).toBe(artifact);
+    expect(artifact).toHaveTextContent('Guardada');
+    expect(artifact.querySelector('[data-drive-export="manual"]')).toBeInTheDocument();
+    fireEvent.click(within(artifact).getByRole('button', { name: 'Guardar copia en Drive' }));
+    expect(onSaveDraftToDrive).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Evolución guardada')).not.toBeInTheDocument();
+    expectNoPeerCards(view.container);
+  });
+
+  it('keeps one stable artifact through lifecycle, hydration, navigation, and back-to-edit', () => {
+    const view = renderTranscript([draftItem()], false);
+    const artifact = getArtifact(view.container);
+    expect(artifact).toHaveTextContent('Borrador');
+
+    const reviewItems = [
+      draftItem({ status: 'pending', artifactStatus: 'pending' }),
+      approvalItem('pending'),
+    ];
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={reviewItems} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(getArtifact(view.container)).toBe(artifact);
+    expect(artifact).toHaveTextContent('Revisión');
+    expectNoPeerCards(view.container);
+
+    const savingItems = [
+      draftItem({ status: 'running', artifactStatus: 'pending' }),
+      approvalItem('running'),
+    ];
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={savingItems} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(getArtifact(view.container)).toBe(artifact);
+    expect(artifact).toHaveTextContent('Guardando…');
+    expectNoPeerCards(view.container);
+
+    const savedItems = [
+      draftItem({ artifactStatus: 'approved' }),
+      approvalItem('completed', 'evolution-1'),
+      resultItem(),
+    ];
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={savedItems} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(getArtifact(view.container)).toBe(artifact);
+    expect(artifact).toHaveTextContent('Guardada');
+    expectNoPeerCards(view.container);
+
+    const hydratedItems = savedItems.map((item) => ({ ...item }));
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={hydratedItems} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(getArtifact(view.container)).toBe(artifact);
+    expectNoPeerCards(view.container);
+
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-2" items={[]} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={savedItems} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    const restoredArtifact = getArtifact(view.container);
+    expect(restoredArtifact).toHaveAttribute('data-artifact-id', 'artifact-1');
+    expect(restoredArtifact).toHaveTextContent('Guardada');
+    expectNoPeerCards(view.container);
+
+    const editItems = [draftItem()];
+    view.rerender(
+      <MemoryRouter>
+        <ClinicalTranscript threadId="thread-1" items={editItems} busy={false} {...callbacks} />
+      </MemoryRouter>,
+    );
+    expect(getArtifact(view.container)).toBe(restoredArtifact);
+    expect(restoredArtifact).toHaveTextContent('Borrador');
+    expectNoPeerCards(view.container);
+  });
+
+  it('does not invent Drive fields when no export state is present', () => {
+    const view = renderTranscript(
+      [draftItem({ artifactStatus: 'approved' }), approvalItem('completed', 'evolution-1')],
+      false,
+    );
+    const artifact = getArtifact(view.container);
+
+    expect(artifact).not.toHaveTextContent(/Drive|sincroniz/i);
+    expect(artifact.querySelector('[data-drive-export]')).not.toBeInTheDocument();
+  });
+
+  it('keeps native approval dialog inside the stable artifact', () => {
+    const view = renderTranscript(
+      [draftItem({ status: 'pending', artifactStatus: 'pending' }), approvalItem('pending')],
+      false,
+    );
+    const artifact = getArtifact(view.container);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar guardado' }));
+
+    expect(screen.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
+    expect(getArtifact(view.container)).toBe(artifact);
+  });
+});

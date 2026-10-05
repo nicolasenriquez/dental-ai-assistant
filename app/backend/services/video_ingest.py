@@ -22,6 +22,8 @@ from supadata import Supadata, SupadataError
 
 from backend.config import SUPADATA_API_KEY
 from backend.ingest.youtube_url import parse_youtube_url
+from backend.rag.chunker import chunk_video_fallback, chunk_video_timestamped
+from backend.rag.embeddings import embed_batch
 from backend.services.youtube_meta import get_video_description, get_video_title
 
 logger = logging.getLogger(__name__)
@@ -106,4 +108,50 @@ async def fetch_video_for_ingest(url: str, lang: str = "en") -> dict[str, Any]:
     }
 
 
-__all__ = ["SupadataError", "VideoIngestError", "fetch_video_for_ingest"]
+class VideoEmbeddingError(RuntimeError):
+    """Embedding preparation failed before persistence."""
+
+
+class VideoEmbeddingCountError(ValueError):
+    """The provider returned a different number of embeddings."""
+
+
+def prepare_video_chunks(
+    title: str, transcript: str, segments: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Prepare chunks without persistence; async callers must offload this work."""
+    if segments:
+        chunks, had_errors = chunk_video_timestamped(segments)
+    else:
+        chunks, had_errors = chunk_video_fallback({"title": title, "transcript": transcript})
+    if had_errors:
+        logger.warning("Chunker used fallback for video %s", title)
+    if not chunks:
+        return []
+    try:
+        embeddings = embed_batch([chunk["content"] for chunk in chunks])
+    except (RuntimeError, ValueError) as exc:
+        raise VideoEmbeddingError(str(exc)) from exc
+    if len(chunks) != len(embeddings):
+        raise VideoEmbeddingCountError("Mismatch between chunk count and embedding count.")
+    return [
+        {
+            "content": chunk["content"],
+            "embedding": embedding,
+            "chunk_index": index,
+            "start_seconds": chunk["start_seconds"],
+            "end_seconds": chunk["end_seconds"],
+            "snippet": chunk["snippet"],
+        }
+        for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True))
+    ]
+
+
+__all__ = [
+    "SupadataError",
+    "VideoEmbeddingCountError",
+    "VideoEmbeddingError",
+    "VideoIngestError",
+    "fetch_video_for_ingest",
+    "prepare_video_chunks",
+]

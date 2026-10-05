@@ -12,7 +12,7 @@ malformed, expired, or references a deleted user.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import Cookie, Depends, HTTPException, status
 
@@ -39,7 +39,7 @@ async def get_current_user(session: str | None = Cookie(default=None)) -> dict[s
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User no longer exists"
         )
-    return user
+    return cast(dict[str, Any], user)
 
 
 def is_admin_email(email: str) -> bool:

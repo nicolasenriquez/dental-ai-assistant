@@ -211,7 +211,7 @@ def chunk_video_fallback(video: dict) -> tuple[list[dict], bool]:
     transcript: str = video.get("transcript", "")
     # Heuristic: estimate 150 WPM for YouTube transcripts
     total_words = len(transcript.split())
-    estimated_duration = max(total_words / 150.0, 1.0)
+    estimated_duration = max((total_words / 150.0) * 60.0, 1.0)
     step = estimated_duration / len(chunk_texts) if chunk_texts else 0.0
 
     results: list[dict] = []

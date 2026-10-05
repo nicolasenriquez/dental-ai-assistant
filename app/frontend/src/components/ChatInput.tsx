@@ -1,188 +1,250 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { ListPlus } from 'lucide-react';
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
+import { useAutosizeTextarea } from '../hooks/useAutosizeTextarea';
+import type { ChatRunState } from '../hooks/useStreamingResponse';
+import { type VoiceState, isVoiceInFlight } from '../hooks/useVoiceDictation';
+import { ComposerShell } from './ComposerShell';
+import { Spinner } from './Spinner';
+import { VoiceDictationStatus } from './voice/VoiceDictationStatus';
 
 export interface ChatInputHandle {
   /** Restore text to the input (e.g. after a failed send) and focus */
   setInputText: (text: string) => void;
   focus: () => void;
+  getTextarea: () => HTMLTextAreaElement | null;
 }
 
 interface ChatInputProps {
-  onSend: (content: string) => void;
+  onSend: (content: string) => boolean | undefined;
+  value?: string;
+  onValueChange?: (value: string) => void;
   isStreaming?: boolean;
+  runState?: ChatRunState;
   disabled?: boolean;
   onStop?: () => void;
+  voiceState?: VoiceState;
+  voiceElapsed?: number;
+  voiceError?: string | null;
+  voiceCanRetry?: boolean;
+  voiceStream?: MediaStream | null;
+  onVoice?: () => void;
+  onStopVoice?: () => void;
+  onCancelVoice?: () => void;
+  onRetryVoice?: () => void;
+  submitDisabled?: boolean;
 }
 
+const ACTIVE_RUN_STATES: ChatRunState[] = [
+  'submitting',
+  'waiting_first_token',
+  'streaming',
+  'stopping',
+];
+
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
-  ({ onSend, isStreaming = false, disabled = false, onStop }, ref) => {
+  (
+    {
+      onSend,
+      value,
+      onValueChange,
+      isStreaming = false,
+      runState,
+      disabled = false,
+      onStop,
+      voiceState,
+      voiceElapsed = 0,
+      voiceError = null,
+      voiceCanRetry = false,
+      voiceStream = null,
+      onVoice,
+      onStopVoice,
+      onCancelVoice,
+      onRetryVoice,
+      submitDisabled = false,
+    },
+    ref,
+  ) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [fallbackValue, setFallbackValue] = useState('');
     const [focused, setFocused] = useState(false);
 
-    const isDisabled = disabled || isStreaming;
+    const isControlled = value !== undefined;
+    const inputValue = isControlled ? value : fallbackValue;
+    const activeRun = runState ? ACTIVE_RUN_STATES.includes(runState) : isStreaming;
+    const isStopping = runState === 'stopping';
+    const isDisabled = disabled;
+    const voiceInFlight = voiceState ? isVoiceInFlight(voiceState) : false;
+    const voiceStatusLayout =
+      voiceState !== undefined && voiceState !== 'idle' && voiceState !== 'success';
+    const isSubmitDisabled = isDisabled || submitDisabled || voiceInFlight;
 
-    // ── Auto-resize ─────────────────────────────────────────────────
-    const adjustHeight = useCallback(() => {
-      const el = textareaRef.current;
-      if (!el) return;
-      el.style.height = 'auto';
-      const maxH = 144; // ~6 lines × 24px
-      el.style.height = `${Math.min(el.scrollHeight, maxH)}px`;
-      el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden';
-    }, []);
+    useAutosizeTextarea({ ref: textareaRef, value: inputValue });
 
-    // ── Expose imperative handle ────────────────────────────────────
-    useImperativeHandle(ref, () => ({
-      setInputText: (text: string) => {
-        const el = textareaRef.current;
-        if (!el) return;
-        el.value = text;
-        // Trigger resize after setting value
-        setTimeout(adjustHeight, 0);
-        el.focus();
+    const setValue = useCallback(
+      (nextValue: string) => {
+        if (!isControlled) setFallbackValue(nextValue);
+        onValueChange?.(nextValue);
       },
-      focus: () => textareaRef.current?.focus(),
-    }));
+      [isControlled, onValueChange],
+    );
 
-    // ── Send ─────────────────────────────────────────────────────────
+    useImperativeHandle(
+      ref,
+      () => ({
+        setInputText: (text: string) => {
+          setValue(text);
+          textareaRef.current?.focus();
+        },
+        focus: () => textareaRef.current?.focus(),
+        getTextarea: () => textareaRef.current,
+      }),
+      [setValue],
+    );
+
     const handleSend = useCallback(() => {
-      const el = textareaRef.current;
-      if (!el) return;
-      const content = el.value.trim();
-      if (!content || isDisabled) return;
+      const content = inputValue.trim();
+      if (!content || isSubmitDisabled) return;
 
-      onSend(content);
+      const accepted = onSend(content);
+      if (accepted !== false) {
+        setValue('');
+      }
+    }, [inputValue, isSubmitDisabled, onSend, setValue]);
 
-      // Reset textarea
-      el.value = '';
-      el.style.height = 'auto';
-      el.style.overflowY = 'hidden';
-    }, [onSend, isDisabled]);
+    const handleChange = useCallback(
+      (event: ChangeEvent<HTMLTextAreaElement>) => {
+        setValue(event.target.value);
+      },
+      [setValue],
+    );
 
-    // ── Keyboard ─────────────────────────────────────────────────────
     const handleKeyDown = useCallback(
-      (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
+      (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === 'Escape' && voiceInFlight) {
+          event.preventDefault();
+          onCancelVoice?.();
+          return;
+        }
+        if (event.key === 'Enter' && !event.shiftKey) {
+          if (event.nativeEvent.isComposing) return;
+          event.preventDefault();
+          if (isSubmitDisabled) return;
           handleSend();
         }
-        // Shift+Enter: default textarea behavior (inserts newline)
       },
-      [handleSend],
+      [handleSend, isSubmitDisabled, onCancelVoice, voiceInFlight],
     );
 
     return (
-      <div
-        style={{
-          background: '#111827',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '6px 12px',
-          opacity: isDisabled ? 0.7 : 1,
-          transition: 'opacity 0.2s, box-shadow 0.15s',
-          boxShadow: focused && !isDisabled ? '0 0 0 2px var(--accent-glow)' : 'none',
+      <ComposerShell
+        className={voiceStatusLayout ? 'chat-composer--voice-layout' : ''}
+        focused={focused}
+        disabled={isDisabled}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && voiceInFlight) {
+            event.preventDefault();
+            onCancelVoice?.();
+          }
         }}
       >
-        {/* ── Textarea ── */}
         <textarea
           ref={textareaRef}
+          aria-label="Pregunta sobre la biblioteca de videos"
           placeholder={
-            isStreaming ? 'Waiting for response…' : 'Ask anything about the video library…'
+            activeRun
+              ? 'Escribe un mensaje para enviarlo después…'
+              : 'Pregunta sobre la biblioteca de videos…'
           }
+          value={inputValue}
           disabled={isDisabled}
-          onInput={adjustHeight}
-          onKeyDown={handleKeyDown}
+          onChange={handleChange}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') handleKeyDown(event);
+          }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           rows={1}
-          style={{
-            flex: 1,
-            background: 'transparent',
-            border: 'none',
-            color: isDisabled ? '#475569' : '#f1f5f9',
-            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-            fontSize: 15,
-            lineHeight: '24px',
-            padding: 0,
-            resize: 'none',
-            outline: 'none',
-            overflowY: 'hidden',
-            minHeight: 24,
-            maxHeight: 144,
-            cursor: isDisabled ? 'not-allowed' : 'text',
-          }}
+          className="chat-composer-input"
+          aria-busy={voiceState === 'transcribing'}
         />
 
-        {/* ── Send / Stop button ── */}
-        {isStreaming ? (
+        {voiceState && (
+          <VoiceDictationStatus
+            voiceState={voiceState}
+            voiceElapsed={voiceElapsed}
+            voiceError={voiceError}
+            canRetry={voiceCanRetry}
+            stream={voiceStream}
+            onStartVoice={onVoice}
+            onStopVoice={onStopVoice ?? (() => {})}
+            onCancelVoice={onCancelVoice ?? (() => {})}
+            onRetryVoice={onRetryVoice ?? (() => {})}
+          />
+        )}
+
+        {activeRun && (
           <button
+            type="button"
             onClick={onStop}
-            aria-label="Stop response"
-            className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            style={{
-              background: '#dc2626',
-              border: 'none',
-              borderRadius: 8,
-              color: '#fff',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              height: 34,
-              width: 34,
-              transition: 'background 0.15s, filter 0.15s',
-            }}
+            disabled={isStopping || isDisabled}
+            aria-label={isStopping ? 'Deteniendo respuesta' : 'Detener respuesta'}
+            title={isStopping ? 'Deteniendo…' : 'Detener'}
+            className="chat-stop-button active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-              <rect x="1" y="1" width="10" height="10" rx="1" />
-            </svg>
-          </button>
-        ) : (
-          <button
-            onClick={handleSend}
-            disabled={isDisabled}
-            aria-label="Send message"
-            className="active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            style={{
-              background: isDisabled ? '#1e293b' : '#3b82f6',
-              border: 'none',
-              borderRadius: 8,
-              color: isDisabled ? '#475569' : '#fff',
-              cursor: isDisabled ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              height: 34,
-              width: 34,
-              transition: 'background 0.15s, color 0.15s, filter 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              if (!isDisabled) e.currentTarget.style.background = '#1d4ed8';
-            }}
-            onMouseLeave={(e) => {
-              if (!isDisabled) e.currentTarget.style.background = '#3b82f6';
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="8" y1="14" x2="8" y2="3" />
-              <polyline points="3,8 8,3 13,8" />
-            </svg>
+            {isStopping ? (
+              <Spinner size={13} />
+            ) : (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <rect x="1" y="1" width="10" height="10" rx="1" />
+              </svg>
+            )}
           </button>
         )}
-      </div>
+
+        {!voiceInFlight && (
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={isSubmitDisabled || !inputValue.trim()}
+            aria-label={activeRun ? 'Poner mensaje en cola' : 'Enviar mensaje'}
+            title={activeRun ? 'Agregar a cola' : 'Enviar'}
+            className={`chat-send-button${!inputValue.trim() || isSubmitDisabled ? ' is-disabled' : ''} active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none`}
+          >
+            {activeRun ? (
+              <ListPlus aria-hidden="true" size={16} strokeWidth={1.8} />
+            ) : (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="8" y1="14" x2="8" y2="3" />
+                <polyline points="3,8 8,3 13,8" />
+              </svg>
+            )}
+          </button>
+        )}
+      </ComposerShell>
     );
   },
 );

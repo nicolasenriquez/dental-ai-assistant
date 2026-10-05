@@ -74,7 +74,9 @@ async def get_channel_video_ids(
 
     for attempt in range(3):
         try:
-            result = client.youtube.channel.videos(id=channel_id, type=type, limit=limit)
+            result = await asyncio.to_thread(
+                client.youtube.channel.videos, id=channel_id, type=type, limit=limit
+            )
             return ChannelVideos(
                 video_ids=list(result.video_ids or []),
                 short_ids=list(result.short_ids or []),
@@ -115,7 +117,9 @@ async def get_transcript(video_id: str, lang: str = "en") -> str | None:
 
     for attempt in range(3):
         try:
-            result = client.transcript(url=f"https://youtube.com/watch?v={video_id}", lang=lang)
+            result = await asyncio.to_thread(
+                client.transcript, url=f"https://youtube.com/watch?v={video_id}", lang=lang
+            )
             if not result:
                 return None
             # `content` is either a plain string (text mode) or a list of

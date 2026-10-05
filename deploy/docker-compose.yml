@@ -38,13 +38,16 @@ services:
   # graceful `caddy reload` to swap. Neither publishes a host port — Caddy
   # reaches them via the internal docker network by service name.
   #
-  # Both mount the same named volume (app_data) for the SQLite DB so the
-  # swap preserves state. Brief overlap during swap is fine — SQLite WAL
-  # handles low-volume concurrent access.
+  # Both use the shared PostgreSQL service so the swap preserves state.
+  # Brief overlap during a swap uses separate database connections.
   app-blue:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        VITE_GOOGLE_PICKER_API_KEY: ${VITE_GOOGLE_PICKER_API_KEY:-}
+        VITE_GOOGLE_DRIVE_APP_ID: ${VITE_GOOGLE_DRIVE_APP_ID:-}
+        GOOGLE_DRIVE_ENABLED: ${GOOGLE_DRIVE_ENABLED:-false}
     image: dynachat-app:latest
     container_name: dynachat-app-blue
     restart: unless-stopped
@@ -58,6 +61,22 @@ services:
       # Points at the in-compose postgres service by DNS name.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      APP_ORIGINS: ${APP_ORIGINS:-}
+      GOOGLE_DRIVE_ENABLED: ${GOOGLE_DRIVE_ENABLED:-false}
+      GOOGLE_DRIVE_AUTO_ONBOARD: ${GOOGLE_DRIVE_AUTO_ONBOARD:-false}
+      GOOGLE_DRIVE_CLIENT_ID: ${GOOGLE_DRIVE_CLIENT_ID:-}
+      GOOGLE_DRIVE_CLIENT_SECRET: ${GOOGLE_DRIVE_CLIENT_SECRET:-}
+      GOOGLE_DRIVE_OAUTH_REDIRECT_URI: ${GOOGLE_DRIVE_OAUTH_REDIRECT_URI:-}
+      GOOGLE_DRIVE_RETURN_URL: ${GOOGLE_DRIVE_RETURN_URL:-}
+      GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS: ${GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS:-}
+      GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION: ${GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION:-}
+      CLINICAL_EXTERNAL_LLM_ENABLED: ${CLINICAL_EXTERNAL_LLM_ENABLED:-false}
+      CLINICAL_TIMEZONE: ${CLINICAL_TIMEZONE:-America/Santiago}
+      VOICE_TRANSCRIPTION_ENABLED: ${VOICE_TRANSCRIPTION_ENABLED:-false}
+      VOICE_LANGUAGE: ${VOICE_LANGUAGE:-es}
+      WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
       ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-}
       # Issue #147: Circle membership verification + Dynamous content ingest.
       CIRCLE_ADMIN_TOKEN: ${CIRCLE_ADMIN_TOKEN:-}
@@ -85,10 +104,32 @@ services:
       start_period: 30s
       retries: 5
 
+  whisper:
+    build:
+      context: ./whisper
+      dockerfile: Dockerfile
+    image: dynachat-whisper:latest
+    container_name: dynachat-whisper
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-turbo}
+    volumes:
+      - whisper_model_cache:/root/.cache/whisper
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
   app-green:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        VITE_GOOGLE_PICKER_API_KEY: ${VITE_GOOGLE_PICKER_API_KEY:-}
+        VITE_GOOGLE_DRIVE_APP_ID: ${VITE_GOOGLE_DRIVE_APP_ID:-}
+        GOOGLE_DRIVE_ENABLED: ${GOOGLE_DRIVE_ENABLED:-false}
     image: dynachat-app:latest
     container_name: dynachat-app-green
     restart: unless-stopped
@@ -102,6 +143,22 @@ services:
       # Points at the in-compose postgres service by DNS name.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      APP_ORIGINS: ${APP_ORIGINS:-}
+      GOOGLE_DRIVE_ENABLED: ${GOOGLE_DRIVE_ENABLED:-false}
+      GOOGLE_DRIVE_AUTO_ONBOARD: ${GOOGLE_DRIVE_AUTO_ONBOARD:-false}
+      GOOGLE_DRIVE_CLIENT_ID: ${GOOGLE_DRIVE_CLIENT_ID:-}
+      GOOGLE_DRIVE_CLIENT_SECRET: ${GOOGLE_DRIVE_CLIENT_SECRET:-}
+      GOOGLE_DRIVE_OAUTH_REDIRECT_URI: ${GOOGLE_DRIVE_OAUTH_REDIRECT_URI:-}
+      GOOGLE_DRIVE_RETURN_URL: ${GOOGLE_DRIVE_RETURN_URL:-}
+      GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS: ${GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEYS:-}
+      GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION: ${GOOGLE_DRIVE_TOKEN_ACTIVE_KEY_VERSION:-}
+      CLINICAL_EXTERNAL_LLM_ENABLED: ${CLINICAL_EXTERNAL_LLM_ENABLED:-false}
+      CLINICAL_TIMEZONE: ${CLINICAL_TIMEZONE:-America/Santiago}
+      VOICE_TRANSCRIPTION_ENABLED: ${VOICE_TRANSCRIPTION_ENABLED:-false}
+      VOICE_LANGUAGE: ${VOICE_LANGUAGE:-es}
+      WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
       ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-}
       # Issue #147: Circle membership verification + Dynamous content ingest.
       CIRCLE_ADMIN_TOKEN: ${CIRCLE_ADMIN_TOKEN:-}
@@ -129,3 +186,4 @@ volumes:
   caddy_config:
   postgres_data:
   app_data:
+  whisper_model_cache:

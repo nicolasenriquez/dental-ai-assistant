@@ -36,6 +36,17 @@ export interface AuthMeResponse extends AuthUser {
  */
 export type SignupRateLimitScope = 'ip' | 'global';
 
+/**
+ * Safe `/api/auth/config` payload — backend-owned mode selection and public
+ * client configuration. Never contains secrets.
+ */
+export interface AuthConfig {
+  mode: 'local' | 'google';
+  google_client_id: string | null;
+  drive_enabled: boolean;
+  drive_auto_onboard: boolean;
+}
+
 export class AuthError extends Error {
   status: number;
   /** Present only when the backend returned a structured 429 for signup. */
@@ -108,6 +119,14 @@ export const login = (email: string, password: string) =>
   });
 
 export const logout = () => authRequest<void>('/logout', { method: 'POST' });
+
+export const getAuthConfig = () => authRequest<AuthConfig>('/config', { method: 'GET' });
+
+export const loginWithGoogle = (credential: string) =>
+  authRequest<AuthUser>('/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential }),
+  });
 
 // In-flight `me()` promise. Multiple concurrent callers (e.g. an AuthProvider
 // that re-renders during mount, or a component that calls refresh() before

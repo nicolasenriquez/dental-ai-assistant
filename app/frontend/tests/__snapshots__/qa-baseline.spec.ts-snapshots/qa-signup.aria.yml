@@ -1,0 +1,13 @@
+- text: Dental AI Assistant
+- paragraph: Tu espacio clínico, con el paciente en contexto.
+- paragraph: Consulta fichas y prepara evoluciones clínicas. La IA propone; tú revisas y decides qué guardar.
+- paragraph: Paciente Borrador Revisión
+- heading "Crear cuenta" [level=1]
+- text: Correo electrónico
+- textbox "Correo electrónico": new@example.com
+- text: Contraseña (8+ caracteres)
+- textbox "Contraseña (8+ caracteres)": corta
+- button "Registrarse"
+- text: ¿Ya tienes una cuenta?
+- link "Iniciar sesión":
+  - /url: /login

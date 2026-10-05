@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../lib/api';
 import { useConversations } from './useConversations';
@@ -46,6 +46,21 @@ describe('useConversations', () => {
   });
 
   describe('load error handling', () => {
+    it('clears the previous error after a successful retry', async () => {
+      vi.spyOn(api, 'getConversations')
+        .mockRejectedValueOnce(new Error('Offline'))
+        .mockResolvedValueOnce([
+          { id: 'fresh', title: 'Fresh', created_at: '', updated_at: '', preview: 'Message' },
+        ]);
+      const { result } = renderHook(() => useConversations());
+      await waitFor(() => expect(result.current.error).toBe('Offline'));
+      await act(async () => {
+        await result.current.refetch();
+      });
+      expect(result.current.error).toBeNull();
+      expect(result.current.filteredConversations[0].id).toBe('fresh');
+    });
+
     it('sets error and clears loading when load fails', async () => {
       vi.spyOn(api, 'getConversations').mockRejectedValueOnce(new Error('Network error'));
 
@@ -106,6 +121,17 @@ describe('useConversations', () => {
       expect(result.current.conversations).toHaveLength(4);
     });
 
+    it('localizes legacy default title for displayed conversations', async () => {
+      vi.spyOn(api, 'getConversations').mockResolvedValue([
+        { id: '1', title: 'New Conversation', created_at: '', updated_at: '', preview: 'Hello' },
+      ] as api.Conversation[]);
+
+      const { result } = renderHook(() => useConversations());
+
+      await waitFor(() => expect(result.current.filteredConversations).toHaveLength(1));
+      expect(result.current.filteredConversations[0].title).toBe('Nueva conversación');
+    });
+
     it('includes a conversation after its first message is sent', async () => {
       const conversations = [
         { id: '1', title: 'New Conversation', created_at: '', updated_at: '', preview: null },
@@ -160,7 +186,7 @@ describe('useConversations', () => {
       ];
       vi.spyOn(api, 'getConversations').mockResolvedValue(conversations as api.Conversation[]);
 
-      const { result } = renderHook(() => useConversations('New'));
+      const { result } = renderHook(() => useConversations('Nueva'));
 
       await waitFor(() => expect(result.current.filteredConversations).toHaveLength(1));
       expect(result.current.filteredConversations[0].id).toBe('2');

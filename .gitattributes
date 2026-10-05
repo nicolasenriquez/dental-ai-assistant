@@ -9,3 +9,6 @@ Dockerfile text eol=lf
 # "Failed to parse" at install time.
 *.service text eol=lf
 *.timer text eol=lf
+
+# Biome checks frontend source with LF line endings, including on Windows.
+app/frontend/src/** text eol=lf

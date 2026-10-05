@@ -1,0 +1,13 @@
+- text: Dental AI Assistant
+- paragraph: Tu espacio clínico, con el paciente en contexto.
+- paragraph: Consulta fichas y prepara evoluciones clínicas. La IA propone; tú revisas y decides qué guardar.
+- paragraph: Paciente Borrador Revisión
+- heading "Iniciar sesión" [level=1]
+- text: Correo electrónico
+- textbox "Correo electrónico"
+- text: Contraseña
+- textbox "Contraseña"
+- button "Iniciar sesión"
+- text: ¿Necesitas una cuenta?
+- link "Regístrate":
+  - /url: /signup

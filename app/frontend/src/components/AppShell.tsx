@@ -1,0 +1,312 @@
+import { PanelLeftOpen } from 'lucide-react';
+import {
+  Fragment,
+  type KeyboardEvent,
+  type MutableRefObject,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import type { GroupImperativeHandle } from 'react-resizable-panels';
+import { useSidebarCollapse } from '../hooks/useSidebarCollapse';
+import type { RuntimeByConversationId } from '../hooks/useStreamingResponse';
+import { TransitionGuardBoundary } from '../hooks/useTransitionGuard';
+import { DriveBootstrapBanner } from './DriveBootstrapBanner';
+import { Sidebar } from './Sidebar';
+import { ResizableGroup, ResizableHandle, ResizablePanel } from './ui/resizable';
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const DRIVE_LAYOUT_KEY = 'dental.drive.workspace.layout.v1';
+const DEFAULT_WORKSPACE_LAYOUT = { main: 68, accessory: 32 } as const;
+const DOCUMENT_WORKSPACE_LAYOUT = { main: 56, accessory: 44 } as const;
+const CLOSED_WORKSPACE_LAYOUT = { main: 100, accessory: 0 } as const;
+
+function readDriveLayout(): { main: number; accessory: number } {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DRIVE_LAYOUT_KEY) ?? 'null') as {
+      main?: unknown;
+      accessory?: unknown;
+    } | null;
+    if (
+      !parsed ||
+      typeof parsed.main !== 'number' ||
+      typeof parsed.accessory !== 'number' ||
+      !Number.isFinite(parsed.main) ||
+      !Number.isFinite(parsed.accessory)
+    ) {
+      return DEFAULT_WORKSPACE_LAYOUT;
+    }
+    const accessory = Math.min(72, Math.max(28, parsed.accessory));
+    return { main: 100 - accessory, accessory };
+  } catch {
+    return DEFAULT_WORKSPACE_LAYOUT;
+  }
+}
+
+export interface AppShellUtility {
+  id: string;
+  label: string;
+  onActivate: () => void;
+}
+
+interface AppShellProps {
+  children: ReactNode;
+  activeConversationId?: string;
+  showConversations?: boolean;
+  conversationsRef?: MutableRefObject<(() => Promise<void>) | null>;
+  runtimeByConversationId?: RuntimeByConversationId;
+  secondarySidebarContent?: (
+    isCollapsed: boolean,
+    onRequestExpand: () => void,
+    onClose: () => void,
+  ) => ReactNode;
+  clinicalSidebar?: boolean;
+  workspaceMode?: boolean;
+  utilities?: AppShellUtility[];
+  workspaceAccessory?: ReactNode;
+  workspaceAccessoryOpen?: boolean;
+  workspaceAccessoryMode?: 'compact' | 'document';
+}
+
+export function AppShell({
+  children,
+  activeConversationId,
+  showConversations = false,
+  conversationsRef: suppliedConversationsRef,
+  runtimeByConversationId,
+  secondarySidebarContent,
+  clinicalSidebar = false,
+  workspaceMode = false,
+  utilities = [],
+  workspaceAccessory,
+  workspaceAccessoryOpen = true,
+  workspaceAccessoryMode = 'compact',
+}: AppShellProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { sidebarCollapsed: desktopSidebarCollapsed, setSidebarCollapsed } = useSidebarCollapse();
+  const [isMobileSidebar, setIsMobileSidebar] = useState(
+    () => window.matchMedia?.('(max-width: 767px)').matches ?? true,
+  );
+  const sidebarCollapsed = !isMobileSidebar && desktopSidebarCollapsed;
+  const [workspaceLayout, setWorkspaceLayout] = useState(readDriveLayout);
+  const [documentLayout, setDocumentLayout] = useState<{ main: number; accessory: number }>(
+    DOCUMENT_WORKSPACE_LAYOUT,
+  );
+  const [animatingWorkspace, setAnimatingWorkspace] = useState(false);
+  const workspaceAccessoryVisible = Boolean(workspaceAccessory) && workspaceAccessoryOpen;
+  // Keep main content under same React parent so closing Drive cannot abort its stream.
+  const workspaceLayoutEnabled = workspaceMode || Boolean(workspaceAccessory);
+  const workspaceDefaultLayout = !workspaceAccessoryVisible
+    ? CLOSED_WORKSPACE_LAYOUT
+    : workspaceAccessoryMode === 'document'
+      ? documentLayout
+      : workspaceLayout;
+  const workspaceGroup = useRef<GroupImperativeHandle>(null);
+  const previousAccessoryVisible = useRef(workspaceAccessoryVisible);
+  useEffect(() => {
+    const visibilityChanged = previousAccessoryVisible.current !== workspaceAccessoryVisible;
+    previousAccessoryVisible.current = workspaceAccessoryVisible;
+    const animate =
+      visibilityChanged &&
+      !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches &&
+      !window.matchMedia?.('(max-width: 1024px)').matches;
+    if (animate) setAnimatingWorkspace(true);
+    const frame = window.requestAnimationFrame(() => {
+      workspaceGroup.current?.setLayout(workspaceDefaultLayout);
+    });
+    const timer = animate ? window.setTimeout(() => setAnimatingWorkspace(false), 300) : null;
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [workspaceDefaultLayout, workspaceAccessoryVisible]);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const sidebarWasOpen = useRef(false);
+  const localConversationsRef = useRef<(() => Promise<void>) | null>(null);
+  const conversationsRef = suppliedConversationsRef ?? localConversationsRef;
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.('(max-width: 767px)');
+    if (!mediaQuery) return;
+
+    const update = () => {
+      setIsMobileSidebar(mediaQuery.matches);
+    };
+    update();
+    mediaQuery.addEventListener?.('change', update);
+    return () => mediaQuery.removeEventListener?.('change', update);
+  }, []);
+
+  useEffect(() => {
+    const sidebar = sidebarRef.current;
+    if (!sidebar) return;
+
+    const hidden = isMobileSidebar && !sidebarOpen;
+    if (hidden && sidebar.contains(document.activeElement)) menuButtonRef.current?.focus();
+    sidebar.toggleAttribute('inert', hidden);
+    return () => sidebar.removeAttribute('inert');
+  }, [isMobileSidebar, sidebarOpen]);
+
+  useEffect(() => {
+    if (sidebarOpen) {
+      sidebarWasOpen.current = true;
+      const firstLink = sidebarRef.current?.querySelector<HTMLElement>('a[href]');
+      if (firstLink) {
+        firstLink.focus();
+      } else {
+        sidebarRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus();
+      }
+      return;
+    }
+
+    if (sidebarWasOpen.current) {
+      sidebarWasOpen.current = false;
+      menuButtonRef.current?.focus();
+    }
+  }, [sidebarOpen]);
+
+  const handleSidebarKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (!sidebarOpen) return;
+
+    if (event.key === 'Escape') {
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      setSidebarOpen(false);
+      return;
+    }
+
+    if (event.key !== 'Tab') return;
+
+    const focusable = sidebarRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+    if (!focusable?.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  return (
+    <TransitionGuardBoundary>
+      <>
+        <a className="skip-link" href="#main-content">
+          Saltar al contenido principal
+        </a>
+        <div className="app-layout">
+          {isMobileSidebar && sidebarOpen && (
+            <div
+              aria-hidden="true"
+              className="sidebar-overlay"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+          <Sidebar
+            activeConversationId={activeConversationId}
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            conversationsRef={conversationsRef}
+            showConversations={showConversations}
+            isMobile={isMobileSidebar}
+            isCollapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            runtimeByConversationId={runtimeByConversationId}
+            secondaryContent={secondarySidebarContent?.(
+              sidebarCollapsed,
+              () => setSidebarCollapsed(false),
+              () => setSidebarOpen(false),
+            )}
+            clinicalVariant={clinicalSidebar}
+            sidebarRef={sidebarRef}
+            onKeyDown={handleSidebarKeyDown}
+            utilities={utilities}
+          />
+          <div
+            id="main-content"
+            tabIndex={-1}
+            className={`main-area${showConversations ? '' : ' patient-shell'}${workspaceMode ? ' workspace-mode' : ''}`}
+          >
+            {isMobileSidebar && !sidebarOpen && (
+              <button
+                key="mobile-navigation-trigger"
+                ref={menuButtonRef}
+                type="button"
+                className="hamburger-btn"
+                onClick={() => setSidebarOpen(true)}
+                aria-expanded={false}
+                aria-controls="app-sidebar"
+                aria-label="Abrir navegación"
+                title="Abrir navegación"
+              >
+                <PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.7} />
+              </button>
+            )}
+            <DriveBootstrapBanner key="drive-bootstrap-banner" />
+            {workspaceLayoutEnabled ? (
+              <div key="workspace" className="workspace-row">
+                <ResizableGroup
+                  groupRef={workspaceGroup}
+                  id="clinical-workspace"
+                  orientation="horizontal"
+                  className={`workspace-resizable${animatingWorkspace ? ' is-toggling' : ''}`}
+                  defaultLayout={workspaceDefaultLayout}
+                  onLayoutChanged={(layout, meta) => {
+                    if (!meta.isUserInteraction || !workspaceAccessoryVisible) return;
+                    const accessory = Math.min(72, Math.max(28, layout.accessory ?? 32));
+                    const next = { main: 100 - accessory, accessory };
+                    if (workspaceAccessoryMode === 'document') {
+                      setDocumentLayout(next);
+                      return;
+                    }
+                    setWorkspaceLayout(next);
+                    try {
+                      window.localStorage.setItem(DRIVE_LAYOUT_KEY, JSON.stringify(next));
+                    } catch {
+                      // Storage is optional; the live layout still works.
+                    }
+                  }}
+                >
+                  <ResizablePanel
+                    id="main"
+                    defaultSize={workspaceAccessoryVisible ? '68' : '100'}
+                    minSize="400px"
+                    className="workspace-panel-main"
+                  >
+                    {children}
+                  </ResizablePanel>
+                  <ResizableHandle
+                    aria-label="Redimensionar Google Drive"
+                    className={`workspace-resize-handle${workspaceAccessoryVisible ? '' : ' workspace-resize-handle-closed'}`}
+                    disabled={animatingWorkspace}
+                  />
+                  <ResizablePanel
+                    id="accessory"
+                    defaultSize={workspaceAccessoryVisible ? '32' : '0'}
+                    collapsible
+                    collapsedSize="0"
+                    minSize="280px"
+                    maxSize="72"
+                    groupResizeBehavior="preserve-pixel-size"
+                    className="workspace-panel-accessory"
+                  >
+                    {workspaceAccessory}
+                  </ResizablePanel>
+                </ResizableGroup>
+              </div>
+            ) : (
+              <Fragment key="workspace">{children}</Fragment>
+            )}
+          </div>
+        </div>
+      </>
+    </TransitionGuardBoundary>
+  );
+}

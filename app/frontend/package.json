@@ -12,14 +12,26 @@
     "format": "biome format --write src",
     "format:check": "biome format src",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e:qa": "playwright test --project=qa-baseline",
+    "e2e:baseline": "playwright test --project=baseline",
+    "e2e:clinical": "playwright test --project=clinical",
+    "e2e:baseline:update": "playwright test --project=baseline --update-snapshots"
   },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.23",
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-scroll-area": "^1.2.18",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.0",
     "file-saver": "^2.0.0",
+    "lucide-react": "^1.41.0",
+    "motion": "^13.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.23.1",
     "react-markdown": "^9.0.1",
+    "react-resizable-panels": "^4.12.4",
+    "react-router-dom": "^6.23.1",
     "react-syntax-highlighter": "^15.5.0",
     "remark-gfm": "^4.0.0"
   },
@@ -32,6 +44,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@playwright/test": "1.62.1",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "jsdom": "^25.0.1",
@@ -39,6 +52,6 @@
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5",
     "vite": "^5.2.13",
-    "vitest": "^2.1.8"
+    "vitest": "2.1.8"
   }
 }

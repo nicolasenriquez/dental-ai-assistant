@@ -385,6 +385,22 @@ def test_normalize_chunk_shape_drops_score() -> None:
     assert normalized["chunk_id"] == "c1"
 
 
+def test_normalize_chunk_shape_falls_back_to_content_for_snippet() -> None:
+    from backend.rag.tools import _normalize_chunk_shape
+
+    normalized = _normalize_chunk_shape(
+        {
+            "chunk_id": "c1",
+            "content": "  Content becomes citation snippet.  ",
+            "video_id": "v1",
+            "video_title": "T",
+            "video_url": "u",
+        }
+    )
+
+    assert normalized["snippet"] == "Content becomes citation snippet."
+
+
 # --- Embedding memoization -------------------------------------------------
 
 

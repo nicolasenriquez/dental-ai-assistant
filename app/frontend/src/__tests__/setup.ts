@@ -5,7 +5,37 @@
 
 import { Blob as NodeBlob } from 'node:buffer';
 import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+
+afterEach(cleanup);
 
 // jsdom ships a Blob stub without text()/arrayBuffer(); swap in node:buffer's
 // Blob so tests can read content back.
 globalThis.Blob = NodeBlob as unknown as typeof Blob;
+
+// React Router's data-router navigation creates a Node Request in Vitest's
+// jsdom process. jsdom supplies a different AbortSignal realm, so Node 24
+// rejects that signal before the memory-router navigation can complete.
+// Keep the production Request untouched while making loaderless test
+// navigations ignore only the incompatible signal.
+const NativeRequest = globalThis.Request;
+if (NativeRequest) {
+  class TestRequest extends NativeRequest {
+    constructor(input: RequestInfo | URL, init?: RequestInit) {
+      const compatibleInit = init ? { ...init, signal: undefined } : init;
+      super(input, compatibleInit);
+    }
+  }
+  globalThis.Request = TestRequest;
+}
+
+// react-resizable-panels (Drive workspace sidecar) measures panels with
+// ResizeObserver; jsdom does not implement it.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}

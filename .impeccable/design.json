@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T02:06:12.873Z",
+  "title": "Design System: Dental AI Assistant",
+  "extensions": {
+    "colorMeta": {
+      "midnight-ink": { "role": "neutral", "displayName": "Midnight Ink", "canonical": "#0a0a0f", "tonalRamp": ["oklch(15% 0.006 270)", "oklch(25% 0.006 270)", "oklch(35% 0.006 270)", "oklch(45% 0.006 270)", "oklch(55% 0.006 270)", "oklch(65% 0.006 270)", "oklch(75% 0.006 270)", "oklch(95% 0.006 270)"] },
+      "slate-surface": { "role": "neutral", "displayName": "Slate Surface", "canonical": "#111827", "tonalRamp": ["oklch(15% 0.025 255)", "oklch(25% 0.025 255)", "oklch(35% 0.025 255)", "oklch(45% 0.025 255)", "oklch(55% 0.025 255)", "oklch(65% 0.025 255)", "oklch(75% 0.025 255)", "oklch(95% 0.025 255)"] },
+      "lifted-slate": { "role": "neutral", "displayName": "Lifted Slate", "canonical": "#1e293b", "tonalRamp": ["oklch(15% 0.035 255)", "oklch(25% 0.035 255)", "oklch(35% 0.035 255)", "oklch(45% 0.035 255)", "oklch(55% 0.035 255)", "oklch(65% 0.035 255)", "oklch(75% 0.035 255)", "oklch(95% 0.035 255)"] },
+      "quiet-divider": { "role": "neutral", "displayName": "Quiet Divider", "canonical": "rgba(255, 255, 255, 0.08)", "tonalRamp": ["oklch(15% 0.005 270)", "oklch(25% 0.005 270)", "oklch(35% 0.005 270)", "oklch(45% 0.005 270)", "oklch(55% 0.005 270)", "oklch(65% 0.005 270)", "oklch(75% 0.005 270)", "oklch(95% 0.005 270)"] },
+      "clear-signal-blue": { "role": "primary", "displayName": "Clear Signal Blue", "canonical": "#3b82f6", "tonalRamp": ["oklch(15% 0.2 255)", "oklch(25% 0.2 255)", "oklch(35% 0.2 255)", "oklch(45% 0.2 255)", "oklch(55% 0.2 255)", "oklch(65% 0.2 255)", "oklch(75% 0.2 255)", "oklch(95% 0.2 255)"] },
+      "deep-signal-blue": { "role": "primary", "displayName": "Deep Signal Blue", "canonical": "#1d4ed8", "tonalRamp": ["oklch(15% 0.22 263)", "oklch(25% 0.22 263)", "oklch(35% 0.22 263)", "oklch(45% 0.22 263)", "oklch(55% 0.22 263)", "oklch(65% 0.22 263)", "oklch(75% 0.22 263)", "oklch(95% 0.22 263)"] },
+      "patient-message-blue": { "role": "primary", "displayName": "Patient Message Blue", "canonical": "#2563eb", "tonalRamp": ["oklch(15% 0.22 261)", "oklch(25% 0.22 261)", "oklch(35% 0.22 261)", "oklch(45% 0.22 261)", "oklch(55% 0.22 261)", "oklch(65% 0.22 261)", "oklch(75% 0.22 261)", "oklch(95% 0.22 261)"] },
+      "blue-focus-halo": { "role": "primary", "displayName": "Blue Focus Halo", "canonical": "rgba(59, 130, 246, 0.3)", "tonalRamp": ["oklch(15% 0.2 255)", "oklch(25% 0.2 255)", "oklch(35% 0.2 255)", "oklch(45% 0.2 255)", "oklch(55% 0.2 255)", "oklch(65% 0.2 255)", "oklch(75% 0.2 255)", "oklch(95% 0.2 255)"] },
+      "primary-text": { "role": "neutral", "displayName": "Mist Text", "canonical": "#f1f5f9", "tonalRamp": ["oklch(15% 0.012 255)", "oklch(25% 0.012 255)", "oklch(35% 0.012 255)", "oklch(45% 0.012 255)", "oklch(55% 0.012 255)", "oklch(65% 0.012 255)", "oklch(75% 0.012 255)", "oklch(95% 0.012 255)"] },
+      "secondary-text": { "role": "neutral", "displayName": "Slate Text", "canonical": "#94a3b8", "tonalRamp": ["oklch(15% 0.025 255)", "oklch(25% 0.025 255)", "oklch(35% 0.025 255)", "oklch(45% 0.025 255)", "oklch(55% 0.025 255)", "oklch(65% 0.025 255)", "oklch(75% 0.025 255)", "oklch(95% 0.025 255)"] },
+      "tertiary-text": { "role": "neutral", "displayName": "Muted Slate Text", "canonical": "#7f8ea3", "tonalRamp": ["oklch(15% 0.025 255)", "oklch(25% 0.025 255)", "oklch(35% 0.025 255)", "oklch(45% 0.025 255)", "oklch(55% 0.025 255)", "oklch(65% 0.025 255)", "oklch(75% 0.025 255)", "oklch(95% 0.025 255)"] },
+      "pure-white": { "role": "neutral", "displayName": "Action White", "canonical": "#ffffff", "tonalRamp": ["oklch(15% 0.005 260)", "oklch(25% 0.005 260)", "oklch(35% 0.005 260)", "oklch(45% 0.005 260)", "oklch(55% 0.005 260)", "oklch(65% 0.005 260)", "oklch(75% 0.005 260)", "oklch(95% 0.005 260)"] },
+      "success-green": { "role": "tertiary", "displayName": "Success Green", "canonical": "#10b981", "tonalRamp": ["oklch(15% 0.16 160)", "oklch(25% 0.16 160)", "oklch(35% 0.16 160)", "oklch(45% 0.16 160)", "oklch(55% 0.16 160)", "oklch(65% 0.16 160)", "oklch(75% 0.16 160)", "oklch(95% 0.16 160)"] },
+      "danger-red": { "role": "tertiary", "displayName": "Danger Red", "canonical": "#ef4444", "tonalRamp": ["oklch(15% 0.21 25)", "oklch(25% 0.21 25)", "oklch(35% 0.21 25)", "oklch(45% 0.21 25)", "oklch(55% 0.21 25)", "oklch(65% 0.21 25)", "oklch(75% 0.21 25)", "oklch(95% 0.21 25)"] },
+      "error-rose": { "role": "tertiary", "displayName": "Error Rose", "canonical": "#fca5a5", "tonalRamp": ["oklch(15% 0.12 20)", "oklch(25% 0.12 20)", "oklch(35% 0.12 20)", "oklch(45% 0.12 20)", "oklch(55% 0.12 20)", "oklch(65% 0.12 20)", "oklch(75% 0.12 20)", "oklch(95% 0.12 20)"] },
+      "warning-amber": { "role": "tertiary", "displayName": "Warning Amber", "canonical": "#f59e0b", "tonalRamp": ["oklch(15% 0.18 75)", "oklch(25% 0.18 75)", "oklch(35% 0.18 75)", "oklch(45% 0.18 75)", "oklch(55% 0.18 75)", "oklch(65% 0.18 75)", "oklch(75% 0.18 75)", "oklch(95% 0.18 75)"] },
+      "warning-wash": { "role": "tertiary", "displayName": "Warning Wash", "canonical": "rgba(245, 158, 11, 0.12)", "tonalRamp": ["oklch(15% 0.18 75)", "oklch(25% 0.18 75)", "oklch(35% 0.18 75)", "oklch(45% 0.18 75)", "oklch(55% 0.18 75)", "oklch(65% 0.18 75)", "oklch(75% 0.18 75)", "oklch(95% 0.18 75)"] },
+      "warning-edge": { "role": "tertiary", "displayName": "Warning Edge", "canonical": "rgba(245, 158, 11, 0.35)", "tonalRamp": ["oklch(15% 0.18 75)", "oklch(25% 0.18 75)", "oklch(35% 0.18 75)", "oklch(45% 0.18 75)", "oklch(55% 0.18 75)", "oklch(65% 0.18 75)", "oklch(75% 0.18 75)", "oklch(95% 0.18 75)"] },
+      "code-ink": { "role": "neutral", "displayName": "Code Ink", "canonical": "#0d1117", "tonalRamp": ["oklch(15% 0.008 255)", "oklch(25% 0.008 255)", "oklch(35% 0.008 255)", "oklch(45% 0.008 255)", "oklch(55% 0.008 255)", "oklch(65% 0.008 255)", "oklch(75% 0.008 255)", "oklch(95% 0.008 255)"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Workbench Headline", "purpose": "Patient and page identity." },
+      "body": { "displayName": "Clinical Body", "purpose": "Default interface and record copy." },
+      "code": { "displayName": "Code Mono", "purpose": "Code examples and technical values only." }
+    },
+    "shadows": [
+      { "name": "composer-dock", "value": "0 10px 28px rgb(0 0 0 / 18%)", "purpose": "Separate fixed composer from transcript." },
+      { "name": "clinical-artifact", "value": "0 12px 35px rgba(0, 0, 0, 0.18)", "purpose": "Give reviewable draft its own contained surface." },
+      { "name": "toast", "value": "0 8px 32px rgba(0, 0, 0, 0.4)", "purpose": "Lift temporary notification above workspace." }
+    ],
+    "motion": [
+      { "name": "toast-enter", "value": "180ms cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Opacity and 8px horizontal movement; removed for reduced motion." },
+      { "name": "toast-exit", "value": "120ms cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Opacity and 8px horizontal movement; removed for reduced motion." },
+      { "name": "workspace-pane", "value": "300ms", "purpose": "Spatial transition when Drive pane opens or closes on desktop." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "600px" },
+      { "name": "mobile", "value": "767px" },
+      { "name": "tablet", "value": "1023px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Patient-workspace primary action with visible focus and stronger hover fill.",
+      "html": "<button class='ds-primary'>Crear evolución</button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;min-height:42px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;padding:0 16px;font:600 14px Inter,-apple-system,BlinkMacSystemFont,sans-serif;text-decoration:none;cursor:pointer;transition:background .15s ease,border-color .15s ease}.ds-primary:hover{border-color:#60a5fa;background:#2563eb}.ds-primary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Clinical Primary Action",
+      "kind": "button",
+      "refersTo": "button-clinical-primary",
+      "description": "Compact action used within clinical assistant workflows.",
+      "html": "<button class='ds-clinical-primary'>Guardar evolución</button>",
+      "css": ".ds-clinical-primary{min-height:40px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;padding:8px 12px;font:600 13px Inter,-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer}.ds-clinical-primary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.ds-clinical-primary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Clinical Secondary Action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Quiet outlined action for cancellation, navigation, and secondary choices.",
+      "html": "<button class='ds-secondary'>Cancelar</button>",
+      "css": ".ds-secondary{min-height:40px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);padding:8px 12px;font:400 13px Inter,-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer}.ds-secondary:hover{color:var(--text-primary)}.ds-secondary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Clinical Patient Search",
+      "kind": "input",
+      "refersTo": "patient-search",
+      "description": "Patient picker search sits in a quiet divided row with explicit blue keyboard focus.",
+      "html": "<label class='ds-search' for='ds-patient'><svg viewBox='0 0 16 16' aria-hidden='true'><circle cx='6.5' cy='6.5' r='4.5'/><path d='m10 10 4 4'/></svg><input id='ds-patient' type='search' aria-label='Buscar paciente' placeholder='Buscar paciente'></label>",
+      "css": ".ds-search{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding:9px 10px}.ds-search svg{width:16px;height:16px;flex:none;fill:none;stroke:var(--text-secondary);stroke-width:1.5;stroke-linecap:round}.ds-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--text-primary);font:400 14px Inter,-apple-system,BlinkMacSystemFont,sans-serif}.ds-search input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.ds-search input::placeholder{color:var(--text-tertiary)}"
+    },
+    {
+      "name": "Active Sidebar Item",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Current destination uses a soft fill and narrow blue rail; focus stays explicit.",
+      "html": "<a class='ds-nav-item is-active' href='#patients'><svg viewBox='0 0 20 20' aria-hidden='true'><path d='M3 4h14v12H3zM3 8h14M8 8v8' fill='none' stroke='currentColor' stroke-width='1.5'/></svg><span>Pacientes</span></a>",
+      "css": ".ds-nav-item{position:relative;display:flex;min-height:32px;align-items:center;gap:10px;border-radius:7px;background:transparent;color:var(--text-secondary);padding:6px 8px;text-decoration:none;font:400 13px Inter,-apple-system,BlinkMacSystemFont,sans-serif}.ds-nav-item svg{width:18px;height:18px;flex:none}.ds-nav-item:hover{background:rgba(255,255,255,.06);color:var(--text-primary)}.ds-nav-item.is-active{background:rgba(255,255,255,.08);color:var(--text-primary)}.ds-nav-item.is-active:before{position:absolute;top:7px;bottom:7px;left:0;width:2px;border-radius:999px;background:var(--accent);content:''}.ds-nav-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Conversation Composer",
+      "kind": "custom",
+      "refersTo": "composer",
+      "description": "Shared fixed composer surface with clear focus and a separate 44px send target.",
+      "html": "<div class='ds-composer'><textarea aria-label='Escribe una consulta' placeholder='Escribe una consulta…'></textarea><button aria-label='Enviar mensaje' class='ds-send'><svg viewBox='0 0 16 16' aria-hidden='true'><line x1='8' y1='14' x2='8' y2='3'/><polyline points='3,8 8,3 13,8'/></svg></button></div>",
+      "css": ".ds-composer{display:flex;min-height:56px;align-items:center;gap:8px;border:1px solid var(--conversation-composer-border);border-radius:var(--conversation-composer-radius);background:var(--surface-1);padding:6px 12px;box-shadow:var(--conversation-composer-shadow);transition:opacity 200ms ease,box-shadow 150ms ease}.ds-composer.is-focused:not(.is-disabled){box-shadow:0 0 0 2px var(--conversation-focus-ring)}.ds-composer textarea{width:100%;min-width:0;min-height:24px;max-height:144px;flex:1;border:0;outline:0;background:transparent;color:var(--text-primary);padding:0;font:400 15px/24px Inter,-apple-system,BlinkMacSystemFont,sans-serif;resize:none}.ds-send{display:grid;width:44px;height:44px;flex:none;place-items:center;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;transition:filter 150ms ease}.ds-send svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.ds-send:active{filter:brightness(.9)}.ds-send:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Clinical Review Artifact",
+      "kind": "card",
+      "refersTo": "clinical-artifact",
+      "description": "Contained draft/review surface with a quiet gradient, fine border, and selective shadow.",
+      "html": "<section class='ds-artifact'><header><span>BORRADOR CLÍNICO</span><strong>Evolución</strong><small>Revisión pendiente</small></header><p>Contenido clínico revisable antes de guardar en ficha.</p></section>",
+      "css": ".ds-artifact{max-width:760px;overflow:hidden;border:1px solid rgba(255,255,255,.11);border-radius:13px;background:linear-gradient(180deg,rgba(23,28,38,.92),rgba(15,19,27,.92));color:var(--text-primary);box-shadow:0 12px 35px rgba(0,0,0,.18);font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif}.ds-artifact header{display:grid;gap:4px;border-bottom:1px solid var(--border);padding:15px 16px 12px}.ds-artifact header span{color:var(--text-tertiary);font-size:10px;font-weight:600;letter-spacing:.08em}.ds-artifact header strong{font-size:16px}.ds-artifact header small,.ds-artifact p{color:var(--text-secondary)}.ds-artifact p{margin:0;padding:16px;font-size:14px;line-height:1.6}"
+    },
+    {
+      "name": "Selected Patient History Row",
+      "kind": "card",
+      "refersTo": "patient-history-selected",
+      "description": "Timeline entry keeps date, preview, and selection state in one readable row.",
+      "html": "<a class='ds-history is-selected' href='#evolution'><span class='ds-marker' aria-hidden='true'></span><span class='ds-history-copy'><small>dd/mm/aaaa · HH:mm</small><strong>Evolución clínica</strong><span>Ver detalle guardado.</span></span><svg viewBox='0 0 16 16' aria-hidden='true'><path d='m6 3 5 5-5 5' fill='none' stroke='currentColor' stroke-width='1.5'/></svg></a>",
+      "css": ".ds-history{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:start;gap:12px;min-height:96px;border:1px solid transparent;border-radius:8px;color:var(--text-primary);padding:16px 12px;text-decoration:none;transition:background 150ms ease,border-color 150ms ease}.ds-history:hover{border-color:var(--border);background:rgba(255,255,255,.03)}.ds-history.is-selected{border-color:var(--accent);background:rgba(59,130,246,.1);box-shadow:inset 3px 0 var(--accent)}.ds-marker{width:12px;height:12px;margin:4px auto 0;border:2px solid var(--surface-1);border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}.ds-history-copy{display:grid;gap:6px}.ds-history-copy small,.ds-history-copy span:last-child{color:var(--text-secondary);font-size:12px}.ds-history-copy strong{font-size:15px}.ds-history>svg{width:16px;height:16px;align-self:center;color:var(--text-secondary)}.ds-history:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Status Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Non-blocking notification pairs state-colored icon with readable status text.",
+      "html": "<div class='ds-toast' role='alert'><svg viewBox='0 0 16 16' aria-hidden='true'><circle cx='8' cy='8' r='7'/><path d='m5 8 2 2 4-4'/></svg><p>Guardada en ficha</p><button aria-label='Cerrar notificación'><svg viewBox='0 0 14 14' aria-hidden='true'><path d='m3 3 8 8m0-8-8 8'/></svg></button></div>",
+      "css": ".ds-toast{display:flex;min-width:280px;max-width:380px;align-items:flex-start;gap:12px;border:1px solid var(--success);border-radius:10px;background:var(--surface-1);padding:12px 14px;color:var(--text-primary);box-shadow:0 8px 32px rgba(0,0,0,.4);font:400 14px/1.5 Inter,-apple-system,BlinkMacSystemFont,sans-serif}.ds-toast>svg{width:16px;height:16px;flex:none;margin-top:1px;fill:none;stroke:var(--success);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.ds-toast p{flex:1;margin:0}.ds-toast button{display:flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:var(--text-secondary);padding:2px;cursor:pointer;transition:color 150ms}.ds-toast button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}.ds-toast button:hover{color:var(--text-primary)}.ds-toast button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Clinical Workbench",
+    "overview": "The interface organizes clinical work around content and action rather than spectacle. A near-black canvas and cool slate layers hold focused patient, assistant, and chat tasks; clear blue signals committed action, keyboard focus, and selected navigation. Inter keeps clinical reading direct; monospace appears only where technical data needs it.\n\nCards, forms, sidebars, and transcript share one workspace shell. Density stays compact but legible: labels recede, work text leads, and pane width shapes responsive composition. Depth comes from tonal surfaces and selective shadows. Visible focus stays distinct from selection, and motion follows the operating-system reduced-motion preference.",
+    "keyCharacteristics": [
+      "Dark ink canvas with layered blue-slate work surfaces.",
+      "Clear blue reserved for action, focus, selection, and active navigation.",
+      "Compact Inter hierarchy; monospace limited to code and technical values.",
+      "Workspace and composer layouts follow the available pane, not only viewport width.",
+      "State remains legible through text, symbols, and focus treatment—not color alone."
+    ],
+    "rules": [
+      { "name": "The Signal-Only Accent Rule", "body": "Let neutral surfaces carry the screen. Use clear blue to identify action, focus, selection, and the active route—not as a decorative fill.", "section": "colors" },
+      { "name": "The Status-Has-Text Rule", "body": "Pair every status color with a symbol or plain status text. Never make color the only carrier of success, warning, or failure.", "section": "colors" },
+      { "name": "The One Voice Rule", "body": "Use Inter throughout interface chrome and content. Introduce monospace only when content is code.", "section": "typography" },
+      { "name": "The Focus-Is-Not-Selection Rule", "body": "A filled state marks the selected destination or filter; a visible outline marks keyboard position. Moving focus never selects a different section.", "section": "components" },
+      { "name": "The Tone-Before-Shadow Rule", "body": "Establish hierarchy with surface color and border first; add shadow only when an element floats above or must separate from adjacent content.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use the semantic palette and composer tokens in app/frontend/src/styles/globals.css; mockup values are references, not a second source of truth.",
+      "Do center conversation content and composers in the available pane, not only the browser viewport.",
+      "Do keep patient context visible and use the shared brand mark across workspace surfaces.",
+      "Do distinguish hover, selected, and keyboard-focus states; preserve a visible focus outline.",
+      "Do pair status colors with text or symbols and keep clinical save status separate from Drive sync.",
+      "Do respect reduced-motion preferences and keep coarse-pointer controls at least 44px high."
+    ],
+    "donts": [
+      "Don't invent a second accent palette or use blue as decoration across large neutral surfaces.",
+      "Don't communicate clinical status by color alone.",
+      "Don't let selected state impersonate keyboard focus, or keyboard focus trigger a selection.",
+      "Don't hide Drive state or cancel clinical work when its pane closes.",
+      "Don't let clinical header actions collide with the sidebar restore control on narrow panes.",
+      "Don't apply the same heavy shadow to every container."
+    ]
+  }
+}

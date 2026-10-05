@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Conversation, getConversations, renameConversation } from '../lib/api';
 
-export function useConversations(searchQuery?: string) {
+const LEGACY_DEFAULT_TITLE = 'New Conversation';
+const DEFAULT_TITLE = 'Nueva conversación';
+
+export function getConversationDisplayTitle(title: string): string {
+  return title === LEGACY_DEFAULT_TITLE ? DEFAULT_TITLE : title;
+}
+
+export function useConversations(searchQuery?: string, enabled = true) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -11,8 +18,15 @@ export function useConversations(searchQuery?: string) {
 
   const load = useCallback(async () => {
     const myId = ++fetchIdRef.current;
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      setConversations([]);
+      return;
+    }
     try {
       setLoading(true);
+      setError(null);
       const data = await getConversations();
       if (myId === fetchIdRef.current) setConversations(data);
     } catch (e) {
@@ -22,10 +36,13 @@ export function useConversations(searchQuery?: string) {
     } finally {
       if (myId === fetchIdRef.current) setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => {
+      fetchIdRef.current += 1;
+    };
   }, [load]);
 
   const rename = async (id: string, title: string): Promise<{ ok: boolean; error?: string }> => {
@@ -43,7 +60,12 @@ export function useConversations(searchQuery?: string) {
 
   // Filter out conversations with zero messages (preview === null).
   // Keep conversations unfiltered for guard logic in Sidebar.tsx.
-  const withMessages = conversations.filter((c) => c.preview !== null);
+  const withMessages = conversations
+    .filter((c) => c.preview !== null)
+    .map((conversation) => ({
+      ...conversation,
+      title: getConversationDisplayTitle(conversation.title),
+    }));
 
   const trimmed = (searchQuery ?? '').trim().toLowerCase();
   const filteredConversations = trimmed

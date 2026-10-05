@@ -239,6 +239,23 @@ describe('formatCitation', () => {
     const result = formatCitation(citation);
     expect(result).toContain('— 0:10–0:20');
   });
+
+  it('should support short YouTube URLs', () => {
+    const result = formatCitation({ ...baseCitation, video_url: 'https://youtu.be/abc123' });
+
+    expect(result).toContain('[Test Video Title](https://www.youtube.com/watch?v=abc123&t=10s)');
+  });
+
+  it('should format Dynamous citations with lesson URL', () => {
+    const result = formatCitation({
+      ...baseCitation,
+      source_type: 'dynamous',
+      lesson_url: 'https://circle.so/lesson/abc123',
+    });
+
+    expect(result).toContain('[Test Video Title](https://circle.so/lesson/abc123)');
+    expect(result).toContain('> "Test snippet text"');
+  });
 });
 
 describe('formatSources', () => {

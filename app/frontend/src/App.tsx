@@ -1,12 +1,36 @@
-import { type ReactNode, useRef, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { MotionConfig } from 'motion/react';
+import { type ReactNode, useRef } from 'react';
+import {
+  Navigate,
+  Outlet,
+  Route,
+  RouterProvider,
+  createBrowserRouter,
+  createRoutesFromElements,
+  useLocation,
+  useMatch,
+} from 'react-router-dom';
+import { AppShell } from './components/AppShell';
 import { ChatArea } from './components/ChatArea';
-import { Sidebar } from './components/Sidebar';
+import { ChatRuntimeProvider } from './components/ChatRuntimeProvider';
+import { ClinicalRuntimeProvider } from './components/ClinicalRuntimeProvider';
 import { ToastProvider } from './components/ToastProvider';
-import { AuthProvider, useAuth } from './hooks/useAuth';
+import {
+  AuthProvider,
+  isAuthenticatedStatus,
+  isUnauthenticatedStatus,
+  useAuth,
+} from './hooks/useAuth';
+import { useChatRuntime } from './hooks/useChatRuntime';
+import { PatientDirectoryProvider } from './hooks/usePatientDirectory';
+import { SidebarCollapseProvider } from './hooks/useSidebarCollapse';
 import { AdminVideos } from './pages/AdminVideos';
+import { ClinicalAssistant } from './pages/ClinicalAssistant';
 import { Login } from './pages/Login';
+import { NewEvolution } from './pages/NewEvolution';
 import { NotFound } from './pages/NotFound';
+import { PatientDetail } from './pages/PatientDetail';
+import { Patients } from './pages/Patients';
 import { Signup } from './pages/Signup';
 
 // ── Auth guard ───────────────────────────────────────────────────
@@ -18,119 +42,132 @@ function RequireAuth({ children }: RequireAuthProps) {
   const { status } = useAuth();
   const location = useLocation();
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text-secondary)]">
-        Loading…
-      </div>
-    );
+  if (isAuthenticatedStatus(status)) {
+    return <>{children}</>;
   }
-  if (status === 'anon') {
+  if (isUnauthenticatedStatus(status) || status === 'error') {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   }
-  return <>{children}</>;
-}
-
-// ── Layout wrapper used by all routes ────────────────────────────
-interface AppLayoutProps {
-  conversationId?: string;
-}
-
-function AppLayout({ conversationId }: AppLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Shared ref so ChatArea can trigger a sidebar conversation refresh
-  const conversationsRef = useRef<(() => Promise<void>) | null>(null) as React.MutableRefObject<
-    (() => Promise<void>) | null
-  >;
-
   return (
-    <div className="app-layout">
-      {/* Mobile overlay — only rendered when sidebar is open on mobile */}
-      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
-
-      <Sidebar
-        activeConversationId={conversationId}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        conversationsRef={conversationsRef}
-      />
-
-      <div className="main-area">
-        {/* Hamburger — visible only on mobile */}
-        <button
-          className="hamburger-btn"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open sidebar"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <line x1="2" y1="4.5" x2="16" y2="4.5" />
-            <line x1="2" y1="9" x2="16" y2="9" />
-            <line x1="2" y1="13.5" x2="16" y2="13.5" />
-          </svg>
-        </button>
-
-        <ChatArea conversationId={conversationId} refreshConversationsRef={conversationsRef} />
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] text-[var(--text-secondary)]">
+      Loading…
     </div>
   );
 }
 
-// ── Route components ─────────────────────────────────────────────
-function ConversationPage() {
-  const { conversationId } = useParams<{ conversationId: string }>();
-  return <AppLayout conversationId={conversationId} />;
+// ── Layout wrapper used by all routes ────────────────────────────
+function AppLayout() {
+  const conversationId = useMatch('/c/:conversationId')?.params.conversationId;
+  // Shared ref so ChatArea can trigger a sidebar conversation refresh
+  const conversationsRef = useRef<(() => Promise<void>) | null>(null) as React.MutableRefObject<
+    (() => Promise<void>) | null
+  >;
+  const { runtimeByConversationId, startStream, abortStream, clearRuntime } = useChatRuntime();
+  const { refresh: refreshAuth } = useAuth();
+
+  return (
+    <AppShell
+      activeConversationId={conversationId}
+      showConversations
+      conversationsRef={conversationsRef}
+      runtimeByConversationId={runtimeByConversationId}
+    >
+      <ChatArea
+        conversationId={conversationId}
+        refreshConversationsRef={conversationsRef}
+        runtime={conversationId ? runtimeByConversationId[conversationId] : undefined}
+        startStream={startStream}
+        abortStream={abortStream}
+        clearRuntime={clearRuntime}
+        refreshAuth={refreshAuth}
+      />
+    </AppShell>
+  );
 }
 
-function LandingPage() {
-  return <AppLayout />;
+// ── Route components ─────────────────────────────────────────────
+function AppProviders() {
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <Outlet />
+      </ToastProvider>
+    </AuthProvider>
+  );
 }
+
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<AppProviders />}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route
+        element={
+          <RequireAuth>
+            <ChatRuntimeProvider>
+              <ClinicalRuntimeProvider>
+                <PatientDirectoryProvider>
+                  <SidebarCollapseProvider>
+                    <Outlet />
+                  </SidebarCollapseProvider>
+                </PatientDirectoryProvider>
+              </ClinicalRuntimeProvider>
+            </ChatRuntimeProvider>
+          </RequireAuth>
+        }
+      >
+        <Route path="/" element={<Navigate to="/patients" replace />} />
+        <Route
+          path="/patients"
+          element={
+            <AppShell showConversations={false}>
+              <Patients />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/patients/:patientId"
+          element={
+            <AppShell showConversations={false}>
+              <PatientDetail />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/patients/:patientId/evolutions/new"
+          element={
+            <AppShell showConversations={false}>
+              <NewEvolution />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/patients/:patientId/evolutions/:evolutionId"
+          element={
+            <AppShell showConversations={false}>
+              <PatientDetail />
+            </AppShell>
+          }
+        />
+        <Route element={<AppLayout />}>
+          <Route path="/chat" />
+          <Route path="/c/:conversationId" />
+        </Route>
+        <Route path="/assistant" element={<ClinicalAssistant />} />
+        <Route path="/a/:threadId" element={<ClinicalAssistant />} />
+        <Route path="/admin" element={<AdminVideos />} />
+      </Route>
+      <Route path="*" element={<NotFound />} />
+    </Route>,
+  ),
+);
 
 // ── Root app ─────────────────────────────────────────────────────
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <LandingPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/c/:conversationId"
-              element={
-                <RequireAuth>
-                  <ConversationPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <RequireAuth>
-                  <AdminVideos />
-                </RequireAuth>
-              }
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <MotionConfig reducedMotion="user">
+      <RouterProvider router={router} />
+    </MotionConfig>
   );
 }
 
