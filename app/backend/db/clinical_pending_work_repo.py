@@ -19,12 +19,13 @@ async def list_pending_work(
             """
             WITH work AS (
               SELECT 'approval:' || a.id::text AS id, 'approval_required' AS kind,
-                     a.patient_id, a.thread_id, a.id AS resource_id, a.created_at AS updated_at
+                     a.patient_id, a.thread_id, a.id AS resource_id, a.created_at AS updated_at,
+                     a.proposal_payload ->> 'final_text' AS summary
               FROM clinical_pending_actions a
               WHERE a.owner_user_id = $1 AND a.status = 'pending' AND a.expires_at > now()
               UNION ALL
               SELECT 'draft:' || a.id::text, 'recoverable_draft', a.patient_id,
-                     a.thread_id, a.id, a.updated_at
+                     a.thread_id, a.id, a.updated_at, a.payload -> 'draft' ->> 'context'
               FROM clinical_turn_artifacts a
               WHERE a.owner_user_id = $1 AND a.status IN ('draft', 'stale')
                 AND NOT EXISTS (
@@ -33,7 +34,7 @@ async def list_pending_work(
                 )
               UNION ALL
               SELECT 'drive:' || e.evolution_id::text, 'drive_export_failed', v.patient_id,
-                     link.thread_id, e.evolution_id, e.updated_at
+                     link.thread_id, e.evolution_id, e.updated_at, v.final_text
               FROM google_drive_evolution_exports e
               JOIN evolutions v ON v.id = e.evolution_id AND v.owner_user_id = $1
               LEFT JOIN LATERAL (

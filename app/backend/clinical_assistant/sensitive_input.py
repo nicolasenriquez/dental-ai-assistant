@@ -6,6 +6,7 @@ display/model text and never the original identifier.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -63,9 +64,16 @@ async def sanitize_content(owner_user_id: UUID | str, content: str) -> Sanitized
 
         patient = await patients_repo.get_patient_by_rut(owner_user_id, rut_body)
         if patient is None:
-            unresolved_candidates += 1
-            display_parts.append("[RUT no encontrado]")
-            model_parts.append("[PATIENT_REF:unresolved]")
+            explicit_rut = not match.group("compact") or re.search(
+                r"\brut\s*[:=]?\s*$", content[: match.start()], re.IGNORECASE
+            )
+            if explicit_rut:
+                unresolved_candidates += 1
+                display_parts.append("[RUT no encontrado]")
+                model_parts.append("[PATIENT_REF:unresolved]")
+            else:
+                display_parts.append("[RUT_REDACTED]")
+                model_parts.append("[RUT_REDACTED]")
         else:
             patient_id = UUID(str(patient["id"]))
             if patient_id not in patient_ids:

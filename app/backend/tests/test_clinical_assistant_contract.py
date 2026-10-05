@@ -135,6 +135,26 @@ async def test_unknown_rut_is_replaced_without_provider_safe_echo(monkeypatch) -
     assert "[RUT no encontrado]" in result.display_text
 
 
+@pytest.mark.parametrize("prefix,unresolved", [("Marcador ", 0), ("RUT: ", 1)])
+async def test_unknown_compact_number_does_not_select_patient_unless_explicit(
+    monkeypatch, prefix: str, unresolved: int
+) -> None:
+    from backend.clinical_assistant.sensitive_input import sanitize_content
+
+    async def no_patient(owner, rut_body):
+        return None
+
+    monkeypatch.setattr(
+        "backend.clinical_assistant.sensitive_input.patients_repo.get_patient_by_rut",
+        no_patient,
+    )
+    result = await sanitize_content(UUID(int=1), f"{prefix}20261005")
+    assert result.unresolved_candidates == unresolved
+    assert result.patient_ids == ()
+    assert "20261005" not in result.display_text
+    assert "20261005" not in result.model_text
+
+
 async def test_patient_switch_payload_serializes_uuid_patient_ids(monkeypatch) -> None:
     from backend.db import clinical_assistant_repo
 

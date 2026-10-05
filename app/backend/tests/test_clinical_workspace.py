@@ -196,6 +196,7 @@ async def test_pending_cursor_and_route_bounds(monkeypatch) -> None:
         "rut_number": 12345678,
         "rut_dv": "5",
         "total": 2,
+        "summary": "Control\npreventivo 12.345.678-5",
     }
     monkeypatch.setattr(
         pending_work.clinical_pending_work_repo,
@@ -204,6 +205,7 @@ async def test_pending_cursor_and_route_bounds(monkeypatch) -> None:
     )
     page = await pending_work.list_pending_work(UUID(int=1), None, 1, None)
     assert page.total == 2
+    assert page.items[0].summary == "Control preventivo [RUT_REDACTED]"
     assert page.next_cursor
     assert pending_work.decode_cursor(page.next_cursor) == (row["updated_at"], row["id"])
     row.update(kind="drive_export_failed", thread_id=None)

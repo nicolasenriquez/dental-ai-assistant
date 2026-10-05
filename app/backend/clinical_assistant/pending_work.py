@@ -10,7 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from backend.db import clinical_pending_work_repo, patients_repo
-from backend.patients.rut import mask_rut
+from backend.patients.rut import mask_rut, redact_rut_candidates
 
 
 class PendingWorkPatient(BaseModel):
@@ -43,6 +43,7 @@ class PendingWorkItem(BaseModel):
     patient: PendingWorkPatient
     updated_at: datetime
     action: ReviewApproval | ContinueDraft | RetryExport
+    summary: str | None = None
 
 
 class PendingWorkPage(BaseModel):
@@ -101,6 +102,8 @@ async def list_pending_work(
                 kind=row["kind"],
                 updated_at=row["updated_at"],
                 action=action,
+                summary=" ".join(redact_rut_candidates(str(row.get("summary") or "")).split())[:160]
+                or None,
                 patient=PendingWorkPatient(
                     id=row["patient_id"],
                     display_name=f"{row['first_name']} {row['last_name']}",
