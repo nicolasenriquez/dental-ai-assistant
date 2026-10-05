@@ -54,8 +54,12 @@ export function ContextualAssistant({
         )}
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
+        <p className="px-3 pt-2 text-xs text-muted">
+          Conversación del paciente. Puede incluir borradores anteriores.
+        </p>
         <ClinicalAssistantArea
           threadId={threadId}
+          embedded
           assistant={shared.controller}
           onThreadStateChanged={onChanged}
         />

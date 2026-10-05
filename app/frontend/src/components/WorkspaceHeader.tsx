@@ -6,6 +6,7 @@ interface WorkspaceHeaderProps {
   workspaceContext?: ReactNode;
   actions?: ReactNode;
   navigation?: ReactNode;
+  headingLevel?: 1 | 2;
 }
 
 export function WorkspaceHeader({
@@ -14,12 +15,14 @@ export function WorkspaceHeader({
   workspaceContext,
   actions,
   navigation,
+  headingLevel = 1,
 }: WorkspaceHeaderProps) {
+  const Heading = headingLevel === 1 ? 'h1' : 'h2';
   return (
     <header className="workspace-header">
       <div className="workspace-header__copy">
         {navigation}
-        <strong>{title}</strong>
+        <Heading>{title}</Heading>
         {description && <span>{description}</span>}
       </div>
       {workspaceContext && <div className="workspace-header__context">{workspaceContext}</div>}
