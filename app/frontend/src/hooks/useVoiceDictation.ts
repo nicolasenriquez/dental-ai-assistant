@@ -246,11 +246,11 @@ export function useVoiceDictation(scopeId: string, onText: (text: string) => voi
         }
       };
       recorder.onstop = () => {
+        if (!isCurrentOperation(operation, sourceScope) || cancelledRef.current) return;
         const blob = new Blob(chunksRef.current, {
           type: recorder.mimeType || mimeType || 'audio/webm',
         });
         cleanup();
-        if (!isCurrentOperation(operation, sourceScope) || cancelledRef.current) return;
         if (blob.size === 0) {
           blobRef.current = null;
           updateState('error');
@@ -272,8 +272,8 @@ export function useVoiceDictation(scopeId: string, onText: (text: string) => voi
       stopTimerRef.current = window.setTimeout(stop, MAX_DURATION_MS);
       recorder.start();
     } catch (caught) {
-      cleanup();
       if (!isCurrentOperation(operation, sourceScope)) return;
+      cleanup();
       updateState('error');
       setError(
         caught instanceof DOMException && caught.name === 'NotAllowedError'

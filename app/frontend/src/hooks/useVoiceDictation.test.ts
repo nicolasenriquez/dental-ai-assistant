@@ -112,6 +112,54 @@ describe('useVoiceDictation', () => {
     expect(onText).not.toHaveBeenCalled();
   });
 
+  it('does not clean up a new recording when an old onstop arrives late', async () => {
+    const tracks = Array.from({ length: 2 }, () => ({ stop: vi.fn(), onended: null }));
+    let next = 0;
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockImplementation(async () => {
+      const track = tracks[next++];
+      return { getTracks: () => [track] } as unknown as MediaStream;
+    });
+    const { result } = renderHook(() => useVoiceDictation('thread-a', vi.fn()));
+
+    await act(async () => result.current.start());
+    const oldStop = FakeRecorder.last?.onstop;
+    act(() => result.current.cancel());
+    await act(async () => result.current.start());
+    const current = FakeRecorder.last;
+
+    act(() => oldStop?.());
+    expect(tracks[1].stop).not.toHaveBeenCalled();
+    expect(result.current.state).toBe('recording');
+    act(() => result.current.stop());
+    expect(current?.state).toBe('inactive');
+  });
+
+  it('does not clean up a new recording when old permission request rejects', async () => {
+    let rejectPermission!: (reason: Error) => void;
+    const newTrack = { stop: vi.fn(), onended: null };
+    vi.mocked(navigator.mediaDevices.getUserMedia)
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectPermission = reject;
+          }),
+      )
+      .mockResolvedValueOnce({ getTracks: () => [newTrack] } as unknown as MediaStream);
+    const { result } = renderHook(() => useVoiceDictation('thread-a', vi.fn()));
+
+    act(() => {
+      void result.current.start();
+    });
+    act(() => result.current.cancel());
+    await act(async () => result.current.start());
+    await act(async () => rejectPermission(new Error('old permission denied')));
+
+    expect(newTrack.stop).not.toHaveBeenCalled();
+    expect(result.current.state).toBe('recording');
+    act(() => result.current.stop());
+    expect(FakeRecorder.last?.state).toBe('inactive');
+  });
+
   it('guards empty recordings before transcription and retry', async () => {
     const onText = vi.fn();
     const { result } = renderHook(() => useVoiceDictation('thread-a', onText));
