@@ -106,6 +106,61 @@ const artifact = {
 };
 
 describe('clinical redaction and artifact ordering', () => {
+  it.each([false, true])(
+    'keeps accepted delivery after detach (headers received: %s)',
+    async (headersReceived) => {
+      vi.mocked(getClinicalThread).mockResolvedValue(thread(patientA));
+      let turnId = '';
+      let failBody!: () => void;
+      vi.mocked(streamClinicalTurn).mockImplementation((_id, request, signal) => {
+        turnId = request.turn_id;
+        if (headersReceived) {
+          return Promise.resolve(
+            new Response(
+              new ReadableStream({
+                start(controller) {
+                  failBody = () => controller.error(new DOMException('Detached', 'AbortError'));
+                },
+              }),
+            ),
+          );
+        }
+        return new Promise((_resolve, reject) =>
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('Detached', 'AbortError')),
+          ),
+        );
+      });
+      const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+      await waitFor(() => expect(result.current.thread).not.toBeNull());
+      let sending!: Promise<boolean>;
+      act(() => {
+        sending = result.current.send('Nota aceptada');
+      });
+      await waitFor(() => expect(streamClinicalTurn).toHaveBeenCalledOnce());
+      vi.mocked(getClinicalThread).mockResolvedValue({
+        ...thread(patientA),
+        active_turn_id: turnId,
+        messages: [
+          {
+            id: 'accepted',
+            thread_id: 'thread-1',
+            turn_id: turnId,
+            role: 'user',
+            content: 'Nota aceptada',
+            created_at: '2026-10-05T12:00:00Z',
+          },
+        ],
+      });
+      await act(async () => {
+        if (headersReceived) failBody();
+        else result.current.detach();
+        expect(await sending).toBe(true);
+      });
+      expect(streamClinicalTurn).toHaveBeenCalledOnce();
+    },
+  );
+
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(getClinicalThread).mockResolvedValue({ ...thread(null), artifacts: [artifact] });

@@ -388,6 +388,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
       });
       const controller = new AbortController();
       abortRef.current = controller;
+      let accepted = false;
       try {
         const response = await streamClinicalTurn(
           currentThreadId,
@@ -405,6 +406,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           },
           controller.signal,
         );
+        accepted = true;
         await consumeSse(
           response,
           ({ event, data }) => {
@@ -553,7 +555,8 @@ export function useClinicalAssistant(threadId: string | undefined) {
         } catch {
           // The live result remains usable. A later load will retry reconciliation.
         }
-        return !turnFailedRef.current;
+        // Acceptance is independent of generation success or the SSE subscription.
+        return true;
       } catch (caught) {
         if (threadIdRef.current !== currentThreadId) return true;
         if (caught instanceof DOMException && caught.name === 'AbortError') {
@@ -561,7 +564,8 @@ export function useClinicalAssistant(threadId: string | undefined) {
             setRuntime('idle');
             setError(null);
             try {
-              await load();
+              const reconciled = await load();
+              if (reconciled?.messages.some((message) => message.turn_id === turnId)) return true;
             } catch {
               // The composer must remain usable even if reconciliation fails.
             }
@@ -596,7 +600,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
             if (outcome === 'failed') {
               setError(safeError(savedTurn?.turn_error_code ?? 'CLINICAL_TURN_FAILED'));
               setRuntime('failed');
-              return false;
+              return true;
             }
           } catch {
             clinicalTrace('clinical.reconciliation.finished', {
@@ -624,7 +628,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           setError(safeError('CLINICAL_TURN_FAILED'));
           setRuntime('failed');
         }
-        return false;
+        return accepted;
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
       }

@@ -36,6 +36,8 @@ interface ClinicalAssistantAreaProps {
   patientPickerOpen?: boolean;
   onPatientPickerOpenChange?: (open: boolean) => void;
   returnToFicha?: boolean;
+  embedded?: boolean;
+  resumeTarget?: { kind: 'artifact' | 'approval'; id: string };
 }
 
 type QueuedEntry = ClinicalQueuedEntry;
@@ -53,7 +55,10 @@ export function ClinicalAssistantArea({
   patientPickerOpen,
   onPatientPickerOpenChange,
   returnToFicha = false,
+  embedded = false,
+  resumeTarget,
 }: ClinicalAssistantAreaProps) {
+  const Root = embedded ? 'section' : 'main';
   const [localPatientPickerOpen, setLocalPatientPickerOpen] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
@@ -71,11 +76,14 @@ export function ClinicalAssistantArea({
   const [preparingDraftId, setPreparingDraftId] = useState<string | null>(null);
   const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
+  const [queueDeliveryFailed, setQueueDeliveryFailed] = useState(false);
+  const queueClaimRef = useRef<string | null>(null);
   const [localContexts, setLocalContexts] = useState<Record<string, ComposerContextItem[]>>({});
   const contextByThread = memory?.attachments ?? localContexts;
   const setContextByThread = memory?.setAttachments ?? setLocalContexts;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const areaRef = useRef<HTMLElement>(null);
+  const resumedTargetRef = useRef<string | null>(null);
   const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
   const voiceCaretRef = useRef<number | null>(null);
   const previousVoiceInFlightRef = useRef(false);
@@ -208,16 +216,31 @@ export function ClinicalAssistantArea({
   useEffect(() => {
     const patientId = assistant.thread?.active_patient?.id ?? null;
     const next = queued[0];
-    if (assistant.runtime !== 'idle' || voiceInFlight || !next || next.patientId !== patientId)
+    if (
+      assistant.runtime !== 'idle' ||
+      voiceInFlight ||
+      queueDeliveryFailed ||
+      queueClaimRef.current ||
+      !next ||
+      next.patientId !== patientId
+    )
       return;
+    queueClaimRef.current = next.id;
+    updateQueue((current) => current.filter((item) => item.id !== next.id));
     void assistant.send(next.content, next.contextItems).then((accepted) => {
-      if (accepted) updateQueue((current) => current.filter((item) => item.id !== next.id));
+      queueClaimRef.current = null;
+      if (!accepted) {
+        setQueueDeliveryFailed(true);
+        setQueueError('No pudimos enviar el mensaje en cola. Reintenta cuando vuelva la conexión.');
+      }
+      updateQueue((current) => (accepted ? [...current] : [next, ...current]));
     });
   }, [
     assistant.runtime,
     assistant.send,
     assistant.thread?.active_patient?.id,
     queued,
+    queueDeliveryFailed,
     threadId,
     updateQueue,
     voiceInFlight,
@@ -300,14 +323,47 @@ export function ClinicalAssistantArea({
     target?.focus({ preventScroll: true });
   };
 
+  useEffect(() => {
+    if (!resumeTarget) {
+      resumedTargetRef.current = null;
+      return;
+    }
+    const key = `${threadId}:${resumeTarget.kind}:${resumeTarget.id}`;
+    if (resumedTargetRef.current === key) return;
+    const approval = assistant.items.find(
+      (item) => item.type === 'approval' && item.action.id === resumeTarget.id,
+    );
+    const artifactId =
+      resumeTarget.kind === 'artifact'
+        ? resumeTarget.id
+        : approval?.type === 'approval'
+          ? approval.action.artifact_id
+          : null;
+    const target = Array.from(
+      areaRef.current?.querySelectorAll<HTMLElement>('[data-artifact-id], [data-approval-id]') ??
+        [],
+    ).find((element) =>
+      artifactId
+        ? element.dataset.artifactId === artifactId
+        : element.dataset.approvalId === resumeTarget.id,
+    );
+    if (!target) return;
+    resumedTargetRef.current = key;
+    target.scrollIntoView?.({ block: 'start', behavior: 'auto' });
+    target.focus({ preventScroll: true });
+  }, [assistant.items, resumeTarget?.id, resumeTarget?.kind, threadId]);
+
   return (
-    <main
+    <Root
+      role={embedded ? 'region' : undefined}
+      aria-label={embedded ? 'Conversación del paciente' : undefined}
       ref={areaRef}
       className="chat-area clinical-assistant-area"
       data-patient-active={!!activePatient}
     >
       <WorkspaceHeader
         title={assistant.thread?.title ?? 'Asistente'}
+        headingLevel={embedded ? 2 : 1}
         navigation={
           returnToFicha && activePatient ? (
             <Link
@@ -534,7 +590,29 @@ export function ClinicalAssistantArea({
           )}
           {queued.length > 0 && (
             <div className="clinical-queue" aria-label="Mensajes en cola">
-              <strong>Pendientes {queued.length}/3</strong>
+              <strong>Mensajes en cola {queued.length}/3</strong>
+              <p className="text-xs text-muted">
+                Detener respuesta cancela sólo la respuesta actual; la cola puede continuar.
+              </p>
+              {queueDeliveryFailed && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void assistant
+                      .reload()
+                      .then((fresh) => {
+                        if (fresh?.id !== threadId) return;
+                        setQueueError(null);
+                        setQueueDeliveryFailed(false);
+                      })
+                      .catch(() => {
+                        setQueueError('No pudimos comprobar el hilo. Tu mensaje sigue en cola.');
+                      });
+                  }}
+                >
+                  Reintentar cola
+                </button>
+              )}
               {queued.map((entry) => (
                 <div key={entry.id} className="clinical-queue-item">
                   <span>{entry.content}</span>
@@ -622,6 +700,6 @@ export function ClinicalAssistantArea({
           />
         </div>
       </div>
-    </main>
+    </Root>
   );
 }

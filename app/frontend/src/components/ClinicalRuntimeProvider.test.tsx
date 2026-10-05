@@ -77,11 +77,18 @@ it('preserves unsent composer memory and detaches transport without cancelling s
   });
   fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
   await waitFor(() => expect(api.streamClinicalTurn).toHaveBeenCalledTimes(1));
+  const unload = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(unload);
+  expect(unload.defaultPrevented).toBe(true);
   fireEvent.click(screen.getByRole('link', { name: 'Ficha' }));
   await waitFor(() => expect(aborted).toBe(true));
   expect(cancel).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('link', { name: 'Regresar' }));
   expect(screen.getByLabelText('Nota sin enviar')).toHaveValue('Nota privada sin enviar');
+  fireEvent.change(screen.getByLabelText('Nota sin enviar'), { target: { value: '' } });
+  const cleanUnload = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(cleanUnload);
+  expect(cleanUnload.defaultPrevented).toBe(false);
   expect(api.streamClinicalTurn).toHaveBeenCalledTimes(1);
   expect(storage).not.toHaveBeenCalled();
   await act(async () => view.unmount());

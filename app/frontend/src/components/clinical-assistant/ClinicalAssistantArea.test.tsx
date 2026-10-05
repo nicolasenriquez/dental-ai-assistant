@@ -106,7 +106,7 @@ describe('ClinicalAssistantArea queue', () => {
     fireEvent.change(composer, { target: { value: 'Nota actual' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
     expect(composer).toHaveValue('Nota actual');
-    expect(screen.getByText('Pendientes 2/3')).toBeVisible();
+    expect(screen.getByText('Mensajes en cola 2/3')).toBeVisible();
     expect(send).not.toHaveBeenCalled();
     fireEvent.change(composer, { target: { value: '' } });
     act(() => insert?.({ ...attachment, id: 'current-doc', sourceName: 'Actual.md' }));
@@ -114,15 +114,98 @@ describe('ClinicalAssistantArea queue', () => {
     expect(screen.getByRole('group', { name: 'Documentos adjuntos' })).toHaveTextContent(
       'Actual.md',
     );
-    expect(screen.getByText('Pendientes 2/3')).toBeVisible();
+    expect(screen.getByText('Mensajes en cola 2/3')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: /Quitar.*Actual/ }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
     expect(composer).toHaveValue('Primero');
     expect(screen.getByRole('group', { name: 'Documentos adjuntos' })).toHaveTextContent(
       'Pendiente.md',
     );
-    expect(screen.getByText('Pendientes 1/3')).toBeVisible();
+    expect(screen.getByText('Mensajes en cola 1/3')).toBeVisible();
     expect(screen.getByText('Segundo')).toBeVisible();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('claims a queued message before idle rerenders and restores a rejected delivery', async () => {
+    let resolve!: (accepted: boolean) => void;
+    send.mockReturnValueOnce(
+      new Promise<boolean>((done) => {
+        resolve = done;
+      }),
+    );
+    const view = render(
+      <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    fireEvent.change(composer, { target: { value: 'Una sola entrega' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    expect(send).toHaveBeenCalledOnce();
+    await act(async () => resolve(false));
+    expect(screen.getByText('Una sola entrega')).toBeVisible();
+    expect(send).toHaveBeenCalledOnce();
+    const failedAssistant = createAssistant();
+    failedAssistant.runtime = 'failed';
+    let reconcile!: (fresh: ClinicalThread | null) => void;
+    failedAssistant.reload = vi.fn(
+      () =>
+        new Promise<ClinicalThread | null>((done) => {
+          reconcile = done;
+        }),
+    );
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={failedAssistant} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar cola' }));
+    expect(failedAssistant.reload).toHaveBeenCalledOnce();
+    await act(async () => reconcile(assistantState.thread));
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  });
+
+  it('resumes the exact artifact in an embedded region without another main', async () => {
+    runtime.value = 'idle';
+    const assistant = createAssistant();
+    const draft = {
+      context: 'Control preventivo',
+      findings: '',
+      assessment: '',
+      treatment: '',
+      follow_up: '',
+      review_flags: [],
+    };
+    assistant.items = [
+      {
+        type: 'draft',
+        id: 'draft-resume',
+        turnId: 'turn-1',
+        status: 'completed',
+        createdAt: '2026-10-05T12:00:00Z',
+        artifactStatus: 'draft',
+        draft,
+        baseline: draft,
+        sourceNote: 'Nota',
+        edited: false,
+        stale: false,
+        patientId: 'p',
+        evolutionAt: '2026-10-05T12:00:00Z',
+      },
+    ];
+    render(
+      <ClinicalAssistantArea
+        threadId="thread-1"
+        assistant={assistant}
+        embedded
+        resumeTarget={{ kind: 'artifact', id: 'draft-resume' }}
+      />,
+    );
+    expect(screen.getByRole('region', { name: 'Conversación del paciente' })).toBeVisible();
+    expect(screen.queryByRole('main')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Asistente' })).toBeVisible();
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute('data-artifact-id', 'draft-resume'),
+    );
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -162,7 +245,7 @@ describe('ClinicalAssistantArea queue', () => {
 
     expect(composer).toHaveValue('Cuatro');
     expect(screen.getByRole('alert')).toHaveTextContent('Ya tienes 3 mensajes pendientes.');
-    expect(screen.getByText('Pendientes 3/3')).toBeVisible();
+    expect(screen.getByText('Mensajes en cola 3/3')).toBeVisible();
   });
 
   it('preserves composer text but blocks submission while approval is pending', () => {

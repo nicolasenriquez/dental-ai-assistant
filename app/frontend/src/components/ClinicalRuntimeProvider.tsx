@@ -56,6 +56,19 @@ export function ClinicalRuntimeProvider({ children }: { children: ReactNode }): 
   const [queues, setQueues] = useState<Record<string, ClinicalQueuedEntry[]>>({});
   const [attachments, setAttachments] = useState<Record<string, ComposerContextItem[]>>({});
   const activate = useCallback((id: string) => setActiveThreadId(id), []);
+  const hasUnsentWork =
+    Object.values(drafts).some((draft) => draft.length > 0) ||
+    Object.values(queues).some((queue) => queue.length > 0) ||
+    Object.values(attachments).some((items) => items.length > 0);
+  useEffect(() => {
+    if (!hasUnsentWork) return;
+    const protectUnsentWork = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', protectUnsentWork);
+    return () => window.removeEventListener('beforeunload', protectUnsentWork);
+  }, [hasUnsentWork]);
   useEffect(() => {
     if (routeThreadId) activate(routeThreadId);
   }, [activate, routeThreadId]);
