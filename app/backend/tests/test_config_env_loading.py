@@ -38,8 +38,12 @@ def test_env_file_load_is_skipped_when_marker_set(monkeypatch) -> None:
     assert calls == []
 
 
-def test_env_file_load_runs_when_marker_absent(monkeypatch) -> None:
+def test_env_file_load_runs_when_marker_absent(monkeypatch, tmp_path) -> None:
     from backend import config as config_module
+
+    env_file = tmp_path / ".env"
+    env_file.touch()
+    monkeypatch.setattr(config_module, "__file__", str(tmp_path / "config.py"))
 
     calls: list[Any] = []
     monkeypatch.setattr(
@@ -52,4 +56,4 @@ def test_env_file_load_runs_when_marker_absent(monkeypatch) -> None:
 
     config_module._find_and_load_env()
 
-    assert calls != []
+    assert calls == [{"dotenv_path": env_file, "override": False}]
