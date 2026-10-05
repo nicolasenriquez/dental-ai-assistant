@@ -29,6 +29,8 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 from uuid import uuid4
 
@@ -496,6 +498,100 @@ async def test_google_concurrent_signup_reuses_winner_at_limit(
     assert result.status_code == 200
     assert len(fake_users_repo["users"]) == 1
     assert attempts == []
+
+
+@pytest.mark.parametrize("conflict_at", ["create_federated_user", "create_identity"])
+@pytest.mark.parametrize("winner_state", ["present", "missing_identity", "missing_user"])
+async def test_google_signup_conflict_releases_connection_before_recovery(
+    client: AsyncClient,
+    google_mode: None,
+    fake_users_repo: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    conflict_at: str,
+    winner_state: str,
+) -> None:
+    import asyncpg
+
+    from backend.db import users_repo
+    from backend.routes import auth as auth_route
+
+    events: list[str] = []
+    held = False
+
+    class Connection:
+        @asynccontextmanager
+        async def transaction(self) -> AsyncIterator[None]:
+            try:
+                yield
+            except asyncpg.UniqueViolationError:
+                events.append("rollback")
+                raise
+
+    class Pool:
+        @asynccontextmanager
+        async def acquire(self) -> AsyncIterator[Connection]:
+            nonlocal held
+            assert not held, "nested acquisition would exhaust a single-connection pool"
+            held = True
+            try:
+                yield Connection()
+            finally:
+                held = False
+                events.append("release")
+
+    winner: dict[str, Any] = await users_repo.create_federated_user("first@gmail.com")
+    await users_repo.create_identity(winner["id"], "google", "first", "old@gmail.com")
+    original_find = users_repo.find_identity
+    lookups = 0
+
+    async def find_identity(provider: str, subject: str, **kwargs: Any) -> dict[str, Any] | None:
+        nonlocal lookups
+        lookups += 1
+        if lookups == 1:
+            return None  # The winner was not yet visible at the initial lookup.
+        assert not held
+        assert events == ["rollback", "release"]
+        if winner_state == "missing_identity":
+            return None
+        if winner_state == "missing_user":
+            fake_users_repo["users"].clear()
+        identity: dict[str, Any] | None = await original_find(provider, subject, **kwargs)
+        return identity
+
+    async def no_email_match(email: str) -> None:
+        return None
+
+    async def conflict(*args: Any, **kwargs: Any) -> None:
+        raise asyncpg.UniqueViolationError("concurrent signup")
+
+    async def provisional_user(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        return winner
+
+    async def verify(credential: str) -> dict[str, Any]:
+        return {"sub": "first", "email": "first@gmail.com", "email_verified": True}
+
+    monkeypatch.setattr(auth_route, "get_pg_pool", Pool)
+    monkeypatch.setattr(users_repo, "find_identity", find_identity)
+    monkeypatch.setattr(users_repo, "get_user_by_email", no_email_match)
+    if conflict_at == "create_identity":
+        monkeypatch.setattr(users_repo, "create_federated_user", provisional_user)
+    monkeypatch.setattr(users_repo, conflict_at, conflict)
+    _stub_verifier(monkeypatch, verify)
+
+    result = await client.post(
+        "/api/auth/google", json={"credential": "first"}, headers=_VALID_HEADERS
+    )
+    assert events == ["rollback", "release"]
+    if winner_state == "present":
+        assert result.status_code == 200
+        assert result.json()["id"] == winner["id"]
+        assert "session" in result.cookies
+        identity = fake_users_repo["identities"][("google", "first")]
+        assert identity["provider_email_snapshot"] == "first@gmail.com"
+    else:
+        assert result.status_code == 401
+        assert result.json() == {"error": "GOOGLE_IDENTITY_INVALID"}
+        assert "session" not in result.cookies
 
 
 async def test_google_invalid_claims_return_401(client, google_mode, monkeypatch):

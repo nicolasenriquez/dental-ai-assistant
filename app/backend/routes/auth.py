@@ -353,46 +353,45 @@ async def google_login(request: Request, response: Response) -> UserResponse | J
         ip = _client_ip(request)
         pool = get_pg_pool()
         winner_user_id = None
-        async with pool.acquire() as conn:
-            try:
-                async with conn.transaction():
-                    try:
-                        await signup_rate_limit.check(ip, conn)
-                    except signup_rate_limit.SignupRateLimited as exc:
-                        # A concurrent request may have created this identity while
-                        # we waited for the signup lock. That request is now a login.
-                        winner = await users_repo.find_identity("google", sub, conn=conn)
-                        if winner is None:
-                            outcome = "ip_limited" if exc.scope == "ip" else "global_limited"
-                            await signup_rate_limit.record(
-                                conn, ip=ip, email_attempted=email, outcome=outcome
-                            )
-                            return JSONResponse(
-                                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                                content={
-                                    "error": "signup_rate_limited",
-                                    "message": exc.message,
-                                    "scope": exc.scope,
-                                },
-                            )
-                        winner_user_id = winner["user_id"]
-                    else:
-                        user = await users_repo.create_federated_user(email, conn=conn)
-                        await users_repo.create_identity(
-                            str(user["id"]), "google", sub, email, conn=conn
-                        )
+        try:
+            async with pool.acquire() as conn, conn.transaction():
+                try:
+                    await signup_rate_limit.check(ip, conn)
+                except signup_rate_limit.SignupRateLimited as exc:
+                    # A concurrent request may have created this identity while
+                    # we waited for the signup lock. That request is now a login.
+                    winner = await users_repo.find_identity("google", sub, conn=conn)
+                    if winner is None:
+                        outcome = "ip_limited" if exc.scope == "ip" else "global_limited"
                         await signup_rate_limit.record(
-                            conn, ip=ip, email_attempted=email, outcome="accepted"
+                            conn, ip=ip, email_attempted=email, outcome=outcome
                         )
-            except asyncpg.UniqueViolationError:
-                # Concurrent sign-in created the identity first: adopt it.
-                winner = await users_repo.find_identity("google", sub)
-                if winner is None:
-                    return _error("GOOGLE_IDENTITY_INVALID", status.HTTP_401_UNAUTHORIZED)
-                user = await users_repo.get_user_by_id(winner["user_id"])
-                if user is None:
-                    return _error("GOOGLE_IDENTITY_INVALID", status.HTTP_401_UNAUTHORIZED)
-                await users_repo.update_identity_email_snapshot("google", sub, email)
+                        return JSONResponse(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            content={
+                                "error": "signup_rate_limited",
+                                "message": exc.message,
+                                "scope": exc.scope,
+                            },
+                        )
+                    winner_user_id = winner["user_id"]
+                else:
+                    user = await users_repo.create_federated_user(email, conn=conn)
+                    await users_repo.create_identity(
+                        str(user["id"]), "google", sub, email, conn=conn
+                    )
+                    await signup_rate_limit.record(
+                        conn, ip=ip, email_attempted=email, outcome="accepted"
+                    )
+        except asyncpg.UniqueViolationError:
+            # Rollback and release before repository calls acquire connections.
+            winner = await users_repo.find_identity("google", sub)
+            if winner is None:
+                return _error("GOOGLE_IDENTITY_INVALID", status.HTTP_401_UNAUTHORIZED)
+            user = await users_repo.get_user_by_id(winner["user_id"])
+            if user is None:
+                return _error("GOOGLE_IDENTITY_INVALID", status.HTTP_401_UNAUTHORIZED)
+            await users_repo.update_identity_email_snapshot("google", sub, email)
 
         if winner_user_id is not None:
             user = await users_repo.get_user_by_id(winner_user_id)
