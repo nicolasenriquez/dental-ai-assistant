@@ -119,9 +119,18 @@ paths, trailing slashes, wildcards, or unused origins.
    ```
    OPENROUTER_API_KEY=sk-or-...
    DATABASE_URL=postgresql://dynachat:<password>@127.0.0.1:5433/dynachat
+   APP_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
    ```
 
    See [`deploy/.env.example`](deploy/.env.example) for the full list of variables (`SUPADATA_API_KEY`, `JWT_SECRET`, `ADMIN_USER_EMAIL`, ...).
+
+   `APP_ORIGINS` is required for clinical recovery, Google sign-in, and Drive
+   mutations, including when `AUTH_MODE=local`. If reusing a Docker `.env`,
+   append these Vite origins to its existing `APP_ORIGINS` value. Use exact
+   origins without trailing slashes; add other ports only when used. Keep
+   browser API calls on Vite's `/api` proxy. Restart the backend after changes.
+   Exported environment variables override `.env`; the backend loads the
+   nearest `.env` from `app/backend/` upward.
 
 2. Start native FastAPI and Vite servers:
 
