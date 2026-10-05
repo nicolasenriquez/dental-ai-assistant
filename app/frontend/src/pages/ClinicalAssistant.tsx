@@ -36,6 +36,9 @@ function ClinicalAssistantContent() {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const resumeParams = new URLSearchParams(location.hash.slice(1));
+  const resumeArtifact = resumeParams.get('artifact');
+  const resumeApproval = resumeParams.get('approval');
   const pendingMode = !threadId && new URLSearchParams(location.search).get('view') === 'pending';
   const transitionGuard = useTransitionGuard();
   const [createdThreadId, setCreatedThreadId] = useState<string | null>(null);
@@ -57,12 +60,19 @@ function ClinicalAssistantContent() {
   const driveRef = useRef<DriveWorkspaceHandle>(null);
   const composerInsertRef = useRef<(item: ComposerContextItem) => void>(() => undefined);
   const createStarted = useRef(false);
+  const returnToDriveAfterPicker = useRef(false);
+  const focusComposerAfterDriveClose = useRef(false);
 
   const setDriveVisibility = (open: boolean, restoreUtilityFocus = true) => {
     if (open) setDriveMounted(true);
     setDriveOpen(open);
     if (!open && restoreUtilityFocus) {
       window.requestAnimationFrame?.(() => {
+        if (focusComposerAfterDriveClose.current) {
+          focusComposerAfterDriveClose.current = false;
+          document.querySelector<HTMLTextAreaElement>('.clinical-composer-input')?.focus();
+          return;
+        }
         const utility = Array.from(
           document.querySelectorAll<HTMLElement>('[data-drive-utility="true"]'),
         ).find((element) => !element.closest('[inert], [aria-hidden="true"]'));
@@ -177,7 +187,11 @@ function ClinicalAssistantContent() {
             onSurfaceChange={setDriveSurface}
             draftSeed={driveDraftSeed}
             guardTransition={transitionGuard.guardTransition}
-            onInsertToComposer={(item) => composerInsertRef.current(item)}
+            onInsertToComposer={(item) => {
+              composerInsertRef.current(item);
+              focusComposerAfterDriveClose.current =
+                window.matchMedia?.('(max-width: 1024px)')?.matches ?? false;
+            }}
             onDirtyStateChange={setDriveDirty}
             open={driveOpen}
             onClose={() => requestDriveVisibility(false)}
@@ -186,6 +200,7 @@ function ClinicalAssistantContent() {
             onJournalTargetConsumed={() => setDriveJournalTarget(null)}
             onSelectPatient={() =>
               transitionGuard.guardTransition(() => {
+                returnToDriveAfterPicker.current = true;
                 setDriveVisibility(false, false);
                 window.requestAnimationFrame(() => setPatientPickerOpen(true));
               })
@@ -212,6 +227,13 @@ function ClinicalAssistantContent() {
           <ClinicalAssistantArea
             returnToFicha
             threadId={activeId}
+            resumeTarget={
+              resumeArtifact
+                ? { kind: 'artifact', id: resumeArtifact }
+                : resumeApproval
+                  ? { kind: 'approval', id: resumeApproval }
+                  : undefined
+            }
             assistant={assistant}
             onThreadStateChanged={() => setThreadListVersion((version) => version + 1)}
             guardTransition={(continuation) => {
@@ -223,7 +245,13 @@ function ClinicalAssistantContent() {
             }}
             driveOpen={driveOpen}
             patientPickerOpen={patientPickerOpen}
-            onPatientPickerOpenChange={setPatientPickerOpen}
+            onPatientPickerOpenChange={(open) => {
+              setPatientPickerOpen(open);
+              if (!open && returnToDriveAfterPicker.current) {
+                returnToDriveAfterPicker.current = false;
+                setDriveVisibility(true, false);
+              }
+            }}
             onToggleDrive={() => requestDriveVisibility(!driveOpen)}
             onOpenDriveJournal={(target) => {
               setDriveJournalTarget(target);

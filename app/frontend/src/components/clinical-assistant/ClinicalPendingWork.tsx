@@ -64,6 +64,7 @@ export function ClinicalPendingWork({ patientId }: { patientId?: string }): JSX.
               <article key={item.id} className="space-y-2 border-b border-border py-3 text-sm">
                 <h3 className="font-medium">{item.patient.display_name}</h3>
                 <p className="text-muted">{item.patient.rut_masked}</p>
+                {item.summary && <p>{item.summary}</p>}
                 <p>
                   {item.kind === 'approval_required'
                     ? 'Evolución lista para revisión'
@@ -72,7 +73,8 @@ export function ClinicalPendingWork({ patientId }: { patientId?: string }): JSX.
                       : 'Guardada en ficha · No se pudo sincronizar con Drive'}
                 </p>
                 <time className="block text-xs text-muted" dateTime={item.updated_at}>
-                  {formatClinicalDateShort(item.updated_at)} · {formatClinicalTime(item.updated_at)}
+                  Actualizado {formatClinicalDateShort(item.updated_at)} ·{' '}
+                  {formatClinicalTime(item.updated_at)}
                 </time>
                 {item.action.kind === 'retry_drive_export' ? (
                   <div className="flex flex-wrap items-center gap-3">
@@ -96,7 +98,11 @@ export function ClinicalPendingWork({ patientId }: { patientId?: string }): JSX.
                 ) : (
                   <Link
                     className="inline-block py-2 text-primary hover:underline"
-                    to={`/a/${item.action.thread_id}`}
+                    to={
+                      item.action.kind === 'continue_draft'
+                        ? `/a/${item.action.thread_id}#artifact=${encodeURIComponent(item.action.artifact_id)}`
+                        : `/a/${item.action.thread_id}#approval=${encodeURIComponent(item.action.action_id)}`
+                    }
                   >
                     {item.kind === 'approval_required' ? 'Revisar' : 'Continuar'}
                   </Link>

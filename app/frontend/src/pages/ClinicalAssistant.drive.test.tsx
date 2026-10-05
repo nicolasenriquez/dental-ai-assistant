@@ -329,6 +329,25 @@ async function openAssistantMessageDraft() {
   return screen.findByRole('textbox', { name: 'Contenido del documento' });
 }
 
+it('returns to Documents after choosing or cancelling the patient picker opened from Drive', async () => {
+  mocks.thread.active_patient = null;
+  renderAssistant();
+  fireEvent.click(screen.getByRole('button', { name: 'Abrir Google Drive' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'Documentos' }));
+  const prerequisite = await screen.findByText('Selecciona un paciente para ver sus documentos.');
+  fireEvent.click(
+    within(prerequisite.parentElement as HTMLElement).getByRole('button', {
+      name: 'Seleccionar paciente',
+    }),
+  );
+  const search = await screen.findByRole('combobox', { name: 'Buscar paciente por nombre o RUT' });
+  fireEvent.keyDown(search, { key: 'Escape' });
+  expect(await screen.findByRole('tab', { name: 'Documentos' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+});
+
 function composer() {
   return screen.getByRole('textbox', { name: 'Nota clínica' });
 }
@@ -477,12 +496,12 @@ describe('Clinical Assistant Drive transfer', () => {
 
     await openAssistantMessageDraft();
     fireEvent.change(composer(), { target: { value: 'nota previa' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Incorporar nota completa al borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar documento al mensaje' }));
 
     expect(composer()).toHaveValue('nota previa');
     expect(screen.getByText('Respuesta del asistente.txt · Google Drive')).toBeVisible();
     expect(composer()).toHaveFocus();
-    expect(screen.getByRole('status', { name: 'Incorporado al borrador' })).toBeVisible();
+    expect(screen.getByRole('status', { name: 'Adjunto al próximo mensaje' })).toBeVisible();
     expect(mocks.send).not.toHaveBeenCalled();
     expect(apiSeam.createDriveFile).not.toHaveBeenCalled();
   });

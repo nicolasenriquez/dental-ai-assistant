@@ -17,6 +17,7 @@ it('groups clinical work separately from Drive failures and identifies exact sav
         patient: { id: 'p', display_name: 'Camila Soto', rut_masked: '•••' },
         updated_at: '2026-10-01T12:00:00Z',
         action: { kind: 'continue_draft', artifact_id: 'a', thread_id: 't' },
+        summary: 'Control preventivo',
       },
       {
         id: 'drive:e',
@@ -36,7 +37,11 @@ it('groups clinical work separately from Drive failures and identifies exact sav
   );
   const clinical = await screen.findByRole('region', { name: 'Borradores y revisión' });
   const drive = screen.getByRole('region', { name: 'Sincronización de Drive' });
-  expect(within(clinical).getByRole('link', { name: 'Continuar' })).toHaveAttribute('href', '/a/t');
+  expect(within(clinical).getByRole('link', { name: 'Continuar' })).toHaveAttribute(
+    'href',
+    '/a/t#artifact=a',
+  );
+  expect(within(clinical).getByText('Control preventivo')).toBeVisible();
   expect(within(clinical).queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
   expect(within(drive).getByRole('link', { name: 'Ver evolución' })).toHaveAttribute(
     'href',

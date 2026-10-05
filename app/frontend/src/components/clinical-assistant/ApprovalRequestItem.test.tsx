@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ClinicalApprovalItem } from '../../hooks/useClinicalAssistant';
@@ -67,6 +67,37 @@ function renderItem(
 }
 
 describe('ApprovalRequestItem', () => {
+  it('shows the exact prepared content and patient before explicit approval', () => {
+    const approval = item('pending');
+    approval.action.proposal_payload = {
+      evolution_id: 'e',
+      patient_id: 'patient-1',
+      evolution_at: '2026-09-10T12:00:00Z',
+      raw_note: 'Nota fuente',
+      generated_text: 'Texto anterior',
+      final_text: 'Versión revisada\nObservación clínica',
+    };
+    const onResolve = vi.fn();
+    render(
+      <ApprovalRequestItem
+        item={approval}
+        embedded
+        reviewFlags={[{ source_text: 'Molestia ocasional', reason: 'Confirmar frecuencia.' }]}
+        onResolve={onResolve}
+        onBackToEdit={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y guardar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Guardar evolución' });
+    expect(dialog).toHaveTextContent('Versión revisada');
+    expect(dialog).toHaveTextContent('Observación clínica');
+    expect(dialog).toHaveTextContent('Confirmar frecuencia.');
+    expect(dialog).toHaveTextContent('12.345.•••-6');
+    expect(dialog).not.toHaveTextContent('Texto anterior');
+    expect(onResolve).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar evolución' }));
+    expect(onResolve).toHaveBeenCalledWith('approve');
+  });
   it('returns to editing without declining the action', () => {
     const onResolve = vi.fn();
     const onBackToEdit = vi.fn();

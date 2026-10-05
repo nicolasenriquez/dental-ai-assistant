@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ClinicalApprovalItem, ClinicalDraftItem } from '../../hooks/useClinicalAssistant';
@@ -208,14 +208,15 @@ describe('ClinicalEvolutionArtifact', () => {
     );
 
     expect(view.container.querySelector('[data-clinical-stage="review"]')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Seguir editando' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Guardar en Drive' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Revisar y guardar' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar guardado' }));
-    expect(screen.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Volver a editar' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Guardar en Drive' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirmar guardado' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y guardar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Guardar evolución' });
+    expect(dialog).toBeVisible();
+    expect(within(dialog).getByRole('button', { name: 'Volver a editar' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Guardar evolución' })).toBeVisible();
   });
 

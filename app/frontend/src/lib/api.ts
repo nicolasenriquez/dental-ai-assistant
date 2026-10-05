@@ -408,6 +408,7 @@ export interface PendingWorkItem {
   patient: PendingWorkPatient;
   updated_at: string;
   action: PendingWorkAction;
+  summary?: string | null;
 }
 
 export interface PendingWorkPage {

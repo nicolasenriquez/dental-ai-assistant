@@ -358,6 +358,7 @@ export function ClinicalEvolutionArtifact({
           <ApprovalRequestItem
             item={approval}
             embedded
+            reviewFlags={item.draft.review_flags}
             onResolve={(decision) => onResolve?.(approval, decision)}
             onBackToEdit={() => onBackToEdit?.(approval)}
             autoOpen={autoOpenApproval}

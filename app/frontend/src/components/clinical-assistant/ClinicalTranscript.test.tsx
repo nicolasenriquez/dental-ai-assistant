@@ -563,7 +563,7 @@ describe('ClinicalTranscript', () => {
     );
     const artifact = getArtifact(view.container);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar guardado' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y guardar' }));
 
     expect(screen.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
     expect(getArtifact(view.container)).toBe(artifact);

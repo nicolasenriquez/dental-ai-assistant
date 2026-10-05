@@ -2,6 +2,7 @@ import { Check, ChevronRight, CircleX, Clock, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalApprovalItem as ApprovalItemData } from '../../hooks/useClinicalAssistant';
+import type { ClinicalDraft } from '../../lib/api';
 import { formatClinicalDateTime } from '../../lib/clinicalDate';
 import { Spinner } from '../Spinner';
 
@@ -11,6 +12,7 @@ interface ApprovalRequestItemProps {
   onBackToEdit: () => void;
   autoOpen?: boolean;
   embedded?: boolean;
+  reviewFlags?: ClinicalDraft['review_flags'];
 }
 
 export function ApprovalRequestItem({
@@ -19,6 +21,7 @@ export function ApprovalRequestItem({
   onBackToEdit,
   autoOpen = false,
   embedded = false,
+  reviewFlags = [],
 }: ApprovalRequestItemProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -145,15 +148,15 @@ export function ApprovalRequestItem({
           tabIndex={-1}
         >
           <span>
-            <Clock aria-hidden="true" size={15} /> Guardado pendiente
+            <Clock aria-hidden="true" size={15} /> Revisión pendiente
           </span>
           {embedded ? (
             <div className="clinical-evolution-approval-actions">
               <button type="button" className="clinical-secondary-button" onClick={onBackToEdit}>
-                Seguir editando
+                Volver a editar
               </button>
               <button type="button" className="clinical-primary-button" onClick={openDialog}>
-                Confirmar guardado
+                Revisar y guardar
               </button>
             </div>
           ) : (
@@ -183,8 +186,28 @@ export function ApprovalRequestItem({
               {item.patient.first_name} {item.patient.last_name}
             </strong>
           </p>
+          <p>{item.patient.rut_masked}</p>
           {evolutionAt && <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>}
           <p>Se incorporará esta evolución a la ficha clínica del paciente.</p>
+          {typeof payload?.final_text === 'string' && (
+            <section aria-label="Contenido de la evolución a guardar">
+              <h3>Contenido revisado</h3>
+              <p className="whitespace-pre-wrap">{payload.final_text}</p>
+            </section>
+          )}
+          {reviewFlags.length > 0 && (
+            <section aria-label="Observaciones para revisar">
+              <h3>Observaciones para revisar</h3>
+              <ul>
+                {reviewFlags.map((flag) => (
+                  <li key={`${flag.source_text}:${flag.reason}`}>
+                    <q>{flag.source_text}</q>
+                    <p>{flag.reason}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
         <div className="clinical-approval-dialog__footer">
           <button
