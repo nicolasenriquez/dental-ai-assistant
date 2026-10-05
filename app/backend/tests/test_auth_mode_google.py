@@ -115,7 +115,9 @@ def fake_users_repo(monkeypatch):
             u["is_member"] = is_member
             u["member_verified_at"] = datetime.now(UTC)
 
-    async def find_identity(provider: str, provider_subject: str) -> dict[str, Any] | None:
+    async def find_identity(
+        provider: str, provider_subject: str, **kwargs: Any
+    ) -> dict[str, Any] | None:
         row = identities.get((provider, provider_subject))
         return dict(row) if row else None
 
@@ -409,6 +411,91 @@ async def test_google_login_reuses_existing_identity_mapping(
 
     assert len(fake_users_repo["users"]) == 1  # sub is identity, email is snapshot only
     assert r2.json()["email"] == "renamed@gmail.com"
+
+
+@pytest.mark.parametrize("scope", ["ip", "global"])
+async def test_google_signup_guard_only_limits_new_identities(
+    client, google_mode, fake_users_repo, monkeypatch, scope
+):
+    from backend import signup_rate_limit
+
+    attempts = []
+    accepted = False
+
+    async def fake_check(ip, conn):
+        nonlocal accepted
+        if accepted:
+            raise signup_rate_limit.SignupRateLimited(scope, "Signup limit reached")
+
+    async def fake_record(conn, ip, email_attempted, outcome):
+        nonlocal accepted
+        attempts.append((ip, email_attempted, outcome))
+        if outcome == "accepted":
+            accepted = True
+
+    async def fake_verify(credential: str) -> dict[str, Any]:
+        return {"sub": credential, "email": f"{credential}@gmail.com", "email_verified": True}
+
+    monkeypatch.setattr(signup_rate_limit, "check", fake_check)
+    monkeypatch.setattr(signup_rate_limit, "record", fake_record)
+    _stub_verifier(monkeypatch, fake_verify)
+
+    first = await client.post(
+        "/api/auth/google", json={"credential": "first"}, headers=_VALID_HEADERS
+    )
+    assert first.status_code == 200
+    assert attempts == [("127.0.0.1", "first@gmail.com", "accepted")]
+
+    blocked = await client.post(
+        "/api/auth/google", json={"credential": "second"}, headers=_VALID_HEADERS
+    )
+    assert blocked.status_code == 429
+    assert blocked.json() == {
+        "error": "signup_rate_limited",
+        "message": "Signup limit reached",
+        "scope": scope,
+    }
+    assert attempts[-1] == ("127.0.0.1", "second@gmail.com", f"{scope}_limited")
+    assert len(fake_users_repo["users"]) == 1
+
+    returning = await client.post(
+        "/api/auth/google", json={"credential": "first"}, headers=_VALID_HEADERS
+    )
+    assert returning.status_code == 200
+    assert len(attempts) == 2
+
+
+async def test_google_concurrent_signup_reuses_winner_at_limit(
+    client, google_mode, fake_users_repo, monkeypatch
+):
+    from backend import signup_rate_limit
+    from backend.db import users_repo
+
+    attempts = []
+
+    async def fake_check(ip, conn):
+        user = await users_repo.create_federated_user("first@gmail.com", conn=conn)
+        await users_repo.create_identity(
+            str(user["id"]), "google", "first", "first@gmail.com", conn=conn
+        )
+        raise signup_rate_limit.SignupRateLimited("ip", "Signup limit reached")
+
+    async def fake_record(conn, ip, email_attempted, outcome):
+        attempts.append(outcome)
+
+    async def fake_verify(credential: str) -> dict[str, Any]:
+        return {"sub": "first", "email": "first@gmail.com", "email_verified": True}
+
+    monkeypatch.setattr(signup_rate_limit, "check", fake_check)
+    monkeypatch.setattr(signup_rate_limit, "record", fake_record)
+    _stub_verifier(monkeypatch, fake_verify)
+
+    result = await client.post(
+        "/api/auth/google", json={"credential": "first"}, headers=_VALID_HEADERS
+    )
+    assert result.status_code == 200
+    assert len(fake_users_repo["users"]) == 1
+    assert attempts == []
 
 
 async def test_google_invalid_claims_return_401(client, google_mode, monkeypatch):

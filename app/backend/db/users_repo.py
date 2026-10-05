@@ -84,11 +84,13 @@ async def create_federated_user(
         return await _insert_user(email, None, new_conn)
 
 
-async def find_identity(provider: str, provider_subject: str) -> dict[str, Any] | None:
+async def find_identity(
+    provider: str, provider_subject: str, *, conn: asyncpg.Connection | None = None
+) -> dict[str, Any] | None:
     """Fetch provider identity by unique (provider, provider_subject)."""
-    pool = get_pg_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
+
+    async def _find(c: asyncpg.Connection) -> dict[str, Any] | None:
+        row = await c.fetchrow(
             """
             SELECT user_id, provider, provider_subject, provider_email_snapshot
             FROM auth_identities
@@ -97,7 +99,13 @@ async def find_identity(provider: str, provider_subject: str) -> dict[str, Any] 
             provider,
             provider_subject,
         )
-    return dict(row) if row else None
+        return dict(row) if row else None
+
+    if conn is not None:
+        return await _find(conn)
+    pool = get_pg_pool()
+    async with pool.acquire() as new_conn:
+        return await _find(new_conn)
 
 
 async def create_identity(
