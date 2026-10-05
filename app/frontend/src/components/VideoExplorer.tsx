@@ -352,7 +352,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
           {user?.is_admin && (
             <button
               onClick={() => setIngestOpen(true)}
-              className="min-h-11 cursor-pointer rounded-md border-none bg-[var(--accent)] px-3 py-1.5 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              className="min-h-11 cursor-pointer rounded-md border-none bg-action hover:bg-action-hover px-3 py-1.5 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               title="Agregar video"
             >
               + Agregar video
@@ -499,7 +499,7 @@ export function VideoExplorer({ isOpen, onClose }: VideoExplorerProps) {
                 <button
                   onClick={handleIngest}
                   disabled={ingesting}
-                  className="min-h-11 cursor-pointer rounded-md border-none bg-[var(--accent)] px-4 py-2 text-sm text-white disabled:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  className="min-h-11 cursor-pointer rounded-md border-none bg-action hover:bg-action-hover px-4 py-2 text-sm text-white disabled:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   {ingesting ? 'Agregando…' : 'Agregar video'}
                 </button>

@@ -8,7 +8,7 @@ export function NotFound() {
         <p className="text-sm text-[var(--text-secondary)]">La página que buscas no existe.</p>
         <Link
           to="/"
-          className="inline-block py-2 px-4 rounded bg-[var(--accent)] text-white font-medium no-underline"
+          className="inline-block py-2 px-4 rounded bg-action hover:bg-action-hover text-white font-medium no-underline"
         >
           Volver al inicio
         </Link>

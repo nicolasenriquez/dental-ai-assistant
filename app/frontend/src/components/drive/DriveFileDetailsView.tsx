@@ -88,7 +88,7 @@ export function DriveFileDetailsView({
           <button
             type="button"
             onClick={() => onOpen(file)}
-            className="mt-4 min-h-9 rounded-lg bg-[var(--accent)] px-3 text-xs font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+            className="mt-4 min-h-9 rounded-lg bg-action hover:bg-action-hover px-3 text-xs font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Abrir documento
           </button>

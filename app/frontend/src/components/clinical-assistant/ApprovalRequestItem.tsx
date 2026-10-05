@@ -141,6 +141,8 @@ export function ApprovalRequestItem({
       {!autoOpen && !committing && (
         <div
           className={embedded ? 'clinical-evolution-approval-prompt' : 'clinical-approval-prompt'}
+          data-approval-id={item.id}
+          tabIndex={-1}
         >
           <span>
             <Clock aria-hidden="true" size={15} /> Guardado pendiente

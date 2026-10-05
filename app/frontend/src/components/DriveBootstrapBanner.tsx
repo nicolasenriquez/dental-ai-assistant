@@ -37,7 +37,7 @@ export function DriveBootstrapBanner() {
         onClick={() => {
           void connectDrive().catch(() => undefined);
         }}
-        className="min-h-11 rounded bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        className="min-h-11 rounded bg-action hover:bg-action-hover px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         {connecting ? (
           <span className="flex items-center gap-2">

@@ -32,7 +32,7 @@ export class AppErrorBoundary extends Component<Props, State> {
           <button
             type="button"
             onClick={() => this.setState({ hasError: false })}
-            className="mt-4 rounded-lg bg-[var(--accent)] px-4 py-2 text-white"
+            className="mt-4 rounded-lg bg-action hover:bg-action-hover px-4 py-2 text-white"
           >
             Reintentar
           </button>

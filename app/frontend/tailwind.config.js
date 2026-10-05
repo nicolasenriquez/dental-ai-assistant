@@ -27,6 +27,10 @@ export default {
           dark: 'var(--accent-dark)',
         },
         success: 'var(--success)',
+        action: {
+          DEFAULT: 'var(--action)',
+          hover: 'var(--action-hover)',
+        },
         danger: 'var(--danger)',
         error: 'var(--error)',
         warning: 'var(--warning)',

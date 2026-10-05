@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import oneDark from 'react-syntax-highlighter/dist/esm/styles/prism/one-dark';
 import remarkGfm from 'remark-gfm';
 
 // ── Copy button for code blocks ──────────────────────────────────
@@ -41,13 +40,36 @@ interface CodeBlockProps {
 }
 
 function CodeBlock({ language, code }: CodeBlockProps) {
+  const [SyntaxHighlighter, setSyntaxHighlighter] = useState<
+    typeof import('react-syntax-highlighter')['Prism'] | null
+  >(null);
+  const [highlightError, setHighlightError] = useState(false);
+  useEffect(() => {
+    if (!language) return;
+    let cancelled = false;
+    setHighlightError(false);
+    // Prism's automatic DOM scan must not overwrite React-rendered Refractor tokens.
+    const prismWindow = window as Window & { Prism?: { manual?: boolean } };
+    prismWindow.Prism ??= {};
+    prismWindow.Prism.manual = true;
+    void import('react-syntax-highlighter')
+      .then(({ Prism }) => {
+        if (!cancelled) setSyntaxHighlighter(() => Prism);
+      })
+      .catch(() => {
+        if (!cancelled) setHighlightError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
   return (
     <div className="code-block-wrapper">
       <div className="code-block-header">
         <span className="code-lang-label">{language || 'plaintext'}</span>
         <CopyButton code={code} />
       </div>
-      {language ? (
+      {language && SyntaxHighlighter ? (
         <SyntaxHighlighter
           style={oneDark as Record<string, React.CSSProperties>}
           language={language}
@@ -76,6 +98,11 @@ function CodeBlock({ language, code }: CodeBlockProps) {
         >
           <code>{code}</code>
         </pre>
+      )}
+      {highlightError && (
+        <p className="text-sm text-muted" role="status">
+          Resaltado no disponible. Puedes leer y copiar el código.
+        </p>
       )}
     </div>
   );

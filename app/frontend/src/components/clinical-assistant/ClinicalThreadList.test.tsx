@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ClinicalThreadSummary } from '../../lib/api';
-import { getClinicalThreads } from '../../lib/api';
+import { acquireClinicalThread, getClinicalThreads } from '../../lib/api';
 import { ClinicalThreadList } from './ClinicalThreadList';
 
 vi.mock('../../lib/api', () => ({
@@ -13,6 +13,56 @@ vi.mock('../../lib/api', () => ({
 }));
 
 afterEach(() => vi.clearAllMocks());
+
+it('reveals creation recovery after a failure from the collapsed rail', async () => {
+  vi.mocked(getClinicalThreads).mockResolvedValue([]);
+  vi.mocked(acquireClinicalThread).mockRejectedValueOnce(new Error('offline'));
+  const onRequestExpand = vi.fn();
+  const view = render(
+    <MemoryRouter>
+      <ClinicalThreadList isCollapsed onRequestExpand={onRequestExpand} />
+    </MemoryRouter>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Nueva conversación' }));
+  await waitFor(() => expect(onRequestExpand).toHaveBeenCalledOnce());
+  view.rerender(
+    <MemoryRouter>
+      <ClinicalThreadList onRequestExpand={onRequestExpand} />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent('No pudimos abrir la conversación.');
+});
+
+it('announces acquisition failure, preserves search, and serializes retry clicks', async () => {
+  vi.mocked(getClinicalThreads).mockResolvedValue([summary('A')]);
+  vi.mocked(acquireClinicalThread).mockRejectedValueOnce(new Error('offline'));
+  render(
+    <MemoryRouter>
+      <ClinicalThreadList />
+    </MemoryRouter>,
+  );
+  await screen.findByRole('button', { name: 'Evolución A' });
+  fireEvent.click(screen.getByRole('button', { name: 'Buscar en conversaciones' }));
+  const search = screen.getByRole('searchbox');
+  fireEvent.change(search, { target: { value: 'Evolución' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Nueva conversación' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos abrir la conversación.');
+  expect(search).toHaveValue('Evolución');
+  let reject!: (reason: Error) => void;
+  vi.mocked(acquireClinicalThread).mockImplementationOnce(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+  );
+  const retry = screen.getByRole('button', { name: 'Reintentar creación' });
+  fireEvent.click(retry);
+  fireEvent.click(retry);
+  expect(acquireClinicalThread).toHaveBeenCalledTimes(2);
+  await act(async () => reject(new Error('offline again')));
+  expect(screen.getByRole('button', { name: 'Nueva conversación' })).toBeEnabled();
+  expect(search).toHaveValue('Evolución');
+});
 
 it('uses the route for pending selection and switches back to conversations', async () => {
   vi.mocked(getClinicalThreads).mockResolvedValue([]);

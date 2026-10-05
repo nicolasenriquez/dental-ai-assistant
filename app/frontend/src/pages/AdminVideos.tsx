@@ -124,7 +124,7 @@ export function AdminVideos() {
             type="button"
             onClick={() => setAddModalOpen(true)}
             disabled={syncing}
-            className="px-3 py-2 rounded bg-[var(--accent)] text-white font-medium disabled:opacity-50"
+            className="px-3 py-2 rounded bg-action hover:bg-action-hover text-white font-medium disabled:opacity-50"
           >
             + Agregar video por URL
           </button>

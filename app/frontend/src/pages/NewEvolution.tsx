@@ -91,6 +91,7 @@ export function NewEvolution() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [previousEvolution, setPreviousEvolution] = useState<EvolutionSummary | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState(false);
   const [patientLoading, setPatientLoading] = useState(true);
   const [patientError, setPatientError] = useState(false);
   const [leavePromptOpen, setLeavePromptOpen] = useState(false);
@@ -168,11 +169,13 @@ export function NewEvolution() {
   const loadPreviousEvolution = async () => {
     const currentRequest = ++historyRequestId.current;
     setHistoryLoading(true);
+    setHistoryError(false);
+    setPreviousEvolution(null);
     try {
       const history = await getPatientEvolutions(patientId);
       if (currentRequest === historyRequestId.current) setPreviousEvolution(history[0] ?? null);
     } catch {
-      if (currentRequest === historyRequestId.current) setPreviousEvolution(null);
+      if (currentRequest === historyRequestId.current) setHistoryError(true);
     } finally {
       if (currentRequest === historyRequestId.current) setHistoryLoading(false);
     }
@@ -492,7 +495,26 @@ export function NewEvolution() {
           </p>
         )}
 
-        {!historyLoading && previousEvolution && (
+        {historyLoading ? (
+          <p className="mt-5 text-sm text-muted" role="status">
+            Cargando última evolución…
+          </p>
+        ) : historyError ? (
+          <div className="mt-5 text-sm text-error" role="alert">
+            <p>No pudimos cargar la última evolución. Puedes continuar con tu nota.</p>
+            <button
+              type="button"
+              className="min-h-11 underline focus-visible:ring-2 focus-visible:ring-primary"
+              onClick={() => void loadPreviousEvolution()}
+            >
+              Reintentar historial
+            </button>
+          </div>
+        ) : !previousEvolution ? (
+          <p className="mt-5 text-sm text-muted" role="status">
+            Este paciente aún no tiene evoluciones.
+          </p>
+        ) : (
           <aside
             aria-label="Referencia de la última evolución"
             className="evolution-reference-card mt-5"
@@ -562,7 +584,7 @@ export function NewEvolution() {
                   type="button"
                   disabled={!canGenerate}
                   onClick={requestGeneration}
-                  className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+                  className="rounded-lg bg-action hover:bg-action-hover px-4 py-2 font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
                 >
                   {workspace === 'generating'
                     ? 'Generando borrador...'
@@ -744,7 +766,7 @@ export function NewEvolution() {
                   setLeavePromptOpen(false);
                   blocker.proceed?.();
                 }}
-                className="rounded bg-[var(--accent)] px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                className="rounded bg-action hover:bg-action-hover px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 Salir sin guardar
               </button>
@@ -786,7 +808,7 @@ export function NewEvolution() {
               <button
                 type="button"
                 onClick={() => void runGeneration()}
-                className="rounded bg-[var(--accent)] px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                className="rounded bg-action hover:bg-action-hover px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 Regenerar
               </button>

@@ -75,6 +75,7 @@ export function ClinicalAssistantArea({
   const contextByThread = memory?.attachments ?? localContexts;
   const setContextByThread = memory?.setAttachments ?? setLocalContexts;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const areaRef = useRef<HTMLElement>(null);
   const voiceSelectionRef = useRef<ComposerSelection>({ start: 0, end: 0, selectedText: '' });
   const voiceCaretRef = useRef<number | null>(null);
   const previousVoiceInFlightRef = useRef(false);
@@ -260,18 +261,47 @@ export function ClinicalAssistantArea({
   };
 
   const onDraftChange = (id: string, draft: ClinicalDraft) => assistant.updateDraft(id, draft);
-  const editQueued = useCallback(
-    (id: string, content: string, items: ComposerContextItem[]) => {
-      setValue(content);
-      setContextByThread((current) => ({ ...current, [threadId]: items }));
-      updateQueue((current) => current.filter((item) => item.id !== id));
+  const editQueued = (entry: QueuedEntry) => {
+    if (voiceInFlight) {
+      setQueueError('Finaliza el dictado antes de editar un mensaje pendiente.');
+      return;
+    }
+    if (value.length > 0 || contextItems.length > 0) {
+      setQueueError(
+        'Envía o vacía la nota actual y sus adjuntos antes de editar un mensaje pendiente.',
+      );
       textareaRef.current?.focus();
-    },
-    [setValue, updateQueue],
+      return;
+    }
+    if (entry.patientId !== (activePatient?.id ?? null)) {
+      setQueueError(`Selecciona a ${entry.patientName} antes de editar este mensaje.`);
+      return;
+    }
+    setQueueError(null);
+    setValue(entry.content);
+    setContextByThread((current) => ({ ...current, [threadId]: entry.contextItems }));
+    updateQueue((current) => current.filter((item) => item.id !== entry.id));
+    textareaRef.current?.focus();
+  };
+  const pendingApproval = assistant.items.find(
+    (item) => item.type === 'approval' && item.status === 'pending',
   );
+  const showPendingReview = () => {
+    if (pendingApproval?.type !== 'approval') return;
+    const artifact = Array.from(
+      areaRef.current?.querySelectorAll<HTMLElement>('[data-artifact-id]') ?? [],
+    ).find((element) => element.dataset.artifactId === pendingApproval.action.artifact_id);
+    const target =
+      artifact ??
+      Array.from(areaRef.current?.querySelectorAll<HTMLElement>('[data-approval-id]') ?? []).find(
+        (element) => element.dataset.approvalId === pendingApproval.id,
+      );
+    target?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    target?.focus({ preventScroll: true });
+  };
 
   return (
-    <main className="chat-area clinical-assistant-area">
+    <main ref={areaRef} className="chat-area clinical-assistant-area">
       <WorkspaceHeader
         title={assistant.thread?.title ?? 'Asistente'}
         navigation={
@@ -486,7 +516,16 @@ export function ClinicalAssistantArea({
           )}
           {assistant.runtime === 'awaiting_approval' && (
             <p className="clinical-composer-lock" role="status">
-              Evolución pendiente de revisión · Ver
+              Evolución pendiente de revisión
+              {pendingApproval && (
+                <button
+                  type="button"
+                  className="ml-2 min-h-11 text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
+                  onClick={showPendingReview}
+                >
+                  Ver borrador pendiente
+                </button>
+              )}
             </p>
           )}
           {queued.length > 0 && (
@@ -497,10 +536,7 @@ export function ClinicalAssistantArea({
                   <span>{entry.content}</span>
                   <small>{entry.patientName}</small>
                   <div className="clinical-queue-actions">
-                    <button
-                      type="button"
-                      onClick={() => editQueued(entry.id, entry.content, entry.contextItems)}
-                    >
+                    <button type="button" onClick={() => editQueued(entry)}>
                       Editar
                     </button>
                     <button

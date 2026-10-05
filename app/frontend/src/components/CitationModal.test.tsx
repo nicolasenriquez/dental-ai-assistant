@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Citation } from '../lib/api';
 import { CitationModal, formatTimestamp } from './CitationModal';
@@ -14,6 +14,30 @@ const mockCitation: Citation = {
 };
 
 describe('CitationModal', () => {
+  it('contains focus and restores the citation trigger on close', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    trigger.focus();
+    const { unmount } = render(<CitationModal citation={mockCitation} onClose={vi.fn()} />);
+    const close = screen.getByRole('button', { name: 'Cerrar cita' });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('link', { name: 'Abrir en YouTube' })).toHaveFocus();
+    trigger.focus();
+    expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement);
+    unmount();
+    await waitFor(() => expect(trigger).toHaveFocus());
+    trigger.remove();
+  });
+
+  it('preserves a pre-existing scroll restriction', () => {
+    document.body.style.overflow = 'scroll';
+    const { unmount } = render(<CitationModal citation={mockCitation} onClose={vi.fn()} />);
+    unmount();
+    expect(document.body.style.overflow).toBe('scroll');
+    document.body.style.overflow = '';
+  });
+
   it('renders the modal with citation data', () => {
     const onClose = vi.fn();
     render(<CitationModal citation={mockCitation} onClose={onClose} />);
@@ -140,8 +164,9 @@ describe('CitationModal', () => {
   it('locks body scroll while mounted and restores on unmount', () => {
     const onClose = vi.fn();
     const { unmount } = render(<CitationModal citation={mockCitation} onClose={onClose} />);
-    expect(document.body.style.overflow).toBe('hidden');
+    expect(document.body).toHaveAttribute('data-scroll-locked', '1');
     unmount();
+    expect(document.body).not.toHaveAttribute('data-scroll-locked');
     expect(document.body.style.overflow).toBe('');
   });
 

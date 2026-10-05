@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { useRef } from 'react';
 import type { Citation } from '../lib/api';
 import { formatTimestamp } from '../lib/timestamp';
 import { extractYouTubeVideoId } from '../lib/youtube';
@@ -11,6 +12,9 @@ interface CitationModalProps {
 export { formatTimestamp } from '../lib/timestamp';
 
 export function CitationModal({ citation, onClose }: CitationModalProps) {
+  const previousFocus = useRef(
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
   // Issue #147: paid Dynamous course / workshop citations render without an
   // embedded player. Circle doesn't support timestamp deep-links, so we link
   // straight to the lesson URL with the (MM:SS) shown as text in the header.
@@ -32,118 +36,116 @@ export function CitationModal({ citation, onClose }: CitationModalProps) {
 
   const externalLabel = isDynamous ? 'Abrir en Dynamous' : 'Abrir en YouTube';
 
-  // Close on ESC key
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  // Lock body scroll while modal is open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, []);
-
   // Truncate snippet to max 300 display chars (297 + ellipsis)
   const snippetDisplay =
     citation.snippet.length > 300 ? citation.snippet.slice(0, 297) + '…' : citation.snippet;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
-      onClick={(e) => {
-        // Close when clicking the backdrop (not the dialog itself)
-        if (e.target === e.currentTarget) onClose();
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
       }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Cita de video"
     >
-      <div
-        className="bg-[var(--surface-2)] border border-white/10 rounded-xl p-6 w-[640px] max-w-[calc(100vw-48px)] max-h-[90vh] flex flex-col shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h3 className="text-[var(--text-primary)] text-base font-semibold m-0">
-              {citation.video_title}
-            </h3>
-            <p className="text-[var(--text-secondary)] text-xs m-0 mt-0.5">
-              en {formatTimestamp(citation.start_seconds)} – {formatTimestamp(citation.end_seconds)}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="bg-none border-none text-[var(--text-secondary)] cursor-pointer text-xl leading-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-            aria-label="Cerrar cita"
+      <Dialog.Portal>
+        <Dialog.Overlay
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) onClose();
+          }}
+        >
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="bg-surface-raised border border-border rounded-xl p-6 w-[640px] max-w-[calc(100vw-48px)] max-h-[90vh] flex flex-col shadow-2xl"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              if (previousFocus.current?.isConnected) previousFocus.current.focus();
+            }}
           >
-            ×
-          </button>
-        </div>
+            {/* Header */}
+            <div className="flex justify-between items-center gap-3 mb-4">
+              <div className="min-w-0">
+                <Dialog.Title asChild>
+                  <h3 className="text-foreground text-base font-semibold m-0 break-words">
+                    {citation.video_title}
+                  </h3>
+                </Dialog.Title>
+                <p className="text-muted text-xs m-0 mt-0.5">
+                  en {formatTimestamp(citation.start_seconds)} –{' '}
+                  {formatTimestamp(citation.end_seconds)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-[44px] w-[44px] shrink-0 flex items-center justify-center bg-transparent border-none text-muted cursor-pointer text-xl leading-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                aria-label="Cerrar cita"
+              >
+                ×
+              </button>
+            </div>
 
-        {/* Content: YouTube iframe (top) + transcript (bottom).
+            {/* Content: YouTube iframe (top) + transcript (bottom).
             Dynamous citations skip the iframe — Circle has no embed/deep-link
             support, so the snippet + external link is all we render. */}
-        <div className="flex-1 min-h-0 flex flex-col gap-4 mb-4 overflow-y-auto">
-          {!isDynamous && (
-            <div className="w-full aspect-video">
-              {embedUrl ? (
-                <iframe
-                  src={embedUrl}
-                  allow="autoplay; encrypted-media"
-                  allowFullScreen
-                  title="YouTube video player"
-                  className="w-full h-full rounded-lg"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-slate-900 rounded-lg text-slate-500 text-sm">
-                  Video no disponible
+            <div className="flex-1 min-h-0 flex flex-col gap-4 mb-4 overflow-y-auto">
+              {!isDynamous && (
+                <div className="w-full aspect-video">
+                  {embedUrl ? (
+                    <iframe
+                      src={embedUrl}
+                      allow="autoplay; encrypted-media"
+                      allowFullScreen
+                      title="YouTube video player"
+                      className="w-full h-full rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-surface rounded-lg text-muted text-sm">
+                      Video no disponible
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* Transcript snippet */}
+              <div>
+                <h4 className="text-foreground text-sm font-semibold mb-1">
+                  Extracto de transcripción
+                </h4>
+                <p className="text-foreground text-sm leading-relaxed m-0 whitespace-pre-wrap">
+                  {snippetDisplay}
+                </p>
+              </div>
             </div>
-          )}
 
-          {/* Transcript snippet */}
-          <div>
-            <h4 className="text-slate-200 text-sm font-semibold mb-1">Extracto de transcripción</h4>
-            <p className="text-slate-300 text-sm leading-relaxed m-0 whitespace-pre-wrap">
-              {snippetDisplay}
-            </p>
-          </div>
-        </div>
-
-        {/* Footer: external link */}
-        <div className="flex justify-end">
-          {externalUrl ? (
-            <a
-              href={externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="min-h-11 flex items-center gap-1 text-xs text-[var(--text-secondary)] transition-colors hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            >
-              {externalLabel}
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M1 9L9 1M9 1H3M9 1v6" />
-              </svg>
-            </a>
-          ) : null}
-        </div>
-      </div>
-    </div>
+            {/* Footer: external link */}
+            <div className="flex justify-end">
+              {externalUrl ? (
+                <a
+                  href={externalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-h-11 flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {externalLabel}
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 10 10"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M1 9L9 1M9 1H3M9 1v6" />
+                  </svg>
+                </a>
+              ) : null}
+            </div>
+          </Dialog.Content>
+        </Dialog.Overlay>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

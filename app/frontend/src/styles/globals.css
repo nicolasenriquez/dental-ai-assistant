@@ -9,6 +9,8 @@
   --border: rgba(255, 255, 255, 0.08);
   --accent: #3b82f6;
   --accent-dark: #1d4ed8;
+  --action: #2563eb;
+  --action-hover: var(--accent-dark);
   --accent-glow: rgba(59, 130, 246, 0.3);
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
@@ -261,14 +263,14 @@ body,
 .assistant-content blockquote {
   margin: 0 0 0.75em;
   padding: 8px 12px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   background: rgba(59, 130, 246, 0.08);
   border-radius: 0 6px 6px 0;
 }
 
 /* ── Video card hover ──────────────────────────────────────────── */
 .video-card-hover {
-  border-color: #3b82f6;
+  border-color: var(--accent);
 }
 
 @keyframes video-library-enter {
@@ -548,7 +550,7 @@ body,
   border: 0;
   outline: 0;
   background: transparent;
-  color: #f1f5f9;
+  color: var(--text-primary);
   padding: 0;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 15px;
@@ -556,7 +558,6 @@ body,
   resize: none;
   overflow-y: hidden;
   overscroll-behavior: contain;
-  transition: height 110ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @supports (field-sizing: content) {
@@ -601,10 +602,10 @@ body,
   opacity: 0.55;
 }
 .chat-send-button {
-  background: #3b82f6;
+  background: var(--action);
 }
 .chat-send-button.is-disabled {
-  background: #1e293b;
+  background: var(--surface-2);
   color: var(--text-tertiary);
   cursor: not-allowed;
 }
@@ -1057,9 +1058,9 @@ body,
   display: inline-flex;
   align-items: center;
   min-height: 42px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--action);
   border-radius: 8px;
-  background: var(--accent);
+  background: var(--action);
   color: white;
   padding: 0 16px;
   font-size: 14px;
@@ -1069,8 +1070,8 @@ body,
 }
 
 .btn-primary:hover {
-  border-color: #60a5fa;
-  background: #2563eb;
+  border-color: var(--action-hover);
+  background: var(--action-hover);
 }
 
 .btn-primary:focus-visible,
@@ -2727,8 +2728,8 @@ body,
 }
 
 .evolution-review-artifact__date-actions button:last-child {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: var(--action);
+  background: var(--action);
   color: white;
 }
 
@@ -2748,9 +2749,16 @@ body,
 }
 
 .clinical-primary-button {
-  border: 1px solid var(--accent);
-  background: var(--accent);
+  border: 1px solid var(--action);
+  background: var(--action);
   color: white;
+}
+
+.clinical-primary-button:hover:not(:disabled),
+.chat-send-button:hover:not(:disabled):not(.is-disabled),
+.auth-submit:hover:not(:disabled) {
+  border-color: var(--action-hover);
+  background: var(--action-hover);
 }
 
 .clinical-secondary-button {
@@ -3351,7 +3359,7 @@ body,
   justify-content: center;
   gap: 6px;
   border-radius: 8px;
-  background: var(--accent) !important;
+  background: var(--action) !important;
   color: white !important;
   padding: 0 10px;
 }
@@ -4748,8 +4756,8 @@ body,
 }
 
 .sidebar-dialog-confirm {
-  border: 1px solid var(--accent);
-  background: var(--accent);
+  border: 1px solid var(--action);
+  background: var(--action);
   color: white;
 }
 
@@ -5355,7 +5363,7 @@ body,
 
 .clinical-calendar button:hover:not(:disabled),
 .clinical-calendar [aria-selected="true"] button {
-  background: var(--accent);
+  background: var(--action);
   color: white;
 }
 
@@ -5987,12 +5995,12 @@ body,
 }
 
 .drive-btn-primary {
-  background: var(--accent);
+  background: var(--action);
   color: white;
 }
 
 .drive-btn-primary:hover:not(:disabled) {
-  background: var(--accent-dark);
+  background: var(--action-hover);
 }
 
 .drive-btn-secondary {
@@ -6845,7 +6853,7 @@ body,
   width: 100%;
   border: 0;
   border-radius: 7px;
-  background: var(--accent);
+  background: var(--action);
   color: white;
   padding: 9px 12px;
   font-weight: 600;

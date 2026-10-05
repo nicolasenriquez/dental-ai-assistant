@@ -78,6 +78,54 @@ describe('ClinicalAssistantArea queue', () => {
     vi.mocked(getPatients).mockResolvedValue([]);
   });
 
+  it('preserves text, attachments and queue order when editing conflicts', async () => {
+    let insert: ((item: import('../../lib/api').ComposerContextItem) => void) | undefined;
+    render(
+      <ClinicalAssistantArea
+        threadId="thread-1"
+        assistant={createAssistant()}
+        onComposerInsertReady={(callback) => {
+          insert = callback;
+        }}
+      />,
+    );
+    await waitFor(() => expect(getPatients).toHaveBeenCalled());
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    const attachment = {
+      id: 'queued-doc',
+      kind: 'drive_selection' as const,
+      sourceId: 'file-1',
+      sourceName: 'Pendiente.md',
+      content: 'Contenido pendiente',
+    };
+    act(() => insert?.(attachment));
+    fireEvent.change(composer, { target: { value: 'Primero' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    fireEvent.change(composer, { target: { value: 'Segundo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    fireEvent.change(composer, { target: { value: 'Nota actual' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
+    expect(composer).toHaveValue('Nota actual');
+    expect(screen.getByText('Pendientes 2/3')).toBeVisible();
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.change(composer, { target: { value: '' } });
+    act(() => insert?.({ ...attachment, id: 'current-doc', sourceName: 'Actual.md' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
+    expect(screen.getByRole('group', { name: 'Documentos adjuntos' })).toHaveTextContent(
+      'Actual.md',
+    );
+    expect(screen.getByText('Pendientes 2/3')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /Quitar.*Actual/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
+    expect(composer).toHaveValue('Primero');
+    expect(screen.getByRole('group', { name: 'Documentos adjuntos' })).toHaveTextContent(
+      'Pendiente.md',
+    );
+    expect(screen.getByText('Pendientes 1/3')).toBeVisible();
+    expect(screen.getByText('Segundo')).toBeVisible();
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it.each(['Preparar evolución', 'Consultar evoluciones'])(
     'prefills %s without sending or overwriting work',
     (label) => {
@@ -126,7 +174,7 @@ describe('ClinicalAssistantArea queue', () => {
 
     expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
     expect(composer).toHaveValue('Siguiente nota');
-    expect(screen.getByText('Evolución pendiente de revisión · Ver')).toBeVisible();
+    expect(screen.getByText('Evolución pendiente de revisión')).toBeVisible();
     expect(screen.queryByText(/mensaje.*en cola/)).not.toBeInTheDocument();
   });
 

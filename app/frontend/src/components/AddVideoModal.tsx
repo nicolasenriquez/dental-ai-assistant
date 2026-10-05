@@ -130,7 +130,7 @@ export function AddVideoModal({ open, onClose, onSubmit }: AddVideoModalProps) {
           <button
             type="submit"
             disabled={submitting || !url.trim()}
-            className="px-3 py-2 rounded bg-[var(--accent)] text-white font-medium disabled:opacity-50 transition-[filter] duration-150 active:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+            className="px-3 py-2 rounded bg-action hover:bg-action-hover text-white font-medium disabled:opacity-50 transition-[filter] duration-150 active:brightness-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
           >
             {submitting ? 'Agregando…' : 'Agregar video'}
           </button>

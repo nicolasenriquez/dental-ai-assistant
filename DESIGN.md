@@ -9,6 +9,7 @@ colors:
   clear-signal-blue: "#3b82f6"
   deep-signal-blue: "#1d4ed8"
   patient-message-blue: "#2563eb"
+  action-blue: "#2563eb"
   blue-focus-halo: "rgba(59, 130, 246, 0.3)"
   primary-text: "#f1f5f9"
   secondary-text: "#94a3b8"
@@ -64,13 +65,13 @@ spacing:
   2xl: "32px"
 components:
   button-primary:
-    backgroundColor: "{colors.clear-signal-blue}"
+    backgroundColor: "{colors.action-blue}"
     textColor: "{colors.pure-white}"
     rounded: "{rounded.control}"
     padding: "0 16px"
     height: "42px"
   button-clinical-primary:
-    backgroundColor: "{colors.clear-signal-blue}"
+    backgroundColor: "{colors.action-blue}"
     textColor: "{colors.pure-white}"
     rounded: "{rounded.control}"
     padding: "8px 12px"
@@ -141,9 +142,10 @@ Cards, forms, sidebars, and transcript share one workspace shell. Density stays 
 The palette pairs blue signal accents with cool, low-chroma dark surfaces and soft, readable text.
 
 ### Primary
-- **Clear Signal Blue:** Primary clinical actions, keyboard focus, selected controls, active rails, and brand mark.
+- **Clear Signal Blue:** Links, keyboard focus, selected controls, active rails, and brand mark.
+- **Action Blue:** Filled primary actions with white labels; separate from the link and focus accent.
 - **Deep Signal Blue:** Hover/pressed brand accents and Drive primary-action hover.
-- **Patient Message Blue:** User-authored chat bubbles; distinct from assistant content.
+- **Patient Message Blue:** User-authored chat bubbles; distinct from assistant content and kept as a separate semantic role from actions.
 
 ### Neutral
 - **Midnight Ink:** Application canvas and code-reading background.
@@ -214,7 +216,7 @@ Borders stay thin and subdued. Selection may add a blue edge or inset rail, whil
 
 ### Buttons
 - **Character:** Quiet and deliberate; actions remain clear without dominating clinical text.
-- **Primary:** Solid clear blue with white label. Patient surfaces use the primary button token; clinical actions use the compact clinical-primary token.
+- **Primary:** White labels use `--action` (#2563eb), with `--action-hover` (#1d4ed8). Their contrast is 5.17:1 and 6.70:1 respectively. Keep `--accent` for links, focus, and selection. Patient surfaces use the primary button token; clinical actions use the compact clinical-primary token.
 - **Secondary:** Transparent or surface-backed, thin divider border, muted text.
 - **Hover / Focus:** Use the existing darker blue hover where implemented. Keyboard focus is a 2px blue outline with offset; focus must never imply selection.
 - **Disabled:** Reduce emphasis and remove pointer affordance; do not change label meaning.

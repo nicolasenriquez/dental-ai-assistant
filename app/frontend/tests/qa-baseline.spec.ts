@@ -112,6 +112,136 @@ interface QaRuntimeDiagnostics {
 
 const qaRuntimeDiagnostics = new WeakMap<Page, QaRuntimeDiagnostics>();
 
+test('audit fixes: primary action states keep readable contrast and visible focus', async ({ page }) => {
+  await installQaRoutes(page);
+  await page.goto('/patients');
+  const action = page.getByRole('button', { name: 'Nuevo paciente' });
+  for (const state of ['normal', 'hover', 'focus']) {
+    if (state === 'hover') await action.hover();
+    if (state === 'focus') {
+      await page.mouse.move(0, 0);
+      await action.focus();
+    }
+    const colors = await action.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, color: style.color, outline: style.outlineWidth };
+    });
+    const luminance = (color: string): number => {
+      const channels = color.match(/\d+/g)!.slice(0, 3).map((channel) => {
+        const value = Number(channel) / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+    };
+    const foreground = luminance(colors.color);
+    const background = luminance(colors.background);
+    expect((Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)).toBeGreaterThanOrEqual(4.5);
+    if (state === 'focus') expect(colors.outline).toBe('2px');
+  }
+});
+
+test('audit fixes: citation traps focus, restores trigger and keeps a 44px close target', async ({ page }) => {
+  await installQaRoutes(page);
+  await page.route(`**/api/conversations/${conversationId}`, (route) => route.fulfill(json({
+    ...conversation,
+    messages: [{
+      ...conversation.messages[0],
+      sources: [{
+        chunk_id: 'citation-qa', video_id: videoId,
+        video_title: 'Una cita con título largo para comprobar el reflujo en pantalla estrecha',
+        video_url: video.url, start_seconds: 12, end_seconds: 18, snippet: 'Extracto QA',
+      }],
+    }],
+  })));
+  await page.route('https://www.youtube.com/embed/**', (route) => route.fulfill({
+    contentType: 'text/html', body: '<button>Reproducir</button>',
+  }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/c/${conversationId}`);
+  const trigger = page.locator('.citation-chip');
+  await page.getByRole('button', { name: 'Expandir fuentes' }).click();
+  await trigger.click();
+  const close = page.getByRole('button', { name: 'Cerrar cita' });
+  await expect(close).toBeFocused();
+  const box = await close.boundingBox();
+  expect(box?.width).toBeGreaterThanOrEqual(44);
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('link', { name: 'Abrir en YouTube' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.frameLocator('iframe').getByRole('button', { name: 'Reproducir' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Abrir en YouTube' })).toBeFocused();
+  await assertNoHorizontalOverflow(page);
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toBe('hidden');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.mouse.click(2, 2);
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
+test('audit fixes: review link focuses its pending artifact and composer still autosizes', async ({ page }) => {
+  await installQaRoutes(page);
+  await page.goto(`/a/${threadId}`);
+  const composer = page.getByLabel('Nota clínica');
+  await composer.fill('Primera línea\nSegunda línea\nTercera línea');
+  const height = await composer.evaluate((element) => element.getBoundingClientRect().height);
+  expect(height).toBeGreaterThan(24);
+  expect(await composer.evaluate((element) => getComputedStyle(element).transitionProperty)).not.toContain('height');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await page.getByRole('button', { name: 'Revisar y guardar' }).click();
+  await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeHidden();
+  await page.getByRole('button', { name: 'Ver borrador pendiente' }).click();
+  await expect(page.locator('[data-artifact-id="draft-qa"]')).toBeFocused();
+});
+
+test('audit fixes: code and copy survive deferred Prism failure', async ({ page }) => {
+  await installQaRoutes(page);
+  let hydrated = false;
+  await page.route(`**/api/conversations/${conversationId}`, (route) => {
+    hydrated = true;
+    return route.fulfill(json({
+      ...conversation,
+      messages: [{ ...conversation.messages[0], content: '```javascript\nconst answer = 42;\n```' }],
+    }));
+  });
+  let attempts = 0;
+  let deferredUrl = '';
+  allowExpectedResourceFailure(page, 503);
+  await page.route('**/assets/*.js', async (route) => {
+    if (!hydrated || (deferredUrl && route.request().url() !== deferredUrl)) {
+      await route.continue();
+      return;
+    }
+    deferredUrl = route.request().url();
+    attempts += 1;
+    if (attempts === 1) await route.fulfill({ status: 503, body: 'unavailable' });
+    else await route.continue();
+  });
+  await page.goto(`/c/${conversationId}`);
+  await expect(page.getByRole('status').filter({ hasText: 'Resaltado no disponible' })).toBeVisible();
+  await expect(page.locator('.code-block-wrapper code')).toHaveText('const answer = 42;');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Copy', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('const answer = 42;');
+  const diagnostics = qaRuntimeDiagnostics.get(page)!;
+  const expectedFailure = diagnostics.errors.indexOf(`requestfailed: GET ${deferredUrl}`);
+  expect(expectedFailure).toBeGreaterThanOrEqual(0);
+  diagnostics.errors.splice(expectedFailure, 1);
+  await page.reload();
+  await expect(page.locator('.code-block-wrapper .token')).not.toHaveCount(0);
+  await page.clock.runFor(100);
+  await expect(page.locator('.code-block-wrapper code')).toHaveText('const answer = 42;');
+  expect(attempts).toBe(2);
+});
+
 function allowExpectedResourceFailure(page: Page, status: number): void {
   qaRuntimeDiagnostics.get(page)?.expectedResourceFailures.push(status);
 }

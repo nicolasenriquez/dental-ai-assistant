@@ -43,6 +43,7 @@ export function ClinicalPatientPicker({
   const [query, setQuery] = useState('');
   const [activeOption, setActiveOption] = useState(0);
   const statusId = useId();
+  const optionsId = useId();
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -60,8 +61,8 @@ export function ClinicalPatientPicker({
 
   const choosePatient = (patientId: string) => {
     if (interactionDisabled) return;
+    closePicker();
     onPatientChange(patientId);
-    setOpen(false);
     setQuery('');
     setActiveOption(0);
   };
@@ -73,7 +74,7 @@ export function ClinicalPatientPicker({
 
   const closePicker = () => {
     setOpen(false);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    triggerRef.current?.focus();
   };
 
   useEffect(() => {
@@ -95,11 +96,13 @@ export function ClinicalPatientPicker({
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    document.getElementById(`${optionsId}-${activeOption}`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, optionsId, activeOption]);
+
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      closePicker();
-      return;
-    }
+    if (patientsLoading || patientsError) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       if (filteredPatients.length > 0) {
@@ -147,7 +150,19 @@ export function ClinicalPatientPicker({
           <ChevronsUpDown aria-hidden="true" size={15} />
         </button>
         {open && !isSaving && (
-          <div className="clinical-patient-popover">
+          <div
+            className="clinical-patient-popover"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                closePicker();
+              }
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+            }}
+          >
             <label className="clinical-patient-search">
               <Search aria-hidden="true" size={15} />
               <input
@@ -155,9 +170,14 @@ export function ClinicalPatientPicker({
                 autoFocus
                 role="combobox"
                 aria-label="Buscar paciente por nombre o RUT"
-                aria-controls="clinical-patient-options"
+                aria-controls={optionsId}
                 aria-expanded="true"
-                aria-activedescendant={filteredPatients[activeOption]?.id}
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  !patientsLoading && !patientsError && filteredPatients[activeOption]
+                    ? `${optionsId}-${activeOption}`
+                    : undefined
+                }
                 value={query}
                 disabled={interactionDisabled}
                 onChange={(event) => {
@@ -168,7 +188,7 @@ export function ClinicalPatientPicker({
                 placeholder="Buscar por nombre o RUT…"
               />
             </label>
-            <div id="clinical-patient-options" role="listbox" tabIndex={-1}>
+            <div id={optionsId} role="listbox" aria-label="Pacientes" tabIndex={-1}>
               {patientsLoading ? (
                 <p role="status">Cargando pacientes…</p>
               ) : patientsError ? (
@@ -205,12 +225,14 @@ export function ClinicalPatientPicker({
                   <button
                     type="button"
                     role="option"
-                    id={option.id}
+                    id={`${optionsId}-${index}`}
+                    tabIndex={-1}
                     key={option.id}
                     aria-selected={option.id === patient?.id}
                     disabled={interactionDisabled}
                     className={index === activeOption ? 'is-active' : undefined}
                     onMouseEnter={() => setActiveOption(index)}
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => choosePatient(option.id)}
                   >
                     <span>

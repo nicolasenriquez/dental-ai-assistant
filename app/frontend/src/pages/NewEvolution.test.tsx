@@ -52,6 +52,32 @@ describe('NewEvolution generation states', () => {
     vi.restoreAllMocks();
   });
 
+  it('distinguishes unavailable history from empty history and retries without losing the note', async () => {
+    vi.mocked(api.getPatientEvolutions).mockRejectedValueOnce(new Error('offline'));
+    renderNewEvolution();
+    await enterNote();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No pudimos cargar la última evolución.',
+    );
+    expect(screen.queryByText('Este paciente aún no tiene evoluciones.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generar borrador con IA' })).toBeEnabled();
+    vi.mocked(api.getPatientEvolutions).mockResolvedValueOnce([
+      {
+        id: 'evolution-1',
+        patient_id: patient.id,
+        evolution_at: '2026-01-01T12:00:00Z',
+        created_at: '2026-01-01T12:00:00Z',
+        preview: 'Control anterior',
+      },
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar historial' }));
+    expect(await screen.findByText('Control anterior')).toBeVisible();
+    expect(screen.getByLabelText('Nota clínica')).toHaveValue(
+      'Paciente refiere sensibilidad al frío.',
+    );
+    expect(screen.queryByRole('button', { name: 'Reintentar historial' })).not.toBeInTheDocument();
+  });
+
   it('uses Chilean date and 24-hour time before generating a draft', async () => {
     renderNewEvolution();
     await enterNote();

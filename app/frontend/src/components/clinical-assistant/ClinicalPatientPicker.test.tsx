@@ -32,6 +32,49 @@ function renderPicker(
 }
 
 describe('ClinicalPatientPicker', () => {
+  it('keeps options out of Tab order and restores focus after mouse selection', () => {
+    const onPatientChange = vi.fn();
+    renderPicker(onPatientChange);
+    const trigger = screen.getByRole('button', { name: 'Seleccionar paciente' });
+    fireEvent.click(trigger);
+    const search = screen.getByRole('combobox');
+    const option = screen.getByRole('option');
+    expect(option).toHaveAttribute('tabindex', '-1');
+    expect(search).toHaveAttribute('aria-activedescendant', option.id);
+    fireEvent.click(option);
+    expect(trigger).toHaveFocus();
+    expect(onPatientChange).toHaveBeenCalledOnce();
+  });
+
+  it('closes with Escape from a recovery action', () => {
+    renderPicker();
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente' }));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Nadie' } });
+    const clear = screen.getByRole('button', { name: 'Limpiar búsqueda' });
+    clear.focus();
+    fireEvent.keyDown(clear, { key: 'Escape' });
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Seleccionar paciente' })).toHaveFocus();
+  });
+
+  it.each(['patientsLoading', 'patientsError'] as const)(
+    'does not select hidden options during %s',
+    (state) => {
+      const onPatientChange = vi.fn();
+      render(
+        <ClinicalPatientPicker
+          patient={null}
+          patients={patients}
+          onPatientChange={onPatientChange}
+          {...{ [state]: true }}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Seleccionar paciente' }));
+      fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
+      expect(onPatientChange).not.toHaveBeenCalled();
+    },
+  );
+
   it('filters patients and supports keyboard selection', () => {
     const onPatientChange = vi.fn();
     renderPicker(onPatientChange);

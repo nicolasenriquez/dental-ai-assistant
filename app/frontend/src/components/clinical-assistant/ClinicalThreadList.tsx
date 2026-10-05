@@ -56,6 +56,8 @@ export function ClinicalThreadList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState(false);
+  const createInFlight = useRef(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
@@ -148,6 +150,9 @@ export function ClinicalThreadList({
   }, [refresh]);
 
   const create = async () => {
+    if (createInFlight.current) return;
+    createInFlight.current = true;
+    setCreateError(false);
     setCreating(true);
     try {
       const { thread } = await acquireClinicalThread();
@@ -155,7 +160,11 @@ export function ClinicalThreadList({
       navigate(`/a/${thread.id}`);
       onNavigate?.();
       await refresh();
+    } catch {
+      setCreateError(true);
+      if (isCollapsed) onRequestExpand?.();
     } finally {
+      createInFlight.current = false;
       setCreating(false);
     }
   };
@@ -229,10 +238,24 @@ export function ClinicalThreadList({
             className="clinical-sidebar-create"
             onClick={() => guardTransition(() => void create())}
             disabled={creating}
+            aria-busy={creating}
           >
             <SquarePen aria-hidden="true" size={16} strokeWidth={1.7} />
             {creating ? 'Creando…' : 'Nueva conversación'}
           </button>
+        )}
+        {createError && !isCollapsed && (
+          <div className="px-3 py-2 text-sm text-error" role="alert">
+            <p>No pudimos abrir la conversación. Tu trabajo se conserva.</p>
+            <button
+              type="button"
+              className="min-h-11 underline focus-visible:ring-2 focus-visible:ring-primary"
+              disabled={creating}
+              onClick={() => guardTransition(() => void create())}
+            >
+              Reintentar creación
+            </button>
+          </div>
         )}
         <WorkspaceThreadList
           ariaLabel="Hilos del asistente clínico"
