@@ -139,6 +139,10 @@ export function DriveWorkspace({
   const [sources, setSources] = useState<DriveSourceFile[]>([]);
   const [sourcePage, setSourcePage] = useState<string | null>(null);
   const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [sourcesError, setSourcesError] = useState<string | null>(null);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [journalsError, setJournalsError] = useState<string | null>(null);
+  const sourcesSequence = useRef(0);
   const [section, setSection] = useState<DriveSection>(initialSection);
   const [journals, setJournals] = useState<DriveJournalSummary[]>([]);
   const [journalsLoading, setJournalsLoading] = useState(false);
@@ -161,6 +165,12 @@ export function DriveWorkspace({
   const [recreateDialog, setRecreateDialog] = useState<'missing' | 'recovery' | null>(null);
   const patientIdRef = useRef(patientId);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const sheetContentRef = useRef<HTMLDivElement>(null);
+  const sheetEntranceRef = useRef<Animation | null>(null);
+  useEffect(() => {
+    if (!open) sheetEntranceRef.current?.cancel();
+    return () => sheetEntranceRef.current?.cancel();
+  }, [open]);
   const searchSequence = useRef(0);
   const [isSheet, setIsSheet] = useState(
     () => window.matchMedia?.('(max-width: 1024px)')?.matches ?? false,
@@ -240,9 +250,12 @@ export function DriveWorkspace({
   }, [Boolean(workspaceDocument), onSurfaceChange]);
 
   const loadSources = async (pageToken?: string) => {
+    const sequence = ++sourcesSequence.current;
     setSourcesLoading(true);
+    setSourcesError(null);
     try {
       const page = await listDriveSources(pageToken);
+      if (sequence !== sourcesSequence.current) return;
       setSources((previous) =>
         pageToken
           ? [
@@ -253,24 +266,28 @@ export function DriveWorkspace({
       );
       setSourcePage(page.next_page_token);
     } catch {
-      setErrorMessage('No se pudieron cargar las fuentes.');
+      if (sequence === sourcesSequence.current) setSourcesError('No se pudieron cargar las notas.');
     } finally {
-      setSourcesLoading(false);
+      if (sequence === sourcesSequence.current) setSourcesLoading(false);
     }
   };
 
   useEffect(() => {
     if (driveStatus?.status === 'connected') void loadSources();
+    return () => {
+      sourcesSequence.current += 1;
+    };
   }, [driveStatus?.status]);
 
   const loadJournals = async () => {
     setJournalsLoading(true);
+    setJournalsError(null);
     try {
       const page = await listDriveJournals();
       setJournals(page.journals);
       setJournalsLoaded(true);
     } catch {
-      setErrorMessage('No se pudieron cargar los diarios.');
+      setJournalsError('No se pudieron cargar los diarios.');
     } finally {
       setJournalsLoading(false);
     }
@@ -347,28 +364,14 @@ export function DriveWorkspace({
   ]);
 
   useEffect(() => {
-    if (!patientId || driveStatus?.status !== 'connected') return;
-    let cancelled = false;
-    setListLoading(true);
+    searchSequence.current += 1;
+    setDocumentsError(null);
     setFiles([]);
     setNextPageToken(null);
-    listDriveFiles(patientId, undefined)
-      .then((page) => {
-        if (cancelled || patientIdRef.current !== patientId) return;
-        setFiles(page.files);
-        setNextPageToken(page.next_page_token);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDebugErrorMessage(null);
-          setErrorMessage('No se pudo completar la acción');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setListLoading(false);
-      });
+    setListLoading(false);
+    if (patientId && driveStatus?.status === 'connected') void handleSearch('');
     return () => {
-      cancelled = true;
+      searchSequence.current += 1;
     };
   }, [patientId, driveStatus?.status]);
 
@@ -389,12 +392,14 @@ export function DriveWorkspace({
     }
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async (searchQuery = query) => {
     if (!patientId) return;
-    const trimmed = query.trim();
+    const trimmed = searchQuery.trim();
     const sequence = ++searchSequence.current;
     setSearchSubmitted(Boolean(trimmed));
-    setSearchLoading(true);
+    setSearchLoading(Boolean(trimmed));
+    setListLoading(!trimmed);
+    setDocumentsError(null);
     try {
       const page = trimmed
         ? await searchDriveFiles({ patient_id: patientId, query: trimmed })
@@ -403,12 +408,14 @@ export function DriveWorkspace({
       setFiles(page.files);
       setNextPageToken(page.next_page_token);
     } catch {
-      if (sequence === searchSequence.current) {
-        setDebugErrorMessage(null);
-        setErrorMessage('No se pudo completar la acción');
+      if (sequence === searchSequence.current && patientIdRef.current === patientId) {
+        setDocumentsError('No se pudieron cargar los documentos.');
       }
     } finally {
-      if (sequence === searchSequence.current) setSearchLoading(false);
+      if (sequence === searchSequence.current) {
+        setSearchLoading(false);
+        setListLoading(false);
+      }
     }
   };
 
@@ -419,39 +426,25 @@ export function DriveWorkspace({
   }, [query, patientId, driveStatus?.status]);
 
   const handleClearSearch = () => {
-    searchSequence.current += 1;
     setQuery('');
-    setSearchSubmitted(false);
-    setSearchLoading(false);
-    if (!patientId) return;
-    setListLoading(true);
-    void listDriveFiles(patientId, undefined)
-      .then((page) => {
-        if (patientIdRef.current !== patientId) return;
-        setFiles(page.files);
-        setNextPageToken(page.next_page_token);
-      })
-      .catch(() => {
-        setDebugErrorMessage(null);
-        setErrorMessage('No se pudo completar la acción');
-      })
-      .finally(() => setListLoading(false));
+    void handleSearch('');
   };
 
   const handleLoadMore = async () => {
     if (!patientId || !nextPageToken || pageRequestInFlight.current) return;
     const requestedPatient = patientId;
     const requestedCursor = nextPageToken;
+    const sequence = searchSequence.current;
     pageRequestInFlight.current = true;
+    setDocumentsError(null);
     try {
       const page = await listDriveFiles(requestedPatient, requestedCursor);
-      if (patientIdRef.current !== requestedPatient) return;
+      if (patientIdRef.current !== requestedPatient || sequence !== searchSequence.current) return;
       setFiles((prev) => [...prev, ...page.files]);
       setNextPageToken(page.next_page_token);
     } catch {
-      if (patientIdRef.current === requestedPatient) {
-        setDebugErrorMessage(null);
-        setErrorMessage('No se pudo completar la acción');
+      if (patientIdRef.current === requestedPatient && sequence === searchSequence.current) {
+        setDocumentsError('No se pudieron cargar los documentos.');
       }
     } finally {
       if (patientIdRef.current === requestedPatient) {
@@ -807,19 +800,6 @@ export function DriveWorkspace({
     />
   ) : null;
 
-  if (!driveStatus) {
-    if (statusLoading) return null;
-    return (
-      <DriveAlert>
-        <DriveAlertTitle>Google Drive no está disponible</DriveAlertTitle>
-        <DriveAlertDescription>{errorMessage}</DriveAlertDescription>
-        <button type="button" className="drive-btn drive-btn-primary" onClick={loadDriveStatus}>
-          Reintentar
-        </button>
-      </DriveAlert>
-    );
-  }
-
   const sectionNavigation = (
     <div className="drive-section-nav" role="tablist" aria-label="Secciones de Google Drive">
       {(
@@ -884,7 +864,30 @@ export function DriveWorkspace({
   );
 
   let connectionContent: ReactNode;
-  switch (driveStatus.status) {
+  const sectionError =
+    section === 'notes' ? sourcesError : section === 'documents' ? documentsError : journalsError;
+  const sectionLoading =
+    section === 'notes'
+      ? sourcesLoading
+      : section === 'documents'
+        ? listLoading || searchLoading
+        : journalsLoading;
+  switch (driveStatus?.status) {
+    case undefined:
+      connectionContent = statusLoading ? (
+        <p role="status" className="flex items-center gap-2 p-4 text-sm text-muted">
+          <Spinner /> Cargando Google Drive…
+        </p>
+      ) : (
+        <DriveAlert>
+          <DriveAlertTitle>Google Drive no está disponible</DriveAlertTitle>
+          <DriveAlertDescription>{errorMessage}</DriveAlertDescription>
+          <button type="button" className="drive-btn drive-btn-primary" onClick={loadDriveStatus}>
+            Reintentar
+          </button>
+        </DriveAlert>
+      );
+      break;
     case 'unconfigured':
       connectionContent = (
         <DriveAlert>
@@ -1003,10 +1006,26 @@ export function DriveWorkspace({
             aria-labelledby={`drive-tab-${section}`}
             className="drive-section-panel"
           >
-            {section === 'notes' ? (
+            {sectionError && !sectionLoading ? (
+              <DriveAlert>
+                <DriveAlertTitle>No se pudo cargar el listado</DriveAlertTitle>
+                <DriveAlertDescription>{sectionError}</DriveAlertDescription>
+                <button
+                  type="button"
+                  className="drive-btn drive-btn-secondary"
+                  aria-label={`Reintentar ${section === 'notes' ? 'notas' : section === 'documents' ? 'documentos' : 'diarios'}`}
+                  onClick={() => {
+                    if (section === 'notes') void loadSources();
+                    else if (section === 'documents') void handleSearch();
+                    else void loadJournals();
+                  }}
+                >
+                  Reintentar
+                </button>
+              </DriveAlert>
+            ) : section === 'notes' ? (
               <DriveWorkspaceHome
                 files={sources}
-                patient={patient}
                 loading={sourcesLoading}
                 picking={importing}
                 onPick={() => void handleOpenNote()}
@@ -1080,6 +1099,7 @@ export function DriveWorkspace({
       className="drive-workspace"
       role="region"
       aria-label="Espacio de documentos de Google Drive"
+      aria-busy={statusLoading}
     >
       {!isSheet && (
         <DriveWorkspaceHeader
@@ -1088,7 +1108,7 @@ export function DriveWorkspace({
           onClose={requestCloseWorkspace}
         />
       )}
-      {(errorMessage || doc?.uncertainOperationId) && !conflictOpen && (
+      {driveStatus && (errorMessage || doc?.uncertainOperationId) && !conflictOpen && (
         <DriveAlert>
           <DriveAlertTitle>
             {sourceDoc ? 'No se pudo guardar el documento' : 'No se pudo completar la acción'}
@@ -1185,10 +1205,29 @@ export function DriveWorkspace({
 
   return (
     <Sheet open={open} onOpenChange={(nextOpen) => !nextOpen && requestCloseWorkspace()}>
-      <SheetContent className="drive-sheet-workspace">
+      <SheetContent
+        ref={sheetContentRef}
+        className="drive-sheet-workspace"
+        onOpenAutoFocus={() => {
+          if (
+            window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ||
+            document.activeElement?.matches(':focus-visible')
+          )
+            return;
+          sheetEntranceRef.current?.cancel();
+          sheetEntranceRef.current =
+            sheetContentRef.current?.animate?.(
+              [
+                { opacity: 0, transform: 'translateX(12px)' },
+                { opacity: 1, transform: 'translateX(0)' },
+              ],
+              { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+            ) ?? null;
+        }}
+      >
         <SheetHeader>
           <SheetTitle>{workspaceDocument ? 'Documento' : 'Google Drive'}</SheetTitle>
-          {driveStatus.status === 'connected' && <p className="drive-header-status">Conectado</p>}
+          {driveStatus?.status === 'connected' && <p className="drive-header-status">Conectado</p>}
           {patient && (
             <p className="drive-workspace-patient-context">
               Contexto activo · {patient.displayName} · {patient.rutMasked}

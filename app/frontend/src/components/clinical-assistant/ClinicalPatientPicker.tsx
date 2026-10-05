@@ -142,10 +142,9 @@ export function ClinicalPatientPicker({
           >
             <span className="clinical-patient-label">Paciente</span>
             <strong>
-              {patient
-                ? `${patient.first_name} ${patient.last_name} · ${patient.rut_masked}`
-                : 'Seleccionar paciente'}
+              {patient ? `${patient.first_name} ${patient.last_name}` : 'Seleccionar paciente'}
             </strong>
+            {patient && <small className="clinical-patient-rut">{patient.rut_masked}</small>}
           </span>
           <ChevronsUpDown aria-hidden="true" size={15} />
         </button>

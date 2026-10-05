@@ -25,7 +25,7 @@ export function DriveSourceList({
           <button type="button" className="drive-file-row" onClick={() => onOpen(file)}>
             <DriveFileIcon mimeType={file.mimeType} name={file.name} kind={file.kind} />
             <span className="drive-file-main">
-              <strong>{file.name}</strong>
+              <strong title={file.name}>{file.name}</strong>
               <span>{driveTypeLabel(file.mimeType, file.name, file.kind)}</span>
               <span>{file.editable ? 'Editable' : 'Solo lectura'}</span>
             </span>

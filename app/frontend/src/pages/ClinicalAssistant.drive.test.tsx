@@ -377,9 +377,9 @@ describe('Clinical Assistant Drive transfer', () => {
     renderAssistant();
 
     const header = screen.getByRole('banner');
-    expect(
-      within(header).getByRole('button', { name: 'Cambiar paciente activo' }),
-    ).toHaveTextContent('Ana Pérez · 12.345.•••-6');
+    const trigger = within(header).getByRole('button', { name: 'Cambiar paciente activo' });
+    expect(trigger).toHaveTextContent('Ana Pérez');
+    expect(trigger).toHaveTextContent('12.345.•••-6');
     expect(
       within(screen.getByTestId('clinical-composer')).queryByRole('button', {
         name: 'Cambiar paciente activo',

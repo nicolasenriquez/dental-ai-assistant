@@ -470,8 +470,13 @@ for (const viewport of [
       page.getByRole('region', { name: 'Espacio de documentos de Google Drive' }),
     ).toBeVisible();
     const drivePatientContext = page.locator('.drive-workspace-patient-context');
-    await expect(drivePatientContext).toContainText(`${patient.first_name} ${patient.last_name}`);
-    await expect(drivePatientContext).toContainText(patient.rut_masked);
+    if (viewport.width <= 1024) {
+      await expect(drivePatientContext).toContainText(`${patient.first_name} ${patient.last_name}`);
+      await expect(drivePatientContext).toContainText(patient.rut_masked);
+    } else {
+      await expect(drivePatientContext).toHaveText('Paciente activo en el asistente');
+      await expect(page.locator('.clinical-patient-rut')).toHaveText(patient.rut_masked);
+    }
     if (viewport.width < 1024) {
       await expect(page.locator('.drive-sheet-content')).toBeVisible();
       await expect(page.getByText('Conectado', { exact: true })).toBeVisible();
@@ -712,7 +717,7 @@ test('shows active-patient persistence failures and retries the selection', asyn
   );
 });
 
-test('keeps title and Drive above the patient selector on mobile', async ({ page }) => {
+test('keeps patient identity above navigation and Drive on mobile', async ({ page }) => {
   await setupClinicalHarness(page, thread());
   await page.setViewportSize({ width: 390, height: 844 });
 
@@ -722,7 +727,9 @@ test('keeps title and Drive above the patient selector on mobile', async ({ page
   const actionBounds = await actions.boundingBox();
   expect(contextBounds).not.toBeNull();
   expect(actionBounds).not.toBeNull();
-  expect(contextBounds?.y).toBeGreaterThan(actionBounds?.y ?? 0);
+  expect((contextBounds?.y ?? 0) + (contextBounds?.height ?? 0)).toBeLessThanOrEqual(
+    actionBounds?.y ?? 0,
+  );
 
   await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
   const option = page.getByRole('option', { name: /Ana Pérez/ });
@@ -808,7 +815,7 @@ test('keeps the assistant header and sidebar consistent across viewport boundari
       ).toBe(260);
     }
     if (width <= 900) {
-      expect((await context.boundingBox())?.y).toBeGreaterThan(
+      expect((await context.boundingBox())?.y).toBeLessThan(
         (await actions.boundingBox())?.y ?? 0,
       );
     }
@@ -1159,10 +1166,10 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect(sidebar).toHaveClass(/collapsed/);
   await expect
     .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
-    .toBe(0);
-  await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
-  await expect(sidebar).toHaveAttribute('inert', '');
-  const restoreNavigation = page.getByRole('button', { name: 'Abrir navegación' });
+    .toBe(56);
+  await expect(sidebar).not.toHaveAttribute('aria-hidden', 'true');
+  await expect(sidebar).not.toHaveAttribute('inert', '');
+  const restoreNavigation = sidebar.getByRole('button', { name: 'Expandir navegación' });
   await expect(restoreNavigation).toBeVisible();
   await restoreNavigation.click();
   await expect
@@ -2138,7 +2145,7 @@ test('locks clinical patient scope while handing off dictation', async ({ page }
   await expect(composer).toHaveClass(/is-voice-active/);
   await expectNoHorizontalOverflow(page);
   await input.fill('Nota manual');
-  await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toHaveCount(0);
   releaseTranscription();
   await expect(input).toHaveValue('Texto dictado. Nota manual');
   await expect(page.getByText('Dictado añadido')).toBeVisible();

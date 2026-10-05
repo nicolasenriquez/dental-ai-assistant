@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useClinicalPendingWork } from '../../hooks/useClinicalPendingWork';
 import type { EvolutionSummary, PendingWorkItem } from '../../lib/api';
 import { formatClinicalDateShort } from '../../lib/clinicalDate';
-import { Button } from '../ui/Button';
+import { Button, buttonVariants } from '../ui/Button';
 
 export function PatientOverview({
   patientId,
@@ -26,12 +26,6 @@ export function PatientOverview({
       void drive.refresh();
     }
   }, [revision]);
-  const clinical =
-    !approval.error && !approval.loading && approval.page?.items[0]
-      ? approval.page.items[0]
-      : !approval.error && !approval.loading
-        ? draft.page?.items[0]
-        : undefined;
   const href = (item: PendingWorkItem): string =>
     item.action.kind === 'retry_drive_export' && !item.action.thread_id
       ? `/patients/${patientId}/evolutions/${item.action.evolution_id}`
@@ -39,9 +33,10 @@ export function PatientOverview({
   return (
     <section
       aria-label="Resumen del paciente"
-      className="my-6 space-y-5 border-y border-border py-5"
+      className="my-6 space-y-6 border-t border-border pt-5"
     >
-      <dl className="flex flex-wrap gap-x-10 gap-y-4 text-sm">
+      <h2 className="text-base font-semibold">Resumen clínico</h2>
+      <dl className="grid grid-cols-2 gap-4 text-sm">
         <div>
           <dt className="text-muted">Última evolución</dt>
           <dd className="mt-1 font-medium">
@@ -58,51 +53,84 @@ export function PatientOverview({
           </dd>
         </div>
         <div>
-          <dt className="text-muted">Evoluciones</dt>
-          <dd className="mt-1 font-medium">{evolutions.length}</dd>
+          <dt className="text-muted">Evoluciones guardadas en ficha</dt>
+          <dd className="mt-1 font-medium">{evolutions.length.toLocaleString('es-CL')}</dd>
         </div>
-        {(
-          [
-            ['Por revisar', approval],
-            ['Borradores', draft],
-            ['Exportaciones Drive fallidas', drive],
-          ] as const
-        ).map(([label, result]) => (
-          <div key={label}>
-            <dt className="text-muted">{label}</dt>
-            <dd className="mt-1 font-medium">
-              {result.error ? (
-                <span role="alert">
-                  No disponible ·{' '}
-                  <button type="button" className="underline" onClick={() => void result.refresh()}>
-                    Reintentar {label.toLowerCase()}
-                  </button>
-                </span>
-              ) : result.loading ? (
-                'Cargando…'
-              ) : (
-                (result.page?.total ?? 0)
-              )}
-            </dd>
-          </div>
-        ))}
       </dl>
-      {clinical && (
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <p>Tienes trabajo clínico por continuar</p>
-          <Link className="py-2 text-primary hover:underline" to={href(clinical)}>
-            {clinical.kind === 'approval_required' ? 'Revisar' : 'Continuar trabajo'}
-          </Link>
-        </div>
-      )}
-      {!drive.error && drive.page?.items[0] && (
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <p>Guardada en ficha · Sincronización por recuperar</p>
-          <Link className="py-2 text-primary hover:underline" to={href(drive.page.items[0])}>
-            Recuperar sincronización
-          </Link>
-        </div>
-      )}
+      {[
+        {
+          title: 'Trabajo clínico pendiente',
+          rows: [
+            { label: 'Por revisar', result: approval, action: 'Revisar', primary: true },
+            {
+              label: 'Borradores recuperables',
+              result: draft,
+              action: 'Continuar trabajo',
+              primary: false,
+            },
+          ],
+        },
+        {
+          title: 'Sincronización con Drive',
+          rows: [
+            {
+              label: 'Exportaciones Drive fallidas',
+              result: drive,
+              action: 'Recuperar sincronización',
+              primary: false,
+            },
+          ],
+        },
+      ].map(({ title, rows }) => (
+        <section key={title} aria-label={title} className="space-y-2 border-t border-border pt-4">
+          <h3 className="text-sm font-medium text-muted">{title}</h3>
+          <dl className="space-y-2 text-sm">
+            {rows.map(({ label, result, action, primary }) => (
+              <div
+                key={label}
+                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+              >
+                <div>
+                  <dt className="text-muted">{label}</dt>
+                  <dd className="mt-1 font-medium" aria-live="polite">
+                    {result.error ? (
+                      <span role="alert">
+                        No disponible ·{' '}
+                        <button
+                          type="button"
+                          className="inline-flex min-h-[44px] items-center underline"
+                          onClick={() => void result.refresh()}
+                        >
+                          Reintentar {label.toLowerCase()}
+                        </button>
+                      </span>
+                    ) : result.loading ? (
+                      'Cargando…'
+                    ) : (
+                      (result.page?.total ?? 0).toLocaleString('es-CL')
+                    )}
+                  </dd>
+                </div>
+                {!result.loading && !result.error && result.page?.items[0] && (
+                  <Link
+                    className={buttonVariants({
+                      variant: primary ? 'clinical' : 'clinicalSecondary',
+                    })}
+                    to={href(result.page.items[0])}
+                  >
+                    {action}
+                  </Link>
+                )}
+              </div>
+            ))}
+          </dl>
+          {title === 'Sincronización con Drive' && (
+            <p className="text-xs text-muted">
+              El guardado en ficha es independiente de la sincronización de su copia en Drive.
+            </p>
+          )}
+        </section>
+      ))}
       <div className="flex flex-wrap gap-2">
         <Button
           variant="clinicalSecondary"

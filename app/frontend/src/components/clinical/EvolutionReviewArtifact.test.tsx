@@ -43,6 +43,32 @@ function renderArtifact(onChange = vi.fn()) {
 }
 
 describe('EvolutionReviewArtifact', () => {
+  it('navigates long content to unique semantic headings without hiding fields', () => {
+    const props = {
+      mode: 'assistant' as const,
+      sourceNote: 'Nota original',
+      draft: { ...draft, findings: 'Hallazgos extensos. '.repeat(200) },
+      generatedDraft: draft,
+      evolutionAt: '2026-09-08T12:00:00-04:00',
+      stale: false,
+      edited: false,
+      onChange: vi.fn(),
+    };
+    const first = render(<EvolutionReviewArtifact {...props} />);
+    const heading = first.getByRole('heading', { name: 'Seguimiento' });
+    heading.scrollIntoView = vi.fn();
+    fireEvent.change(first.getByRole('combobox', { name: 'Ir a sección' }), {
+      target: { value: 'follow_up' },
+    });
+    expect(heading).toHaveFocus();
+    expect(heading.scrollIntoView).toHaveBeenCalled();
+    expect(first.getByText(draft.context)).toBeVisible();
+    const id = heading.id;
+    first.unmount();
+    render(<EvolutionReviewArtifact {...props} />);
+    expect(screen.getByRole('heading', { name: 'Seguimiento' }).id).not.toBe(id);
+  });
+
   it('applies a valid date only on confirmation and restores focus on cancel', () => {
     const onEvolutionAtChange = vi.fn();
     render(

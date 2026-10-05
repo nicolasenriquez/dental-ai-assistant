@@ -45,7 +45,7 @@ export function DriveFileRow({
         >
           <strong
             title={file.name}
-            className="block truncate text-[13px] font-medium text-[var(--text-primary)]"
+            className="block whitespace-normal [overflow-wrap:anywhere] text-[13px] font-medium text-foreground"
           >
             {file.name}
           </strong>
@@ -74,7 +74,7 @@ export function DriveFileRow({
         aria-label={`Ver detalles de ${file.name}`}
         title="Ver detalles"
         onClick={(event) => onDetails(file, event.currentTarget)}
-        className="my-auto mr-1 flex !h-9 !w-9 shrink-0 items-center justify-center rounded-lg !p-0 text-[var(--text-tertiary)] transition-colors duration-150 hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        className="my-auto mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg p-0 text-[var(--text-tertiary)] transition-colors duration-150 hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       >
         <Info aria-hidden="true" size={16} strokeWidth={1.8} />
       </button>

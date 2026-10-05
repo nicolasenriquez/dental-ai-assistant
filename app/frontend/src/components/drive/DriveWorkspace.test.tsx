@@ -52,6 +52,21 @@ beforeAll(async () => {
   }
 });
 
+it('acknowledges opening Drive before its connection status resolves', async () => {
+  const pending = deferred<typeof connectedStatus>();
+  getDriveStatusMock.mockReturnValueOnce(pending.promise);
+  render(<Workspace patientId="patient" open />);
+  expect(await screen.findByRole('status')).toHaveTextContent('Cargando Google Drive…');
+  expect(
+    screen.getByRole('region', { name: 'Espacio de documentos de Google Drive' }),
+  ).toHaveAttribute('aria-busy', 'true');
+  await act(async () => pending.resolve(connectedStatus));
+  await waitFor(() => expect(screen.queryByText('Cargando Google Drive…')).toBeNull());
+  expect(
+    screen.getByRole('region', { name: 'Espacio de documentos de Google Drive' }),
+  ).toHaveAttribute('aria-busy', 'false');
+});
+
 function Workspace(props: {
   patientId: string | null;
   draftSeed?: { name: string; content: string } | null;

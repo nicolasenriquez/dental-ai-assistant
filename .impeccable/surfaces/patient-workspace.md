@@ -5,6 +5,8 @@ Mode: Operate. Targets: `PatientDetail.tsx`, `PatientWorkspace.tsx`, `PatientOve
 Patient create/edit form enters with opacity and scale(.98) over 180ms; its overlay fades
 over 150ms, both using cubic-bezier(0.23,1,0.32,1). Reduced motion skips these entrances.
 Closing stays immediate; focus and dirty-work guards do not wait for motion.
+Patient form uses an opaque surface over an 80% dark backdrop. Narrow ficha titles
+use 20px type with 1.25 line height and wrap the complete patient name.
 
 The base patient route defaults to Resumen with four local sections: Resumen,
 Información, Clínica and Actividad. A specific evolution URL selects Clínica >
@@ -46,6 +48,13 @@ counts come from owned sources; missing author names say Autor no disponible.
 No clinical text, contacts or RUT appear in events. Exact UUID links read/focus the
 latest resource even outside page1, with its revision history available. Page errors
 retain known events and retry the same cursor; empty, loading and end are distinct.
+
+B1 separates Resumen clínico (last approved evolution and saved count), clinical
+pending work (approval and recoverable drafts with their respective exact links),
+and failed Drive exports with recovery. API totals precede pagination and remain
+unavailable with retry on failure. A failed export means a copy needs recovery;
+it does not mean the approved evolution is missing from the ficha. Nueva evolución
+stays the primary header action. Groups use spacing and separators, not nested cards.
 
 Contextual Assistant is a nonmodal desktop panel >=1024px, modal right Sheet from
 768px to 1023px, and the full Assistant route below 768px. Panel width is

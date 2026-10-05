@@ -26,6 +26,30 @@ from review to edit restores focus and the artifact heading into view.
 Without an active patient, Drive Notes names its scope as general sources.
 Quick Access appears only when more than three loaded files make it a useful subset.
 
+Header allocates patient identity before thread metadata. Masked RUT occupies its own
+line; return navigation never wraps. Short mobile viewports compact secondary header
+controls while the composer is focused, retaining patient identity and ficha access.
+Long evolutions expose a sticky native section selector and semantic section headings;
+clinical text remains expanded. C1 field editors autosize between 180px and 480px,
+with 16px input text. Section title and explicit Editar share a row, followed by
+full clinical text and one separator. Footer reflows by artifact width.
+Drive filenames wrap in full across Notes, Documents and Quick Access. Collection
+read errors belong to their tab, offer retry, and never imply an empty collection.
+Opening a Drive note is secondary to reviewing and saving clinical work.
+
+A1 puts patient identity on an independent first row; navigation and auxiliary
+controls follow, with thread metadata yielding first. Full patient names wrap.
+Only a focused composer in a mobile viewport <=600px high limits the visual name
+to two lines; masked RUT stays visible and the full name returns on blur.
+Drive Notes are general sources, Documents are patient-bound. Desktop header
+refers to the active patient without repeating identity in the trail; mobile modal
+keeps full name and masked RUT because it covers the Assistant.
+Desktop Drive reflow is immediate, with no layout-property interpolation. Pointer
+opening of the mobile overlay enters with opacity and translateX(12px) over 180ms,
+cubic-bezier(0.23,1,0.32,1); dismissal cancels entrance immediately. Keyboard and
+reduced-motion opening are immediate. Clinical loading/save/sync/patient states
+use explicit text and existing progress indicators without moving clinical text.
+
 Full and contextual views consume one attached runtime. Per-thread unsent notes,
 queue and attachments are memory only. Logout clears them; hard reload restores
 only server-persisted clinical work. Return to running detached work reconciles GET.

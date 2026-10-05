@@ -301,13 +301,17 @@ export function ClinicalAssistantArea({
   };
 
   return (
-    <main ref={areaRef} className="chat-area clinical-assistant-area">
+    <main
+      ref={areaRef}
+      className="chat-area clinical-assistant-area"
+      data-patient-active={!!activePatient}
+    >
       <WorkspaceHeader
         title={assistant.thread?.title ?? 'Asistente'}
         navigation={
           returnToFicha && activePatient ? (
             <Link
-              className="py-1 text-xs text-primary hover:underline"
+              className="clinical-return-link py-1 text-xs text-primary hover:underline"
               to={`/patients/${activePatient.id}`}
             >
               ‹ Volver a ficha
@@ -335,7 +339,7 @@ export function ClinicalAssistantArea({
                 onClick={onToggleDrive}
               >
                 <HardDrive aria-hidden="true" size={16} />
-                Google Drive
+                <span className="clinical-drive-label">Google Drive</span>
               </button>
             ) : null}
           </>

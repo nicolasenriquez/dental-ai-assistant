@@ -299,7 +299,7 @@ describe('PatientDetail evolution workspace', () => {
       'href',
       '/patients/patient-1/evolutions/evolution-1',
     );
-    expect(within(summary).getByText(/Drive/)).toBeVisible();
+    expect(within(summary).getByRole('region', { name: 'Sincronización con Drive' })).toBeVisible();
   });
   afterEach(() => {
     vi.restoreAllMocks();

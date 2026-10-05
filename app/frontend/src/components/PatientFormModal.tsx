@@ -300,7 +300,7 @@ export function PatientFormModal({
       onClick={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
-      className="motion-safe:animate-[patient-overlay-enter_150ms_cubic-bezier(0.23,1,0.32,1)] fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4"
+      className="patient-form-dialog motion-safe:animate-[patient-overlay-enter_150ms_cubic-bezier(0.23,1,0.32,1)] fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4"
     >
       <form
         onSubmit={submit}

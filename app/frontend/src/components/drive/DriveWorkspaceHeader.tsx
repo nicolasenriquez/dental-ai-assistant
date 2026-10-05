@@ -25,17 +25,7 @@ export function DriveWorkspaceHeader({ status, patient, onClose }: DriveWorkspac
             )}
           </div>
           {patient && (
-            <p className="drive-workspace-patient-context flex min-w-0 items-center gap-1.5">
-              <span>Paciente</span>
-              <strong
-                className="truncate font-medium text-[var(--text-primary)]"
-                title={patient.displayName}
-              >
-                {patient.displayName}
-              </strong>
-              <span aria-hidden="true">·</span>
-              <span>{patient.rutMasked}</span>
-            </p>
+            <p className="drive-workspace-patient-context">Paciente activo en el asistente</p>
           )}
         </div>
       </div>

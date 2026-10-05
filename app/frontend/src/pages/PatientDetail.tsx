@@ -223,7 +223,7 @@ export function PatientDetail() {
                     {patient.last_name[0]}
                   </span>
                   <div className="min-w-0">
-                    <h1 className="text-3xl font-semibold tracking-tight">
+                    <h1 className="patient-page-title text-3xl font-semibold tracking-tight">
                       {patient.first_name} {patient.last_name}
                     </h1>
                     <p className="mt-2 text-sm text-muted">

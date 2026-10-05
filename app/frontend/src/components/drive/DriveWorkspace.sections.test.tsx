@@ -8,7 +8,7 @@
  * details of the Picker helper.
  */
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../../lib/api';
 import { openDrivePicker } from '../../lib/drivePicker';
@@ -138,6 +138,57 @@ async function selectSection(name: 'Notas' | 'Documentos' | 'Diarios') {
 }
 
 describe('Drive section boundaries', () => {
+  it('rejects an older initial list after a newer search has succeeded', async () => {
+    let resolveList: ((page: api.DriveFilePage) => void) | undefined;
+    vi.mocked(api.listDriveFiles).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    vi.mocked(api.searchDriveFiles).mockResolvedValue({
+      files: [managedFile],
+      next_page_token: null,
+    });
+    renderWorkspace();
+    await selectSection('Documentos');
+    const search = screen.getByRole('searchbox', { name: 'Buscar documentos' });
+    fireEvent.change(search, { target: { value: 'previa' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(await screen.findByRole('button', { name: `Abrir ${managedFile.name}` })).toBeVisible();
+    await act(async () => resolveList?.({ files: [], next_page_token: null }));
+    expect(screen.getByRole('button', { name: `Abrir ${managedFile.name}` })).toBeVisible();
+    expect(screen.queryByText('Aún no hay documentos')).not.toBeInTheDocument();
+  });
+
+  it('keeps failed reads separate from empty collections and retries each tab', async () => {
+    vi.mocked(api.listDriveSources).mockRejectedValueOnce(new Error('503'));
+    vi.mocked(api.listDriveFiles).mockRejectedValueOnce(new Error('503'));
+    renderWorkspace();
+    expect(await screen.findByText('No se pudieron cargar las notas.')).toBeInTheDocument();
+    expect(screen.queryByText(/No hay notas disponibles/)).not.toBeInTheDocument();
+    await selectSection('Documentos');
+    expect(await screen.findByText('No se pudieron cargar los documentos.')).toBeInTheDocument();
+    expect(screen.queryByText('Aún no hay documentos')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar documentos' }));
+    expect(await screen.findByText('Aún no hay documentos')).toBeInTheDocument();
+    await selectSection('Notas');
+    expect(screen.getByText('No se pudieron cargar las notas.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar notas' }));
+    expect(await screen.findByRole('button', { name: /Nota clínica\.md/ })).toBeInTheDocument();
+  });
+
+  it('does not turn an unrelated Picker failure into a collection failure', async () => {
+    vi.mocked(api.listDriveSources).mockResolvedValue({ files: [], next_page_token: null });
+    vi.mocked(openDrivePicker).mockRejectedValueOnce(new Error('Picker failed'));
+    renderWorkspace();
+    const open = await screen.findByRole('button', { name: 'Abrir desde Drive' });
+    expect(open).toHaveClass('drive-btn-secondary');
+    fireEvent.click(open);
+    expect(await screen.findByText('No se pudo abrir el selector de Drive.')).toBeInTheDocument();
+    expect(screen.getByText(/No hay notas disponibles/)).toBeInTheDocument();
+  });
+
   it('moves focus between sections without changing selection until activation', async () => {
     renderWorkspace(null);
     const notes = await screen.findByRole('tab', { name: 'Notas' });
@@ -200,8 +251,10 @@ describe('Drive section boundaries', () => {
     expect(await screen.findByText('Aún no hay documentos')).toBeInTheDocument();
     const context = container.querySelector('.drive-context-trail');
     expect(context).not.toBeNull();
-    expect(within(context as HTMLElement).getByText(patientA.displayName)).toBeInTheDocument();
-    expect(within(context as HTMLElement).getByText(patientA.rutMasked)).toBeInTheDocument();
+    expect(
+      within(context as HTMLElement).getByText('Documentos del paciente activo'),
+    ).toBeInTheDocument();
+    expect(within(context as HTMLElement).queryByText(patientA.displayName)).toBeNull();
     expect(api.listDriveFiles).toHaveBeenCalledWith('p1', undefined);
   });
 

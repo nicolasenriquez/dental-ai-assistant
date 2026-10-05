@@ -1,5 +1,6 @@
 import { ChevronDown, CircleAlert, Pencil } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
 import {
   formatClinicalDate,
@@ -107,6 +108,14 @@ export function EvolutionReviewArtifact({
     {},
   );
   const fieldTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const fieldsId = useId();
+  const longContent =
+    clinicalFields.reduce((total, { key }) => total + draft[key].length, 0) > 3000;
+  useAutosizeTextarea({
+    ref: fieldTextareaRef,
+    value: `${editingField ?? ''}:${editingValue}`,
+    maxHeight: 480,
+  });
   const returnFocusFieldRef = useRef<ClinicalFieldKey | null>(null);
   const isAssistant = mode === 'assistant';
   const emptyDraft = !hasClinicalContent(draft);
@@ -207,7 +216,6 @@ export function EvolutionReviewArtifact({
         className={isAssistant ? 'clinical-artifact-heading' : 'evolution-review-artifact__heading'}
       >
         <div className={isAssistant ? 'clinical-artifact-heading__copy' : undefined}>
-          {isAssistant && <span className="clinical-artifact-kicker">Evolución clínica</span>}
           <h3>{isAssistant ? 'Evolución clínica' : 'Borrador para revisar'}</h3>
           <div className="clinical-artifact-metadata">
             {isAssistant && patient && (
@@ -360,6 +368,28 @@ export function EvolutionReviewArtifact({
         </div>
       )}
 
+      {longContent && (
+        <nav className="evolution-section-nav" aria-label="Secciones de evolución">
+          <label>
+            <span>Ir a sección</span>
+            <select
+              value=""
+              onChange={(event) => {
+                const heading = document.getElementById(`${fieldsId}-${event.target.value}`);
+                heading?.scrollIntoView({ block: 'start', behavior: 'auto' });
+                heading?.focus({ preventScroll: true });
+              }}
+            >
+              <option value="">Seleccionar sección</option>
+              {clinicalFields.map(({ key, label }) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </nav>
+      )}
       <div
         className={
           isAssistant
@@ -377,7 +407,9 @@ export function EvolutionReviewArtifact({
             }
           >
             <div className="evolution-review-artifact__field-heading">
-              <span>{label}</span>
+              <h4 id={`${fieldsId}-${key}`} tabIndex={-1}>
+                {label}
+              </h4>
               {!readOnly && editingField !== key && (
                 <button
                   ref={(node) => {

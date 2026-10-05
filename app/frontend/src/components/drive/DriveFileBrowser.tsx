@@ -201,15 +201,7 @@ export function DriveFileBrowser({
           </div>
         </div>
         <div className="drive-context-trail" aria-label="Contexto del workspace">
-          <span>Google Drive</span>
-          <span aria-hidden="true">›</span>
-          <span>{patient?.displayName ?? 'Paciente'}</span>
-          {patient && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>{patient.rutMasked}</span>
-            </>
-          )}
+          <span>{patient ? 'Documentos del paciente activo' : 'Documentos'}</span>
           <span aria-hidden="true">›</span>
           <strong>Documentos</strong>
         </div>
@@ -221,7 +213,7 @@ export function DriveFileBrowser({
             Actualizando documentos…
           </p>
         )}
-        {listLoading && files.length === 0 ? (
+        {(listLoading || searchLoading) && files.length === 0 ? (
           <>
             <SkeletonRows />
           </>

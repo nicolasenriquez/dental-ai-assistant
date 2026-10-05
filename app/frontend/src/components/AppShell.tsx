@@ -95,7 +95,6 @@ export function AppShell({
   const [documentLayout, setDocumentLayout] = useState<{ main: number; accessory: number }>(
     DOCUMENT_WORKSPACE_LAYOUT,
   );
-  const [animatingWorkspace, setAnimatingWorkspace] = useState(false);
   const workspaceAccessoryVisible = Boolean(workspaceAccessory) && workspaceAccessoryOpen;
   // Keep main content under same React parent so closing Drive cannot abort its stream.
   const workspaceLayoutEnabled = workspaceMode || Boolean(workspaceAccessory);
@@ -105,22 +104,12 @@ export function AppShell({
       ? documentLayout
       : workspaceLayout;
   const workspaceGroup = useRef<GroupImperativeHandle>(null);
-  const previousAccessoryVisible = useRef(workspaceAccessoryVisible);
   useEffect(() => {
-    const visibilityChanged = previousAccessoryVisible.current !== workspaceAccessoryVisible;
-    previousAccessoryVisible.current = workspaceAccessoryVisible;
-    const animate =
-      visibilityChanged &&
-      !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches &&
-      !window.matchMedia?.('(max-width: 1024px)').matches;
-    if (animate) setAnimatingWorkspace(true);
     const frame = window.requestAnimationFrame(() => {
       workspaceGroup.current?.setLayout(workspaceDefaultLayout);
     });
-    const timer = animate ? window.setTimeout(() => setAnimatingWorkspace(false), 300) : null;
     return () => {
       window.cancelAnimationFrame(frame);
-      if (timer !== null) window.clearTimeout(timer);
     };
   }, [workspaceDefaultLayout, workspaceAccessoryVisible]);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -256,7 +245,7 @@ export function AppShell({
                   groupRef={workspaceGroup}
                   id="clinical-workspace"
                   orientation="horizontal"
-                  className={`workspace-resizable${animatingWorkspace ? ' is-toggling' : ''}`}
+                  className="workspace-resizable"
                   defaultLayout={workspaceDefaultLayout}
                   onLayoutChanged={(layout, meta) => {
                     if (!meta.isUserInteraction || !workspaceAccessoryVisible) return;
@@ -285,7 +274,6 @@ export function AppShell({
                   <ResizableHandle
                     aria-label="Redimensionar Google Drive"
                     className={`workspace-resize-handle${workspaceAccessoryVisible ? '' : ' workspace-resize-handle-closed'}`}
-                    disabled={animatingWorkspace}
                   />
                   <ResizablePanel
                     id="accessory"

@@ -3,11 +3,9 @@ import type { DriveSourceFile } from '../../lib/api';
 import { DriveQuickAccess } from './DriveQuickAccess';
 import { DriveSourceList } from './DriveSourceList';
 import { newestFirst } from './drivePresentation';
-import type { DrivePatientContext } from './editors/types';
 
 export function DriveWorkspaceHome({
   files,
-  patient = null,
   loading,
   picking,
   onPick,
@@ -15,7 +13,6 @@ export function DriveWorkspaceHome({
   onMore,
 }: {
   files: DriveSourceFile[];
-  patient?: DrivePatientContext | null;
   loading: boolean;
   picking: boolean;
   onPick: () => void;
@@ -45,7 +42,7 @@ export function DriveWorkspaceHome({
         </label>
         <button
           type="button"
-          className="drive-btn drive-btn-primary"
+          className="drive-btn drive-btn-secondary"
           disabled={picking}
           onClick={onPick}
         >
@@ -53,15 +50,7 @@ export function DriveWorkspaceHome({
         </button>
       </div>
       <div className="drive-context-trail" aria-label="Contexto del workspace">
-        <span>Google Drive</span>
-        <span aria-hidden="true">›</span>
-        <span>{patient?.displayName ?? 'Fuentes generales'}</span>
-        {patient && (
-          <>
-            <span aria-hidden="true">·</span>
-            <span>{patient.rutMasked}</span>
-          </>
-        )}
+        <span>Fuentes generales</span>
         <span aria-hidden="true">›</span>
         <strong>Notas</strong>
       </div>
