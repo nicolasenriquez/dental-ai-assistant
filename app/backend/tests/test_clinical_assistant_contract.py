@@ -189,6 +189,27 @@ async def test_compact_rut_is_redacted(monkeypatch) -> None:
     assert result.masked_ruts == ("••.•••.678-5",)
 
 
+@pytest.mark.parametrize("rut", ["123-6", "123 6", "1236", "1-9", "1 9", "19"])
+async def test_short_valid_rut_is_removed_from_clinical_text(monkeypatch, rut: str) -> None:
+    from backend.clinical_assistant.sensitive_input import sanitize_content
+    from backend.patients.rut import normalize_rut, redact_rut_candidates
+
+    body, dv = normalize_rut(rut)
+
+    async def owned_patient(_owner, rut_body):
+        assert rut_body == body
+        return {"id": UUID(int=8), "rut_number": body, "rut_dv": dv}
+
+    monkeypatch.setattr(
+        "backend.clinical_assistant.sensitive_input.patients_repo.get_patient_by_rut",
+        owned_patient,
+    )
+    result = await sanitize_content(UUID(int=1), f"Paciente RUT {rut}")
+    assert rut not in result.display_text
+    assert rut not in result.model_text
+    assert redact_rut_candidates(f"Paciente RUT {rut}") == "Paciente RUT [RUT_REDACTED]"
+
+
 async def test_invalid_compact_number_is_left_untouched_without_lookup(monkeypatch) -> None:
     from backend.clinical_assistant.sensitive_input import sanitize_content
 
