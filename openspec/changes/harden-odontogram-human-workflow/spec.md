@@ -6,6 +6,8 @@ The authoritative runtime requirements and scenarios are [specs/odontogram-human
 
 Human manual workflow only. R1–R5 cover correction/persistence/current-state/actor; R6–R7 spatial editing; R8 conflict decisions; R9 navigation; R10 evidence; R11 shared application; R12 bounded exclusions; R13 per-record post-save continuity; R14 symbols/grouping; R15 reference/spatial/navigation compatibility. D-01 and D-02 in investigation.md are the human decisions. design.md fixes transport/storage/retry defaults and tasks.md owns future execution order.
 
+D-03 in investigation.md closes correction recovery after concurrent resolution. The [clinical-workspace-discovery delta](specs/clinical-workspace-discovery/spec.md) modifies the existing identity/correction/recurrence requirement so future synchronization replaces the predecessor resolve-and-create policy instead of retaining contradictory requirements. Canonical specs remain untouched during this preparation.
+
 ## ADDED Requirements
 
 ### Requirement: Planning does not authorize clinical implementation

@@ -82,6 +82,12 @@ The UI SHALL initially present active current records with explicit historical v
 - **WHEN** old created/edited/resolved revisions are read, or a new recurrence follows resolution
 - **THEN** null new metadata is safe, old snapshots remain unchanged, and recurrence still creates a new UUID rather than reopening history
 
+#### Scenario: Correction metadata and exact audit snapshot
+- **WHEN** original, replacement and revisions are read
+- **THEN** their nullable correction and supersedes_condition_id fields follow design.md's read DTO contract; the internal command_snapshot is not exposed and Activity contains no correction reason or note
+- **WHEN** a receipt's exact revision is outside the first history page or the replacement has since changed
+- **THEN** owned revision pages are read until that UUID is found and its snapshot is shown separately from current state; a failed page retries its cursor with GET only, and a missing target is explicit rather than substituted with latest
+
 ### Requirement: R5 Safe distinguishable author identity
 The UI SHALL show the actual persisted actor on condition/history/Activity using a trusted display_name if available, otherwise a stable distinguishable account UUID label with accessible full identifier. It SHALL NOT fabricate a verified professional identity or disclose email/RUT.
 
@@ -120,7 +126,7 @@ The editor SHALL keep clinical information explicit, selected FDI clear, immutab
 - **THEN** initial textarea shows at least four lines, controlled growth precedes internal scrolling, preview is at most96px high in narrow layout, text input is at least16px and Cancel/Guardar remain adjacent without fixed-overlay occlusion
 
 ### Requirement: R8 Field-aware manual conflict decisions
-The UI SHALL preserve base/local/current snapshots after409, block saving while recovery is incomplete, show note/surface/status differences and require explicit choices for locally modified editable fields. Unmodified local fields SHALL use latest values; no automatic overwrite or generic whole-payload rebase is permitted.
+The UI SHALL preserve base/local/current snapshots after409, block saving while recovery is incomplete, show note/surface/status differences and require explicit choices for locally modified editable fields. Unmodified local fields SHALL use latest values; no automatic overwrite or generic whole-payload rebase is permitted. Correction SHALL use separate source review and renewed confirmation under D-03, not merge its replacement with original editable fields.
 
 #### Scenario: Remote surfaces and local note
 - **WHEN** tabA changes surfaces and tabB changes only note from the old revision
@@ -131,8 +137,22 @@ The UI SHALL preserve base/local/current snapshots after409, block saving while 
 - **THEN** the clinician explicitly chooses local/current for that field and another409 refreshes comparison while retaining unsaved content, never forcing a write
 
 #### Scenario: Terminal source or unavailable latest
-- **WHEN** current status is resolved/error or latest cannot be fetched
-- **THEN** terminal records cannot be edited/rebased and read/discard is offered; failed reads permit retry with draft retained and saving blocked
+- **WHEN** an edit/resolve attempt encounters current resolved/error status
+- **THEN** terminal records cannot be edited/rebased and read/discard is offered
+- **WHEN** latest cannot be fetched for any command
+- **THEN** read retry retains the draft and saving remains blocked
+
+#### Scenario: Correction conflicts with resolution or another edit
+- **WHEN** a correction receives revision_conflict and the latest original is active or resolved
+- **THEN** reason/replacement are retained, base/current source evidence and status are reviewed, and explicit renewed confirmation freezes a new operation_id with the reviewed current expected_revision; no automatic retry, revision adoption or replacement/source field merge occurs
+- **WHEN** the newly confirmed correction conflicts again
+- **THEN** source review repeats with unsaved content retained
+
+#### Scenario: Original already corrected
+- **WHEN** a definitive conflict reveals an entered_in_error source
+- **THEN** new correction is blocked and history/read/discard remain available
+- **WHEN** an uncertain correction retries its identical committed operation
+- **THEN** the existing receipt is returned before terminal rejection, without creating a new operation
 
 ### Requirement: R9 Safe URL and draft continuity
 Ficha view changes SHALL persist existing tab=clinical, clinical=diagnosis|evolutions and focused condition UUID regardless of preexisting query parameters. Navigation SHALL preserve supported unrelated safe parameters and existing dirty guards. Clinical text or patient identifiers SHALL NOT enter URL/storage.
@@ -155,6 +175,10 @@ Future implementation SHALL provide fail-first contract/UI proofs, real Postgres
 #### Scenario: Verification coverage
 - **WHEN** a slice is declared complete
 - **THEN** its external behavior checkpoint and applicable guard cases pass; artifact validation or the previous audit alone is insufficient
+
+#### Scenario: Real database gate is not skipped
+- **WHEN** S1 atomicity/concurrency/ownership is declared proven
+- **THEN** WORKSPACE_LIVE_TEST_DSN identifies a migrated owned disposable Postgres database and the required live cases executed without skips; unset DSN, mocked pools or missing live execution leave that gate incomplete
 
 #### Scenario: Paging and many records
 - **WHEN** synthetic fixtures contain1,50,51 or500records or a later page fails

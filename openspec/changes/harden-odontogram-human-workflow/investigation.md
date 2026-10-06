@@ -64,6 +64,14 @@ User explicitly selected option 1: mark the original as entered in error and all
 
 ## Investigated defaults and bounded deferrals
 
+### Resolved decision D-03: correction after concurrent resolution
+
+The audit presented this concrete scenario: correction starts on an active revision, another session resolves it, and the correction receives409. Recommendation: retain reason and optional replacement, review the current resolved source and confirm a new correction attempt explicitly. User answered `proceed` to that recommendation on2026-10-06.
+
+This approves recovery for the separate correction command against active or resolved sources. It does not permit ordinary editing/resolution of terminal records. A definitive conflict releases the rejected attempt; renewed confirmation freezes a new operation_id and latest expected_revision. Another conflict repeats review. entered_in_error sources allow identical committed-operation receipt recovery, not a new correction.
+
+The canonical `clinical-workspace-discovery` requirement still prescribes resolve-and-create and resolved read-only behavior. A MODIFIED delta in this change replaces that policy without rewriting canonical or predecessor files during preparation.
+
 - Correction may annotate an owned active or resolved original as entered_in_error; it cannot reopen or delete it. Already-entered-in-error originals reject new correction operations. Historical revisions stay intact. An identical operation retry returns its receipt before lifecycle checks.
 - The users repository does not provide a verified professional name. Actor UUID remains authority; UI uses an explicit stable account identifier when display_name is absent. No account-profile feature, snapshot of invented name, email or RUT fallback is included.
 - UI defaults to current active records while explicit historical views retain resolved/entered-in-error records. GET status=all keeps its all-record semantics; original cursor contract is expanded, not silently filtered.

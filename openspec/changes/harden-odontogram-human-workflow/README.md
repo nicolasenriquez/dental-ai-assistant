@@ -13,6 +13,8 @@ Close verified human odontogram workflow gaps before enabling agent writes. Spec
 
 Approved correction: original entered-in-error, mandatory reason and optional linked atomic replacement. No automatic historical reclassification. IA remains separate. Specification completion does not prove runtime delivery.
 
+D-03 permits retained correction proposal after concurrent resolution only after renewed source review and explicit new-attempt confirmation. The [canonical compatibility delta](specs/clinical-workspace-discovery/spec.md) replaces resolve-and-create wording during the later sync workflow. Read DTOs/exact revision pagination are fixed in design.md; reproducible reference/live-DB recipes are in evidence.md.
+
 - [Visual contract](visual-contract.md): symbol/status matrix, selection and post-save behavior.
 - [Synthetic rendered reference](wireframes/odontogram-reference.html): isolated state/layout reference, without clinical writes.
-- [Reference checks](wireframes/reference-check.json):96 synthetic rendered cases; not runtime proof.
+- [Reference checks](wireframes/reference-check.json):108 synthetic rendered cases, including correction without replacement and confirmed correction/failed read; not runtime proof.

@@ -27,7 +27,7 @@ The audited odontogram persists records safely but the human workflow makes erro
 
 ### Modified Capabilities
 
-None of the synchronized canonical capabilities is replaced. This new delta explicitly refines the condition contracts introduced by completed `dentalpin-inspired-clinical-workspace`, whose files and task history remain unchanged.
+- `clinical-workspace-discovery`: modify `Fixed tooth-condition identity and recurrence` to replace resolve-and-create correction with the separate error-correction command and permit correction annotations on resolved originals. Immutable identity, active uniqueness, overlap and fresh recurrence identity remain required. The delta lives in this change; canonical spec synchronization belongs to the later explicit sync workflow. Completed predecessor artifacts and task history are not rewritten.
 
 ## Change Profile
 
@@ -68,6 +68,7 @@ Fail-first external behavior at chosen seams; real Postgres for atomicity, const
 ## Notes
 
 - Human D-01: flow first; IA roadmap separate. D-02: entered-in-error, mandatory reason, optional linked atomic replacement.
+- Human D-03: after a correction conflicts with a newly resolved source, retain reason/replacement, review the latest source and require explicit confirmation of a new attempt. Never silently advance expected_revision or reuse the rejected operation with a changed body. Editing/resolving terminal records remains forbidden.
 - Audit/commits/proof limits and finding disposition are in investigation.md and evidence.md.
 - No implementation SDLC map or issue tracker was used; traceability refers to OD findings and requirement IDs, not invented tickets.
 - Full spec is the authoritative capability delta plus top-level spec.md index. Implementation is deferred.
