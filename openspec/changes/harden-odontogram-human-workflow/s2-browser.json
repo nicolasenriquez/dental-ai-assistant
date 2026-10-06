@@ -1,0 +1,72 @@
+{
+  "baseline": "37402de",
+  "cases": [
+    "review/cancel: zero writes and unchanged revision",
+    "long correction review stays within mobile viewport with scroll-reachable 44px save",
+    "mobile reviewed replacement; committed response loss; identical 200 retry, one correction/replacement",
+    "exact original/replacement audit links distinguish subsequent replacement edit",
+    "resolved original without replacement; confirmed write/failed GET; GET-only recovery"
+  ],
+  "receipts": [
+    {
+      "operation_id": "89ffa6ad-c5bb-41d1-93c4-0cec21aa0d8d",
+      "condition_id": "4828f5c4-2961-44a4-aa23-98535eb28ccb",
+      "correction_revision_id": "26b823a4-8ed0-468f-a463-880c30be00dc",
+      "replacement_condition_id": "9a6992dc-fb2b-4052-9234-df2313ca5c79",
+      "replacement_revision_id": "cb1d508e-e3b6-4902-9ea8-83d5c9ecb001"
+    },
+    {
+      "operation_id": "621ca3a5-60c0-483a-a05c-7ea7aa877fd6",
+      "condition_id": "7e4b4067-5780-4914-869f-c4e0c74a1155",
+      "correction_revision_id": "a67ab814-a8fa-4b2b-bdf4-cf7f75c05b23",
+      "replacement_condition_id": null,
+      "replacement_revision_id": null
+    }
+  ],
+  "revisions": [
+    {
+      "id": "26b823a4-8ed0-468f-a463-880c30be00dc",
+      "condition_id": "4828f5c4-2961-44a4-aa23-98535eb28ccb",
+      "revision": 2,
+      "action": "corrected"
+    },
+    {
+      "id": "eb889970-5d3c-4cf2-811a-ebda3b43e236",
+      "condition_id": "4828f5c4-2961-44a4-aa23-98535eb28ccb",
+      "revision": 1,
+      "action": "created"
+    },
+    {
+      "id": "17211784-5bce-4cd3-9d37-74450eb2ed6d",
+      "condition_id": "9a6992dc-fb2b-4052-9234-df2313ca5c79",
+      "revision": 2,
+      "action": "edited"
+    },
+    {
+      "id": "cb1d508e-e3b6-4902-9ea8-83d5c9ecb001",
+      "condition_id": "9a6992dc-fb2b-4052-9234-df2313ca5c79",
+      "revision": 1,
+      "action": "created"
+    },
+    {
+      "id": "a67ab814-a8fa-4b2b-bdf4-cf7f75c05b23",
+      "condition_id": "7e4b4067-5780-4914-869f-c4e0c74a1155",
+      "revision": 3,
+      "action": "corrected"
+    },
+    {
+      "id": "c83d651c-95a2-4607-b5e7-fd2c8b856c02",
+      "condition_id": "7e4b4067-5780-4914-869f-c4e0c74a1155",
+      "revision": 2,
+      "action": "resolved"
+    },
+    {
+      "id": "e6172902-93e2-4140-a96e-2c46fb047dd3",
+      "condition_id": "7e4b4067-5780-4914-869f-c4e0c74a1155",
+      "revision": 1,
+      "action": "created"
+    }
+  ],
+  "pageErrors": [],
+  "patientId": "8e3fc407-4f04-4597-abca-4bbe1b96dcae"
+}

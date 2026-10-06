@@ -1,5 +1,90 @@
 # Evidence and finding disposition
 
+## S2 explicit correction UI, 2026-10-06
+
+Executed `1.2 -> 2.2 -> 3.2` from clean baseline `37402de`; S1's completed
+`3.1` unblocked the slice. Traceability is OD01, R1/R4/R8/R13, D-03 and
+G03/G09, without tracker groups or issues.
+
+- CODE: `PatientDiagnosis` reuses the draft editor, transition/router guards and
+  Radix confirmation. The review includes existing masked `PatientIdentity`,
+  original identity/evidence, required reason, consequence and optional replacement
+  from the existing catalog. Only the confirmed correction calls the typed POST;
+  replacement is never created with a second command. Uncertain attempts retain
+  operation ID and normalized body; definitive revision conflicts retain content,
+  fetch the owned source and require a new confirmation/operation. Terminal or
+  unreadable current sources block renewed correction. Patient-keyed lifetime
+  checks prevent late responses from changing another patient's UI.
+- TEST: four initial correction tests failed because `Corregir registro` did not
+  exist; seven incumbent diagnosis tests passed. Ten added component cases cover
+  cancellation/review, both replacement modes, frozen retry,404/409 retention,
+  renewed review after concurrent resolution, failed-current-read/terminal guards,
+  exact revision paging/failure/missing target/focus, confirmed-write/failed-GET
+  recovery, persisted-link failed GET and late-patient response isolation. Focused
+  diagnosis/chart/detail suite initially passed35tests; final diagnosis suite
+  passed17tests after the additional persisted-link regression. Full frontend
+  passed709tests in83files; Biome checked219files
+  and tsc passed. Concurrent Assistant work appeared after the initial clean status;
+  those changes were preserved. Full-suite totals describe the shared working tree.
+- BROWSER/API: [runnable checker](check-s2-correction.cjs) targets only the explicitly
+  acknowledged disposable app at `http://localhost:8001`. [Results](s2-browser.json)
+  record zero page errors, zero correction writes on review/cancel, unchanged source
+  revision after cancel, and reviewed replacement from16to26 at390×844. The first
+  real POST committed201; the checker then aborted its browser response. The UI
+  froze fields and explicitly retried the identical command, receiving200 and the
+  same receipt. A later replacement edit did not replace its exact created snapshot
+  in the receipt history. A resolved36original was corrected without replacement
+  at1280×800; a failed subsequent owned GET displayed confirmed-save/stale-read
+  feedback, and link retry issued GET only. Exact history targets received focus.
+  [Mobile review](s2-review-390.png) and [desktop review](s2-review-1280.png) were
+  inspected; masked identity, consequence and both actions remain visible.
+  A long-reason review also fits390×844, with scroll-reachable44px save/cancel
+  controls. [Long mobile review](s2-long-review-390.png) records the scrolled state;
+  title/context remain available by scrolling upward, without clipping actions
+  outside the viewport. Exact history starts after the owned condition GET succeeds.
+- DB: owned `odontogram-s2-db-20261006`, pgvector PostgreSQL16, anonymous volume,
+  isolated network `odontogram-s2-20261006`; no shared data or credentials. Startup
+  migrated the empty database to0024. Direct psql reads matched every revision UUID
+  in `s2-browser.json`, both operation IDs and replacement receipt linkage. Exactly
+  three conditions and seven revisions exist for the fixture. Original16has
+  created/corrected revisions1/2; replacement26has created/edited1/2 and immutable
+  supersedes linkage; original36retains created/resolved/corrected1/2/3. The
+  lost-response retry added neither a condition nor a revision.
+
+Commands, from repository root unless noted:
+
+| Command | Result |
+|---|---|
+| `bun run test src/components/patients/PatientDiagnosis.test.tsx src/components/patients/PatientOdontogram.test.tsx src/pages/PatientDetail.test.tsx` from `app/frontend/` |35passed |
+| `bun run tsc --noEmit` / `bun x biome check src` from `app/frontend/` |Pass |
+| `bun run test` from `app/frontend/` |709passed,83files |
+| `docker build -f deploy/Dockerfile -t odontogram-s2:20261006 .` |Pass; built current UI/backend |
+| `$env:ODONTOGRAM_S2_DISPOSABLE='1'; bun openspec/changes/harden-odontogram-human-workflow/check-s2-correction.cjs` |Five browser/API/layout cases pass, zero page errors |
+| `docker exec odontogram-s2-db-20261006 psql -U odontogram -d odontogram -c "…"` |0024; three conditions/seven revisions reconcile with browser receipts |
+| `openspec validate harden-odontogram-human-workflow --strict` / scoped `git diff --check` |Pass |
+
+The direct DB reconciliation command reads only the owned disposable server:
+
+```powershell
+docker exec odontogram-s2-db-20261006 psql -U odontogram -d odontogram -c "SELECT version_num FROM alembic_version; SELECT id, tooth_fdi, status, revision, supersedes_condition_id FROM patient_tooth_conditions ORDER BY tooth_fdi; SELECT id, condition_id, revision, action, operation_id, replacement_condition_id, replacement_revision_id FROM patient_tooth_condition_revisions ORDER BY condition_id, revision;"
+```
+
+No new runtime dependency, auth change, agent write path or catalog expansion.
+S3 still owns current/history defaults, actor labels and shared catalog presentation;
+S4 owns six-viewport chart/editor ergonomics; S5 owns the general field-conflict
+matrix. S2's browser proof covers the correction checkpoint, not those later gates.
+Screen readers, device keyboards, contrast measurements, full baseline snapshots
+and integrated/backend-full health were not verified in this slice. Existing build
+and React test warnings remain. Backend code did not change; S1's recorded broader
+backend failure remains unresolved. Both verification runs use a new isolated
+database; the final artifacts record the second run, including long content.
+
+Cleanup confirmed both owned app/DB containers and anonymous PostgreSQL volumes
+removed, with no remaining final volume matching its inspected ID. The owned
+network and verification image tag were removed. Shared application, PostgreSQL,
+Whisper and DentalPin containers remain present and healthy. No tracker sync,
+OpenSpec archive, staging, commit or push was performed.
+
 ## S1 correction API and persistence, 2026-10-06
 
 Executed `1.1 -> 2.1 -> 3.1` from baseline `4c34e6a`, after the recorded
