@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, deleteClinicalThread, deleteConversation, deleteVideo, getHealth } from './api';
+import {
+  ApiError,
+  correctPatientCondition,
+  deleteClinicalThread,
+  deleteConversation,
+  deleteVideo,
+  getHealth,
+} from './api';
 
 const deletes = [
   ['conversation', deleteConversation, '/api/conversations/id'],
@@ -57,5 +64,34 @@ describe('shared API response handling', () => {
       Response.json({ status: 'ok', video_count: 1, chunk_count: 2, db_type: 'postgres' }),
     );
     expect((await getHealth()).db_type).toBe('postgres');
+  });
+
+  it('preserves correction attempt identity for explicit retry and returns exact receipts', async () => {
+    const command = { operation_id: 'operation', expected_revision: 3, reason: 'Wrong tooth' };
+    const receipt = {
+      operation_id: 'operation',
+      condition_id: 'condition',
+      correction_revision_id: 'revision',
+      replacement_condition_id: null,
+      replacement_revision_id: null,
+    };
+    fetchMock.mockRejectedValueOnce(new TypeError('Lost response'));
+    await expect(correctPatientCondition('patient', 'condition', command)).rejects.toThrow(
+      'Lost response',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fetchMock.mockResolvedValueOnce(Response.json(receipt));
+    await expect(correctPatientCondition('patient', 'condition', command)).resolves.toEqual(
+      receipt,
+    );
+    expect(fetchMock.mock.calls[1]).toEqual(fetchMock.mock.calls[0]);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/patients/patient/conditions/condition/corrections',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify(command),
+      }),
+    );
   });
 });

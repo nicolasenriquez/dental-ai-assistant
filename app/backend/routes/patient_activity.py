@@ -25,7 +25,7 @@ class ActivityItem(BaseModel):
     event_id: UUID
     resource_id: UUID
     kind: ActivityKind
-    action: Literal["created", "edited", "resolved"]
+    action: Literal["created", "edited", "resolved", "corrected"]
     occurred_at: datetime
     actor: Actor | None
     title: str
@@ -51,6 +51,7 @@ def _item(row: dict[str, Any], patient: UUID) -> ActivityItem:
             "created": "Condición registrada",
             "edited": "Condición editada",
             "resolved": "Condición resuelta",
+            "corrected": "Condición corregida",
         }[action]
         href = f"/patients/{patient}?tab=clinical&condition={resource}"
     actor = Actor(user_id=row["actor_user_id"]) if row["actor_user_id"] else None

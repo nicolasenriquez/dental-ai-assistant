@@ -128,3 +128,72 @@ async def test_condition_routes_require_authentication():
                 f"{base}/{condition}", json={"expected_revision": 1, "status": "resolved"}
             )
         ).status_code == 401
+        assert (
+            await client.post(
+                f"{base}/{condition}/corrections",
+                json={"operation_id": str(uuid4()), "expected_revision": 1, "reason": "Error"},
+            )
+        ).status_code == 401
+
+
+async def test_correction_validation_precedes_persistence(monkeypatch):
+    from backend.db import patient_conditions_repo
+
+    async def forbidden(*args, **kwargs):
+        raise AssertionError("Invalid correction reached persistence")
+
+    # No default fake database result may turn malformed input into a passing test.
+    monkeypatch.setattr(patient_conditions_repo, "get_pg_pool", forbidden)
+
+    async def user():
+        return {"id": str(uuid4())}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            path = f"/api/patients/{uuid4()}/conditions/{uuid4()}/corrections"
+            valid = {"operation_id": str(uuid4()), "expected_revision": 1, "reason": "Error"}
+            replacement = {
+                "id": str(uuid4()),
+                "dentition": "permanent",
+                "tooth_fdi": 26,
+                "condition_code": "caries",
+            }
+            for change in (
+                {"operation_id": "bad"},
+                {"operation_id": None},
+                {"expected_revision": True},
+                {"expected_revision": 0},
+                {"expected_revision": "1"},
+                {"reason": " "},
+                {"reason": None},
+                {"reason": "x" * 1001},
+                {"owner_user_id": str(uuid4())},
+                {"actor": str(uuid4())},
+                {"status": "entered_in_error"},
+                {"supersedes_condition_id": str(uuid4())},
+                {"replacement": {}},
+                *(
+                    {"replacement": {**replacement, **bad}}
+                    for bad in (
+                        {"tooth_fdi": 51},
+                        {"tooth_fdi": True},
+                        {"dentition": "mixed"},
+                        {"condition_code": "unknown"},
+                        {"surfaces": ["M", "M"]},
+                        {"surfaces": ["X"]},
+                        {"surfaces": None},
+                        {"note": "x" * 1001},
+                        {"condition_code": "missing", "surfaces": ["O"]},
+                        {"status": "active"},
+                        {"category_key": "diagnosis"},
+                        {"supersedes_condition_id": str(uuid4())},
+                    )
+                ),
+            ):
+                result = await client.post(path, json={**valid, **change})
+                assert result.status_code == 422, change
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)

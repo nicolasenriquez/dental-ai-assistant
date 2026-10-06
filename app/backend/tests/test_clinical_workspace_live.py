@@ -7,7 +7,10 @@ import asyncio
 import base64
 import json
 import os
+import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -1054,3 +1057,668 @@ async def test_condition_overlapping_surfaces_patch_duplicate_and_empty_cursor(w
             assert unsupported.status_code == 422
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture
+async def condition_client(workspace_db):
+    _, owner, *_ = workspace_db
+
+    async def user():
+        return {"id": str(owner)}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def condition_body(tooth=16, **changes):
+    return {
+        "id": str(uuid4()),
+        "dentition": "permanent",
+        "tooth_fdi": tooth,
+        "condition_code": "caries",
+        "surfaces": ["O", "M"],
+        "note": "Original",
+        **changes,
+    }
+
+
+def correction_body(**changes):
+    return {
+        "operation_id": str(uuid4()),
+        "expected_revision": 1,
+        "reason": "  Error sintético  ",
+        **changes,
+    }
+
+
+@pytest.mark.parametrize(
+    "resolved,replacement", [(False, False), (False, True), (True, False), (True, True)]
+)
+async def test_correction_receipt_history_and_terminal_guards(
+    workspace_db, condition_client, resolved, replacement
+):
+    pool, owner, _, patient, *_ = workspace_db
+    client = condition_client
+    base = f"/api/patients/{patient}/conditions"
+    original = condition_body()
+    assert (await client.post(base, json=original)).status_code == 201
+    path = f"{base}/{original['id']}"
+    if resolved:
+        assert (
+            await client.patch(path, json={"expected_revision": 1, "status": "resolved"})
+        ).status_code == 200
+    legacy = (await client.get(f"{path}/revisions")).json()["items"]
+    assert all(
+        row["correction"] is None and row["supersedes_condition_id"] is None for row in legacy
+    )
+    command = correction_body(expected_revision=2 if resolved else 1)
+    if replacement:
+        command["replacement"] = condition_body(
+            51, dentition="primary", surfaces=[], note="  Nueva  "
+        )
+    response = await client.post(f"{path}/corrections", json=command)
+    assert response.status_code == 201
+    receipt = response.json()
+    assert set(receipt) == {
+        "operation_id",
+        "condition_id",
+        "correction_revision_id",
+        "replacement_condition_id",
+        "replacement_revision_id",
+    }
+    assert (
+        receipt["operation_id"] == command["operation_id"]
+        and receipt["condition_id"] == original["id"]
+    )
+    corrected = (await client.get(path)).json()
+    assert (
+        corrected["status"] == "entered_in_error"
+        and corrected["revision"] == command["expected_revision"] + 1
+    )
+    assert corrected["tooth_fdi"] == 16 and corrected["surfaces"] == ["M", "O"]
+    metadata = {**receipt, "reason": "Error sintético"}
+    assert corrected["correction"] == metadata and corrected["supersedes_condition_id"] is None
+    history = (await client.get(f"{path}/revisions", params={"limit": 1})).json()
+    revision = history["items"][0]
+    assert revision["id"] == receipt["correction_revision_id"] and revision["action"] == "corrected"
+    assert revision["correction"] == metadata and revision["actor"]["user_id"] == str(owner)
+    assert revision["before"]["status"] == ("resolved" if resolved else "active")
+    assert revision["after"]["status"] == "entered_in_error"
+    older = (
+        await client.get(f"{path}/revisions", params={"cursor": history["next_cursor"]})
+    ).json()["items"]
+    assert older == legacy  # Earlier evidence unchanged, including resolution.
+    if replacement:
+        replacement_path = f"{base}/{command['replacement']['id']}"
+        new = (await client.get(replacement_path)).json()
+        assert new["status"] == "active" and new["revision"] == 1 and new["note"] == "Nueva"
+        assert new["supersedes_condition_id"] == original["id"] and new["correction"] is None
+        initial = (await client.get(f"{replacement_path}/revisions")).json()["items"][0]
+        assert (
+            initial["id"] == receipt["replacement_revision_id"] and initial["action"] == "created"
+        )
+        assert (
+            initial["supersedes_condition_id"] == original["id"] and initial["correction"] is None
+        )
+        assert (
+            await client.patch(replacement_path, json={"expected_revision": 1, "note": "Later"})
+        ).status_code == 200
+    else:
+        assert (
+            receipt["replacement_condition_id"] is None
+            and receipt["replacement_revision_id"] is None
+        )
+    normalized_retry = {
+        **command,
+        "reason": "Error sintético",
+        "replacement": command.get("replacement"),
+    }
+    if replacement:
+        normalized_retry["replacement"] = {**command["replacement"], "note": "Nueva"}
+    retry = await client.post(f"{path}/corrections", json=normalized_retry)
+    assert retry.status_code == 200 and retry.json() == receipt
+    for change in (
+        {"reason": "Different"},
+        {"expected_revision": 1 if resolved else 2},
+        {"replacement": condition_body(26)},
+    ):
+        conflict = await client.post(f"{path}/corrections", json={**command, **change})
+        assert (
+            conflict.status_code == 409
+            and conflict.json()["detail"]["code"] == "idempotency_conflict"
+        )
+    blocked = await client.post(
+        f"{path}/corrections", json=correction_body(expected_revision=corrected["revision"])
+    )
+    assert (
+        blocked.status_code == 409
+        and blocked.json()["detail"]["code"] == "condition_entered_in_error"
+    )
+    for changes in ({"note": "Edit"}, {"status": "resolved"}, {"surfaces": ["M", "O"]}):
+        blocked = await client.patch(
+            path, json={"expected_revision": corrected["revision"], **changes}
+        )
+        assert (
+            blocked.status_code == 409
+            and blocked.json()["detail"]["code"] == "condition_entered_in_error"
+        )
+    assert (
+        await client.post(base, json=original)
+    ).status_code == 200  # Legacy create retry still read-only.
+    page = (await client.get(base, params={"status": "entered_in_error", "limit": 1})).json()
+    assert page["total"] == 1 and page["items"][0]["id"] == original["id"]
+    assert (await client.get(base)).json()["total"] == (2 if replacement else 1)
+    activity = (await client.get(f"/api/patients/{patient}/activity")).json()["items"]
+    event = next(row for row in activity if row["event_id"] == receipt["correction_revision_id"])
+    assert (
+        event["action"] == "corrected"
+        and event["title"] == "Condición corregida"
+        and event["resource_id"] == original["id"]
+    )
+    assert "Error sintético" not in json.dumps(activity)
+    assert "command_snapshot" not in json.dumps([corrected, history, activity])
+    async with pool.acquire() as conn:
+        saved = await conn.fetchrow(
+            "SELECT * FROM patient_tooth_condition_revisions WHERE id=$1",
+            UUID(receipt["correction_revision_id"]),
+        )
+        assert (
+            saved["operation_id"] == UUID(command["operation_id"])
+            and saved["correction_reason"] == "Error sintético"
+        )
+        assert json.loads(saved["command_snapshot"])["condition_id"] == original["id"]
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_tooth_condition_revisions WHERE condition_id=$1",
+                UUID(original["id"]),
+            )
+            == corrected["revision"]
+        )
+
+
+async def test_correction_duplicates_uuid_ownership_and_overlap(workspace_db, condition_client):
+    _, owner, other, patient, second, foreign = workspace_db
+    client = condition_client
+    base = f"/api/patients/{patient}/conditions"
+    source, duplicate = condition_body(), condition_body(26)
+    for body in (source, duplicate):
+        assert (await client.post(base, json=body)).status_code == 201
+    path = f"{base}/{source['id']}"
+    command = correction_body(replacement={**duplicate, "id": str(uuid4())})
+    result = await client.post(f"{path}/corrections", json=command)
+    assert (
+        result.status_code == 409 and result.json()["detail"]["code"] == "active_condition_exists"
+    )
+    assert result.json()["detail"]["existing"]["id"] == duplicate["id"]
+    assert (await client.get(path)).json()["revision"] == 1
+    # A globally colliding replacement UUID is not a create retry, even if owned.
+    for replacement_id in (duplicate["id"], source["id"]):
+        result = await client.post(
+            f"{path}/corrections",
+            json=correction_body(replacement=condition_body(27, id=replacement_id)),
+        )
+        assert (
+            result.status_code == 409 and result.json()["detail"]["code"] == "idempotency_conflict"
+        )
+    foreign_id = uuid4()
+    await patient_conditions_repo.create_condition(
+        other,
+        foreign,
+        foreign_id,
+        {
+            "dentition": "permanent",
+            "tooth_fdi": 26,
+            "condition_code": "caries",
+            "surfaces": [],
+            "note": None,
+        },
+    )
+    for target in (
+        f"/api/patients/{foreign}/conditions/{foreign_id}/corrections",
+        f"/api/patients/{second}/conditions/{source['id']}/corrections",
+        f"/api/patients/{patient}/conditions/{foreign_id}/corrections",
+        f"/api/patients/{uuid4()}/conditions/{source['id']}/corrections",
+    ):
+        result = await client.post(target, json=command)
+        assert result.status_code == 404 and result.json()["detail"]["code"] == "not_found"
+    for identifier in (foreign_id,):
+        result = await client.post(
+            f"{path}/corrections",
+            json=correction_body(replacement=condition_body(27, id=str(identifier))),
+        )
+        assert result.status_code == 404 and "existing" not in result.json()["detail"]
+    second_id = uuid4()
+    await patient_conditions_repo.create_condition(
+        owner,
+        second,
+        second_id,
+        {
+            "dentition": "permanent",
+            "tooth_fdi": 26,
+            "condition_code": "caries",
+            "surfaces": [],
+            "note": None,
+        },
+    )
+    assert (
+        await client.post(
+            f"{path}/corrections",
+            json=correction_body(replacement=condition_body(27, id=str(second_id))),
+        )
+    ).status_code == 404
+    assert (await client.get(path)).json()["revision"] == 1
+    assert (await client.get(f"{path}/revisions")).json()["total"] == 1
+    # Overlapping extents are allowed; exact original identity is also replaceable.
+    overlap = correction_body(replacement=condition_body(26, surfaces=["M"]))
+    assert (await client.post(f"{path}/corrections", json=overlap)).status_code == 201
+    same_identity = correction_body(replacement={**duplicate, "id": str(uuid4())})
+    assert (
+        await client.post(f"{base}/{duplicate['id']}/corrections", json=same_identity)
+    ).status_code == 201
+
+
+@pytest.mark.parametrize(
+    "failure_stage", ["corrected_revision", "replacement_insert", "replacement_revision"]
+)
+async def test_correction_failure_rolls_back_every_write(
+    workspace_db, condition_client, monkeypatch, failure_stage
+):
+    pool, _, _, patient, *_ = workspace_db
+    client = condition_client
+    base = f"/api/patients/{patient}/conditions"
+    source = condition_body()
+    assert (await client.post(base, json=source)).status_code == 201
+    path = f"{base}/{source['id']}"
+    original_revision = patient_conditions_repo._revision
+
+    async def fail_revision(*args, **kwargs):
+        before = args[5]
+        if (failure_stage == "corrected_revision" and before is not None) or (
+            failure_stage == "replacement_revision" and before is None
+        ):
+            raise RuntimeError("synthetic correction failure")
+        return await original_revision(*args, **kwargs)
+
+    command = correction_body(replacement=condition_body(26))
+    if failure_stage == "replacement_insert":
+        # Real insert failure at DB boundary, after source mutation/revision.
+        async with pool.acquire() as conn:
+            await conn.execute("""CREATE FUNCTION fail_s1_replacement() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN IF NEW.supersedes_condition_id IS NOT NULL THEN RAISE EXCEPTION 'synthetic correction failure'; END IF; RETURN NEW; END $$""")
+            await conn.execute(
+                "CREATE TRIGGER fail_s1_replacement BEFORE INSERT ON patient_tooth_conditions FOR EACH ROW EXECUTE FUNCTION fail_s1_replacement()"
+            )
+    else:
+        monkeypatch.setattr(patient_conditions_repo, "_revision", fail_revision)
+    try:
+        with pytest.raises(
+            (RuntimeError, asyncpg.RaiseError), match="synthetic correction failure"
+        ):
+            await client.post(f"{path}/corrections", json=command)
+    finally:
+        if failure_stage == "replacement_insert":
+            async with pool.acquire() as conn:
+                await conn.execute("DROP TRIGGER fail_s1_replacement ON patient_tooth_conditions")
+                await conn.execute("DROP FUNCTION fail_s1_replacement()")
+    assert (await client.get(path)).json()["revision"] == 1
+    assert (await client.get(path)).json()["status"] == "active"
+    assert (await client.get(f"{path}/revisions")).json()["total"] == 1
+    assert (await client.get(base)).json()["total"] == 1
+    async with pool.acquire() as conn:
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_tooth_condition_revisions WHERE operation_id=$1",
+                UUID(command["operation_id"]),
+            )
+            == 0
+        )
+
+
+@pytest.mark.parametrize("race", ["identical", "distinct", "across_sources", "resolve", "edit"])
+async def test_correction_races_have_one_atomic_result(
+    workspace_db, condition_client, monkeypatch, race
+):
+    pool, _, _, patient, *_ = workspace_db
+    client = condition_client
+    base = f"/api/patients/{patient}/conditions"
+    sources = [condition_body(16), condition_body(17)]
+    for source in sources:
+        assert (await client.post(base, json=source)).status_code == 201
+    path = f"{base}/{sources[0]['id']}"
+    command = correction_body(replacement=condition_body(26))
+    if race == "across_sources":
+        # Synchronize different source locks so both reach the owner/operation unique index.
+        original_revision = patient_conditions_repo._revision
+        arrivals = 0
+        barrier = asyncio.Event()
+
+        async def synchronized(*args, **kwargs):
+            nonlocal arrivals
+            if args[5] is not None:
+                arrivals += 1
+                if arrivals == 2:
+                    barrier.set()
+                await asyncio.wait_for(barrier.wait(), 10)
+            return await original_revision(*args, **kwargs)
+
+        monkeypatch.setattr(patient_conditions_repo, "_revision", synchronized)
+        second_request = client.post(
+            f"{base}/{sources[1]['id']}/corrections",
+            json={**command, "replacement": condition_body(27)},
+        )
+    elif race == "resolve":
+        second_request = client.patch(path, json={"expected_revision": 1, "status": "resolved"})
+    elif race == "edit":
+        second_request = client.patch(path, json={"expected_revision": 1, "note": "Concurrent"})
+    else:
+        second_request = client.post(
+            f"{path}/corrections",
+            json=command if race == "identical" else {**command, "operation_id": str(uuid4())},
+        )
+    responses = await asyncio.wait_for(
+        asyncio.gather(client.post(f"{path}/corrections", json=command), second_request), 20
+    )
+    if race == "identical":
+        assert sorted(row.status_code for row in responses) == [200, 201]
+        assert responses[0].json() == responses[1].json()
+    else:
+        assert sum(row.status_code in (200, 201) for row in responses) == 1
+        assert sum(row.status_code == 409 for row in responses) == 1
+        error = next(row for row in responses if row.status_code == 409)
+        assert error.json()["detail"]["code"] in (
+            {"idempotency_conflict"} if race == "across_sources" else {"revision_conflict"}
+        )
+    async with pool.acquire() as conn:
+        revisions = await conn.fetch(
+            "SELECT action FROM patient_tooth_condition_revisions WHERE patient_id=$1 AND revision>1",
+            patient,
+        )
+        assert len(revisions) == 1
+        corrections = sum(row["action"] == "corrected" for row in revisions)
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_tooth_conditions WHERE patient_id=$1", patient
+            )
+            == 2 + corrections
+        )
+    if race in ("edit", "resolve") and responses[0].status_code == 409:
+        # Explicit newly reviewed command may correct a freshly edited/resolved source.
+        revised = correction_body(expected_revision=2, replacement=command["replacement"])
+        assert (await client.post(f"{path}/corrections", json=revised)).status_code == 201
+
+
+async def test_correction_operation_scope_cursor_and_chained_replacement(
+    workspace_db, condition_client
+):
+    _, _, other, patient, second, foreign = workspace_db
+    client = condition_client
+    base = f"/api/patients/{patient}/conditions"
+    source = condition_body()
+    assert (await client.post(base, json=source)).status_code == 201
+    command = correction_body(replacement=condition_body(26))
+    first = await client.post(f"{base}/{source['id']}/corrections", json=command)
+    assert first.status_code == 201
+    second_source = condition_body(17)
+    assert (
+        await client.post(f"/api/patients/{second}/conditions", json=second_source)
+    ).status_code == 201
+    other_path = f"/api/patients/{second}/conditions/{second_source['id']}/corrections"
+    assert (await client.post(other_path, json=command)).json()["detail"][
+        "code"
+    ] == "idempotency_conflict"
+    foreign_source = uuid4()
+    await patient_conditions_repo.create_condition(
+        other,
+        foreign,
+        foreign_source,
+        {
+            "dentition": "permanent",
+            "tooth_fdi": 26,
+            "condition_code": "caries",
+            "surfaces": [],
+            "note": None,
+        },
+    )
+
+    async def foreign_user():
+        return {"id": str(other)}
+
+    app.dependency_overrides[get_current_user] = foreign_user
+    foreign_result = await client.post(
+        f"/api/patients/{foreign}/conditions/{foreign_source}/corrections",
+        json={**command, "replacement": None},
+    )
+    assert (
+        foreign_result.status_code == 201
+        and foreign_result.json()["operation_id"] == command["operation_id"]
+    )
+    assert foreign_result.json()["condition_id"] == str(foreign_source)
+
+    async def owned_user():
+        return {"id": str(workspace_db[1])}
+
+    app.dependency_overrides[get_current_user] = owned_user
+    replacement_id = command["replacement"]["id"]
+    second_correction = await client.post(
+        f"{base}/{replacement_id}/corrections", json=correction_body()
+    )
+    assert second_correction.status_code == 201
+    linked = (await client.get(f"{base}/{replacement_id}")).json()
+    assert (
+        linked["supersedes_condition_id"] == source["id"]
+        and linked["correction"]["operation_id"] == second_correction.json()["operation_id"]
+    )
+    page = (await client.get(base, params={"status": "entered_in_error", "limit": 1})).json()
+    assert page["total"] == 2 and page["next_cursor"]
+    rest = (
+        await client.get(base, params={"status": "entered_in_error", "cursor": page["next_cursor"]})
+    ).json()
+    assert rest["total"] == 2 and len(rest["items"]) == 1
+    assert (
+        await client.get(base, params={"status": "active", "cursor": page["next_cursor"]})
+    ).status_code == 422
+    assert (
+        await client.post(f"{base}/{source['id']}/corrections", json=command)
+    ).json() == first.json()
+
+
+async def test_correction_migration_preserves_legacy_evidence_and_sql_guards(monkeypatch):
+    """Migrate real 0023 rows, not legacy-shaped fixtures created after 0024."""
+    database = "odontogram_s1_" + uuid4().hex
+    url = urlsplit(DSN)
+    migration_dsn = urlunsplit(url._replace(path="/" + database))
+    admin = await asyncpg.connect(DSN)
+    pool = None
+
+    async def migrate(target):
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "alembic",
+            "-c",
+            "backend/alembic.ini",
+            "upgrade",
+            target,
+            cwd=Path(__file__).resolve().parents[2],
+            env={**os.environ, "DATABASE_URL": migration_dsn},
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
+        assert process.returncode == 0, (stdout + stderr).decode()
+
+    try:
+        # Only UUID-generated fixture identifiers are interpolated into DDL.
+        await admin.execute(f'CREATE DATABASE "{database}"')
+        await migrate("0023")
+        pool = await asyncpg.create_pool(migration_dsn, min_size=1, max_size=3)
+        owner, patient, other_patient, source, replacement = (uuid4() for _ in range(5))
+        active = {
+            "dentition": "permanent",
+            "tooth_fdi": 16,
+            "condition_code": "caries",
+            "surfaces": ["M"],
+            "note": "Legacy",
+        }
+        before = {**active, "note": None}
+        resolved = {**active, "status": "resolved"}
+        legacy_snapshots = [
+            {**before, "status": "active"},
+            {**active, "status": "active"},
+            resolved,
+        ]
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO users(id,email) VALUES($1,$2)", owner, f"migration-{owner}@example.com"
+            )
+            for index, identifier in enumerate((patient, other_patient)):
+                await conn.execute(
+                    "INSERT INTO patients(id,owner_user_id,first_name,last_name,rut_number,rut_dv) VALUES($1,$2,'Synthetic','Migration',$3,'5')",
+                    identifier,
+                    owner,
+                    12000000 + index,
+                )
+            await conn.execute(
+                """INSERT INTO patient_tooth_conditions
+                (id,owner_user_id,patient_id,dentition,tooth_fdi,condition_code,surfaces,note,status,revision,created_by_user_id,updated_by_user_id)
+                VALUES($1,$2,$3,'permanent',16,'caries',ARRAY['M'],'Legacy','resolved',3,$2,$2)""",
+                source,
+                owner,
+                patient,
+            )
+            for index, snapshot_value in enumerate(legacy_snapshots):
+                await conn.execute(
+                    """INSERT INTO patient_tooth_condition_revisions
+                    (id,condition_id,owner_user_id,patient_id,revision,before_snapshot,after_snapshot,actor_user_id,action)
+                    VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$3,$8)""",
+                    uuid4(),
+                    source,
+                    owner,
+                    patient,
+                    index + 1,
+                    json.dumps(legacy_snapshots[index - 1]) if index else None,
+                    json.dumps(snapshot_value),
+                    ("created", "edited", "resolved")[index],
+                )
+            original = [
+                dict(row)
+                for row in await conn.fetch(
+                    "SELECT * FROM patient_tooth_condition_revisions WHERE condition_id=$1 ORDER BY revision",
+                    source,
+                )
+            ]
+            original_condition = dict(
+                await conn.fetchrow("SELECT * FROM patient_tooth_conditions WHERE id=$1", source)
+            )
+        await migrate("head")
+        monkeypatch.setattr(patient_conditions_repo, "get_pg_pool", lambda: pool)
+        # The new application reads null additive metadata without altering earlier rows.
+        current = await patient_conditions_repo.get_condition(owner, patient, source)
+        assert current["status"] == "resolved" and current["correction"] is None
+        async with pool.acquire() as conn:
+            assert await conn.fetchval("SELECT version_num FROM alembic_version") == "0024"
+            actual = [
+                dict(row)
+                for row in await conn.fetch(
+                    "SELECT * FROM patient_tooth_condition_revisions WHERE condition_id=$1 ORDER BY revision",
+                    source,
+                )
+            ]
+            for old, new in zip(original, actual, strict=True):
+                assert all(new[key] == value for key, value in old.items())
+                assert all(
+                    new[key] is None
+                    for key in (
+                        "operation_id",
+                        "correction_reason",
+                        "command_snapshot",
+                        "replacement_condition_id",
+                        "replacement_revision_id",
+                    )
+                )
+            migrated_condition = dict(
+                await conn.fetchrow("SELECT * FROM patient_tooth_conditions WHERE id=$1", source)
+            )
+            assert all(
+                migrated_condition[key] == value for key, value in original_condition.items()
+            )
+            assert migrated_condition["supersedes_condition_id"] is None
+        from backend.patients import condition_service
+        from backend.patients.conditions import CorrectCondition
+
+        command = CorrectCondition.model_validate(
+            correction_body(
+                expected_revision=3, replacement=condition_body(26, id=str(replacement))
+            )
+        )
+        receipt, created = await condition_service.correct(owner, patient, source, command)
+        assert created and receipt.replacement_condition_id == replacement
+        async with pool.acquire() as conn:
+            # Both expanded 0022 checks admitted revision4/corrected; invalid revision shape and metadata still fail.
+            for revision, action, reason in (
+                (1, "corrected", "Error"),
+                (5, "created", "Error"),
+                (5, "corrected", " "),
+            ):
+                with pytest.raises(asyncpg.CheckViolationError):
+                    async with conn.transaction():
+                        await conn.execute(
+                            """INSERT INTO patient_tooth_condition_revisions
+                            (id,condition_id,owner_user_id,patient_id,revision,before_snapshot,after_snapshot,actor_user_id,action,operation_id,correction_reason,command_snapshot)
+                            VALUES($1,$2,$3,$4,$5,'{}','{}',$3,$6,$7,$8,'{}')""",
+                            uuid4(),
+                            source,
+                            owner,
+                            patient,
+                            revision,
+                            action,
+                            uuid4(),
+                            reason,
+                        )
+            for target_patient, expected_error in (
+                (patient, asyncpg.UniqueViolationError),
+                (other_patient, asyncpg.ForeignKeyViolationError),
+            ):
+                with pytest.raises(expected_error):
+                    async with conn.transaction():
+                        await conn.execute(
+                            """INSERT INTO patient_tooth_conditions
+                            (id,owner_user_id,patient_id,dentition,tooth_fdi,condition_code,surfaces,created_by_user_id,updated_by_user_id,supersedes_condition_id)
+                            VALUES($1,$2,$3,'permanent',27,'caries','{}',$2,$2,$4)""",
+                            uuid4(),
+                            owner,
+                            target_patient,
+                            source if target_patient == patient else replacement,
+                        )
+        # Expand-only rollback leaves the corrected status and receipt untouched.
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "alembic",
+            "-c",
+            "backend/alembic.ini",
+            "downgrade",
+            "0023",
+            cwd=Path(__file__).resolve().parents[2],
+            env={**os.environ, "DATABASE_URL": migration_dsn},
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
+        assert process.returncode == 0, (stdout + stderr).decode()
+        replay, created = await condition_service.correct(owner, patient, source, command)
+        assert not created and replay == receipt
+        assert (await patient_conditions_repo.get_condition(owner, patient, source))[
+            "status"
+        ] == "entered_in_error"
+    finally:
+        if pool is not None:
+            await pool.close()
+        await admin.execute(f'DROP DATABASE IF EXISTS "{database}"')
+        await admin.close()

@@ -7,24 +7,29 @@ from typing import Annotated, Any, Literal, TypeVar
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel
 
 from backend.auth.dependencies import get_current_user
 from backend.db import patient_conditions_repo as repo
+from backend.patients import condition_service
 from backend.patients.conditions import (
     CATALOG,
     SURFACE_CODES,
     SURFACES,
     ConditionConflict,
-    ConditionNote,
+    ConditionFilter,
     ConditionRevisionsCursor,
     ConditionsCursor,
+    ConditionStatus,
+    CorrectCondition,
+    CorrectionMetadata,
+    CorrectionReceipt,
+    CreateCondition,
     Dentition,
     Surface,
-    canonical_surfaces,
+    UpdateCondition,
     decode_cursor,
     encode_cursor,
-    valid_tooth,
 )
 from backend.patients.schemas import Actor
 
@@ -32,7 +37,6 @@ router = APIRouter(prefix="/patients", tags=["patient-conditions"])
 User = Annotated[dict[str, Any], Depends(get_current_user)]
 Limit = Annotated[int, Query(ge=1, le=50)]
 Cursor = Annotated[str | None, Query(max_length=1024)]
-Status = Literal["all", "active", "resolved"]
 T = TypeVar("T")
 
 
@@ -42,7 +46,7 @@ class ConditionSnapshot(BaseModel):
     condition_code: str
     surfaces: list[Surface]
     note: str | None
-    status: Literal["active", "resolved"]
+    status: ConditionStatus
 
 
 class ConditionResponse(ConditionSnapshot):
@@ -53,17 +57,21 @@ class ConditionResponse(ConditionSnapshot):
     updated_by: Actor
     created_at: datetime
     updated_at: datetime
+    supersedes_condition_id: UUID | None = None
+    correction: CorrectionMetadata | None = None
 
 
 class ConditionRevision(BaseModel):
     id: UUID
     condition_id: UUID
     revision: int
-    action: Literal["created", "edited", "resolved"]
+    action: Literal["created", "edited", "resolved", "corrected"]
     before: ConditionSnapshot | None
     after: ConditionSnapshot
     actor: Actor
     changed_at: datetime
+    supersedes_condition_id: UUID | None = None
+    correction: CorrectionMetadata | None = None
 
 
 class ConditionsPage(BaseModel):
@@ -76,66 +84,6 @@ class RevisionsPage(BaseModel):
     items: list[ConditionRevision]
     next_cursor: str | None
     total: int
-
-
-class CreateCondition(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    id: UUID
-    dentition: Dentition
-    tooth_fdi: Annotated[int, Field(strict=True)]
-    condition_code: str
-    surfaces: list[Surface] = Field(default_factory=list)
-    note: ConditionNote | None = None
-
-    @field_validator("tooth_fdi")
-    @classmethod
-    def tooth(cls, value: int, info: ValidationInfo) -> int:
-        if not valid_tooth(info.data.get("dentition", ""), value):
-            raise ValueError("Pieza incompatible con la dentición")
-        return value
-
-    @field_validator("condition_code")
-    @classmethod
-    def code(cls, value: str) -> str:
-        if value not in CATALOG:
-            raise ValueError("Condición no admitida")
-        return value
-
-    @field_validator("surfaces")
-    @classmethod
-    def surfaces_value(cls, value: list[str], info: ValidationInfo) -> list[str]:
-        result: list[str] = canonical_surfaces(value, info.data.get("condition_code", ""))
-        return result
-
-    @field_validator("note")
-    @classmethod
-    def blank_note(cls, value: str | None) -> str | None:
-        return value or None
-
-
-class UpdateCondition(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    expected_revision: Annotated[int, Field(strict=True, ge=1)]
-    surfaces: list[Surface] = Field(default_factory=list)
-    note: ConditionNote | None = None
-    status: Literal["resolved"] = "resolved"
-
-    @field_validator("note")
-    @classmethod
-    def blank_note(cls, value: str | None) -> str | None:
-        return value or None
-
-    @field_validator("surfaces")
-    @classmethod
-    def unique_surfaces(cls, value: list[str]) -> list[str]:
-        result: list[str] = canonical_surfaces(value, "caries")
-        return result
-
-    @model_validator(mode="after")
-    def mutable_required(self) -> "UpdateCondition":
-        if not (self.model_fields_set & {"surfaces", "note", "status"}):
-            raise ValueError("Incluye al menos un campo editable")
-        return self
 
 
 def _condition(row: dict[str, Any]) -> ConditionResponse:
@@ -206,7 +154,7 @@ async def conditions(
     patient_id: UUID,
     user: User,
     dentition: Dentition | None = None,
-    status: Status = "all",
+    status: ConditionFilter = "all",
     limit: Limit = 20,
     cursor: Cursor = None,
 ) -> ConditionsPage:
@@ -237,11 +185,7 @@ async def conditions(
 async def create_condition(
     patient_id: UUID, body: CreateCondition, user: User, response: Response
 ) -> ConditionResponse:
-    row, created = await _owned(
-        repo.create_condition(
-            UUID(str(user["id"])), patient_id, body.id, body.model_dump(exclude={"id"})
-        )
-    )
+    row, created = await _owned(condition_service.record(UUID(str(user["id"])), patient_id, body))
     response.status_code = 201 if created else 200
     return _condition(row)
 
@@ -257,17 +201,25 @@ async def condition(patient_id: UUID, condition_id: UUID, user: User) -> Conditi
 async def update_condition(
     patient_id: UUID, condition_id: UUID, body: UpdateCondition, user: User
 ) -> ConditionResponse:
-    return _condition(
-        await _owned(
-            repo.update_condition(
-                UUID(str(user["id"])),
-                patient_id,
-                condition_id,
-                body.expected_revision,
-                body.model_dump(exclude={"expected_revision"}, exclude_unset=True),
-            )
-        )
+    command = (
+        condition_service.resolve if "status" in body.model_fields_set else condition_service.edit
     )
+    return _condition(await _owned(command(UUID(str(user["id"])), patient_id, condition_id, body)))
+
+
+@router.post(
+    "/{patient_id}/conditions/{condition_id}/corrections",
+    response_model=CorrectionReceipt,
+    status_code=201,
+)
+async def correct_condition(
+    patient_id: UUID, condition_id: UUID, body: CorrectCondition, user: User, response: Response
+) -> CorrectionReceipt:
+    receipt, created = await _owned(
+        condition_service.correct(UUID(str(user["id"])), patient_id, condition_id, body)
+    )
+    response.status_code = 201 if created else 200
+    return receipt
 
 
 @router.get("/{patient_id}/conditions/{condition_id}/revisions", response_model=RevisionsPage)

@@ -5,7 +5,15 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from .cursors import decode_cursor_payload, encode_cursor_payload
 
@@ -28,6 +36,8 @@ CATALOG = {
 }
 SURFACE_CODES = {"caries", "incipient_caries", "pigmentation", "fracture"}
 ConditionNote = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
+ConditionStatus = Literal["active", "resolved", "entered_in_error"]
+ConditionFilter = Literal["all", "active", "resolved", "entered_in_error"]
 
 
 def valid_tooth(dentition: str, tooth: int) -> bool:
@@ -65,7 +75,7 @@ class ConditionsCursor(BaseModel):
     v: Literal[1]
     patient_id: UUID
     dentition: Dentition | None
-    status: Literal["all", "active", "resolved"]
+    status: ConditionFilter
     tooth_fdi: Annotated[int, Field(strict=True)]
     created_at: datetime
     id: UUID
@@ -125,3 +135,81 @@ def decode_cursor(
 
 def encode_cursor(cursor: ConditionsCursor | ConditionRevisionsCursor) -> str:
     return encode_cursor_payload(cursor)
+
+
+class CreateCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: UUID
+    dentition: Dentition
+    tooth_fdi: Annotated[int, Field(strict=True)]
+    condition_code: str
+    surfaces: list[Surface] = Field(default_factory=list)
+    note: ConditionNote | None = None
+
+    @field_validator("tooth_fdi")
+    @classmethod
+    def tooth(cls, value: int, info: ValidationInfo) -> int:
+        if not valid_tooth(info.data.get("dentition", ""), value):
+            raise ValueError("Pieza incompatible con la dentición")
+        return value
+
+    @field_validator("condition_code")
+    @classmethod
+    def code(cls, value: str) -> str:
+        if value not in CATALOG:
+            raise ValueError("Condición no admitida")
+        return value
+
+    @field_validator("surfaces")
+    @classmethod
+    def surfaces_value(cls, value: list[str], info: ValidationInfo) -> list[str]:
+        return canonical_surfaces(value, info.data.get("condition_code", ""))
+
+    @field_validator("note")
+    @classmethod
+    def blank_note(cls, value: str | None) -> str | None:
+        return value or None
+
+
+class UpdateCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: Annotated[int, Field(strict=True, ge=1)]
+    surfaces: list[Surface] = Field(default_factory=list)
+    note: ConditionNote | None = None
+    status: Literal["resolved"] = "resolved"
+
+    @field_validator("note")
+    @classmethod
+    def blank_note(cls, value: str | None) -> str | None:
+        return value or None
+
+    @field_validator("surfaces")
+    @classmethod
+    def unique_surfaces(cls, value: list[str]) -> list[str]:
+        return canonical_surfaces(value, "caries")
+
+    @model_validator(mode="after")
+    def mutable_required(self) -> "UpdateCondition":
+        if not (self.model_fields_set & {"surfaces", "note", "status"}):
+            raise ValueError("Incluye al menos un campo editable")
+        return self
+
+
+class CorrectCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    operation_id: UUID
+    expected_revision: Annotated[int, Field(strict=True, ge=1)]
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    replacement: CreateCondition | None = None
+
+
+class CorrectionReceipt(BaseModel):
+    operation_id: UUID
+    condition_id: UUID
+    correction_revision_id: UUID
+    replacement_condition_id: UUID | None
+    replacement_revision_id: UUID | None
+
+
+class CorrectionMetadata(CorrectionReceipt):
+    reason: str

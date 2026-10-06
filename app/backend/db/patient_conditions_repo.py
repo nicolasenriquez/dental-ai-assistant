@@ -17,6 +17,33 @@ from backend.patients.conditions import (
 )
 
 SNAPSHOT_KEYS = ("dentition", "tooth_fdi", "condition_code", "surfaces", "note", "status")
+CONDITION_READ = """
+    SELECT c.*, to_jsonb(r) AS correction_revision FROM patient_tooth_conditions c
+    LEFT JOIN patient_tooth_condition_revisions r ON r.condition_id=c.id
+        AND r.patient_id=c.patient_id AND r.owner_user_id=c.owner_user_id
+        AND r.revision=c.revision AND r.action='corrected'
+"""
+
+
+def _receipt(row: Any) -> dict[str, Any]:
+    return {
+        "operation_id": row["operation_id"],
+        "condition_id": row["condition_id"],
+        "correction_revision_id": row["id"],
+        "replacement_condition_id": row["replacement_condition_id"],
+        "replacement_revision_id": row["replacement_revision_id"],
+    }
+
+
+def _metadata(row: Any) -> dict[str, Any]:
+    value = dict(row)
+    correction = value.pop("correction_revision", None)
+    if isinstance(correction, str):
+        correction = json.loads(correction)
+    value["correction"] = (
+        {**_receipt(correction), "reason": correction["correction_reason"]} if correction else None
+    )
+    return value
 
 
 def snapshot(row: Any) -> dict[str, Any]:
@@ -27,15 +54,13 @@ async def _record(
     conn: Connection, owner: UUID, patient: UUID, identifier: UUID, lock: bool = False
 ) -> dict[str, Any]:
     # The only SQL suffix is a fixed lock clause; identifiers and data stay parameterized.
-    query = (
-        "SELECT * FROM patient_tooth_conditions WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3"
-    )
+    query = CONDITION_READ + " WHERE c.id=$1 AND c.owner_user_id=$2 AND c.patient_id=$3"
     if lock:
-        query += " FOR UPDATE"
+        query += " FOR UPDATE OF c"
     row = await conn.fetchrow(query, identifier, owner, patient)
     if row is None:
         raise LookupError
-    return dict(row)
+    return _metadata(row)
 
 
 async def get_condition(owner: UUID, patient: UUID, identifier: UUID) -> dict[str, Any]:
@@ -58,7 +83,9 @@ async def _duplicate(conn: Connection, owner: UUID, patient: UUID, value: dict[s
         value["surfaces"],
     )
     if existing:
-        raise ConditionConflict("active_condition_exists", existing["id"], existing=dict(existing))
+        raise ConditionConflict(
+            "active_condition_exists", existing["id"], existing=_metadata(existing)
+        )
     # A concurrently resolved duplicate may vanish between insert and reread; safe to retry.
     raise ConditionConflict("revision_conflict", value["id"])
 
@@ -72,17 +99,28 @@ async def _revision(
     before: dict[str, Any] | None,
     after: dict[str, Any],
     changed_at: datetime,
-) -> None:
+    *,
+    revision_id: UUID | None = None,
+    correction: dict[str, Any] | None = None,
+) -> UUID:
+    revision_id = revision_id or uuid4()
     action = (
-        "created" if before is None else "resolved" if after["status"] == "resolved" else "edited"
+        "corrected"
+        if correction
+        else "created"
+        if before is None
+        else "resolved"
+        if after["status"] == "resolved"
+        else "edited"
     )
     await conn.execute(
         """
         INSERT INTO patient_tooth_condition_revisions
-            (id,condition_id,owner_user_id,patient_id,revision,before_snapshot,after_snapshot,actor_user_id,changed_at,action)
-        VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$3,$8,$9)
+            (id,condition_id,owner_user_id,patient_id,revision,before_snapshot,after_snapshot,actor_user_id,changed_at,action,
+             operation_id,correction_reason,command_snapshot,replacement_condition_id,replacement_revision_id)
+        VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$3,$8,$9,$10,$11,$12::jsonb,$13,$14)
     """,
-        uuid4(),
+        revision_id,
         identifier,
         owner,
         patient,
@@ -91,6 +129,38 @@ async def _revision(
         json.dumps(after),
         changed_at,
         action,
+        UUID(correction["operation_id"]) if correction else None,
+        correction["reason"] if correction else None,
+        json.dumps(correction["command_snapshot"]) if correction else None,
+        correction["replacement_condition_id"] if correction else None,
+        correction["replacement_revision_id"] if correction else None,
+    )
+    return revision_id
+
+
+async def _insert_condition(
+    conn: Connection,
+    owner: UUID,
+    patient: UUID,
+    identifier: UUID,
+    value: dict[str, Any],
+    supersedes: UUID | None = None,
+) -> Any:
+    return await conn.fetchrow(
+        """
+        INSERT INTO patient_tooth_conditions
+            (id,owner_user_id,patient_id,dentition,tooth_fdi,condition_code,surfaces,note,created_by_user_id,updated_by_user_id,supersedes_condition_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$2,$2,$9) ON CONFLICT DO NOTHING RETURNING *
+        """,
+        identifier,
+        owner,
+        patient,
+        value["dentition"],
+        value["tooth_fdi"],
+        value["condition_code"],
+        value["surfaces"],
+        value["note"],
+        supersedes,
     )
 
 
@@ -99,21 +169,7 @@ async def create_condition(
 ) -> tuple[dict[str, Any], bool]:
     async with get_pg_pool().acquire() as conn, conn.transaction():
         await _parent(conn, owner, patient)
-        row = await conn.fetchrow(
-            """
-            INSERT INTO patient_tooth_conditions
-                (id,owner_user_id,patient_id,dentition,tooth_fdi,condition_code,surfaces,note,created_by_user_id,updated_by_user_id)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$2,$2) ON CONFLICT DO NOTHING RETURNING *
-        """,
-            identifier,
-            owner,
-            patient,
-            value["dentition"],
-            value["tooth_fdi"],
-            value["condition_code"],
-            value["surfaces"],
-            value["note"],
-        )
+        row = await _insert_condition(conn, owner, patient, identifier, value)
         if row is None:
             # Check a globally colliding UUID first, without disclosing a foreign resource.
             exists = await conn.fetchval(
@@ -136,7 +192,7 @@ async def create_condition(
             await _duplicate(conn, owner, patient, {**value, "id": identifier})
             raise AssertionError("duplicate lookup must raise")
         await _revision(conn, owner, patient, identifier, 1, None, snapshot(row), row["created_at"])
-        return dict(row), True
+        return _metadata(row), True
 
 
 async def update_condition(
@@ -171,6 +227,8 @@ async def update_condition(
             raise ConditionConflict("revision_conflict", identifier, current["revision"])
         if current["status"] == "resolved":
             raise ConditionConflict("condition_resolved", identifier, current["revision"])
+        if current["status"] == "entered_in_error":
+            raise ConditionConflict("condition_entered_in_error", identifier, current["revision"])
         if before == after:
             return current
         try:
@@ -195,7 +253,123 @@ async def update_condition(
         await _revision(
             conn, owner, patient, identifier, row["revision"], before, after, row["updated_at"]
         )
-        return dict(row)
+        return _metadata(row)
+
+
+async def _committed_correction(
+    conn: Connection, owner: UUID, identifier: UUID, command: dict[str, Any]
+) -> dict[str, Any] | None:
+    row = await conn.fetchrow(
+        """SELECT * FROM patient_tooth_condition_revisions
+           WHERE owner_user_id=$1 AND operation_id=$2""",
+        owner,
+        UUID(command["operation_id"]),
+    )
+    if row is None:
+        return None
+    if json.loads(row["command_snapshot"]) != command:
+        # Never disclose a receipt belonging to another source/patient.
+        raise ConditionConflict("idempotency_conflict", identifier)
+    return _receipt(row)
+
+
+async def correct_condition(
+    owner: UUID, patient: UUID, identifier: UUID, command: dict[str, Any]
+) -> tuple[dict[str, Any], bool]:
+    async with get_pg_pool().acquire() as conn:
+        try:
+            async with conn.transaction():
+                await _parent(conn, owner, patient)
+                await _record(conn, owner, patient, identifier)
+                committed = await _committed_correction(conn, owner, identifier, command)
+                if committed:
+                    return committed, False
+                current = await _record(conn, owner, patient, identifier, lock=True)
+                # Another identical command may have committed while we waited for the source.
+                committed = await _committed_correction(conn, owner, identifier, command)
+                if committed:
+                    return committed, False
+                if current["revision"] != command["expected_revision"]:
+                    raise ConditionConflict("revision_conflict", identifier, current["revision"])
+                if current["status"] == "entered_in_error":
+                    raise ConditionConflict(
+                        "condition_entered_in_error", identifier, current["revision"]
+                    )
+                replacement = command["replacement"]
+                replacement_id = UUID(replacement["id"]) if replacement else None
+                if replacement_id == identifier:
+                    raise ConditionConflict("idempotency_conflict", identifier)
+                replacement_revision = uuid4() if replacement else None
+                before = snapshot(current)
+                row = await conn.fetchrow(
+                    """UPDATE patient_tooth_conditions SET status='entered_in_error',
+                       revision=revision+1,updated_by_user_id=$2,updated_at=clock_timestamp()
+                       WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3 RETURNING *""",
+                    identifier,
+                    owner,
+                    patient,
+                )
+                assert row is not None
+                revision_id = await _revision(
+                    conn,
+                    owner,
+                    patient,
+                    identifier,
+                    row["revision"],
+                    before,
+                    snapshot(row),
+                    row["updated_at"],
+                    correction={
+                        "operation_id": command["operation_id"],
+                        "reason": command["reason"],
+                        "command_snapshot": command,
+                        "replacement_condition_id": replacement_id,
+                        "replacement_revision_id": replacement_revision,
+                    },
+                )
+                if replacement:
+                    assert replacement_id is not None
+                    new = await _insert_condition(
+                        conn, owner, patient, replacement_id, replacement, identifier
+                    )
+                    if new is None:
+                        exists = await conn.fetchval(
+                            "SELECT id FROM patient_tooth_conditions WHERE id=$1", replacement_id
+                        )
+                        if exists:
+                            await _record(conn, owner, patient, replacement_id)
+                            raise ConditionConflict("idempotency_conflict", replacement_id)
+                        await _duplicate(
+                            conn, owner, patient, {**replacement, "id": replacement_id}
+                        )
+                        raise AssertionError("duplicate lookup must raise")
+                    await _revision(
+                        conn,
+                        owner,
+                        patient,
+                        replacement_id,
+                        1,
+                        None,
+                        snapshot(new),
+                        new["created_at"],
+                        revision_id=replacement_revision,
+                    )
+                return {
+                    "operation_id": UUID(command["operation_id"]),
+                    "condition_id": identifier,
+                    "correction_revision_id": revision_id,
+                    "replacement_condition_id": replacement_id,
+                    "replacement_revision_id": replacement_revision,
+                }, True
+        except UniqueViolationError as error:
+            if error.constraint_name != "uq_condition_correction_operation":
+                raise
+            # Different source locks can race on owner/operation. The entire losing
+            # transaction has rolled back before we read/compare the winner's receipt.
+            committed = await _committed_correction(conn, owner, identifier, command)
+            if committed:
+                return committed, False
+            raise ConditionConflict("revision_conflict", identifier) from None
 
 
 async def list_conditions(
@@ -219,11 +393,12 @@ async def list_conditions(
             status,
         )
         rows = await conn.fetch(
-            """
-            SELECT * FROM patient_tooth_conditions WHERE owner_user_id=$1 AND patient_id=$2
-                AND ($3::text IS NULL OR dentition=$3) AND ($4='all' OR status=$4)
-                AND ($5::smallint IS NULL OR (tooth_fdi,created_at,id)>($5,$6::timestamptz,$7::uuid))
-            ORDER BY tooth_fdi,created_at,id LIMIT $8
+            CONDITION_READ
+            + """
+            WHERE c.owner_user_id=$1 AND c.patient_id=$2
+                AND ($3::text IS NULL OR c.dentition=$3) AND ($4='all' OR c.status=$4)
+                AND ($5::smallint IS NULL OR (c.tooth_fdi,c.created_at,c.id)>($5,$6::timestamptz,$7::uuid))
+            ORDER BY c.tooth_fdi,c.created_at,c.id LIMIT $8
         """,
             owner,
             patient,
@@ -234,7 +409,7 @@ async def list_conditions(
             cursor.id if cursor else None,
             limit + 1,
         )
-        return [dict(row) for row in rows], int(total)
+        return [_metadata(row) for row in rows], int(total)
 
 
 async def list_revisions(
@@ -255,9 +430,11 @@ async def list_revisions(
         )
         rows = await conn.fetch(
             """
-            SELECT * FROM patient_tooth_condition_revisions WHERE condition_id=$1 AND owner_user_id=$2 AND patient_id=$3
-                AND ($4::int IS NULL OR (revision,id)<($4,$5::uuid))
-            ORDER BY revision DESC,id DESC LIMIT $6
+            SELECT r.*,c.supersedes_condition_id FROM patient_tooth_condition_revisions r
+            JOIN patient_tooth_conditions c ON c.id=r.condition_id AND c.patient_id=r.patient_id AND c.owner_user_id=r.owner_user_id
+            WHERE r.condition_id=$1 AND r.owner_user_id=$2 AND r.patient_id=$3
+                AND ($4::int IS NULL OR (r.revision,r.id)<($4,$5::uuid))
+            ORDER BY r.revision DESC,r.id DESC LIMIT $6
         """,
             identifier,
             owner,
@@ -266,4 +443,12 @@ async def list_revisions(
             cursor.id if cursor else None,
             limit + 1,
         )
-        return [dict(row) for row in rows], int(total)
+        return [
+            {
+                **dict(row),
+                "correction": {**_receipt(row), "reason": row["correction_reason"]}
+                if row["action"] == "corrected"
+                else None,
+            }
+            for row in rows
+        ], int(total)

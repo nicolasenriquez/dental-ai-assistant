@@ -427,7 +427,7 @@ export interface PatientActivityItem {
   event_id: string;
   resource_id: string;
   kind: PatientActivityKind;
-  action: 'created' | 'edited' | 'resolved';
+  action: 'created' | 'edited' | 'resolved' | 'corrected';
   occurred_at: string;
   actor: PatientActor | null;
   title: string;
@@ -1014,7 +1014,7 @@ export interface ConditionSnapshot {
   condition_code: string;
   surfaces: ToothSurface[];
   note: string | null;
-  status: 'active' | 'resolved';
+  status: 'active' | 'resolved' | 'entered_in_error';
 }
 export interface PatientCondition extends ConditionSnapshot {
   id: string;
@@ -1024,16 +1024,36 @@ export interface PatientCondition extends ConditionSnapshot {
   updated_by: PatientActor;
   created_at: string;
   updated_at: string;
+  supersedes_condition_id?: string | null;
+  correction?: ConditionCorrectionMetadata | null;
 }
 export interface PatientConditionRevision {
   id: string;
   condition_id: string;
   revision: number;
-  action: 'created' | 'edited' | 'resolved';
+  action: 'created' | 'edited' | 'resolved' | 'corrected';
   before: ConditionSnapshot | null;
   after: ConditionSnapshot;
   actor: PatientActor;
   changed_at: string;
+  supersedes_condition_id?: string | null;
+  correction?: ConditionCorrectionMetadata | null;
+}
+export interface ConditionCorrectionReceipt {
+  operation_id: string;
+  condition_id: string;
+  correction_revision_id: string;
+  replacement_condition_id: string | null;
+  replacement_revision_id: string | null;
+}
+export interface ConditionCorrectionMetadata extends ConditionCorrectionReceipt {
+  reason: string;
+}
+export interface CorrectPatientCondition {
+  operation_id: string;
+  expected_revision: number;
+  reason: string;
+  replacement?: CreatePatientCondition | null;
 }
 export interface PatientConditionPage {
   items: PatientCondition[];
@@ -1066,7 +1086,7 @@ export function getPatientConditions(
   patientId: string,
   options: {
     dentition?: Dentition;
-    status?: 'all' | 'active' | 'resolved';
+    status?: 'all' | 'active' | 'resolved' | 'entered_in_error';
     cursor?: string;
     limit?: number;
   } = {},
@@ -1113,4 +1133,15 @@ export function getPatientConditionRevisions(
   const query = new URLSearchParams({ limit: String(limit) });
   if (cursor) query.set('cursor', cursor);
   return request(`/patients/${patientId}/conditions/${conditionId}/revisions?${query}`);
+}
+
+export function correctPatientCondition(
+  patientId: string,
+  conditionId: string,
+  body: CorrectPatientCondition,
+): Promise<ConditionCorrectionReceipt> {
+  return request(`/patients/${patientId}/conditions/${conditionId}/corrections`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
