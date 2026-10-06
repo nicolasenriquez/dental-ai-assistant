@@ -242,3 +242,47 @@ The isolated wireframes/odontogram-reference.html SHALL guide composition alongs
 - **THEN** existing links remain valid, detail paths take precedence, and otherwise valid clinical selects the view with diagnosis as absent/invalid default; no clinicalView alias is introduced
 - **WHEN** navigation leaves diagnosis or the clinical tab
 - **THEN** condition is cleared on leaving diagnosis, clinical is also cleared on leaving the tab and exact condition reads only run in diagnosis
+
+### Requirement: R16 Backend-owned extensible Condition catalog
+The system SHALL consolidate current labels, category grouping and applicability in typed backend Condition definitions, with catalog serialization and application validation using those definitions. It SHALL preserve the exact twelve codes, labels/order, both dentitions, canonical surfaces and existing optional-empty-surface rules. The existing version1 catalog SHALL retain its fields and add categories and entry category_key/allowed_dentitions as defined in design decision9. Category SHALL be presentation grouping, not a new entity or lifecycle authority. Backend validation and immutable SQL constraints SHALL remain authoritative.
+
+#### Scenario: Twelve-concept contract and migrated database agreement
+- **WHEN** the authenticated catalog is read and create/edit/correct validation is exercised for the twelve codes in permanent and primary dentition
+- **THEN** labels/applicability agree with the shared definitions; only caries, incipient_caries, pigmentation and fracture allow nonempty M,D,O,V,L subsets, all allow an empty list, and migrated database acceptance/rejection agrees without changing active uniqueness, overlap, revision or retry semantics
+
+#### Scenario: Legacy catalog response and request compatibility
+- **WHEN** an existing version1 consumer reads the additive catalog or a new consumer receives a legacy version1 response without additive metadata
+- **THEN** existing fields/behavior remain valid and the new presentation boundary normalizes the single diagnosis group and both incumbent dentitions without inventing labels or surfaces
+- **WHEN** a mutation supplies category, icon, draft status or other authority extras
+- **THEN** the request remains invalid and no clinical state is persisted
+
+#### Scenario: Future persisted vocabulary change
+- **WHEN** a later approved change adds a persistable code or changes applicability
+- **THEN** it updates domain definitions and adds the required schema migration and drift proofs; historical migrations do not import mutable runtime definitions, and this change does not add a thirteenth code or remove current CHECKs
+
+### Requirement: R17 Shared presentation and bounded family preparation
+Palette, chart, inspector, list, concept legend and history SHALL consume one catalog resolution/presentation boundary with independent original symbol geometry and status adornments. Only the populated diagnosis group SHALL ship now. No empty family tabs, Procedure/planning semantics, multi-tooth authoring or per-concept statusBehavior SHALL be introduced. Selection/drafts/44px controls and R1–R15 SHALL remain intact.
+
+#### Scenario: Synthetic extension without component rewrites
+- **WHEN** a component fixture supplies an extra server-supported Condition entry in a populated synthetic category with supported single-condition applicability and no dedicated glyph
+- **THEN** all six views show consistent server labels, applicability and neutral symbol fallback without per-view code lists or status changes; production catalog and DB remain the original twelve codes
+
+#### Scenario: Unknown saved concept or category
+- **WHEN** saved evidence has a code absent from catalog or a category is unfamiliar to the frontend
+- **THEN** saved identity/surfaces/status/history remain visible; absent codes show Condición no reconocida plus escaped code, supported entries without geometry show Símbolo no disponible, and category descriptors are rendered or explicitly fall back without granting new command semantics
+- **WHEN** an absent code is proposed for create/edit/replacement
+- **THEN** fallback does not authorize that mutation; existing lifecycle-only resolve/correct-without-replacement rules still apply
+
+#### Scenario: Catalog failure does not hide evidence
+- **WHEN** catalog reading fails or applicability metadata is malformed while condition/history reads succeed
+- **THEN** owned saved facts remain visible with explicit catalog error and GET-only retry; unsupported authoring is blocked, drafts/attempts remain retained, and frozen uncertain retries follow the unchanged command contract
+
+#### Scenario: Optional surfaces are not whole-tooth reclassification
+- **WHEN** a surface-capable record has surfaces[]
+- **THEN** editor/list/history describe Sin superficies especificadas and do not reinterpret it as a whole-tooth finding or require a surface
+- **WHEN** a whole-tooth code is selected
+- **THEN** only Pieza completa, sin superficies is shown and nonempty surfaces remain rejected by backend
+
+#### Scenario: Category navigation and container reflow
+- **WHEN** a populated category is navigated or the Assistant changes available container width
+- **THEN** category navigation alone never selects a new concept, mutates note/FDI, discards a draft or writes; piece/surface keyboard targets, focus, both dentitions and resize continuity retain R6/R15 behavior

@@ -18,6 +18,7 @@ The audited odontogram persists records safely but the human workflow makes erro
 - Persist safe ficha tab/subview/resource URL context; preserve existing draft guards.
 - Add a small patient-condition application boundary shared by existing HTTP commands; no agent adapter in this change.
 - Add scoped regressions and update only documentation reflecting shipped behavior in future closeout.
+- Consolidate the existing backend Condition definitions and expose additive diagnosis grouping/dentition hints; share frontend presentation across the six odontogram views without new clinical codes or families (approved D-04).
 
 ## Capabilities
 
@@ -55,7 +56,9 @@ Agent tools, autonomous writes, LLM odontogram context, proposal/approval runtim
 
 ## Execution Order Decision
 
-Required: yes. Six bounded slices; correction UI, current/history and conflict recovery must understand the new terminal correction status. Visual selection and safe URL context can be verified independently. Integrated verification follows all slices.
+Required: yes. Six bounded slices; correction UI, current/history and conflict recovery must understand the new terminal correction status. Spatial editing consumes the shared catalog/presentation contract from S3; safe URL context remains independent. Integrated verification follows all slices.
+
+D-04 refines this order: S3 owns the additive catalog/presentation contract; S4 consumes its verified checkpoint. S6 remains independent. No seventh slice is added.
 
 ## Impact
 
@@ -75,3 +78,4 @@ Fail-first external behavior at chosen seams; real Postgres for atomicity, const
 
 - Subsequent reference gaps G01–G09 are bounded refinements in R9/R13–R15 and visual-contract.md, mapped to existing slices without expanding clinical taxonomy or agent scope.
 - Isolated synthetic HTML guides composition; rendered-reference validation remains separate from future production evidence.
+- Human D-04: `A. Catálogo mínimo (Recommended)` selected on2026-10-06. Backend definitions remain clinical authority; only diagnosis ships, with no empty future-family tabs. Minimal additive catalog and extension/fallback proofs belong to S3/S4. [Extensibility audit](extensibility-audit.md) records current source evidence, critique, scores and readiness limits.

@@ -1,6 +1,6 @@
 # Investigation and scope decisions
 
-Status: **Implementation Ready at specification level**. Subsequent G01–G09 are closed in R9/R13–R15 and visual-contract.md. D-01/D-02 remain approved; runtime implementation is deferred.
+Status: **Implementation Ready at specification level**. G01–G09 and correction closure remain; approved D-04 closes H01–H04 in design decision9/R16–R17 and visual-contract.md. D-01–D-04 remain recorded; runtime implementation is deferred.
 
 ## Evidence baseline
 
@@ -87,3 +87,15 @@ The final design and requirements define concrete defaults, command contracts an
 - OpenSpec strict validation passed and status reports proposal/design/specs/tasks done;29 future tasks remain unchecked.
 - Phases0–4, adjacent Traceability, fail-first seam proofs and acyclic Execution Order are present and checked.
 - No production files, tests, migration, tools or predecessor change artifacts were modified. Implementation remains deferred.
+
+## Extensibility audit and approved D-04, 2026-10-06
+
+Rechecked actual Assistant branch `feat/ai-assisted-evolutions` at `a12812a` and local DentalPin at `fc36a71b`. Assistant working tree was clean at audit start; DentalPin has an existing frontend/modules.json modification, which was not changed. Prior browser/test numbers above are historical evidence, not a new execution in this source/spec audit.
+
+The existing backend already owns an authenticated version1 catalog. Palette/labels are API-driven, not twelve duplicated UI labels. Actual gaps are definition/applicability split between CATALOG and SURFACE_CODES, independent SQL CHECKs needing drift proof, a code switch in ConditionSymbol, per-view status text, absent category DTO and unknown/catalog-failure behavior. PatientDiagnosis awaits catalog before condition pages, so catalog failure can prevent evidence reads. `fracture` accepts surfaces here but is whole-tooth in DentalPin; optional[] is valid here and must not become whole-tooth evidence or a mandatory surface rule.
+
+DentalPin has all five clinical categories in constants, server catalog integration with static fallbacks, surface/whole-tooth rules and a separate multi-tooth registry. Diagnosis displays all families for existing work; planning excludes diagnostic concepts. useTreatments maps existing to backend performed. Its legend still enumerates static constants and ToothDualView still contains specific type branches, so its own claimed single source of truth is not complete. Neither its domain nor its consistency should be copied literally.
+
+Question asked with three alternatives: A consolidate minimal backend definitions/additive category contract and shared presentation; B presentation-only while retaining the current catalog shape; C leave this refinement deferred. Recommendation A preserves current clinical meaning and avoids empty future families. Human selected `A. Catálogo mínimo (Recommended)`.
+
+D-04 authorizes design decision9/R16–R17: one current diagnosis group, unchanged12codes and lifecycle, backend validation authority, additive version1 metadata, independently readable evidence, defensive fallbacks and synthetic extension proofs. No code/assets from DentalPin, no new clinical families/entities and no statusBehavior/multi-tooth framework. S3 owns catalog/resolution and S4 depends on its verified checkpoint. [extensibility-audit.md](extensibility-audit.md) contains capability/taxonomy matrices, source locations and score rationale. All29 runtime tasks remain unchecked.

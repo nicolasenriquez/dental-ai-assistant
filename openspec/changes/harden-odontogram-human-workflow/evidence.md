@@ -102,3 +102,18 @@ The checker uses Playwright's installed Chromium by default. PLAYWRIGHT_CHROMIUM
 ## Preparation proof, 2026-10-06
 
 The revised synthetic checker ran successfully using installed default Chromium:108 cases, zero page errors. Existing96 fixtures remain covered;12 added fixtures exercise correction without replacement and confirmed correction/failed-read at all six sizes. Screenshot inspection also verified the distinct original/replacement hierarchy and explicit outdated-chart label. No runtime app, API mutation or DB test ran in this closure. D-03, the canonical MODIFIED delta and DTO/revision-read defaults are traced in readiness-review.md.
+
+## Extensibility preparation evidence and future proof
+
+This later2026-10-06 pass inspected source/specs at Assistant a12812a and DentalPin fc36a71b; it did not repeat browser measurements or runtime tests. D-04 was explicitly selected through the one-question/three-option clarification. Source evidence and matrices are in extensibility-audit.md; normative closure is design decision9/R16–R17 and existing S3/S4 tasks. The previous108 synthetic checks do not exercise the new catalog contract or extension/failure fixtures.
+
+| Gap | Source fact | Closure / required proof |
+|---|---|---|
+| H01 | conditions.py has CATALOG plus SURFACE_CODES;0022 separately constrains codes/surfaces | R16/S3 definitions drive API/service; real migrated DB agrees for all12codes, both dentitions, allowed surface subsets/[], rejects incompatible surfaces/unknown codes |
+| H02 | API catalog has no category metadata; symbol/status presentation is separate and partly repeated | R17/S3/S4 single resolved presentation in palette/chart/editor/list/legend/history; synthetic new entry/category needs no component/status rewrite |
+| H03 | SQL code CHECK prevents a newly added Python definition from persisting | R16/S3 current constraints unchanged; later vocabulary expansion explicitly requires additive migration and drift proof |
+| H04 | PatientDiagnosis reads catalog before condition pages; optional[]/unknown category behavior lacks a complete contract | R17/S3/S4 independent evidence reads, catalog GET retry, safe unknown fallbacks and correct empty-surface text without inferred writes |
+
+The extension fixture is frontend-only: use supported single-Condition applicability, a synthetic category descriptor and neutral geometry fallback. Assert presence/label/applicability/status across six views and keyboard category navigation without clinical selection/write. Keep production catalog exactly12. For domain/SQL drift, use the same disposable migrated-DB recipe above and test current domain definitions against externally observable HTTP/DB acceptance/rejection, not a test that merely copies lists or parses migration text. Required live catalog cases cannot be silently skipped.
+
+Cross-feature failure proofs: catalog unavailable with saved/historical records available; legacy version1 missing additive fields; metadata refresh during a draft/frozen attempt; unknown persisted code versus known entry lacking geometry; unknown descriptor; surface-capable[] versus whole-tooth[]; categories must not change resolve/correct permissions, expected_revision, active uniqueness, idempotency or post-save read-only retry. Integrated proof includes correction replacements, both dentitions and actual Assistant open/closed reflow. Manual accessibility and clinical symbol review retain the existing explicit coverage limits.

@@ -14,6 +14,10 @@ Typography inherits DESIGN.md: body15px desktop/16px mobile inputs; headings16�
 
 One mapping drives palette/chart/editor/list/legend for the existing12codes. Reuse current authored symbols and labels; no imported paths or new medical meaning. A clinical-language review may identify a proposed glyph change, but taxonomy and semantics cannot be silently changed during implementation.
 
+D-04/design decision9 fixes ownership: clinical labels and applicability come from the backend catalog; only original symbol geometry/status presentation is frontend-owned. History shares the same resolved entries. One populated diagnosis category is a heading, not a new tab bar. Empty Restauradora/Cirugía/Endodoncia/Ortodoncia tabs are not rendered. Future populated categories use server descriptors without a five-family UI whitelist and cannot change Condition lifecycle. Catalog reads can fail independently of condition/history reads; preserve saved facts and show an explicit catalog error rather than a guessed authoring palette.
+
+Surface-capable codes accept an empty surface list under the existing contract. Describe that evidence as `Sin superficies especificadas`; reserve `Pieza completa, sin superficies` for codes with no surface support. Do not impose DentalPin's fracture whole-tooth rule. Selecting surfaces or navigating categories remains local and never writes.
+
 | Existing code family | Base mark retained |
 |---|---|
 | pulpitis | Incumbent vertical channel/arrow mark, paired with Pulpitis text |
@@ -39,7 +43,7 @@ Concept glyphs are not universal dental-standard certification. Distinct state t
 | keyboard focus | Existing visible focus ring, independent of selection | Named piece/control and selected/pressed state |
 | saving | Local save pending indicator; no clinical status change yet | Guardando… |
 
-Legend shows the three persisted status meanings and draft meaning briefly; extended concept explanation may open separately. It does not hide clinical facts. Names are always available; aria-hidden decorative SVG has adjacent text or a named piece button. Unknown future codes show an explicit unknown label instead of masquerading as an existing concept. Contrast/focus must be actually checked in future runtime, not inferred from a token name.
+Legend shows the three persisted status meanings and draft meaning briefly; extended concept explanation may open separately using the same catalog entries. It does not hide clinical facts. Names are always available; aria-hidden decorative SVG has adjacent text or a named piece button. A persisted code absent from catalog shows Condición no reconocida plus code; a server-supported entry lacking geometry retains its label with Símbolo no disponible and a neutral mark. Unknown category descriptors use Otra categoría plus key. These never masquerade as Caries or a filling and never hide saved records. Contrast/focus must be actually checked in future runtime, not inferred from a token name.
 
 ## Spatial orientation and linking
 
@@ -54,6 +58,8 @@ Use one visible FDI selection context. Cambiar pieza is an explicit new-draft ac
 ## Grouping and counts
 
 Group with text Pieza16 then one semantic row per condition: mark+label, canonical surfaces or Pieza completa, explicit status and record-level Editar/Historial/Corregir as permitted. Notes remain readable through the existing record detail/edit affordance; do not create a separate note domain or sidebar binder. Clinical current facts must not be hidden by default.
+
+For surface-capable empty records use Sin superficies especificadas rather than Pieza completa. Catalog-unavailable/unknown-code reading retains the stored extent without inferring applicability; actions follow design decision9 and the existing service lifecycle.
 
 If counts are shown, label them as `8 condiciones · 5 piezas` only when the relevant selected dentition/status read is complete; compute distinct pieces from the complete confirmed set. Drafts never count. Incomplete reads show Datos incompletos and counts unavailable rather than fabricated zero or a total inferred from one page. No new metric endpoint is required solely for this optional display.
 

@@ -18,3 +18,4 @@ D-03 permits retained correction proposal after concurrent resolution only after
 - [Visual contract](visual-contract.md): symbol/status matrix, selection and post-save behavior.
 - [Synthetic rendered reference](wireframes/odontogram-reference.html): isolated state/layout reference, without clinical writes.
 - [Reference checks](wireframes/reference-check.json):108 synthetic rendered cases, including correction without replacement and confirmed correction/failed read; not runtime proof.
+- [Extensibility audit](extensibility-audit.md): source-backed critique, taxonomy/capability matrices, score and approved D-04. R16–R17 prepare the minimal backend catalog/shared presentation; only diagnosis ships. S4 now consumes S3's verified catalog contract.

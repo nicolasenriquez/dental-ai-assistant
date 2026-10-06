@@ -8,10 +8,10 @@ All runtime tasks are unchecked. Artifact preparation does not execute them. Dep
   Traceability: OD01/OD12; R1–R4/R11; S1; D-02/D-03; clinical-workspace-discovery delta.
 - [ ] 0.2 Confirm correction editor uses existing dialog/draft guards and explicit confirmation pattern.
   Traceability: OD01; R1; S2; patient-workspace surface brief.
-- [ ] 0.3 Confirm status-aware reads/cursors, Activity revision identity and actor fallback without auth/profile expansion.
-  Traceability: OD03/OD04; R4–R5/R14; G02/G06/G07; S3.
-- [ ] 0.4 Reproduce1280/390 missing visual controls and editor duplication at actual chart width.
-  Traceability: OD02/OD07; R6–R7/R13–R15; G02–G08; S4; audit viewport evidence.
+- [ ] 0.3 Confirm status-aware reads/cursors, Activity revision identity and actor fallback; recheck the backend catalog, four surface-capable codes, optional[], both dentitions,0022 CHECKs and legacy version1 consumers against D-04, without auth/profile expansion.
+  Traceability: OD03/OD04; R4–R5/R14/R16–R17; G02/G06/G07; H01–H04; D-04; S3.
+- [ ] 0.4 Reproduce1280/390 missing visual controls and editor duplication at actual chart width; identify palette/chart/editor consumers of the S3 presentation contract and distinguish optional-empty surfaces from whole-tooth scope.
+  Traceability: OD02/OD07; R6–R7/R13–R17; G02–G08; H02/H04; S4; audit viewport evidence.
 - [ ] 0.5 Reproduce disjoint/same-field races and inspect base/local/current recovery boundaries.
   Traceability: OD05; R8; S5; current no-force-overwrite policy.
 - [ ] 0.6 Reproduce bare ficha reload and guarded back/forward/patient navigation.
@@ -23,10 +23,10 @@ All runtime tasks are unchecked. Artifact preparation does not execute them. Dep
   Traceability: OD01/OD12; R1–R3/R11; S1; test_patient_conditions_contract.py and test_clinical_workspace_live.py prior art.
 - [ ] 1.2 Add component tests for correction with/without replacement, no-write cancel, explicit reviewed save,404/409/retry retention, D-03 renewed source review and original/replacement links, exact revision paging/failure, post-save focus, confirmed-write/failed-GET feedback and late-patient response isolation.
   Traceability: OD01; R1/R4/R8/R13; D-03; G03/G09; S2; PatientDiagnosis.test.tsx.
-- [ ] 1.3 Add reads/cursor/Activity and component tests for current default, exact historical target, safe actor abbreviation collisions and unchanged revision event IDs, stable concept/status cues and explicit count units with incomplete reads.
-  Traceability: OD03/OD04; R4–R5/R14; G02/G06/G07; S3; test_patient_activity.py/test_patient_cursor_transport.py and PatientActivity/History tests.
-- [ ] 1.4 Add rendered viewport proofs of every FDI reachable visually,44px targets, keyboard, preserved draft and compact applicable editor; exercise no-hover-mutation, anatomical order and create/edit/resolve post-save state matrix.
-  Traceability: OD02/OD07; R6–R7/R13–R15; G02–G08; S4; PatientOdontogram.test.tsx and patient diagnosis E2E.
+- [ ] 1.3 Add reads/cursor/Activity and component tests for current default, exact historical target, safe actor abbreviation collisions, unchanged event IDs, stable concept/status cues and incomplete counts. Extend catalog HTTP tests and real migrated-DB proofs for all12codes/both dentitions, valid surface subsets/optional[], whole-tooth rejection, legacy v1/additive metadata and forbidden mutation extras. Add shared-presentation list/history/legend proofs for synthetic extra entry/category, unknown code/glyph/category, malformed metadata and catalog failure with successful independent condition reads.
+  Traceability: OD03/OD04; R4–R5/R14/R16–R17; G02/G06/G07; H01–H04; D-04; S3; test_patient_conditions_contract.py/test_clinical_workspace_live.py, test_patient_activity.py/test_patient_cursor_transport.py and PatientDiagnosis/Activity/History tests.
+- [ ] 1.4 Add rendered viewport proofs of every FDI reachable visually,44px targets, keyboard, preserved draft and compact applicable editor; exercise no-hover-mutation, anatomical order and create/edit/resolve post-save state matrix. Supply synthetic catalog entry/category to palette/chart/editor without per-view rewrites; test known/unknown symbol consistency, category navigation without writes/draft loss, optional-empty surface wording and no empty future-family tabs.
+  Traceability: OD02/OD07; R6–R7/R13–R17; G02–G08; H02/H04; D-04; S4; PatientOdontogram.test.tsx and patient diagnosis E2E.
 - [ ] 1.5 Add disjoint-field and same-field conflict tests plus repeated409, failed-current-read and command-specific terminal guards; include correction vs concurrent resolution and already-corrected receipt recovery.
   Traceability: OD05; R3/R8; D-03; S5; PatientDiagnosis.test.tsx and real two-tab E2E.
 - [ ] 1.6 Add router/component/E2E proofs for bare/existing clinical query compatibility and detail-path precedence, focused historical UUID, reload, invalid enums/UUID and canceled/accepted dirty navigation.
@@ -45,16 +45,17 @@ All runtime tasks are unchecked. Artifact preparation does not execute them. Dep
   Traceability: OD01; R1/R4/R13; G03/G09; S2.
   Blocked by: 2.1.
 
-### S3 Current/history and actor
+### S3 Current/history, actor and catalog
 
-- [ ] 2.3 Deliver status-aware current/historical UI, owned exact target, correction metadata/Activity mapping and distinguishable actor label/disclosure without new profile fields; retain the catalog/status matrix, grouped records and truthful count units.
-  Traceability: OD03/OD04; R4–R5/R14; G02/G06/G07; S3.
+- [ ] 2.3 Deliver status-aware current/historical UI, owned exact target, correction metadata/Activity mapping and actor label/disclosure. Consolidate typed definitions in patients/conditions.py with derived legacy projections and service/catalog validation; expose additive version1 categories/category_key/allowed_dentitions through existing route and lib/api.ts. Deliver local lib/odontogramPresentation.ts resolution and presentation-only symbol registration consumed by list/history/concept legend, with independent evidence reads and safe fallbacks; preserve SQL guards, original12codes, grouped records and truthful counts.
+  Traceability: OD03/OD04; R4–R5/R14/R16–R17; G02/G06/G07; H01–H04; D-04; S3; design decision9.
   Blocked by: 2.1.
 
 ### S4 Spatial selection and compact editor
 
-- [ ] 2.4 Deliver full/quadrant responsive piece controls, preserved FDI/draft, chart/list linking without hover mutation, truthful post-save states and applicable-field editor using existing anatomy/tokens/patterns.
-  Traceability: OD02/OD07; R6–R7/R13–R15; G02–G08; S4.
+- [ ] 2.4 Deliver full/quadrant responsive piece controls, preserved FDI/draft, chart/list linking without hover mutation, truthful post-save states and applicable-field editor using existing anatomy/tokens/patterns. Consume S3's shared presentation in palette/chart/editor, render only populated catalog groups, retain single diagnosis heading and optional-empty surface semantics, and keep category organization independent of clinical selection/lifecycle.
+  Traceability: OD02/OD07; R6–R7/R13–R17; G02–G08; H02/H04; D-04; S4.
+  Blocked by: 3.3.
 
 ### S5 Deliberate conflict review
 
@@ -73,16 +74,16 @@ All runtime tasks are unchecked. Artifact preparation does not execute them. Dep
   Traceability: R1–R3/R11; S1; proof crosses HTTP and Postgres, not a repository stub only.
 - [ ] 3.2 Pass S2 correction component and isolated browser flow, cancel and lost-response retry; compare API/DB/revision receipts.
   Traceability: R1/R4/R13; G03/G09; S2.
-- [ ] 3.3 Pass S3 filtered reads/cursors/deep links/actor disclosure and DB Activity reconciliation without duplicate events.
-  Traceability: R4–R5/R14; G02/G06/G07; S3.
-- [ ] 3.4 Pass S4 all six exact viewports, visual-contract state matrix and desktop Assistant open/closed, every permanent/primary quadrant, keyboard/focus/44px targets and selected FDI after resize.
-  Traceability: R6–R7/R13–R15; G02–G08; S4; no page overflow or mandatory duplicate selection.
+- [ ] 3.3 Pass S3 filtered reads/cursors/deep links/actor disclosure and DB Activity reconciliation without duplicates. Prove catalog-to-domain-to-migrated-DB applicability agreement with required live cases executed, legacy v1 compatibility, shared list/history/legend fallback, independent reads on catalog failure and synthetic entry/category composition without shipping a13thcode.
+  Traceability: R4–R5/R14/R16–R17; G02/G06/G07; H01–H04; D-04; S3.
+- [ ] 3.4 Pass S4 all six exact viewports, visual-contract state matrix and desktop Assistant open/closed, every permanent/primary quadrant, keyboard/focus/44px targets and selected FDI after resize. Reconcile the same entry across all six views, category keyboard/touch/no-write behavior, no empty future tabs and optional-empty surfaces; retain clinical glyph geometry across statuses.
+  Traceability: R6–R7/R13–R17; G02–G08; H02/H04; D-04; S4; no page overflow or mandatory duplicate selection.
 - [ ] 3.5 Pass S5 real two-tab disjoint/same-field race, correction vs resolution and command-specific terminal/failed-read/repeated409 recovery without lost local or remote fields.
   Traceability: R3/R8; D-03; S5.
 - [ ] 3.6 Pass S6 reload/back/forward/dirty-patient-switch and inspect URL for absence of clinical text/name/RUT.
   Traceability: R9/R15; G01/G08; S6.
-- [ ] 3.7 Run integrated A–M regression matrix,1/50/51/500fixtures and appropriate full repository validations; record proof limits and clean up only owned environments.
-  Traceability: R10/R12–R15; evidence.md; preserves ownership, retry, transaction, active uniqueness, recurrence and privacy.
+- [ ] 3.7 Run integrated A–M and catalog extension/failure regression matrices,1/50/51/500fixtures and appropriate full repository validations; verify S2 replacement review consumes the shared catalog without changing frozen retries/atomicity. Record proof limits and clean up only owned environments.
+  Traceability: R10/R12–R17; H01–H04; evidence.md; preserves ownership, retry, transaction, active uniqueness, recurrence and privacy.
   Blocked by: 3.1,3.2,3.3,3.4,3.5,3.6.
 - [ ] 3.8 Review integrated clinical language/correction vs resolution and manual accessibility; report actual contrast/screen-reader/virtual-keyboard coverage instead of inferring it from source.
   Traceability: R1/R4/R6/R10/R12; no taxonomy or clinical certification claim.
@@ -110,15 +111,16 @@ All runtime tasks are unchecked. Artifact preparation does not execute them. Dep
 - Checkpoint: reviewed correction, cancel and retry demonstrated on synthetic patient.
 - Blocks: Integrated verification.
 
-### S3 — Current/history and actor
+### S3 — Current/history, actor and catalog
 - Tasks: `0.3 -> 1.3 -> 2.3 -> 3.3`.
 - Blocked by: 3.1.
-- Checkpoint: actual/error history and safe actor visible with unchanged event identity.
-- Blocks: Integrated verification.
+- Checkpoint: actual/error history and safe actor visible with unchanged event identity; additive catalog, live SQL agreement and shared resolution/fallback proved.
+- Blocks: S4, Integrated verification.
 
 ### S4 — Spatial selection and compact editor
 - Tasks: `0.4 -> 1.4 -> 2.4 -> 3.4`.
-- Checkpoint: visual selection on all six sizes,44px targets, no reselection/overflow.
+- Blocked by: 3.3.
+- Checkpoint: visual selection on all six sizes,44px targets, no reselection/overflow; shared catalog drives all six views with no empty families or clinical reinterpretation.
 - Blocks: Integrated verification.
 
 ### S5 — Deliberate conflict review
