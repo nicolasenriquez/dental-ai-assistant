@@ -1,5 +1,85 @@
 # Evidence and finding disposition
 
+## S1 correction API and persistence, 2026-10-06
+
+Executed `1.1 -> 2.1 -> 3.1` from baseline `4c34e6a`, after the recorded
+`0.1` investigation. Traceability remains OD01/OD12 and R1–R4/R11, with no
+tracker group or issue. Existing uncommitted baseline evidence was preserved.
+
+- CODE: additive migration `0024_condition_corrections.py`; shared Pydantic
+  commands in `patients/conditions.py`; record/edit/resolve/correct application
+  entry points in `patients/condition_service.py`; repository-owned atomic
+  correction, source locks and normalized operation replay comparison.
+- API: authenticated correction POST returns201 on commit and200 on identical
+  replay, with exact original/replacement revision receipts. Conditions and
+  revision pages expose nullable correction/linkage metadata; snapshots retain
+  their original shape except the status union. Activity preserves revision event
+  IDs and resource hrefs, adds `corrected`/`Condición corregida`, and exposes no
+  reason, note or internal command snapshot. The typed client sends unchanged
+  attempts and performs no automatic write retry.
+- DB: standalone owned `pgvector/pgvector:pg16` container
+  `odontogram-s1-20261006`, loopback-only port5544, anonymous volume, no shared
+  application mounts or credentials. Migrated from empty to0023 for fail-first,
+  then0024 for implementation proof. The migration regression creates its own
+  UUID-named database on that server, applies0023, inserts created/edited/resolved
+  evidence, applies0024 and compares all legacy fields/snapshots/timestamps. It
+  proves both expanded revision CHECKs admit corrected revision4, rejects invalid
+  revision/metadata/linkage writes, and confirms expand-only downgrade preserves
+  correction status and replay receipts. That database is dropped in teardown.
+- TEST: fail-first selected15 correction cases failed with zero skips (missing
+  endpoint405 and missing additive DTO metadata). Final recipe below passes51
+  checks with zero skips, including30 real workspace cases and15 new live
+  correction/migration cases. Active/resolved originals, optional replacement,
+  canonical surfaces/text, stable replay after replacement edits, changed replay,
+  owner-scoped operation reuse, UUID/ownership404, duplicate rollback, overlapping
+  identities, chained corrections and terminal edit/resolve guards are covered.
+  Injected failures at corrected revision, real replacement insert and replacement
+  revision roll back every write. Five race modes cover identical/distinct
+  operations, synchronized same-operation/different-source unique-index collision,
+  correction versus edit and correction versus resolution.
+- BROWSER: no S1 browser claim. Existing component regressions remain intact;
+  correction editor, status-aware presentation and conflict review belong to the
+  remaining slices.
+
+Commands and results, using repository working directories:
+
+| Command | Result |
+|---|---|
+| `uv --project backend run alembic -c backend/alembic.ini upgrade head` from `app/`, temporary DATABASE_URL set to disposable DSN |0023→0024 succeeds |
+| `uv run pytest tests/test_patient_conditions_contract.py tests/test_patient_cursor_transport.py tests/test_patient_activity.py tests/test_clinical_workspace_live.py -xvs -ra` from `app/backend/`, WORKSPACE_LIVE_TEST_DSN set |51 passed, zero skips |
+| `uv run ruff check .` / `uv run ruff format --check .` / `uv run mypy .` |Pass;214 Python files formatted/typechecked |
+| `bun run tsc --noEmit` / `bun x biome check src` from `app/frontend/` |Pass;217 files checked by Biome |
+| `bun run test` |696 passed in81 files, including explicit lost-response correction client retry |
+| `uv run pytest tests -xvs` with live DSN |Stops at unchanged `test_bundled_workspace_reproduces_reviewed_catalog`;239 passed,41 skipped,1 failed |
+| `openspec validate harden-odontogram-human-workflow --strict` / `git diff HEAD --check` |Pass |
+
+The broader backend failure compares compiler LF bytes to the Windows CRLF
+checkout of `data/dental_ai_glossary_es_cl_v1.json`. `git ls-files --eol` confirms
+index LF and worktree CRLF; S1 changes neither glossary nor compiler/test. The
+full backend suite did not finish, so this is S1 checkpoint proof, not integrated
+release health. Unconfigured non-workspace live suites skipped in that broader
+run; required S1 live tests all executed. Existing Python/React/Vite warnings
+remain. No browser/manual accessibility or production-size lock timing was
+measured in S1.
+
+Cleanup confirmed migration head0024 and zero fixture patients, conditions and
+revisions, with no UUID-named migration databases remaining. The owned container
+and its anonymous volume were removed. Existing shared containers were preserved.
+
+## Execution scope lock, 2026-10-06
+
+Tasks 0.1–0.6 were executed against baseline `4c34e6a`. See
+[execution baseline](execution-baseline.md), its runnable
+[browser checker](check-execution-baseline.cjs),
+[measured results](execution-baseline.json) and
+[1280px](execution-baseline-1280.png)/[390px](execution-baseline-390.png) screenshots.
+This pass confirms the disjoint-field overwrite through two browser pages,
+HTTP and direct disposable Postgres reads. Existing focused checks passed:
+20 backend contracts, five required selected baseline live cases without skips,
+and 29 frontend component tests. These prove current behavior, not correction
+implementation or future S1–S6 gates. The earlier preparation evidence below
+retains its original proof boundary.
+
 ## Baseline, not future implementation proof
 
 Source: [audit report](C:/Users/nenri/.codex/visualizations/2026/10/05/01a10c97-3eb1-73c3-ab4b-6c9afab5a94a/auditoria-odontograma.md), [UI/API evidence](C:/Users/nenri/.codex/visualizations/2026/10/05/01a10c97-3eb1-73c3-ab4b-6c9afab5a94a/odontogram-evidence.json), [DB reconciliation](C:/Users/nenri/.codex/visualizations/2026/10/05/01a10c97-3eb1-73c3-ab4b-6c9afab5a94a/odontogram-db-evidence.json).
