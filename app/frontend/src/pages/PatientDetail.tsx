@@ -392,6 +392,7 @@ export function PatientDetail() {
                       <PatientDiagnosis
                         key={patient.id}
                         patientId={patient.id}
+                        patient={patient}
                         focusedConditionId={
                           new URLSearchParams(location.search).get('condition') ?? undefined
                         }

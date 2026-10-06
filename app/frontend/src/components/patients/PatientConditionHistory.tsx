@@ -11,18 +11,26 @@ export function PatientConditionHistory({
   patientId,
   conditionId,
   labels,
-}: { patientId: string; conditionId: string; labels: Record<string, string> }): JSX.Element {
+  targetRevisionId,
+}: {
+  patientId: string;
+  conditionId: string;
+  labels: Record<string, string>;
+  targetRevisionId?: string;
+}): JSX.Element {
   const [page, setPage] = useState<PatientConditionRevisionPage | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const sequence = useRef(0);
+  const failedCursor = useRef<string | undefined>();
+  const targetRef = useRef<HTMLElement>(null);
   const load = useCallback(
     async (cursor?: string): Promise<void> => {
       const request = ++sequence.current;
       setLoading(true);
       setError(false);
       try {
-        const next = await getPatientConditionRevisions(patientId, conditionId, cursor);
+        const next = await getPatientConditionRevisions(patientId, conditionId, cursor, 50);
         if (request === sequence.current)
           setPage((current) =>
             cursor && current
@@ -36,7 +44,10 @@ export function PatientConditionHistory({
               : next,
           );
       } catch {
-        if (request === sequence.current) setError(true);
+        if (request === sequence.current) {
+          failedCursor.current = cursor;
+          setError(true);
+        }
       } finally {
         if (request === sequence.current) setLoading(false);
       }
@@ -49,8 +60,14 @@ export function PatientConditionHistory({
       sequence.current++;
     };
   }, [load]);
+  const target = page?.items.find((item) => item.id === targetRevisionId);
+  useEffect(() => {
+    if (targetRevisionId && !target && page?.next_cursor && !loading && !error)
+      void load(page.next_cursor);
+    if (target) targetRef.current?.focus();
+  }, [targetRevisionId, target, page?.next_cursor, loading, error, load]);
   const describe = (value: ConditionSnapshot): string =>
-    `Pieza ${value.tooth_fdi} · ${labels[value.condition_code] ?? value.condition_code} · ${value.surfaces.join(', ') || 'Sin superficies'} · ${value.status === 'active' ? 'Activa' : 'Resuelta'}`;
+    `Pieza ${value.tooth_fdi} · ${labels[value.condition_code] ?? value.condition_code} · ${value.surfaces.join(', ') || 'Sin superficies'} · ${value.status === 'active' ? 'Activa' : value.status === 'resolved' ? 'Resuelta' : 'Registrada por error'}`;
   return (
     <section aria-label="Revisiones de condición" className="space-y-3 border-l border-border pl-4">
       <h4 className="font-medium">Historial de revisiones</h4>
@@ -58,25 +75,46 @@ export function PatientConditionHistory({
       {error && (
         <div role="alert">
           <p>No pudimos cargar el historial.</p>
-          <Button variant="clinicalSecondary" onClick={() => void load()}>
+          <Button variant="clinicalSecondary" onClick={() => void load(failedCursor.current)}>
             Reintentar historial
           </Button>
         </div>
       )}
+      {targetRevisionId && !loading && !error && page && !page.next_cursor && !target && (
+        <p role="alert">
+          La revisión exacta no está disponible. No se sustituye por el estado actual.
+        </p>
+      )}
       {page?.items.map((item) => (
-        <article key={item.id} className="space-y-2 text-sm">
+        <article
+          key={item.id}
+          ref={item.id === targetRevisionId ? targetRef : undefined}
+          tabIndex={-1}
+          aria-label={item.id === targetRevisionId ? 'Revisión exacta del resultado' : undefined}
+          className="space-y-2 text-sm focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          {item.id === targetRevisionId && (
+            <p>Revisión exacta del resultado. Puede diferir del estado actual del registro.</p>
+          )}
           <h5>
             Revisión {item.revision} ·{' '}
             {item.action === 'created'
               ? 'Creada'
               : item.action === 'resolved'
                 ? 'Resuelta'
-                : 'Editada'}
+                : item.action === 'corrected'
+                  ? 'Corregida'
+                  : 'Editada'}
           </h5>
           <p className="text-xs text-muted">
             {formatClinicalDateShort(item.changed_at)} {formatClinicalTime(item.changed_at)}
             {item.actor.display_name ? ` · ${item.actor.display_name}` : ''}
           </p>
+          {item.correction && (
+            <p className="whitespace-pre-wrap break-words">
+              Motivo de corrección: {item.correction.reason}
+            </p>
+          )}
           {item.before && (
             <div>
               <strong>Antes</strong>

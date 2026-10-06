@@ -42,6 +42,14 @@ and 44px FDI selector. Hover/focus highlight is independent of the draft; active
 resolved conditions have symbols and text. All pages must load before a chart is
 called complete; partial failure preserves confirmed records with retry.
 
+Corregir registro is separate from Resolver condición. Active or resolved originals
+open a guarded draft with a required reason and optional catalog-based replacement.
+The confirmation names the masked patient, original evidence and error annotation;
+only Guardar corrección writes. Uncertain attempts freeze the operation and complete
+payload. A revision conflict requires renewed source review and confirmation of a
+new attempt. Confirmed corrections expose exact original/replacement revision links;
+failed refreshes retry GET only and never repeat the write.
+
 Actividad groups persisted evolution saves and note/condition revisions by local
 day. Todos/Evoluciones/Notas/Diagnósticos filters reset pagination. Titles, time and
 counts come from owned sources; missing author names say Autor no disponible.

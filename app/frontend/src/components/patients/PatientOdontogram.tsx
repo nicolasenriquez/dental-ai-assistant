@@ -34,7 +34,7 @@ export function PatientOdontogram({
     const records = conditions.filter(
       (item) => item.dentition === dentition && item.tooth_fdi === tooth,
     );
-    return `Pieza ${tooth}: ${records.length ? records.map((item) => `${labels[item.condition_code] ?? item.condition_code}, ${item.status === 'active' ? 'Activa' : 'Resuelta'}, ${item.surfaces.join(', ') || 'sin superficies'}`).join('; ') : complete ? 'sin condiciones guardadas' : 'condiciones no confirmadas'}`;
+    return `Pieza ${tooth}: ${records.length ? records.map((item) => `${labels[item.condition_code] ?? item.condition_code}, ${item.status === 'active' ? 'Activa' : item.status === 'resolved' ? 'Resuelta' : 'Registrada por error'}, ${item.surfaces.join(', ') || 'sin superficies'}`).join('; ') : complete ? 'sin condiciones guardadas' : 'condiciones no confirmadas'}`;
   };
   return (
     <section aria-label="Odontograma" className="[container-type:inline-size]">

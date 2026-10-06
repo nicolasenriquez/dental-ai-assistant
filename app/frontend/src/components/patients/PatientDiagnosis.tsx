@@ -4,11 +4,15 @@ import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import {
   ApiError,
   type ConditionCatalog,
+  type ConditionCorrectionReceipt,
+  type CorrectPatientCondition,
   type CreatePatientCondition,
   type Dentition,
+  type Patient,
   type PatientCondition,
   type ToothSurface,
   type UpdatePatientCondition,
+  correctPatientCondition,
   createPatientCondition,
   getConditionCatalog,
   getPatientCondition,
@@ -16,6 +20,7 @@ import {
   updatePatientCondition,
 } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
+import { PatientIdentity } from '../PatientIdentity';
 import { Spinner } from '../Spinner';
 import { Button } from '../ui/Button';
 import {
@@ -35,6 +40,7 @@ import { ToothDrawing } from './ToothDrawing';
 import { fdiTeeth } from './toothGeometry';
 
 interface ConditionDraft extends CreatePatientCondition {
+  correction?: { source: PatientCondition; reason: string; replacement: boolean };
   expectedRevision?: number;
   status: 'active' | 'resolved';
   baseline: string;
@@ -43,6 +49,7 @@ interface ConditionAttempt {
   id: string;
   create?: CreatePatientCondition;
   update?: UpdatePatientCondition;
+  correction?: CorrectPatientCondition;
 }
 const surfaces: { code: ToothSurface; label: string }[] = [
   { code: 'M', label: 'Mesial' },
@@ -65,7 +72,23 @@ function values(draft: CreatePatientCondition & { status: string }): string {
 export function PatientDiagnosis({
   patientId,
   focusedConditionId,
-}: { patientId: string; focusedConditionId?: string }): JSX.Element {
+  patient,
+}: { patientId: string; focusedConditionId?: string; patient?: Patient }): JSX.Element {
+  return (
+    <PatientDiagnosisWorkspace
+      key={patientId}
+      patientId={patientId}
+      focusedConditionId={focusedConditionId}
+      patient={patient}
+    />
+  );
+}
+
+function PatientDiagnosisWorkspace({
+  patientId,
+  focusedConditionId,
+  patient,
+}: { patientId: string; focusedConditionId?: string; patient?: Patient }): JSX.Element {
   const guard = useOptionalTransitionGuard();
   const dataRouter = useContext(UNSAFE_DataRouterContext);
   const [catalog, setCatalog] = useState<ConditionCatalog | null>(null);
@@ -87,16 +110,38 @@ export function PatientDiagnosis({
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [announcement, setAnnouncement] = useState('');
+  const [review, setReview] = useState(false);
+  const [receipt, setReceipt] = useState<ConditionCorrectionReceipt | null>(null);
+  const [targetRevisionId, setTargetRevisionId] = useState<string | undefined>();
+  const [resultReadError, setResultReadError] = useState(false);
+  const [recoveryBlocked, setRecoveryBlocked] = useState(false);
+  const resultTarget = useRef<{ conditionId: string; revisionId?: string | null } | null>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const sequence = useRef(0);
   const focusSequence = useRef(0);
   const savingRef = useRef(false);
   const routeCancel = useRef<(() => void) | null>(null);
   const initiatingRef = useRef<HTMLElement | null>(null);
   const editorRef = useRef<HTMLSelectElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
   const recordRefs = useRef(new Map<string, HTMLElement>());
   const dirty =
-    !!draft && (values(draft) !== draft.baseline || attempt !== null || conflictPending);
+    !!draft &&
+    (!!draft.correction || values(draft) !== draft.baseline || attempt !== null || conflictPending);
   const locked = saving || attempt !== null;
+  const immutable = draft?.expectedRevision !== undefined && !draft.correction;
+  const correctionValid =
+    !!draft?.correction?.reason.trim() &&
+    draft.correction.reason.trim().length <= 1000 &&
+    (!draft.correction.replacement ||
+      (!!selectedCatalogEntry(catalog, draft.condition_code) &&
+        fdiTeeth(draft.dentition).includes(draft.tooth_fdi)));
   const labels = Object.fromEntries(
     catalog?.conditions.map((item) => [item.code, item.label_es]) ?? [],
   );
@@ -169,7 +214,8 @@ export function PatientDiagnosis({
     if (focused) recordRefs.current.get(focused.id)?.focus();
   }, [focused]);
   useEffect(() => {
-    if (draft) editorRef.current?.focus();
+    if (draft?.correction) reasonRef.current?.focus();
+    else if (draft) editorRef.current?.focus();
   }, [draft?.id]);
   const onRouteBlocked = useCallback((proceed: () => void, cancel: () => void): void => {
     routeCancel.current = cancel;
@@ -204,6 +250,8 @@ export function PatientDiagnosis({
     setConflict(null);
     setConflictPending(false);
     setDuplicate(null);
+    setReview(false);
+    setRecoveryBlocked(false);
     initiatingRef.current?.focus();
   };
   const start = (record: PatientCondition, resolve = false): void => {
@@ -218,6 +266,7 @@ export function PatientDiagnosis({
       setDentition(record.dentition);
       setDraft({
         ...record,
+        correction: undefined,
         note: record.note ?? '',
         status: resolve ? 'resolved' : 'active',
         expectedRevision: record.revision,
@@ -225,8 +274,45 @@ export function PatientDiagnosis({
       });
     });
   };
+  const startCorrection = (record: PatientCondition): void => {
+    const trigger = document.activeElement as HTMLElement;
+    transition(() => {
+      reset();
+      initiatingRef.current = trigger;
+      setDentition(record.dentition);
+      setDraft({
+        ...record,
+        id: crypto.randomUUID(),
+        note: record.note ?? '',
+        status: 'active',
+        baseline: '',
+        correction: { source: record, reason: '', replacement: false },
+      });
+    });
+  };
+  const activateResult = async (
+    conditionId: string | null | undefined,
+    revisionId?: string | null,
+  ): Promise<void> => {
+    if (!conditionId) return;
+    const request = ++focusSequence.current;
+    resultTarget.current = { conditionId, revisionId };
+    setResultReadError(false);
+    try {
+      const current = await getPatientCondition(patientId, conditionId);
+      if (!alive.current || request !== focusSequence.current) return;
+      setTargetRevisionId(revisionId ?? undefined);
+      setHistoryId(conditionId);
+      setFocused(current);
+      setDentition(current.dentition);
+      setStatus('all');
+      setHighlightedTooth(current.tooth_fdi);
+    } catch {
+      if (alive.current && request === focusSequence.current) setResultReadError(true);
+    }
+  };
   const chooseTool = (code: string): void => {
-    if (locked || draft?.expectedRevision !== undefined) return;
+    if (locked || immutable || (draft?.correction && !draft.correction.replacement)) return;
     const tool = catalog?.conditions.find((item) => item.code === code);
     if (!draft) {
       initiatingRef.current = document.activeElement as HTMLElement;
@@ -248,7 +334,7 @@ export function PatientDiagnosis({
     setDraft({ ...draft, condition_code: code, surfaces: compatible ? draft.surfaces : [] });
   };
   const chooseTooth = (tooth: number): void => {
-    if (locked || draft?.expectedRevision !== undefined) return;
+    if (locked || immutable || (draft?.correction && !draft.correction.replacement)) return;
     if (draft) setDraft({ ...draft, tooth_fdi: tooth });
     else {
       initiatingRef.current = document.activeElement as HTMLElement;
@@ -264,7 +350,113 @@ export function PatientDiagnosis({
       });
     }
   };
-  const save = async (): Promise<boolean> => {
+  const save = async (reviewed = false): Promise<boolean> => {
+    if (draft?.correction && !attempt && !reviewed) {
+      if (
+        correctionValid &&
+        (!conflictPending || (conflict && conflict.status !== 'entered_in_error'))
+      )
+        setReview(true);
+      return false;
+    }
+    if (draft?.correction) {
+      if (savingRef.current || (!attempt && (!reviewed || !correctionValid))) return false;
+      const source = conflict ?? draft.correction.source;
+      if (
+        !attempt &&
+        (recoveryBlocked || (conflictPending && !conflict) || source.status === 'entered_in_error')
+      )
+        return false;
+      const frozen = attempt ?? {
+        id: source.id,
+        correction: {
+          operation_id: crypto.randomUUID(),
+          expected_revision: source.revision,
+          reason: draft.correction.reason.trim(),
+          replacement: draft.correction.replacement
+            ? {
+                id: draft.id,
+                dentition: draft.dentition,
+                tooth_fdi: draft.tooth_fdi,
+                condition_code: draft.condition_code,
+                surfaces: surfaces
+                  .filter((item) => draft.surfaces.includes(item.code))
+                  .map((item) => item.code),
+                note: draft.note?.trim() || null,
+              }
+            : null,
+        },
+      };
+      if (!frozen.correction) return false;
+      setAttempt(frozen);
+      setReview(false);
+      setSaving(true);
+      savingRef.current = true;
+      setSaveError(null);
+      try {
+        const result = await correctPatientCondition(patientId, frozen.id, frozen.correction);
+        if (!alive.current) return false;
+        setReceipt(result);
+        setAnnouncement('Corrección confirmada en ficha.');
+        reset();
+        setPending(null);
+        routeCancel.current?.();
+        routeCancel.current = null;
+        guard?.cancelTransition();
+        void load();
+        void activateResult(
+          result.replacement_condition_id ?? result.condition_id,
+          result.replacement_revision_id ?? result.correction_revision_id,
+        );
+        return true;
+      } catch (error) {
+        if (!alive.current) return false;
+        if (error instanceof ApiError && [404, 409, 422].includes(error.status)) {
+          setAttempt(null);
+          const detail = (error.body as { detail?: { code?: string } })?.detail;
+          if (
+            error.status === 409 &&
+            ['revision_conflict', 'condition_entered_in_error'].includes(detail?.code ?? '')
+          ) {
+            setConflictPending(true);
+            setConflict(null);
+            setSaveError(
+              'La condición cambió. Revisa el original actual antes de confirmar una nueva corrección.',
+            );
+            try {
+              const current = await getPatientCondition(patientId, frozen.id);
+              if (alive.current) setConflict(current);
+            } catch {
+              if (alive.current)
+                setSaveError(
+                  'No pudimos cargar la versión actual. Reintenta sin perder tus cambios.',
+                );
+            }
+          } else if (error.status === 409 && detail?.code === 'idempotency_conflict') {
+            setRecoveryBlocked(true);
+            setConflictPending(true);
+            setConflict(null);
+            setSaveError(
+              'Este intento tiene otro contenido guardado. Descarta el borrador y consulta el historial.',
+            );
+          } else
+            setSaveError(
+              error.status === 404
+                ? 'La condición no está disponible. Conservamos tu borrador.'
+                : error.status === 422
+                  ? 'Revisa el motivo y los datos del reemplazo (máximo 1000 caracteres).'
+                  : 'Ya existe esta condición activa. Conservamos el motivo y el reemplazo; revisa sus datos.',
+            );
+        } else
+          setSaveError(
+            'No confirmamos la corrección. Reintenta con el mismo contenido. Descartar no deshace una corrección que pudo guardarse.',
+          );
+        return false;
+      } finally {
+        if (alive.current) setSaving(false);
+        savingRef.current = false;
+      }
+    }
     if (!draft || savingRef.current || conflictPending || !draft.tooth_fdi || !draft.condition_code)
       return false;
     const normalized = {
@@ -302,6 +494,7 @@ export function PatientDiagnosis({
             frozen.id,
             frozen.update as UpdatePatientCondition,
           );
+      if (!alive.current) return false;
       setRecords((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
       if (focused?.id === saved.id) setFocused(saved);
       setAnnouncement(
@@ -315,6 +508,7 @@ export function PatientDiagnosis({
       if (continuation) window.requestAnimationFrame(continuation);
       return true;
     } catch (error) {
+      if (!alive.current) return false;
       if (
         error instanceof ApiError &&
         (error.status === 409 || error.status === 422 || error.status === 404)
@@ -354,7 +548,7 @@ export function PatientDiagnosis({
         );
       return false;
     } finally {
-      setSaving(false);
+      if (alive.current) setSaving(false);
       savingRef.current = false;
     }
   };
@@ -414,6 +608,68 @@ export function PatientDiagnosis({
       <p role="status" className="sr-only">
         {announcement}
       </p>
+      {receipt && (
+        <div className="space-y-2 rounded border border-border p-3">
+          <p>Corrección guardada.</p>
+          <p className="text-sm">
+            El original y sus revisiones se conservan. Consulta el resultado exacto del guardado.
+          </p>
+          <Button
+            variant="clinicalSecondary"
+            onClick={() =>
+              transition(
+                () => void activateResult(receipt.condition_id, receipt.correction_revision_id),
+              )
+            }
+          >
+            Ver revisión original corregida
+          </Button>
+          {receipt.replacement_condition_id && (
+            <Button
+              variant="clinicalSecondary"
+              onClick={() =>
+                transition(
+                  () =>
+                    void activateResult(
+                      receipt.replacement_condition_id,
+                      receipt.replacement_revision_id,
+                    ),
+                )
+              }
+            >
+              Ver revisión del reemplazo
+            </Button>
+          )}
+          {resultReadError && (
+            <p role="alert">
+              Corrección guardada; no pudimos actualizar el resultado. Reintenta su lectura con los
+              enlaces, sin volver a guardar.
+            </p>
+          )}
+          {readError && (
+            <p>
+              Corrección guardada; la lista está desactualizada. Reintentar condiciones solo repite
+              la lectura.
+            </p>
+          )}
+        </div>
+      )}
+      {resultReadError && !receipt && (
+        <div role="alert">
+          <p>No pudimos cargar el registro vinculado. Conservamos la revisión solicitada.</p>
+          <Button
+            variant="clinicalSecondary"
+            onClick={() =>
+              void activateResult(
+                resultTarget.current?.conditionId,
+                resultTarget.current?.revisionId,
+              )
+            }
+          >
+            Reintentar registro vinculado
+          </Button>
+        </div>
+      )}
       {loading && <p role="status">Cargando condiciones…</p>}
       {readError && (
         <div role="alert">
@@ -441,11 +697,11 @@ export function PatientDiagnosis({
             dentition={dentition}
             conditions={visible}
             labels={labels}
-            selectedTooth={draft?.tooth_fdi ?? 0}
+            selectedTooth={draft?.tooth_fdi ?? focused?.tooth_fdi ?? 0}
             highlightedTooth={highlightedTooth}
             onSelect={chooseTooth}
             onHighlight={setHighlightedTooth}
-            disabled={locked || draft?.expectedRevision !== undefined}
+            disabled={locked || immutable || !!(draft?.correction && !draft.correction.replacement)}
           />
           <label className="block text-sm" htmlFor="chart-tooth">
             Seleccionar pieza FDI
@@ -454,7 +710,7 @@ export function PatientDiagnosis({
             id="chart-tooth"
             className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
             value={draft?.tooth_fdi || ''}
-            disabled={locked || draft?.expectedRevision !== undefined}
+            disabled={locked || immutable || !!(draft?.correction && !draft.correction.replacement)}
             onChange={(event) => chooseTooth(Number(event.target.value))}
           >
             <option value="">Selecciona una pieza</option>
@@ -471,7 +727,9 @@ export function PatientDiagnosis({
                 variant="clinicalSecondary"
                 aria-pressed={draft?.condition_code === tool.code}
                 className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
-                disabled={locked || draft?.expectedRevision !== undefined}
+                disabled={
+                  locked || immutable || !!(draft?.correction && !draft.correction.replacement)
+                }
                 onClick={() => chooseTool(tool.code)}
               >
                 <ConditionSymbol code={tool.code} />
@@ -499,94 +757,173 @@ export function PatientDiagnosis({
               }}
             >
               <h3 className="font-semibold">
-                {draft.status === 'resolved'
-                  ? 'Resolver condición'
-                  : draft.expectedRevision
-                    ? 'Editar condición'
-                    : 'Nueva condición'}
+                {draft.correction
+                  ? 'Corregir registro'
+                  : draft.status === 'resolved'
+                    ? 'Resolver condición'
+                    : draft.expectedRevision
+                      ? 'Editar condición'
+                      : 'Nueva condición'}
               </h3>
-              {dirty && !saving && !attempt && (
-                <p className="text-sm text-muted">Borrador sin guardar</p>
+              {draft.correction && (
+                <>
+                  <p>
+                    Original: pieza {draft.correction.source.tooth_fdi} ·{' '}
+                    {labels[draft.correction.source.condition_code] ??
+                      draft.correction.source.condition_code}{' '}
+                    · {conditionStatus(draft.correction.source.status)} · Revisión{' '}
+                    {draft.correction.source.revision}
+                  </p>
+                  <p>
+                    Se marcará como registrado por error, no como resuelto. Su historial se
+                    conserva.
+                  </p>
+                  <label className="block text-sm" htmlFor="correction-reason">
+                    Motivo de corrección
+                  </label>
+                  <textarea
+                    id="correction-reason"
+                    ref={reasonRef}
+                    className="min-h-24 w-full rounded border border-border bg-surface p-3 text-base"
+                    maxLength={1000}
+                    disabled={locked}
+                    value={draft.correction.reason}
+                    onChange={(event) => {
+                      if (!draft.correction) return;
+                      setDraft({
+                        ...draft,
+                        correction: { ...draft.correction, reason: event.target.value },
+                      });
+                    }}
+                  />
+                  <label className="flex min-h-[44px] items-center gap-2">
+                    <input
+                      type="checkbox"
+                      disabled={locked}
+                      checked={draft.correction.replacement}
+                      onChange={(event) => {
+                        if (!draft.correction) return;
+                        setDraft({
+                          ...draft,
+                          correction: { ...draft.correction, replacement: event.target.checked },
+                        });
+                      }}
+                    />
+                    Crear registro de reemplazo
+                  </label>
+                  {draft.correction.replacement && (
+                    <>
+                      <label htmlFor="replacement-dentition" className="block text-sm">
+                        Dentición del reemplazo
+                      </label>
+                      <select
+                        id="replacement-dentition"
+                        disabled={locked}
+                        value={draft.dentition}
+                        className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
+                        onChange={(event) => {
+                          const mode = event.target.value as Dentition;
+                          setDentition(mode);
+                          setDraft({ ...draft, dentition: mode, tooth_fdi: 0 });
+                        }}
+                      >
+                        <option value="permanent">Permanente</option>
+                        <option value="primary">Temporal</option>
+                      </select>
+                    </>
+                  )}
+                </>
               )}
-              {draft.status === 'resolved' && (
-                <p>Al guardar se marcará como resuelta. El registro y su historial se conservan.</p>
-              )}
-              {draft.tooth_fdi > 0 && (
-                <svg
-                  aria-label={`Pieza seleccionada ${draft.tooth_fdi}`}
-                  role="img"
-                  viewBox="0 0 42 122"
-                  className="mx-auto h-40 w-28 text-muted"
-                >
-                  <ToothDrawing tooth={draft.tooth_fdi} surfaces={draft.surfaces} />
-                </svg>
-              )}
-              <label className="block text-sm" htmlFor="condition-tooth">
-                Pieza FDI
-              </label>
-              <select
-                id="condition-tooth"
-                ref={editorRef}
-                className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
-                value={draft.tooth_fdi || ''}
-                disabled={locked || draft.expectedRevision !== undefined}
-                onChange={(event) => setDraft({ ...draft, tooth_fdi: Number(event.target.value) })}
-              >
-                <option value="">Selecciona una pieza</option>
-                {fdiTeeth(dentition).map((tooth) => (
-                  <option key={tooth} value={tooth}>
-                    Pieza {tooth}
-                  </option>
-                ))}
-              </select>
-              <p className="text-sm">
-                Pieza {draft.tooth_fdi || 'sin seleccionar'} ·{' '}
-                {labels[draft.condition_code] ?? 'Selecciona condición'} ·{' '}
-                {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
-              </p>
-              <fieldset
-                disabled={
-                  locked || !selectedTool?.surface_codes.length || draft.status === 'resolved'
-                }
-              >
-                <legend className="text-sm font-medium">Superficies</legend>
-                <div className="flex flex-wrap gap-2">
-                  {surfaces.map((item) => (
-                    <label
-                      key={item.code}
-                      className="flex min-h-[44px] items-center gap-2 rounded border border-border px-3"
+              {(!draft.correction || draft.correction.replacement) && (
+                <>
+                  {dirty && !saving && !attempt && (
+                    <p className="text-sm text-muted">Borrador sin guardar</p>
+                  )}
+                  {draft.status === 'resolved' && (
+                    <p>
+                      Al guardar se marcará como resuelta. El registro y su historial se conservan.
+                    </p>
+                  )}
+                  {draft.tooth_fdi > 0 && (
+                    <svg
+                      aria-label={`Pieza seleccionada ${draft.tooth_fdi}`}
+                      role="img"
+                      viewBox="0 0 42 122"
+                      className="mx-auto h-40 w-28 text-muted"
                     >
-                      <input
-                        type="checkbox"
-                        checked={draft.surfaces.includes(item.code)}
-                        onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            surfaces: event.target.checked
-                              ? [...draft.surfaces, item.code]
-                              : draft.surfaces.filter((code) => code !== item.code),
-                          })
-                        }
-                      />
-                      {item.label} ({item.code})
-                    </label>
-                  ))}
-                </div>
-                {!selectedTool?.surface_codes.length && (
-                  <p className="text-xs text-muted">Esta condición no admite superficies.</p>
-                )}
-              </fieldset>
-              <label className="block text-sm" htmlFor="condition-note">
-                Nota de condición
-              </label>
-              <textarea
-                id="condition-note"
-                className="min-h-24 w-full rounded border border-border bg-surface p-3"
-                maxLength={1000}
-                value={draft.note ?? ''}
-                disabled={locked || draft.status === 'resolved'}
-                onChange={(event) => setDraft({ ...draft, note: event.target.value })}
-              />
+                      <ToothDrawing tooth={draft.tooth_fdi} surfaces={draft.surfaces} />
+                    </svg>
+                  )}
+                  <label className="block text-sm" htmlFor="condition-tooth">
+                    Pieza FDI
+                  </label>
+                  <select
+                    id="condition-tooth"
+                    ref={editorRef}
+                    className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
+                    value={draft.tooth_fdi || ''}
+                    disabled={locked || immutable}
+                    onChange={(event) =>
+                      setDraft({ ...draft, tooth_fdi: Number(event.target.value) })
+                    }
+                  >
+                    <option value="">Selecciona una pieza</option>
+                    {fdiTeeth(dentition).map((tooth) => (
+                      <option key={tooth} value={tooth}>
+                        Pieza {tooth}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-sm">
+                    Pieza {draft.tooth_fdi || 'sin seleccionar'} ·{' '}
+                    {labels[draft.condition_code] ?? 'Selecciona condición'} ·{' '}
+                    {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
+                  </p>
+                  <fieldset
+                    disabled={
+                      locked || !selectedTool?.surface_codes.length || draft.status === 'resolved'
+                    }
+                  >
+                    <legend className="text-sm font-medium">Superficies</legend>
+                    <div className="flex flex-wrap gap-2">
+                      {surfaces.map((item) => (
+                        <label
+                          key={item.code}
+                          className="flex min-h-[44px] items-center gap-2 rounded border border-border px-3"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={draft.surfaces.includes(item.code)}
+                            onChange={(event) =>
+                              setDraft({
+                                ...draft,
+                                surfaces: event.target.checked
+                                  ? [...draft.surfaces, item.code]
+                                  : draft.surfaces.filter((code) => code !== item.code),
+                              })
+                            }
+                          />
+                          {item.label} ({item.code})
+                        </label>
+                      ))}
+                    </div>
+                    {!selectedTool?.surface_codes.length && (
+                      <p className="text-xs text-muted">Esta condición no admite superficies.</p>
+                    )}
+                  </fieldset>
+                  <label className="block text-sm" htmlFor="condition-note">
+                    Nota de condición
+                  </label>
+                  <textarea
+                    id="condition-note"
+                    className="min-h-24 w-full rounded border border-border bg-surface p-3"
+                    maxLength={1000}
+                    value={draft.note ?? ''}
+                    disabled={locked || draft.status === 'resolved'}
+                    onChange={(event) => setDraft({ ...draft, note: event.target.value })}
+                  />
+                </>
+              )}
               {saveError && (
                 <p role="alert" className="text-error">
                   {saveError}
@@ -616,28 +953,32 @@ export function PatientDiagnosis({
                   </p>
                   {conflict && (
                     <p className="whitespace-pre-wrap break-words">
-                      {conflict.note} · {conflict.status === 'active' ? 'Activa' : 'Resuelta'}
+                      {conflict.note} · {conditionStatus(conflict.status)}
                     </p>
                   )}
                   <Button
                     type="button"
                     variant="clinicalSecondary"
-                    onClick={() =>
-                      void getPatientCondition(patientId, draft.id)
-                        .then(setConflict)
+                    disabled={recoveryBlocked}
+                    onClick={() => {
+                      setConflict(null);
+                      void getPatientCondition(patientId, draft.correction?.source.id ?? draft.id)
+                        .then((current) => {
+                          if (alive.current) setConflict(current);
+                        })
                         .catch(() =>
                           setSaveError('No pudimos cargar la versión actual. Reintenta.'),
-                        )
-                    }
+                        );
+                    }}
                   >
                     Cargar versión actual
                   </Button>
-                  {conflict && (
+                  {conflict && !draft.correction && (
                     <>
                       <Button
                         type="button"
                         variant="clinicalSecondary"
-                        disabled={conflict.status === 'resolved'}
+                        disabled={conflict.status !== 'active'}
                         onClick={() => {
                           setDraft({
                             ...draft,
@@ -664,6 +1005,12 @@ export function PatientDiagnosis({
                       </Button>
                     </>
                   )}
+                  {draft.correction && conflict?.status === 'entered_in_error' && (
+                    <p>
+                      El original ya está registrado por error. Consulta su historial o descarta el
+                      borrador; no puede corregirse de nuevo.
+                    </p>
+                  )}
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
@@ -680,10 +1027,28 @@ export function PatientDiagnosis({
                   variant="clinical"
                   aria-busy={saving}
                   className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
-                  disabled={saving || conflictPending || !draft.tooth_fdi || !draft.condition_code}
+                  disabled={
+                    saving ||
+                    (draft.correction
+                      ? !attempt &&
+                        (!correctionValid ||
+                          (conflictPending &&
+                            (!conflict || conflict.status === 'entered_in_error')))
+                      : conflictPending || !draft.tooth_fdi || !draft.condition_code)
+                  }
                 >
                   {saving && !pending && <Spinner />}
-                  {saving ? 'Guardando…' : attempt ? 'Reintentar guardado' : 'Guardar condición'}
+                  {saving
+                    ? 'Guardando…'
+                    : draft.correction
+                      ? attempt
+                        ? 'Reintentar corrección'
+                        : conflictPending
+                          ? 'Revisar nueva corrección'
+                          : 'Revisar corrección'
+                      : attempt
+                        ? 'Reintentar guardado'
+                        : 'Guardar condición'}
                 </Button>
               </div>
             </form>
@@ -730,7 +1095,7 @@ export function PatientDiagnosis({
                     if (node) recordRefs.current.set(record.id, node);
                     else recordRefs.current.delete(record.id);
                   }}
-                  aria-label={`Pieza ${record.tooth_fdi} · ${labels[record.condition_code] ?? record.condition_code} · ${record.status === 'active' ? 'Activa' : 'Resuelta'}`}
+                  aria-label={`Pieza ${record.tooth_fdi} · ${labels[record.condition_code] ?? record.condition_code} · ${conditionStatus(record.status)}`}
                   className={`space-y-3 rounded py-4 focus-visible:ring-2 focus-visible:ring-primary ${highlightedTooth === record.tooth_fdi ? 'bg-surface' : ''}`}
                 >
                   <h4 className="flex items-center gap-2 font-medium">
@@ -742,7 +1107,7 @@ export function PatientDiagnosis({
                     {labels[record.condition_code] ?? record.condition_code}
                   </h4>
                   <p className="text-sm">
-                    {record.status === 'active' ? 'Activa' : 'Resuelta'} ·{' '}
+                    {conditionStatus(record.status)} ·{' '}
                     {record.surfaces.join(', ') || 'Sin superficies'}
                   </p>
                   {record.note && (
@@ -754,6 +1119,62 @@ export function PatientDiagnosis({
                     {record.updated_by.display_name ? ` · ${record.updated_by.display_name}` : ''}
                   </p>
                   <div className="flex flex-wrap gap-2">
+                    {record.correction && (
+                      <>
+                        <p className="w-full whitespace-pre-wrap break-words">
+                          Motivo de corrección: {record.correction.reason}
+                        </p>
+                        <Button
+                          variant="clinicalSecondary"
+                          onClick={() =>
+                            transition(
+                              () =>
+                                void activateResult(
+                                  record.id,
+                                  record.correction?.correction_revision_id,
+                                ),
+                            )
+                          }
+                        >
+                          Ver corrección exacta
+                        </Button>
+                        {record.correction.replacement_condition_id && (
+                          <Button
+                            variant="clinicalSecondary"
+                            onClick={() =>
+                              transition(
+                                () =>
+                                  void activateResult(
+                                    record.correction?.replacement_condition_id,
+                                    record.correction?.replacement_revision_id,
+                                  ),
+                              )
+                            }
+                          >
+                            Ver reemplazo vinculado
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    {record.supersedes_condition_id && (
+                      <Button
+                        variant="clinicalSecondary"
+                        onClick={() =>
+                          transition(() => void activateResult(record.supersedes_condition_id))
+                        }
+                      >
+                        Ver registro original
+                      </Button>
+                    )}
+                    {record.status !== 'entered_in_error' && (
+                      <Button
+                        variant="clinicalSecondary"
+                        disabled={saving}
+                        onClick={() => startCorrection(record)}
+                      >
+                        Corregir registro
+                      </Button>
+                    )}
                     {record.status === 'active' && (
                       <>
                         <Button
@@ -774,7 +1195,10 @@ export function PatientDiagnosis({
                     )}
                     <Button
                       variant="clinicalSecondary"
-                      onClick={() => setHistoryId(historyId === record.id ? null : record.id)}
+                      onClick={() => {
+                        setTargetRevisionId(undefined);
+                        setHistoryId(historyId === record.id ? null : record.id);
+                      }}
                     >
                       Historial de condición
                     </Button>
@@ -785,6 +1209,7 @@ export function PatientDiagnosis({
                       patientId={patientId}
                       conditionId={record.id}
                       labels={labels}
+                      targetRevisionId={targetRevisionId}
                     />
                   )}
                 </article>
@@ -793,6 +1218,55 @@ export function PatientDiagnosis({
           </ol>
         </div>
       </div>
+      {review && draft?.correction && (
+        <AlertDialog open onOpenChange={setReview}>
+          <AlertDialogContent className="max-h-[calc(100dvh-32px)] overflow-y-auto break-words [&>*]:shrink-0 [&_button]:min-h-[44px]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revisar corrección</AlertDialogTitle>
+              <AlertDialogDescription>
+                Paciente de la ficha abierta. Confirma el registro original y la consecuencia antes
+                de guardar.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {patient && <PatientIdentity patient={patient} />}
+            <p>
+              Original: Pieza {draft.correction.source.tooth_fdi} ·{' '}
+              {labels[draft.correction.source.condition_code] ??
+                draft.correction.source.condition_code}{' '}
+              · {conditionStatus(draft.correction.source.status)} · Revisión{' '}
+              {draft.correction.source.revision}
+            </p>
+            <p className="whitespace-pre-wrap break-words">
+              Evidencia original: {draft.correction.source.surfaces.join(', ') || 'Sin superficies'}{' '}
+              · {draft.correction.source.note || 'Sin nota'}
+            </p>
+            {conflictPending && conflict && (
+              <p className="whitespace-pre-wrap break-words">
+                Fuente actual: Pieza {conflict.tooth_fdi} · {conditionStatus(conflict.status)} ·
+                Revisión {conflict.revision} · {conflict.surfaces.join(', ')} · {conflict.note}
+              </p>
+            )}
+            <p>
+              Se marcará como registrado por error. No implica resolución clínica ni borra
+              revisiones anteriores.
+            </p>
+            <p className="whitespace-pre-wrap break-words">
+              Motivo: {draft.correction.reason.trim()}
+            </p>
+            <p className="whitespace-pre-wrap break-words">
+              {draft.correction.replacement
+                ? `Reemplazo nuevo: Pieza ${draft.tooth_fdi} · ${labels[draft.condition_code]} · ${draft.dentition === 'permanent' ? 'Permanente' : 'Temporal'} · ${draft.surfaces.join(', ') || 'Sin superficies especificadas'} · ${draft.note?.trim() || 'Sin nota'}`
+                : 'Sin registro de reemplazo.'}
+            </p>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Volver al borrador</AlertDialogCancel>
+              <Button variant="clinical" onClick={() => void save(true)}>
+                Guardar corrección
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
       {pending && (
         <AlertDialog
           open
@@ -809,7 +1283,9 @@ export function PatientDiagnosis({
             <AlertDialogHeader>
               <AlertDialogTitle>Condición sin guardar</AlertDialogTitle>
               <AlertDialogDescription>
-                Guarda, descarta los cambios o sigue editando.
+                {attempt?.correction
+                  ? 'La corrección pudo guardarse. Descartar no la deshace; el reintento conserva el mismo contenido.'
+                  : 'Guarda, descarta los cambios o sigue editando.'}
               </AlertDialogDescription>
             </AlertDialogHeader>
             {saveError && (
@@ -836,7 +1312,13 @@ export function PatientDiagnosis({
                 variant="clinical"
                 aria-busy={saving}
                 className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
-                disabled={saving || conflictPending || !draft?.tooth_fdi || !draft?.condition_code}
+                disabled={
+                  saving ||
+                  !!draft?.correction ||
+                  conflictPending ||
+                  !draft?.tooth_fdi ||
+                  !draft?.condition_code
+                }
                 onClick={() => void save()}
               >
                 {saving && <Spinner />}
@@ -848,4 +1330,16 @@ export function PatientDiagnosis({
       )}
     </section>
   );
+}
+
+function conditionStatus(status: PatientCondition['status']): string {
+  return status === 'active'
+    ? 'Activa'
+    : status === 'resolved'
+      ? 'Resuelta'
+      : 'Registrada por error';
+}
+
+function selectedCatalogEntry(catalog: ConditionCatalog | null, code: string): boolean {
+  return !!catalog?.conditions.some((item) => item.code === code);
 }
