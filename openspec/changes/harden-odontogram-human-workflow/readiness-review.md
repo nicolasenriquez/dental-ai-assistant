@@ -1,6 +1,6 @@
 # Specification readiness review
 
-Status: **Implementation Ready at specification level** after G01–G09 closure. This is artifact readiness, not runtime delivery. D-01/D-02 remain approved; implementation is deferred.
+Status: **Implementation Ready at specification level** after G01–G09 and the2026-10-06 audit closure below. D-01/D-02/D-03 are recorded. This is artifact readiness, not runtime delivery; implementation is deferred.
 
 ## Subsequent review before closure, 2026-10-05
 
@@ -10,6 +10,7 @@ The authenticated Diagnosis/surface popup and current Assistant were inspected a
 
 - D-01 accepted: human flow, separate IA roadmap.
 - D-02 explicitly accepted: entered-in-error original, mandatory reason, optional linked atomic replacement.
+- D-03 accepted via `proceed`: a correction conflicting with concurrent resolution preserves its proposal and requires source review plus explicit confirmation of a new attempt against current active/resolved revision. Terminal edit/resolve remains forbidden.
 - Investigated default: no verified account name exists; stable actual UUID label replaces missing-author text without expanding auth/profile scope.
 - Clinical taxonomy, mandatory surfaces, simultaneous mixed view, examinations, procedures/plans and tools are explicit deferrals. No material unresolved decision blocks the requirements actually included.
 
@@ -45,3 +46,19 @@ All implementation branches remain unchecked. Validation and preparation stop he
 R9 preserves existing clinical URLs. R13–R15 plus visual-contract.md close post-save, selection, visual and reference gaps. Existing29 unchecked tasks retain their IDs and slice gates with expanded traceability. Synthetic Playwright reference:96 cases passed, no page overflow or page errors; visual review prompted mobile editor placement before long records. This does not certify production accessibility or backend behavior. Strict validation, status and ledger checks were repeated after closure.
 
 Working-tree note: unrelated clinical-grounding archive/spec changes were present at final inspection and were left untouched. This preparation edits only this change directory.
+
+## Audit closure, 2026-10-06
+
+The prior unconditional readiness statement omitted a canonical contract conflict and correction-specific recovery. Those blockers are closed in the change artifacts, not in production:
+
+| Audit gap | Closure | Future proof |
+|---|---|---|
+| Canonical resolve-and-create and resolved read-only contradict new correction | MODIFIED clinical-workspace-discovery delta; proposal lists modified capability; canonical sync remains a separate later workflow | S1/S2 + task4.2 sync checklist |
+| Generic terminal conflict handling blocks permitted correction of resolved original | Approved D-03; command-specific matrix in design; R8 review/new-attempt/repeated-conflict scenarios | S2/S5 correction vs resolution, terminal edit/resolve and receipt retry |
+| Read metadata and exact revision retrieval underspecified | Named nullable DTO fields/examples; command_snapshot internal; existing owned revision pagination locates receipt UUID and retries failed cursor | S1/S2/S3 old/new DTOs, later replacement edits and target outside first page |
+| Correction reference lacked optional replacement/destination and confirmed-write/failed-read composition | Original context, required reason, optional replacement controls and separate new FDI/dentition; confirmed receipt with read-only retry | S2 runtime commands; synthetic reference only during preparation |
+| Personal browser path and silently skipped real DB proof | Default Playwright Chromium with optional executable override; cwd-aware disposable migration/live-test recipe; R10 gate rejects skipped required live cases | S1 executed live cases and integrated validation |
+
+Preparation checks actually executed in this closure: strict OpenSpec validation and complete artifact status; synthetic Playwright/Chromium108 cases with zero page errors; git diff whitespace check. A temporary read-only artifact checker also verified29 unique unchecked tasks with adjacent traceability, exact Execution Order coverage, acyclic dependencies, matching canonical requirement name and four parseable JSON examples. The108 cases comprise the prior96 composition cases and12 additional correction fixtures across six sizes. The revised correction screenshots were inspected; reference includes explicit stale-view labeling so prior chart marks cannot imply a confirmed current state. Agent-browser CLI was unavailable; the existing installed Playwright checker provided this synthetic browser evidence.
+
+Task IDs remain the same29 unchecked tasks; traceability and checkpoints were refined for D-03, DTOs and live gates. No required runtime gate is marked complete. Canonical synchronization must apply the MODIFIED requirement as replacement, retaining uniqueness/recurrence scenarios, rather than merely adding the new capability alongside old correction wording.

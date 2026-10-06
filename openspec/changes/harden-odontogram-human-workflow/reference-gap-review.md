@@ -203,3 +203,11 @@ The previous in-progress assessment above is historical. G01–G09 are now close
 | G09 | R13; individual record commits, no examination-save claim | S2/S4 all command postconditions |
 
 The isolated HTML was checked with installed Playwright/Chromium in96 cases:60 state/viewport combinations,30 desktop panel-open compositions and6 short-name/primary-quadrant fixtures. No horizontal overflow or JavaScript errors; visible button bounds meet44px and textarea font is16px in this reference. Screenshots were visually reviewed. Mobile editor precedes long saved-record text, keeping all clinical information visible. These measurements do not prove production touch targets, clinical persistence, screen-reader or virtual-keyboard behavior.
+
+## Additional audit closure, 2026-10-06
+
+A later source/spec audit found two material omissions despite G01–G09 closure: canonical clinical-workspace-discovery still required resolve-and-create, and generic terminal conflict handling did not distinguish correction from editing. The change now contains the required MODIFIED delta and approved D-03 recovery. Human `proceed` accepts renewed review of an active/resolved source before explicitly freezing a new correction attempt; it does not approve automatic retry or ordinary terminal edits.
+
+Read DTOs and exact revision paging are specified in design.md. Correction metadata exposes owned linkage and reason, not command_snapshot; Activity retains revision event identity without clinical text. The synthetic correction reference now separates original and optional replacement, shows replacement FDI/dentition, and includes confirmed receipt/failed-read composition with GET-only retry. Personal Chromium path was removed; evidence.md gives portable synthetic checks and the disposable live-DB gate.
+
+The revised checker executed108 cases with zero page errors, including12 new correction composition fixtures over all six sizes. This closes planning gaps; DentalPin remains a visual/flow reference rather than evidence for the new transaction, idempotency or conflict rules. Production proof still belongs to the six future slices.

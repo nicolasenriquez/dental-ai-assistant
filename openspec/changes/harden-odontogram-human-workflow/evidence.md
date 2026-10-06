@@ -60,3 +60,45 @@ NOT VERIFIED in the audit: Pin writes/concurrency, large-volume speed, clinical 
 G01–G09 map to R9/R13–R15 and existing S2/S3/S4/S6 in reference-gap-review.md. visual-contract.md defines the normative matrix; wireframes/odontogram-reference.html is synthetic composition only. wireframes/reference-check.json records96 rendered checks across six sizes, ten states, desktop panel open and primary fixtures. Screenshots review long names/notes, draft, conflict, correction and stale read. No production clinical write or runtime implementation was performed.
 
 Future fail-first and integrated proofs must exercise all four command postconditions, confirmed-write/failed-GET versus uncertain-write feedback, exact result focus, stale patient responses, symbol/state separation, count units with incomplete paging, no hover mutation, anatomical quadrant order and existing clinical URL compatibility. Reference checks cannot replace these proofs. Real assistive technology and keyboard-on-device coverage must be reported explicitly.
+
+## Reproducible verification recipes
+
+These are future execution instructions, not a claim that runtime gates passed during preparation. Existing live tests patch the real pool after the default test stubs; see tests/test_clinical_workspace_live.py and .claude/references/testing.md.
+
+1. Provision an owned disposable Postgres database with pgvector available. Use its plain postgresql:// DSN, not a shared application database. Record its isolation and current migration head without recording credentials.
+2. Set WORKSPACE_LIVE_TEST_DSN to that DSN. From app/, apply migrations with DATABASE_URL temporarily pointing to the same disposable DSN; alembic.ini's script_location requires this cwd:
+
+```powershell
+# Environment WORKSPACE_LIVE_TEST_DSN must already point to the disposable database.
+if (-not $env:WORKSPACE_LIVE_TEST_DSN) { throw 'WORKSPACE_LIVE_TEST_DSN required for live proof' }
+$previousDatabaseUrl = $env:DATABASE_URL
+try {
+    $env:DATABASE_URL = $env:WORKSPACE_LIVE_TEST_DSN
+    uv --project backend run alembic -c backend/alembic.ini upgrade head
+    if ($LASTEXITCODE -ne 0) { throw 'Disposable database migration failed' }
+} finally {
+    $env:DATABASE_URL = $previousDatabaseUrl
+}
+```
+
+3. From app/backend/, run focused HTTP/cursor/Activity contracts and real database tests. WORKSPACE_LIVE_TEST_DSN must remain set:
+
+```powershell
+if (-not $env:WORKSPACE_LIVE_TEST_DSN) { throw 'WORKSPACE_LIVE_TEST_DSN required for live proof' }
+uv run pytest tests/test_patient_conditions_contract.py tests/test_patient_cursor_transport.py tests/test_patient_activity.py tests/test_clinical_workspace_live.py -xvs -ra
+```
+
+Required new correction cases must be included in these suites. S1 proof requires actual execution of those live cases without skips, not merely a zero exit code from the default mocked suite. Record executed tests, skips and migration coverage. Follow repository full-validation commands at integrated closeout. Teardown deletes only fixture-owned rows/environments.
+
+For synthetic reference checks, from app/frontend/ with existing Bun dependencies installed:
+
+```powershell
+bun x playwright install chromium
+bun ../../openspec/changes/harden-odontogram-human-workflow/wireframes/check-reference.cjs
+```
+
+The checker uses Playwright's installed Chromium by default. PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH optionally selects a local compatible binary; no personal path is embedded. The checker writes only this change's synthetic screenshots/reference-check.json. Layout results do not prove runtime commands, assistive technology or virtual-keyboard behavior.
+
+## Preparation proof, 2026-10-06
+
+The revised synthetic checker ran successfully using installed default Chromium:108 cases, zero page errors. Existing96 fixtures remain covered;12 added fixtures exercise correction without replacement and confirmed correction/failed-read at all six sizes. Screenshot inspection also verified the distinct original/replacement hierarchy and explicit outdated-chart label. No runtime app, API mutation or DB test ran in this closure. D-03, the canonical MODIFIED delta and DTO/revision-read defaults are traced in readiness-review.md.

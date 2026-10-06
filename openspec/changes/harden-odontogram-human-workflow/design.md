@@ -18,6 +18,8 @@ UI action `Corregir registro` opens a draft, mandatory reason and optional repla
 
 During saving and an uncertain transport outcome, freeze operation_id and the complete normalized command, including replacement UUID; retry the same body to obtain the receipt. Do not allow changing that frozen attempt until an authoritative success/error is received. Leaving an uncertain attempt never promises to undo a possibly committed correction. A definitive409/422 allows reviewing the retained draft and constructing a new attempt after refresh; no new operation is created by an automatic retry.
 
+D-03 closes correction conflict recovery: a definitive revision_conflict retains reason/replacement and loads the latest owned source. If it is active or resolved, show base/current source evidence and status, preserve the replacement as a proposed new record, and require renewed confirmation of the correction consequence. Only that confirmation creates a new operation_id and adopts the reviewed expected_revision; replacement UUID may remain the same when its creation was definitively rolled back. Do not merge replacement fields with original fields. If current is entered_in_error, block new correction; an uncertain identical operation still recovers its existing receipt before terminal checks. Failed current reads block confirmation. Another409 repeats this review.
+
 Rejected: edit immutable FDI/code on the same identity obscures what record was erroneous; separate correction/create can leave an avoidable half-completed replacement; resolving implies a clinical outcome.
 
 ### 2. Additive transport and persistence
@@ -35,6 +37,34 @@ Response201 on first commit,200 on identical retry: `{operation_id, condition_id
 Expand condition status check to entered_in_error; add nullable `supersedes_condition_id` to replacement with owner/patient composite FK and unique direct replacement per original. Correction reason/operation_id/command_snapshot belong to original correction revision; action `corrected`. Add owner+operation unique partial index on correction revisions. No generic operations/event store. Application normalizes command once; repo persists normalized immutable payload alongside receipt-bearing revision metadata. The linked replacement created revision is retrievable by replacement ID/revision1. Conditions/revisions DTOs include nullable linkage/correction metadata; legacy revisions retain null. Old GET status=all includes all statuses, with explicit entered_in_error filter added and cursor validation expanded. Existing active/resolved semantics remain. Deploy backend/status-aware client together before enabling correction entry; downgrading app preserves data but a pre-change client cannot safely consume the expanded status, so do not roll back to it after new records are written.
 
 Transaction: verify owned parent/source; lookup committed operation receipt scoped by owner; identical normalized command returns receipt, incompatible reuse409idempotency_conflict without disclosure; lock original; recheck receipt after lock to close same-operation race; validate revision/source state; mark entered_in_error/revision+1; insert corrected revision; optionally insert replacement and created revision/link; commit once. Any failure rolls back all. If the owner+operation unique constraint races across different source locks, roll back the whole attempted correction before rereading the committed owned receipt; normalize/compare and return identical receipt or409idempotency_conflict, never a500 or partially changed source. A duplicate active replacement returns existing owned record409active_condition_exists and leaves source unchanged. New operation on already-error source409condition_entered_in_error; stale revision409revision_conflict. Foreign patient/source/UUID collision remains404; invalid body422. Keep existing partial unique active identity and overlap policy. Distinct operation IDs racing on one source yield exactly one successful correction.
+
+Migration must expand both revision constraints in0022: allowed action and the revision>1/before_snapshot rule admit corrected. Creation remains revision1 with action created and null before. New correction metadata is present only on corrected revisions; legacy snapshots are never backfilled or rewritten.
+
+#### Read DTOs and exact revision retrieval
+
+Keep ConditionSnapshot fields unchanged except the additive status union. ConditionResponse adds `supersedes_condition_id: UUID | null` and `correction: CorrectionMetadata | null`. ConditionRevision adds the same two top-level fields, not fields inside before/after snapshots. Linkage is immutable and comes from the owned condition row; correction is populated only for the corrected revision or the current entered_in_error condition. Legacy records/revisions return null. A replacement created revision has supersedes_condition_id and null correction; if that replacement is later corrected, it has its own correction metadata.
+
+CorrectionMetadata is `{operation_id, condition_id, correction_revision_id, reason, replacement_condition_id, replacement_revision_id}`. All IDs are UUIDs except nullable replacement IDs, which are both null or both present. The correction endpoint receipt is this object without reason. command_snapshot remains internal persistence data for normalized replay comparison and is never exposed in conditions, revisions or Activity. Actor/time remain existing persisted DTO fields. Activity adds action corrected/title Condición corregida while retaining revision event_id, resource_id and the resource href; it never includes reason/note/snapshots.
+
+Example additive fields on a corrected original:
+
+```json
+{"id":"00000000-0000-4000-8000-000000000016","status":"entered_in_error","revision":4,"supersedes_condition_id":null,"correction":{"operation_id":"00000000-0000-4000-8000-000000000001","condition_id":"00000000-0000-4000-8000-000000000016","correction_revision_id":"00000000-0000-4000-8000-000000000004","reason":"Se registró en una pieza equivocada.","replacement_condition_id":"00000000-0000-4000-8000-000000000026","replacement_revision_id":"00000000-0000-4000-8000-000000000005"}}
+```
+
+Example additive fields on its replacement:
+
+```json
+{"id":"00000000-0000-4000-8000-000000000026","status":"active","revision":1,"supersedes_condition_id":"00000000-0000-4000-8000-000000000016","correction":null}
+```
+
+Example corrected revision fields, alongside unchanged actor/time/before/after fields:
+
+```json
+{"id":"00000000-0000-4000-8000-000000000004","condition_id":"00000000-0000-4000-8000-000000000016","revision":4,"action":"corrected","supersedes_condition_id":null,"correction":{"operation_id":"00000000-0000-4000-8000-000000000001","condition_id":"00000000-0000-4000-8000-000000000016","correction_revision_id":"00000000-0000-4000-8000-000000000004","reason":"Se registró en una pieza equivocada.","replacement_condition_id":"00000000-0000-4000-8000-000000000026","replacement_revision_id":"00000000-0000-4000-8000-000000000005"}}
+```
+
+Exact result/history activation uses the existing owned condition GET, then GET revisions with limit50 and existing next_cursor until the target revision UUID from the receipt/metadata is found. Preserve loaded pages, focus and label that exact snapshot, and distinguish it from the latest resource if later edits occurred. On page failure retain target and retry the failed cursor with GET only. Exhausting pages without target shows revision unavailable, never substitutes latest. Navigation to the record remains the existing condition UUID URL; target revision is local history context, not clinical browser storage or a new URL parameter. No new exact-revision endpoint is required.
 
 ### 3. Shared application boundary, no speculative framework
 
@@ -54,7 +84,15 @@ For new draft, show selected FDI text and a deliberate Cambiar pieza affordance 
 
 ### 6. Conflict comparison, not automatic merge
 
-Store base snapshot from edit start, local draft and latest server revision. On409 freeze save, retain draft, load latest and display base/local/current for surfaces and note; compare status and immutable identity separately. Each locally changed field requires an explicit keep-local/use-current choice. Untouched local fields retain current values without presenting them as local changes. No default choice for conflicting edits, no all-fields rebase button. Resolve intent must be separately confirmed against latest active state. Current resolved/error source permits read/discard, not editing or force-rebase. Server read failure offers retry without losing local data. Each successful retry uses newly chosen current expected_revision; another409 repeats comparison rather than force-saving.
+Store base snapshot from edit start, local draft and latest server revision. On409 freeze save, retain draft, load latest and display base/local/current for surfaces and note; compare status and immutable identity separately. Each locally changed field requires an explicit keep-local/use-current choice. Untouched local fields retain current values without presenting them as local changes. No default choice for conflicting edits, no all-fields rebase button. Resolve intent must be separately confirmed against latest active state. For edit/resolve, current resolved/error source permits read/discard, not editing or force-rebase. Correction has the distinct D-03 review in decision1, including resolved sources. Server read failure offers retry without losing local data. Each successful retry uses newly chosen current expected_revision; another409 repeats comparison rather than force-saving.
+
+| Pending command | Latest source | Recovery |
+|---|---|---|
+| edit/resolve | active | Field choices; resolve consequence confirmed separately |
+| edit/resolve | resolved/entered_in_error | Read/discard; no new mutation |
+| correct | active/resolved | Retain reason/replacement; review source and confirm a new attempt |
+| correct | entered_in_error | No new correction; identical uncertain committed attempt may recover receipt |
+| any | latest read unavailable | Retain local data; block renewed save and retry GET |
 
 ### 7. Safe URL continuity
 
