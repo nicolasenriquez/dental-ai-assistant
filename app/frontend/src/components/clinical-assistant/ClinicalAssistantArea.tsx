@@ -19,6 +19,7 @@ import { type ClinicalQueuedEntry, useClinicalComposerMemory } from '../Clinical
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { EmptyState } from '../patterns/EmptyState';
+import { Button } from '../ui/Button';
 import { ClinicalComposer } from './ClinicalComposer';
 import { ClinicalPatientPicker, type ClinicalPatientSelectionState } from './ClinicalPatientPicker';
 import { ClinicalTranscript } from './ClinicalTranscript';
@@ -425,6 +426,7 @@ export function ClinicalAssistantArea({
         emptyState={
           <EmptyState
             className="clinical-empty-state"
+            headingLevel={2}
             icon={<Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />}
             title={activePatient ? 'Prepara una evolución clínica' : '¿Qué necesitas hacer?'}
             description={
@@ -435,19 +437,19 @@ export function ClinicalAssistantArea({
             action={
               <div className="clinical-empty-actions">
                 {!activePatient && (
-                  <button
+                  <Button
                     type="button"
-                    className="clinical-primary-button"
+                    variant="clinical"
                     onClick={() => (onPatientPickerOpenChange ?? setLocalPatientPickerOpen)(true)}
                   >
                     Seleccionar paciente
-                  </button>
+                  </Button>
                 )}
                 {activePatient && (
                   <>
-                    <button
+                    <Button
                       type="button"
-                      className="clinical-secondary-button"
+                      variant="clinical"
                       disabled={
                         !!value.trim() ||
                         assistant.runtime !== 'idle' ||
@@ -463,10 +465,10 @@ export function ClinicalAssistantArea({
                       }}
                     >
                       Preparar evolución
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="clinical-secondary-button"
+                      variant="clinicalSecondary"
                       disabled={
                         !!value.trim() ||
                         assistant.runtime !== 'idle' ||
@@ -482,16 +484,16 @@ export function ClinicalAssistantArea({
                       }}
                     >
                       Consultar evoluciones
-                    </button>
+                    </Button>
                   </>
                 )}
-                <button
+                <Button
                   type="button"
-                  className="clinical-secondary-button"
+                  variant="clinicalSecondary"
                   onClick={() => textareaRef.current?.focus()}
                 >
                   {activePatient ? 'Escribir nota clínica' : 'Escribir consulta general'}
-                </button>
+                </Button>
               </div>
             }
           />

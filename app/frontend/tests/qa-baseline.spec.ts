@@ -1324,7 +1324,10 @@ test('clinical assistant exposes the review lifecycle and Drive surface', async 
   await expect(approvalOpener).toBeFocused();
   await approvalOpener.click();
   await auditDialog(page, 'Guardar evolución');
-  await page.getByRole('button', { name: 'Volver a editar' }).click();
+  await page
+    .getByRole('dialog', { name: 'Guardar evolución' })
+    .getByRole('button', { name: 'Volver a editar' })
+    .click();
   await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeHidden();
 
   await page.setViewportSize({ width: 390, height: 844 });

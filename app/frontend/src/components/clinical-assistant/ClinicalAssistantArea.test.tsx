@@ -276,7 +276,10 @@ describe('ClinicalAssistantArea queue', () => {
     const trigger = screen.getByRole('button', { name: 'Cambiar paciente activo' });
     expect(trigger).toHaveTextContent('Ana Pérez');
     expect(trigger).toHaveTextContent('12.345.•••-6');
-    expect(screen.getByText('Prepara una evolución clínica')).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'Prepara una evolución clínica', level: 2 }),
+    ).toBeVisible();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('textbox', { name: 'Nota clínica' })).toHaveAttribute(
       'placeholder',
       'Escribe o dicta la nota clínica…',

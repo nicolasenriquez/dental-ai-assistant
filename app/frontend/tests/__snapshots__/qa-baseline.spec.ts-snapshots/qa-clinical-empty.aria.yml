@@ -1,5 +1,6 @@
 - complementary:
-  - text: Dental AI Assistant
+  - link "Dental AI Assistant":
+    - /url: /patients
   - button "Colapsar navegación" [expanded]
   - navigation "Navegación principal":
     - link "Pacientes":
@@ -8,24 +9,34 @@
       - /url: /assistant
     - link "Chat":
       - /url: /chat
+  - group "Vista del asistente":
+    - button "Conversaciones" [pressed]
+    - button "Pendientes"
   - button "Nueva conversación"
   - region "Hilos del asistente clínico":
     - button "Buscar en conversaciones": Buscar Ctrl K
     - region "Hoy":
       - button "Hoy 1" [expanded]
-      - button "Ana Pérez · Control": Ana Pérez · Control Ahora
+      - button "Ana Pérez · Control": /Ana Pérez · Control \d+ ene \d+ · \d+:\d+/
       - button "Acciones para Ana Pérez · Control"
   - button "Abrir menú de usuario para qa@example.com"
 - main:
-  - strong: Ana Pérez · Control
+  - link "‹ Volver a ficha":
+    - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
+  - heading "Ana Pérez · Control" [level=1]
   - button "Cambiar paciente activo":
-    - text: Paciente
-    - strong: /Ana Pérez · \d+\.\d+\.•••-6/
+    - strong: Ana Pérez
+    - text: /\d+\.\d+\.•••-6/
   - button "Quitar paciente activo"
+  - link "Ver pendientes":
+    - /url: /assistant?view=pending
+    - text: ""
   - button "Abrir Google Drive"
   - log "Transcripción clínica":
-    - heading "Prepara una evolución clínica" [level=1]
+    - heading "Prepara una evolución clínica" [level=2]
     - paragraph: Escribe o dicta la nota; revisarás el borrador antes de guardarlo.
+    - button "Preparar evolución"
+    - button "Consultar evoluciones"
     - button "Escribir nota clínica"
   - textbox "Nota clínica":
     - /placeholder: Escribe o dicta la nota clínica…

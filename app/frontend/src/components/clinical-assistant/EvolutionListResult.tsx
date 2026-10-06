@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { formatClinicalDateShort } from '../../lib/clinicalDate';
+import { formatClinicalDateTime } from '../../lib/clinicalDate';
 
 export function EvolutionListResult({
   payload,
@@ -27,7 +27,7 @@ export function EvolutionListResult({
                 className="inline-block py-2 text-primary hover:underline"
                 to={`/patients/${encodeURIComponent(payload.patient_id)}/evolutions/${encodeURIComponent(row.id)}`}
               >
-                Ver evolución del {formatClinicalDateShort(row.evolution_at)}
+                Ver evolución del {formatClinicalDateTime(row.evolution_at)}
               </Link>
             </li>
           );

@@ -42,6 +42,13 @@ Opening a Drive note is secondary to reviewing and saving clinical work.
 
 A1 puts patient identity on an independent first row; navigation and auxiliary
 controls follow, with thread metadata yielding first. Full patient names wrap.
+Patient names use the compact 16px title size; masked RUT retains its own line.
+Navigation and utilities share the second row above a 480px main pane; narrower
+panes place utilities on a third row. Search focus surrounds the rounded patient
+search row, including its icon, and remains visible after automatic focus.
+The empty-state title is a section heading. Preparing an evolution is the primary
+starter; starters still only prefill editable, unsent text. Consulted evolutions
+show date and time using the shared clinical formatter to distinguish same-day records.
 Only a focused composer in a mobile viewport <=600px high limits the visual name
 to two lines; masked RUT stays visible and the full name returns on blur.
 Drive Notes are general sources, Documents are patient-bound. Desktop header

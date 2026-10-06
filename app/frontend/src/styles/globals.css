@@ -712,7 +712,8 @@ body,
   opacity: 0.7;
 }
 
-.chat-empty-state h1 {
+.chat-empty-state h1,
+.chat-empty-state h2 {
   margin: 0 0 8px;
   color: var(--text-primary);
   font-size: 20px;
@@ -1660,7 +1661,7 @@ body,
   white-space: nowrap;
 }
 
-@container clinical-main (max-width: 700px) {
+@container clinical-main (max-width: 480px) {
   .clinical-assistant-area .workspace-header {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1687,11 +1688,6 @@ body,
 .clinical-empty-state {
   width: 100%;
   margin: 0;
-  padding: 40px 24px;
-}
-
-.clinical-empty-state p {
-  margin: 0 0 24px;
 }
 
 .clinical-empty-actions {
@@ -1942,7 +1938,6 @@ body,
 
 .clinical-artifact-heading,
 .clinical-artifact-actions,
-.clinical-patient-context,
 .clinical-thread-list-heading,
 .clinical-queue-item {
   display: flex;
@@ -2896,7 +2891,6 @@ body,
 .clinical-primary-button:focus-visible,
 .clinical-secondary-button:focus-visible,
 .clinical-patient-trigger:focus-visible,
-.clinical-patient-search input:focus-visible,
 .clinical-patient-clear:focus-visible,
 .clinical-queue-actions button:focus-visible {
   outline: 2px solid var(--accent);
@@ -3154,6 +3148,7 @@ body,
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  justify-content: space-between;
   min-height: 40px;
   padding: 6px 12px;
   gap: 8px;
@@ -3213,7 +3208,7 @@ body,
 }
 
 .clinical-patient-trigger__copy strong {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -3237,8 +3232,15 @@ body,
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid var(--border);
-  padding: 9px 10px;
+  margin: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.clinical-patient-search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .clinical-patient-search input {
@@ -3543,10 +3545,6 @@ body,
 }
 
 @media (max-width: 640px) {
-  .clinical-patient-context {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
   .clinical-artifact {
     border-radius: 11px;
   }

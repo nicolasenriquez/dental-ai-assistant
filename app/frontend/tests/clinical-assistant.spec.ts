@@ -623,6 +623,68 @@ for (const failure of [
   });
 }
 
+test('keeps the compact assistant header and rounded search focus in a narrow desktop pane', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 802, height: 792 });
+  await setupClinicalHarness(page, thread());
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+  await expect(
+    page.getByRole('heading', { name: 'Prepara una evolución clínica', level: 2 }),
+  ).toBeVisible();
+  const header = page.locator('.workspace-header');
+  const copy = header.locator('.workspace-header__copy');
+  const actions = header.locator('.workspace-header__actions');
+  const copyBox = await copy.boundingBox();
+  const actionsBox = await actions.boundingBox();
+  expect(copyBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  const copyCenter = (copyBox?.y ?? 0) + (copyBox?.height ?? 0) / 2;
+  const actionsCenter = (actionsBox?.y ?? 0) + (actionsBox?.height ?? 0) / 2;
+  expect(Math.abs(copyCenter - actionsCenter)).toBeLessThan(1);
+  expect((await header.boundingBox())?.height).toBeLessThan(150);
+
+  const trigger = page.getByRole('button', { name: 'Cambiar paciente activo' });
+  await trigger.click();
+  const search = page.getByRole('combobox', { name: 'Buscar paciente por nombre o RUT' });
+  await expect(search).toBeFocused();
+  const focus = await search.evaluate((input) => {
+    const rowStyle = getComputedStyle(input.parentElement as HTMLElement);
+    return {
+      width: rowStyle.outlineWidth,
+      style: rowStyle.outlineStyle,
+      radius: rowStyle.borderRadius,
+      inputOutline: getComputedStyle(input).outlineStyle,
+    };
+  });
+  expect(focus).toEqual({ width: '2px', style: 'solid', radius: '8px', inputOutline: 'none' });
+  await search.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect(search).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+});
+
+test('keeps long patient identity and the composer visible in compact mobile headers', async ({
+  page,
+}) => {
+  const longPatient = {
+    ...patient,
+    first_name: 'Ana María Alejandra',
+    last_name: 'Pérez Fernández de la Vega',
+  };
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setupClinicalHarness(page, thread([], { active_patient: longPatient }));
+  const trigger = page.getByRole('button', { name: 'Cambiar paciente activo' });
+  await expect(trigger).toContainText(`${longPatient.first_name} ${longPatient.last_name}`);
+  await expect(trigger.locator('strong')).toHaveCSS('font-size', '16px');
+  await expect(trigger).toContainText(longPatient.rut_masked);
+  await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+  await expect(page.locator('.drive-sheet-content')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
 test('opens header patient picker with visible options', async ({ page }) => {
   await setupClinicalHarness(page, thread());
 
