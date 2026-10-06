@@ -1,0 +1,853 @@
+{
+  "scope": "Synthetic composition only; no production/API/DB/AT/virtual keyboard proof",
+  "cases": 96,
+  "pageErrors": [],
+  "results": [
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "idle",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "Selecciona una pieza. El examen normal no se infiere de registros vacíos."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "idle",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "draft",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "Sin guardar · pieza 16 y superficies revisadas."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "draft",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "saving",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "Guardando registro… Sin confirmación todavía."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "saving",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "saved",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado · pieza 16. Resultado confirmado."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "saved",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "read_stale",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado. La vista no pudo actualizarse. Reintentar sólo lectura."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "read_stale",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "uncertain",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "No se pudo confirmar el guardado. Conservar el intento y reintentar sin cambiar su identidad."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "uncertain",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "conflict",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "El registro cambió. Comparar nota, superficies y estado antes de reintentar. Local: «sensibilidad al frío». Actual: superficies O y M. Sin elección automática."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "conflict",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "correction",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "correction",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "whole_tooth",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "Pieza completa. No requiere selección de superficies."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "whole_tooth",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "history",
+      "panel": false,
+      "scroll": 1440,
+      "targets": true,
+      "text": "16px",
+      "message": "Historial · registrado por error. Original conservado con motivo y vínculo."
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "state": "history",
+      "panel": true,
+      "scroll": 1440
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "idle",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "Selecciona una pieza. El examen normal no se infiere de registros vacíos."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "idle",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "draft",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "Sin guardar · pieza 16 y superficies revisadas."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "draft",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "saving",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "Guardando registro… Sin confirmación todavía."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "saving",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "saved",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado · pieza 16. Resultado confirmado."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "saved",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "read_stale",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado. La vista no pudo actualizarse. Reintentar sólo lectura."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "read_stale",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "uncertain",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "No se pudo confirmar el guardado. Conservar el intento y reintentar sin cambiar su identidad."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "uncertain",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "conflict",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "El registro cambió. Comparar nota, superficies y estado antes de reintentar. Local: «sensibilidad al frío». Actual: superficies O y M. Sin elección automática."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "conflict",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "correction",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "correction",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "whole_tooth",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "Pieza completa. No requiere selección de superficies."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "whole_tooth",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "history",
+      "panel": false,
+      "scroll": 1280,
+      "targets": true,
+      "text": "16px",
+      "message": "Historial · registrado por error. Original conservado con motivo y vínculo."
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "state": "history",
+      "panel": true,
+      "scroll": 1280
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "idle",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "Selecciona una pieza. El examen normal no se infiere de registros vacíos."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "idle",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "draft",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "Sin guardar · pieza 16 y superficies revisadas."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "draft",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "saving",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "Guardando registro… Sin confirmación todavía."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "saving",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "saved",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado · pieza 16. Resultado confirmado."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "saved",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "read_stale",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado. La vista no pudo actualizarse. Reintentar sólo lectura."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "read_stale",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "uncertain",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "No se pudo confirmar el guardado. Conservar el intento y reintentar sin cambiar su identidad."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "uncertain",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "conflict",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "El registro cambió. Comparar nota, superficies y estado antes de reintentar. Local: «sensibilidad al frío». Actual: superficies O y M. Sin elección automática."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "conflict",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "correction",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "correction",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "whole_tooth",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "Pieza completa. No requiere selección de superficies."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "whole_tooth",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "history",
+      "panel": false,
+      "scroll": 1024,
+      "targets": true,
+      "text": "16px",
+      "message": "Historial · registrado por error. Original conservado con motivo y vínculo."
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "state": "history",
+      "panel": true,
+      "scroll": 1024
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "idle",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "Selecciona una pieza. El examen normal no se infiere de registros vacíos."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "draft",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "Sin guardar · pieza 16 y superficies revisadas."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "saving",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "Guardando registro… Sin confirmación todavía."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "saved",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado · pieza 16. Resultado confirmado."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "read_stale",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado. La vista no pudo actualizarse. Reintentar sólo lectura."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "uncertain",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "No se pudo confirmar el guardado. Conservar el intento y reintentar sin cambiar su identidad."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "conflict",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "El registro cambió. Comparar nota, superficies y estado antes de reintentar. Local: «sensibilidad al frío». Actual: superficies O y M. Sin elección automática."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "correction",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "whole_tooth",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "Pieza completa. No requiere selección de superficies."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "state": "history",
+      "panel": false,
+      "scroll": 768,
+      "targets": true,
+      "text": "16px",
+      "message": "Historial · registrado por error. Original conservado con motivo y vínculo."
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "idle",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "Selecciona una pieza. El examen normal no se infiere de registros vacíos."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "draft",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "Sin guardar · pieza 16 y superficies revisadas."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "saving",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "Guardando registro… Sin confirmación todavía."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "saved",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado · pieza 16. Resultado confirmado."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "read_stale",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado. La vista no pudo actualizarse. Reintentar sólo lectura."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "uncertain",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "No se pudo confirmar el guardado. Conservar el intento y reintentar sin cambiar su identidad."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "conflict",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "El registro cambió. Comparar nota, superficies y estado antes de reintentar. Local: «sensibilidad al frío». Actual: superficies O y M. Sin elección automática."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "correction",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "whole_tooth",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "Pieza completa. No requiere selección de superficies."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "state": "history",
+      "panel": false,
+      "scroll": 430,
+      "targets": true,
+      "text": "16px",
+      "message": "Historial · registrado por error. Original conservado con motivo y vínculo."
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "idle",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "Selecciona una pieza. El examen normal no se infiere de registros vacíos."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "draft",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "Sin guardar · pieza 16 y superficies revisadas."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "saving",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "Guardando registro… Sin confirmación todavía."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "saved",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado · pieza 16. Resultado confirmado."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "read_stale",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "Registro guardado. La vista no pudo actualizarse. Reintentar sólo lectura."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "uncertain",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "No se pudo confirmar el guardado. Conservar el intento y reintentar sin cambiar su identidad."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "conflict",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "El registro cambió. Comparar nota, superficies y estado antes de reintentar. Local: «sensibilidad al frío». Actual: superficies O y M. Sin elección automática."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "correction",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "whole_tooth",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "Pieza completa. No requiere selección de superficies."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "state": "history",
+      "panel": false,
+      "scroll": 390,
+      "targets": true,
+      "text": "16px",
+      "message": "Historial · registrado por error. Original conservado con motivo y vínculo."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    }
+  ]
+}

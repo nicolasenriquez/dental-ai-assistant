@@ -1,0 +1,79 @@
+## Context and Ownership
+
+The condition resource belongs to one owner/patient and already has a safe atomic revision repository. The user approved replacing the old resolve-and-create correction policy. Keep the highest HTTP/UI Seam and introduce only the patient-condition application Module needed to express the new command.
+
+Interface: typed record/edit/resolve/correct calls. FastAPI and frontend client are Adapters; future agent adapters are excluded. Repository Depth comes from transaction, locking and receipt invariants, not exposing SQL to application callers. Locality remains within patients and its UI; Leverage is one correction workflow without a second rules path.
+
+## Goals / Non-Goals
+
+Goals: truthful correction semantics, auditable actor/reason, explicit current/history, accessible spatial selection, deliberate conflict choices and reload continuity. Non-goals are proposal.md exclusions; existing clinical and privacy guarantees remain.
+
+## Decisions
+
+### 1. Correction is a separate command
+
+States: active permits edit/resolve/correct; resolved permits read and correct only; entered_in_error permits read only. Corrections to a resolved original annotate a recording error, never undo its previous revision. No automatic conversion of old resolved data. Original identity/FDI/code are retained; historical snapshots are not rewritten.
+
+UI action `Corregir registro` opens a draft, mandatory reason and optional replacement. Review names masked patient context, original FDI/concept, consequence and replacement. `Guardar corrección` is the only commit. Cancel has no write. New replacement uses a new client UUID and same owner/patient; no bulk/cross-patient replace or reopen.
+
+During saving and an uncertain transport outcome, freeze operation_id and the complete normalized command, including replacement UUID; retry the same body to obtain the receipt. Do not allow changing that frozen attempt until an authoritative success/error is received. Leaving an uncertain attempt never promises to undo a possibly committed correction. A definitive409/422 allows reviewing the retained draft and constructing a new attempt after refresh; no new operation is created by an automatic retry.
+
+Rejected: edit immutable FDI/code on the same identity obscures what record was erroneous; separate correction/create can leave an avoidable half-completed replacement; resolving implies a clinical outcome.
+
+### 2. Additive transport and persistence
+
+`POST /api/patients/{patient_id}/conditions/{condition_id}/corrections` body:
+
+```json
+{"operation_id":"UUID","expected_revision":3,"reason":"Se registró en una pieza equivocada.","replacement":{"id":"new UUID","dentition":"permanent","tooth_fdi":26,"condition_code":"caries","surfaces":["O"],"note":null}}
+```
+
+replacement may be omitted/null. Schema forbids extras; positive strict revision; trimmed reason1–1000characters; replacement follows existing create validation, including optional surfaces and note1000. No owner/actor/status/supersedes input. It may change tooth/dentition/code only by creating a validated new identity. Replacing a record with the same identity fields is permitted if the original evidence is incorrect; replacement reason explains it.
+
+Response201 on first commit,200 on identical retry: `{operation_id, condition_id, correction_revision_id, replacement_condition_id, replacement_revision_id}` with nullable replacement IDs. This stable receipt identifies exact revisions; callers GET latest resource state separately. Retry does not pretend a replacement's later edits are the correction snapshot.
+
+Expand condition status check to entered_in_error; add nullable `supersedes_condition_id` to replacement with owner/patient composite FK and unique direct replacement per original. Correction reason/operation_id/command_snapshot belong to original correction revision; action `corrected`. Add owner+operation unique partial index on correction revisions. No generic operations/event store. Application normalizes command once; repo persists normalized immutable payload alongside receipt-bearing revision metadata. The linked replacement created revision is retrievable by replacement ID/revision1. Conditions/revisions DTOs include nullable linkage/correction metadata; legacy revisions retain null. Old GET status=all includes all statuses, with explicit entered_in_error filter added and cursor validation expanded. Existing active/resolved semantics remain. Deploy backend/status-aware client together before enabling correction entry; downgrading app preserves data but a pre-change client cannot safely consume the expanded status, so do not roll back to it after new records are written.
+
+Transaction: verify owned parent/source; lookup committed operation receipt scoped by owner; identical normalized command returns receipt, incompatible reuse409idempotency_conflict without disclosure; lock original; recheck receipt after lock to close same-operation race; validate revision/source state; mark entered_in_error/revision+1; insert corrected revision; optionally insert replacement and created revision/link; commit once. Any failure rolls back all. If the owner+operation unique constraint races across different source locks, roll back the whole attempted correction before rereading the committed owned receipt; normalize/compare and return identical receipt or409idempotency_conflict, never a500 or partially changed source. A duplicate active replacement returns existing owned record409active_condition_exists and leaves source unchanged. New operation on already-error source409condition_entered_in_error; stale revision409revision_conflict. Foreign patient/source/UUID collision remains404; invalid body422. Keep existing partial unique active identity and overlap policy. Distinct operation IDs racing on one source yield exactly one successful correction.
+
+### 3. Shared application boundary, no speculative framework
+
+`patients/condition_service.py` provides typed record/edit/resolve/correct entry points using existing domain validation and repository transactions. Routes authenticate/map HTTP and delegate. SQL, row locks and transaction-bound rechecks remain repo-owned; no route calls sequential repo methods to emulate atomic replacement. Existing POST/PATCH retry semantics and status-only resolution remain identical. No new tool/client adapter or generalized command bus.
+
+### 4. Current/history and honest author labels
+
+Default UI filter Actuales requests active conditions and does not draw resolved/error marks as active. Existing explicit Todas/Resueltas plus Registradas por error remain available, with text/legend status and no health inference. Deep link to a non-active record temporarily selects its appropriate historical filter and dentition; returning to current does not lose a draft silently. Default UI does not silently change API default all.
+
+Keep actor UUID as authority. Display existing trusted display_name when available; otherwise `Usuario <first 8 UUID hex characters>` with full UUID available through an accessible disclosure. If abbreviations collide among displayed actors, expand just enough to distinguish them. Do not claim professional verification, show email/RUT, use current user for another actor, or say unavailable when UUID exists. No new profile/name field or auth change. Render on records, revision history and Activity. A future verified professional profile is a separate feature.
+
+### 5. Spatial selection and compact editing
+
+Keep chart identity/FDI, anatomical families and native buttons. When space cannot fit sixteen44px controls, render paged anatomical quadrants: one selected quadrant with up to eight permanent/five primary teeth in the available width, all quadrants reachable through named44px controls; wrap within the quadrant if needed. This is view pagination, not hiding condition text; label quadrant/dentition and preserve selected FDI/draft across switches. Full chart remains overview only when controls would overlap. Changing viewport must not reset selection. Dropdown remains a secondary keyboard alternative. No container threshold may leave a seemingly interactive chart as the only visual affordance with no piece controls.
+
+For new draft, show selected FDI text and a deliberate Cambiar pieza affordance rather than a second required dropdown. Existing record immutable fields remain plain context. Whole-tooth codes show `Pieza completa, sin superficies`; no five disabled controls. Surface codes keep native checks/labels. Clinical content is never collapsed by default. Preview is at most96px high on narrow layouts; textarea starts with at least4lines, allows normal growth to roughly one-third available visual viewport then internal scrolling; Cancel/Guardar adjacent and touch44. Focus selected surface/input without reselecting tooth. Do not animate clinical state changes decoratively.
+
+### 6. Conflict comparison, not automatic merge
+
+Store base snapshot from edit start, local draft and latest server revision. On409 freeze save, retain draft, load latest and display base/local/current for surfaces and note; compare status and immutable identity separately. Each locally changed field requires an explicit keep-local/use-current choice. Untouched local fields retain current values without presenting them as local changes. No default choice for conflicting edits, no all-fields rebase button. Resolve intent must be separately confirmed against latest active state. Current resolved/error source permits read/discard, not editing or force-rebase. Server read failure offers retry without losing local data. Each successful retry uses newly chosen current expected_revision; another409 repeats comparison rather than force-saving.
+
+### 7. Safe URL continuity
+
+Canonical path remains patient ficha. Reuse existing `tab=clinical&clinical=diagnosis|evolutions` on every committed view change, including bare ficha URLs. No clinicalView parameter is introduced or treated as an alias; it was only an earlier planning name and never a deployed contract. Evolution detail path takes precedence over query state; otherwise valid clinical selects the subview, absent/unknown clinical defaults to diagnosis. Fetch a focused condition UUID only within diagnosis; switching to evolutions removes condition and switching away from clinical removes clinical/condition while preserving supported unrelated safe parameters. Existing clinical=evolutions links continue to restore Evoluciones. Never put patient name, RUT, note, correction reason or search into URL. Malformed condition UUID does not fetch. Back/forward uses existing draft guard before switching patient/view; accepted discard clears draft, canceled navigation restores prior URL/UI. Browser refresh preserves saved location, not unsaved input after explicit discard. History-only view restoration is safe query state, not patient-data storage.
+
+### 8. Complete interaction and visual contract
+
+[visual-contract.md](visual-contract.md) fixes the representation matrix, quadrant orientation, list/chart/editor linking, group/count units, responsive regions and commit/post-save state machine. These rules refine the existing six slices; they do not add clinical concepts or a seventh domain. [wireframes/odontogram-reference.html](wireframes/odontogram-reference.html) is a standalone synthetic visual reference only, with selectable display states and no HTTP writes. References guide hierarchy/proportions, not replace the capability requirements or existing anatomy/runtime components.
+
+Save is always per condition or per correction command, not an examination-wide approval. After confirmed save preserve the reviewed piece, focus the saved record or correction result, announce outcome, and keep an explicit next action. A failed subsequent GET is a stale-view error, not an uncertain write. For uncertain writes freeze existing attempt identity/body and do not resubmit automatically. A read failure retries reads only. All four commands use this same feedback contract; correction may select the replacement's different FDI/dentition after receipt.
+
+## Blast Radius and Rollout
+
+One additive migration plus condition domain/service/repo/routes/client, Activity mapping and patient surfaces. Terminal status requires exhaustive union updates and cursor tests. Existing evolution/Drive/auth/LLM remain untouched. Preserve data on DB downgrade; test legacy records/requests and avoid rollback to status-unaware binaries after correction writes. Do not promise backward response compatibility to a pre-change status parser.
+
+## Verification Strategy and Slice Dependencies
+
+S1 correction API crosses HTTP/Postgres with fail-first, duplicate rollback, lost-response retry, same/different-operation races, ownership and legacy data. S2 correction UI and S3 reading/actor depend on S1's terminal status and metadata. S4 spatial/editor can be developed independently; integrated checks use corrected records too. S5 conflict recovery depends on S1 terminal status handling. S6 navigation is independent; final integration joins all. Each slice has a verifiable checkpoint; no agent runtime dependency.
+
+## Deferred Research and IA Roadmap
+
+OD06/09/10 need clinical taxonomy/examination/mixed-view decisions; OD11 needs measurements before optimization. Verify complete pages and no false empty on error with synthetic1/50/51/500records but set no arbitrary speed SLA. IA work later must reuse this application boundary, add separate proposal/approval/provenance contracts and explicit clinical approval; no current readiness claim.
