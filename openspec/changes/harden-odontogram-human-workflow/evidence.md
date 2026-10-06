@@ -1,5 +1,70 @@
 # Evidence and finding disposition
 
+## S3 current/history, actor and catalog, 2026-10-06
+
+Executed `1.3 -> 2.3 -> 3.3` from clean baseline `b2711d4`; S1's completed
+`3.1` unblocked the slice. Traceability is OD03/OD04, R4–R5/R14/R16–R17,
+G02/G06/G07, H01–H04 and D-04, without tracker groups or issues. Uncommitted
+partial S3 work existed at entry and was adopted by explicit user decision,
+then repaired; no commit or tracker sync was performed.
+
+- CODE: backend `CONDITION_DEFINITIONS` consolidates labels, `category_key`
+  and applicability; `CATALOG`/`SURFACE_CODES`/validation derive from it and
+  the version1 route now also returns `categories` plus per-entry
+  `category_key`/`allowed_dentitions`. Repairs: `PatientOdontogram` and
+  `PatientConditionHistory` accept an optional catalog and resolve
+  labels/surfaces/symbols through `odontogramPresentation` with a labels
+  fallback; history renders `PatientActorLabel`; the dead
+  `selectedCatalogEntry` helper and ES2021 `replaceAll` use were removed.
+  `PatientDiagnosis` defaults to Actuales while the API default stays all,
+  keeps filter changes behind the draft transition guard, loads the catalog
+  independently with GET-only retry, blocks unsupported authoring, shows
+  `Condición no reconocida` fallbacks and marks incomplete counts.
+- TEST: fail-first before repair recorded tsc5 errors and five failing focused
+  frontend cases (three mock-ordering cases plus an error record hidden by the
+  new active default and the new empty-current wording). Added
+  entered_in_error cursor round-trip/binding rejection, additive catalog and
+  extra-field contract asserts, SQL whole-tooth/unknown-code rejection probes,
+  actor UUID fallback/collision/full-disclosure in records, Activity and
+  history, synthetic entry/category list/palette/legend, unknown saved code,
+  history catalog surfaces and incomplete-count assertions. Focused frontend33
+  and mocked backend21 pass; final full frontend720tests/84files, tsc, Biome222
+  files and production build pass; ruff/mypy214files pass.
+- API/DB: owned disposable `pgvector/pgvector:pg16` container
+  `odontogram-s3-db-20261006` on loopback5545 with network
+  `odontogram-s3-20261006` and an anonymous volume; no shared mounts or
+  credentials. An empty database migrated to0024. The focused recipe passed52
+  cases with zero skips (4 contract,15 cursor,2 activity,31 live). The new live
+  case proves catalog-to-domain-to-migrated-DB agreement for all12codes, both
+  dentitions and every M,D,O,V,L subset including optional[], over HTTP and
+  direct SQL, with CHECK rejection for nonempty surfaces on whole-tooth codes
+  and unknown codes and422 for authority extras. Existing live Activity
+  reconciliation (revision event IDs, pagination ties, ownership, corrected
+  mapping) passed unchanged. Direct reads after teardown checks showed0024 and
+  zero fixture patients/conditions/revisions.
+
+Commands, from repository root unless noted:
+
+| Command | Result |
+|---|---|
+| `bun run tsc --noEmit` / `bun x biome check src` from `app/frontend/` |Pass;222 files checked by Biome |
+| `bun run test` from `app/frontend/` |720passed,84files |
+| `bun run build` from `app/frontend/` |Pass (existing chunk-size warning) |
+| `uv run ruff check .` / `uv run ruff format --check .` / `uv run mypy .` from `app/backend/` |Pass;214 files |
+| `uv run pytest tests/test_patient_conditions_contract.py tests/test_patient_cursor_transport.py tests/test_patient_activity.py tests/test_clinical_workspace_live.py -q -ra` with `WORKSPACE_LIVE_TEST_DSN` |52passed, zero skips |
+| `openspec validate harden-odontogram-human-workflow --strict` / scoped `git diff HEAD --check` |Pass |
+| `docker exec odontogram-s3-db-20261006 psql -U odontogram -d odontogram -t -c "…"` |0024; zero fixture patients/conditions/revisions |
+
+No new runtime dependency, auth change, agent write path or catalog expansion.
+S3 did not add a browser checker (explicit user decision); filtered reads,
+deep links and actor disclosure are proven at component/HTTP/DB level.
+Assistive technology, contrast and virtual-keyboard coverage remain for3.8;
+S4 owns six-viewport chart/editor ergonomics and consumes this presentation
+boundary. The broader backend suite was not rerun; S1's recorded glossary
+LF/CRLF failure and shared environment remain untouched. Existing build and
+React test warnings remain. Cleanup removed the owned container, anonymous
+volume and network and preserved shared containers.
+
 ## S2 explicit correction UI, 2026-10-06
 
 Executed `1.2 -> 2.2 -> 3.2` from clean baseline `37402de`; S1's completed
