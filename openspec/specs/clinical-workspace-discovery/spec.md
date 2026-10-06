@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Clinical Workspace Discovery
+
+## Purpose
+
+Provide an authenticated, privacy-preserving clinical workspace for discovering patients, reviewing owned clinical work, and making explicit, recoverable clinical updates.
+
+## Requirements
 
 ### Requirement: Patient directory remains the authenticated entry
 The system SHALL retain `/` redirecting to `/patients` and the existing Pacientes, Asistente, Chat global navigation. The patient directory SHALL be the first authenticated surface, with its own Nuevo paciente action. The sidebar logo in either desktop state SHALL open `/patients`. No standalone Inicio route, fourth navigation item or new dashboard data source is introduced.
@@ -172,13 +178,13 @@ All new discovery surfaces SHALL follow PRODUCT.md, DESIGN.md, and docs/design/U
 
 #### Scenario: Structural wireframe
 - **WHEN** the discovery UI is implemented
-- **THEN** its directory/ficha section order, supported route mappings and ready/empty/error states match implementation-blueprint.md and the retained target wireframes while using production components and semantic tokens
+- **THEN** its directory/ficha section order, supported route mappings and ready/empty/error states match the UI-01 through UI-09 composition contract in design.md (Appendix C) and the retained target wireframes while using production components and semantic tokens
 
 ### Requirement: Search by name, phone and RUT
 The existing owner-scoped POST /api/patients/search SHALL match normalized names, stored phone digits, a complete valid RUT, and a partial numeric RUT body. It SHALL keep raw search text out of the URL, navigation state, storage, analytics and logs. Results SHALL expose masked RUT and the existing summary fields, not the matched phone value merely because it was searched.
 
 #### Scenario: Partial and complete identifier
-- **WHEN** an owner enters a valid explicit RUT or nine-digit compact RUT as classified by patient-clinical-contract.md
+- **WHEN** an owner enters a valid explicit RUT or nine-digit compact RUT as classified by the ordered search grammar in design.md (Appendix A)
 - **THEN** the exact owned patient is returned
 - **WHEN** the owner enters 1–8 bare digits as a numeric fragment
 - **THEN** owned patients with that numeric portion are returned without requiring a check digit
@@ -254,7 +260,7 @@ Actividad SHALL project only persisted owner-scoped approved evolutions, general
 - **THEN** Actividad shows an error and retry, never a false empty timeline
 
 ### Requirement: Professional chart-first clinical composition
-Clínica > Diagnóstico SHALL follow the chart-first hierarchy extracted in `clinical-visual-review-2026-10-02.md` while preserving Dental AI Assistant's dark semantic palette, tooth brand, Spanish copy and existing navigation. The diagnostic workspace SHALL present a labelled chart and dentition control, illustrated diagnostic tools, an explicit draft review region, a collapsible legend and saved conditions grouped by tooth. General notes SHALL retain their Información owner; this requirement does not introduce DentalPin's treatment notes, plans or attachment workflows.
+Clínica > Diagnóstico SHALL follow the chart-first hierarchy extracted in the 2026-10-02 visual review (summarized in design.md) while preserving Dental AI Assistant's dark semantic palette, tooth brand, Spanish copy and existing navigation. The diagnostic workspace SHALL present a labelled chart and dentition control, illustrated diagnostic tools, an explicit draft review region, a collapsible legend and saved conditions grouped by tooth. General notes SHALL retain their Información owner; this requirement does not introduce DentalPin's treatment notes, plans or attachment workflows.
 
 #### Scenario: Anatomical chart and orientation
 - **WHEN** the clinician opens either dentition
@@ -293,7 +299,7 @@ Clínica > Diagnóstico SHALL follow the chart-first hierarchy extracted in `cli
 - **THEN** synthetic ready, empty, loading, error, selected-tool, selected-tooth/surfaces, saved, resolved and conflict states are captured at 1440×900, 1024×768 and 375×667, with additional 320px overflow and keyboard checks; screenshots use matching viewports and never substitute a wireframe for production proof
 
 ### Requirement: Stable patient clinical API contracts
-New notes, conditions, revisions, catalogue and Activity endpoints SHALL implement the DTOs, methods, errors and cursor order in patient-api-contract.md. Catalogue SHALL be authenticated GET /api/patients/condition-catalog, version1, containing only the twelve supported codes, Spanish labels and allowed surfaces. New DTOs SHALL reject unknown fields. All nested resources SHALL verify owner and parent. Notes and conditions SHALL support single-record reads for deep links beyond list page1.
+New notes, conditions, revisions, catalogue and Activity endpoints SHALL implement the DTOs, methods, errors and cursor order in design.md (Appendix B). Catalogue SHALL be authenticated GET /api/patients/condition-catalog, version1, containing only the twelve supported codes, Spanish labels and allowed surfaces. New DTOs SHALL reject unknown fields. All nested resources SHALL verify owner and parent. Notes and conditions SHALL support single-record reads for deep links beyond list page1.
 
 #### Scenario: Bounded reads and exact record focus
 - **WHEN** a note, condition or revision list is requested
@@ -310,7 +316,7 @@ New notes, conditions, revisions, catalogue and Activity endpoints SHALL impleme
 - **THEN** Activity orders its save event by persisted created_at, not editable evolution_at
 
 ### Requirement: Retry-safe explicit clinical mutations
-New note/condition creation SHALL use a client UUID reused for identical retry. Resources and revision1 SHALL commit together. An identical owned UUID and creation snapshot SHALL return current resource without another revision; changed payload SHALL return409. PATCH SHALL use expected_revision and the response-lost retry rule in patient-api-contract.md, without overwriting newer work.
+New note/condition creation SHALL use a client UUID reused for identical retry. Resources and revision1 SHALL commit together. An identical owned UUID and creation snapshot SHALL return current resource without another revision; changed payload SHALL return409. PATCH SHALL use expected_revision and the response-lost retry rule in design.md (Appendix B), without overwriting newer work.
 
 #### Scenario: Response lost after creation
 - **WHEN** creation commits but response is lost and the same UUID/payload is retried
@@ -340,7 +346,7 @@ Dentition, FDI tooth and condition code SHALL be immutable after creation. Activ
 - **THEN** a new UUID records it; old record is neither reopened nor overwritten
 
 ### Requirement: Predictable clinical draft continuity
-Draft transitions SHALL follow patient-clinical-contract.md. Highlight SHALL remain independent. Dirty navigation SHALL offer save/discard/remain. Contextual Assistant and layout changes SHALL preserve draft. Uncertain mutations SHALL retain UUID/frozen payload for retry. No clinical draft SHALL be persisted to browser storage.
+Draft transitions SHALL follow design.md (Appendix A). Highlight SHALL remain independent. Dirty navigation SHALL offer save/discard/remain. Contextual Assistant and layout changes SHALL preserve draft. Uncertain mutations SHALL retain UUID/frozen payload for retry. No clinical draft SHALL be persisted to browser storage.
 
 #### Scenario: Tool and context changes
 - **WHEN** a new draft changes tool
@@ -359,7 +365,7 @@ Draft transitions SHALL follow patient-clinical-contract.md. Highlight SHALL rem
 - **THEN** beforeunload warns; confirmed reload clears in-memory draft and no automatic recovery from browser storage is promised
 
 ### Requirement: Measurable patient UI composition
-Directory, ficha and modal SHALL implement UI-01 through UI-09 in implementation-blueprint.md with the incumbent semantic tokens, font and sidebar identity. Source screenshots SHALL be descriptive evidence, not authority for unsupported data or mutation behavior. Unicode glyphs SHALL NOT substitute for the existing icon system.
+Directory, ficha and modal SHALL implement UI-01 through UI-09 in design.md (Appendix C) with the incumbent semantic tokens, font and sidebar identity. Source screenshots SHALL be descriptive evidence, not authority for unsupported data or mutation behavior. Unicode glyphs SHALL NOT substitute for the existing icon system.
 
 #### Scenario: Recognizable compact navigation
 - **WHEN** the desktop rail is collapsed
