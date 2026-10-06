@@ -7,4 +7,112 @@
 <main id="layout"><div class="workspace"><section class="chart"><h2>Odontograma</h2><p class="muted">Dentición permanente · vista frontal. Derecha del paciente a la izquierda.</p><div class="quadrants" id="quadrants"></div><div class="teeth" id="teeth"></div><div class="legend"><span>● Actual</span><span>▧ Resuelto</span><span>／ Registrado por error</span><span>□ Sin guardar</span></div><div class="record"><div class="record-head"><h3>Pieza <span id="record-fdi">16</span></h3><span class="muted">2 condiciones · 1 pieza</span></div><p><strong>● Caries</strong> · Oclusal <span class="badge" id="status">Actual</span></p><p id="note">Lesión cavitada oclusal. Sensibilidad a estímulo frío de corta duración, sin dolor espontáneo referido.</p><div class="actions"><button type="button">Abrir registro</button><button type="button">Ver historial</button></div><p class="muted">Pigmentación · Vestibular · registro independiente</p></div><p class="muted">La vista de un cuadrante no oculta los registros clínicos de otras piezas.</p></section><section class="inspector"><h2 id="heading">Pieza 16 · Registrar condición</h2><div id="feedback" class="message" role="status"></div><div class="fields" id="editor"><label for="concept">Condición</label><select id="concept"><option>Caries</option><option>Pieza ausente</option></select><p id="whole" hidden>Pieza completa, sin superficies.</p><div id="surface-block"><p>Superficies</p><div class="surfaces"><label><input type="checkbox">M</label><label><input type="checkbox">D</label><label><input type="checkbox">V</label><label><input type="checkbox">L</label><label><input type="checkbox" checked>O</label></div></div><label for="clinical-note">Nota clínica</label><textarea id="clinical-note">Lesión cavitada oclusal. Evaluar profundidad y correlacionar con examen clínico.</textarea><div id="reason-block" hidden><label for="reason">Motivo obligatorio de corrección</label><textarea id="reason">Se registró la pieza 16 por error; corresponde a la 26.</textarea><p>Original 16 → reemplazo 26 · una operación atómica.</p></div><div class="actions"><button type="button" disabled>Cancelar</button><button type="button" class="primary" disabled id="save">Guardar condición</button></div></div><div class="aux"><p>Continuar cuando corresponda</p><div class="actions"><button type="button">Ver evoluciones</button><button type="button">Abrir Assistant</button></div><p class="muted">Acciones de composición, sin navegación real. No se guarda un examen completo.</p></div></section></div><aside class="assistant" hidden id="assistant"><h2>Assistant</h2><p>Contexto de la misma paciente</p><p class="muted">Referencia del ancho disponible. En móvil se conserva la ruta completa existente.</p></aside></main><footer>Los controles clínicos son ilustrativos. Sólo estado, cuadrante, selección visual y panel cambian esta referencia. No prueba persistencia ni accesibilidad de producción.</footer>
 <script>
 const $=id=>document.getElementById(id);const params=new URLSearchParams(location.search);const messages={idle:'Selecciona una pieza. El examen normal no se infiere de registros vacíos.',draft:'Sin guardar · pieza 16 y superficies revisadas.',saving:'Guardando registro… Sin confirmación todavía.',saved:'Registro guardado · pieza 16. Resultado confirmado.',read_stale:'Registro guardado. La vista no pudo actualizarse. Reintentar sólo lectura.',uncertain:'No se pudo confirmar el guardado. Conservar el intento y reintentar sin cambiar su identidad.',conflict:'El registro cambió. Comparar nota, superficies y estado antes de reintentar.',correction:'Revisar corrección: original 16 por error → reemplazo 26.',whole_tooth:'Pieza completa. No requiere selección de superficies.',history:'Historial · registrado por error. Original conservado con motivo y vínculo.'};const profile='M3 12 Q8 3 15 9 Q21 3 27 9 Q35 3 39 12 L36 35 L33 84 Q29 98 26 78 L22 51 L18 83 Q13 97 10 81 L6 36 Z';function shape(f){const pos=f%10;if(pos<=2)return 'M9 6 Q21 2 33 6 L31 31 Q26 42 24 80 Q21 96 18 80 L12 34 Z';if(pos===3)return 'M8 13 L21 3 L34 13 L31 34 Q27 45 24 86 Q21 98 18 84 L11 36 Z';if(f<50&&pos<6)return 'M5 10 Q10 2 21 8 Q32 2 37 10 L34 34 Q29 48 29 82 Q26 94 23 78 L21 47 L18 81 Q14 96 12 81 L8 35 Z';return profile}let selected=16;let quadrant=1;let primary=params.get('dentition')==='primary';const quadrants=primary?[5,6,8,7]:[1,2,4,3];const names=['Superior derecha','Superior izquierda','Inferior derecha','Inferior izquierda'];function chart(){ $('quadrants').innerHTML=quadrants.map((q,i)=>`<button type="button" data-q="${q}" aria-pressed="${q===quadrant}">${names[i]}</button>`).join('');const count=primary?5:8;const reverse=[1,4,5,8].includes(quadrant);const teeth=Array.from({length:count},(_,i)=>quadrant*10+(reverse?count-i:i+1));$('teeth').innerHTML=teeth.map(f=>`<button type="button" class="tooth ${f===selected?'selected':''}" data-fdi="${f}" aria-label="Pieza ${f}" aria-pressed="${f===selected}"><svg viewBox="0 0 42 98" aria-hidden="true"><path d="${shape(f)}" fill="#283547" stroke="#9aaabc" stroke-width="1.5"/>${f===16?'<circle cx="21" cy="20" r="5" fill="#cf7777"/>':''}</svg><strong>${f}</strong></button>`).join('');document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{quadrant=Number(b.dataset.q);chart()});document.querySelectorAll('[data-fdi]').forEach(b=>b.onclick=()=>{selected=Number(b.dataset.fdi);$('heading').textContent=`Pieza ${selected} · referencia de selección`;chart()})}function state(){const s=$('state').value;$('feedback').textContent=messages[s];$('editor').hidden=['saved','read_stale','history','idle'].includes(s);$('reason-block').hidden=s!=='correction';$('surface-block').hidden=s==='whole_tooth';$('whole').hidden=s!=='whole_tooth';$('status').textContent=s==='history'?'Registrado por error':s==='draft'?'Actual':'Actual';$('save').textContent=s==='saving'?'Guardando…':s==='correction'?'Guardar corrección':'Guardar condición';if(s==='conflict')$('feedback').textContent+=' Local: «sensibilidad al frío». Actual: superficies O y M. Sin elección automática.';if(params.get('length')==='long')$('note').textContent=('Lesión oclusal registrada; correlacionar hallazgo con examen clínico, síntomas y antecedentes. ').repeat(12);if(params.get('patient')==='short')$('patient').textContent='Ana Pérez'}$('state').value=params.get('state')||'draft';$('state').onchange=state;$('panel').onclick=()=>{$('assistant').hidden=!$('assistant').hidden;$('layout').classList.toggle('with-assistant',!$('assistant').hidden);$('layout').style.display=$('assistant').hidden?'block':'grid';$('layout').style.gap='20px'};if(primary){quadrant=5;selected=55}chart();state();const record=document.querySelector('.record');const chartSection=document.querySelector('.chart');const recordAnchor=record.nextElementSibling;const recordHost=document.createElement('section');recordHost.id='mobile-records';document.querySelector('.workspace').append(recordHost);function reflow(){if(innerWidth<768){recordHost.append(record)}else{chartSection.insertBefore(record,recordAnchor)}}addEventListener('resize',reflow);reflow();
+</script>
+<script>
+// Synthetic correction composition only. No API or clinical mutations.
+const correctionReview = document.createElement('section');
+correctionReview.id = 'correction-review';
+correctionReview.hidden = true;
+correctionReview.innerHTML = `
+  <h3>Original conservado · Pieza 16 · Caries · O</h3>
+  <p id="correction-original-status">Estado original: Activa. Al confirmar se marcará Registrada por error. Su historial se conserva.</p>
+  <label for="replacement-mode">Reemplazo opcional</label>
+  <select id="replacement-mode">
+    <option value="with">Con reemplazo</option>
+    <option value="without">Sin reemplazo</option>
+  </select>
+  <p id="correction-consequence"></p>
+  <label for="correction-outcome">Presentación sintética del resultado</label>
+  <select id="correction-outcome">
+    <option value="draft">Borrador de corrección</option>
+    <option value="read_stale">Guardado confirmado / lectura fallida</option>
+  </select>
+  <div id="correction-receipt" class="message" hidden></div>`;
+const referenceEditor = document.getElementById('editor');
+referenceEditor.before(correctionReview);
+correctionReview.append(document.getElementById('reason-block'));
+const replacementContext = document.createElement('div');
+replacementContext.id = 'replacement-context';
+replacementContext.hidden = true;
+replacementContext.innerHTML = `
+  <h3>Nuevo registro de reemplazo</h3>
+  <p>Identidad nueva; original 16 permanece sin cambios de pieza o concepto.</p>
+  <label for="replacement-dentition">Dentición de reemplazo</label>
+  <select id="replacement-dentition"><option>Permanente</option><option>Temporal</option></select>
+  <label for="replacement-fdi">Pieza de reemplazo FDI</label>
+  <select id="replacement-fdi"><option>26</option><option>16</option></select>`;
+referenceEditor.prepend(replacementContext);
+const referenceSave = [...referenceEditor.querySelectorAll('button.primary')]
+  .find(button => /Guardar/.test(button.textContent));
+const referenceActions = referenceSave?.parentElement;
+const staleReadBanner = document.createElement('p');
+staleReadBanner.id = 'correction-stale-banner';
+staleReadBanner.className = 'message';
+staleReadBanner.hidden = true;
+staleReadBanner.textContent = 'Vista anterior a la corrección. Lectura pendiente; las marcas visibles no representan el estado actual confirmado por el receipt.';
+document.querySelector('.chart').prepend(staleReadBanner);
+function refreshCorrectionReference() {
+  const correction = document.getElementById('state').value === 'correction';
+  correctionReview.hidden = !correction;
+  replacementContext.hidden = !correction;
+  if (!correction) {
+    staleReadBanner.hidden = true;
+    if (referenceActions) {
+      referenceActions.hidden = false;
+      referenceEditor.append(referenceActions);
+    }
+    return;
+  }
+  const withReplacement = document.getElementById('replacement-mode').value === 'with';
+  const stale = document.getElementById('correction-outcome').value === 'read_stale';
+  document.getElementById('reason-block').hidden = false;
+  referenceEditor.hidden = !withReplacement || stale;
+  if (referenceActions) {
+    referenceEditor.after(referenceActions);
+    referenceActions.hidden = stale;
+  }
+  staleReadBanner.hidden = !stale;
+  document.getElementById('heading').textContent = 'Corregir registro · Original 16';
+  document.getElementById('correction-consequence').textContent = withReplacement
+    ? 'Original 16 por error + nuevo registro 26. Una operación atómica.'
+    : 'Original 16 por error. No se creará ningún reemplazo.';
+  document.getElementById('correction-original-status').textContent = stale
+    ? 'Corrección confirmada: original Registrada por error. Su historial se conserva; la lectura de la proyección está pendiente.'
+    : 'Estado original: Activa. Al confirmar se marcará Registrada por error. Su historial se conserva.';
+  for (const paragraph of document.getElementById('reason-block').querySelectorAll('p')) {
+    paragraph.textContent = document.getElementById('correction-consequence').textContent;
+  }
+  document.getElementById('feedback').textContent = stale
+    ? 'Corrección guardada. No pudimos actualizar la vista. Reintentar lectura usa GET únicamente.'
+    : 'Borrador sin guardar. Revisa original, motivo y reemplazo opcional antes de Guardar corrección.';
+  const receipt = document.getElementById('correction-receipt');
+  receipt.hidden = !stale;
+  receipt.textContent = withReplacement
+    ? 'Receipt confirmado · original 16, revisión corregida 4 · reemplazo 26, revisión creada 1. La vista actual está pendiente de lectura.'
+    : 'Receipt confirmado · original 16, revisión corregida 4 · sin reemplazo. La vista actual está pendiente de lectura.';
+  let readRetry = document.getElementById('correction-read-retry');
+  if (!readRetry) {
+    readRetry = document.createElement('button');
+    readRetry.id = 'correction-read-retry';
+    readRetry.type = 'button';
+    readRetry.textContent = 'Reintentar lectura (referencia, sin conexión)';
+    correctionReview.append(readRetry);
+  }
+  readRetry.hidden = !stale;
+  for (const input of correctionReview.querySelectorAll('textarea')) input.disabled = stale;
+  const save = referenceSave;
+  if (save) {
+    save.textContent = 'Guardar corrección';
+    save.hidden = stale;
+  }
+}
+document.getElementById('state').addEventListener('change', () => {
+  // The incumbent state picker paints first; this adds the correction-specific composition.
+  document.getElementById('reason-block').querySelector('textarea').disabled = false;
+  for (const button of document.querySelectorAll('button.primary')) button.hidden = false;
+  refreshCorrectionReference();
+});
+document.getElementById('replacement-mode').addEventListener('change', refreshCorrectionReference);
+document.getElementById('correction-outcome').addEventListener('change', refreshCorrectionReference);
+refreshCorrectionReference();
 </script></html>

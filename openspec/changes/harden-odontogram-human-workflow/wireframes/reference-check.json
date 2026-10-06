@@ -1,6 +1,6 @@
 {
   "scope": "Synthetic composition only; no production/API/DB/AT/virtual keyboard proof",
-  "cases": 96,
+  "cases": 108,
   "pageErrors": [],
   "results": [
     {
@@ -130,7 +130,7 @@
       "scroll": 1440,
       "targets": true,
       "text": "16px",
-      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+      "message": "Borrador sin guardar. Revisa original, motivo y reemplazo opcional antes de Guardar corrección."
     },
     {
       "width": 1440,
@@ -180,6 +180,18 @@
       "passed": true
     },
     {
+      "width": 1440,
+      "height": 900,
+      "fixture": "correction/without-replacement",
+      "passed": true
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "fixture": "correction/confirmed-write-failed-read",
+      "passed": true
+    },
+    {
       "width": 1280,
       "height": 800,
       "state": "idle",
@@ -306,7 +318,7 @@
       "scroll": 1280,
       "targets": true,
       "text": "16px",
-      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+      "message": "Borrador sin guardar. Revisa original, motivo y reemplazo opcional antes de Guardar corrección."
     },
     {
       "width": 1280,
@@ -353,6 +365,18 @@
       "width": 1280,
       "height": 800,
       "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "fixture": "correction/without-replacement",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "fixture": "correction/confirmed-write-failed-read",
       "passed": true
     },
     {
@@ -482,7 +506,7 @@
       "scroll": 1024,
       "targets": true,
       "text": "16px",
-      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+      "message": "Borrador sin guardar. Revisa original, motivo y reemplazo opcional antes de Guardar corrección."
     },
     {
       "width": 1024,
@@ -532,6 +556,18 @@
       "passed": true
     },
     {
+      "width": 1024,
+      "height": 768,
+      "fixture": "correction/without-replacement",
+      "passed": true
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "fixture": "correction/confirmed-write-failed-read",
+      "passed": true
+    },
+    {
       "width": 768,
       "height": 1024,
       "state": "idle",
@@ -609,7 +645,7 @@
       "scroll": 768,
       "targets": true,
       "text": "16px",
-      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+      "message": "Borrador sin guardar. Revisa original, motivo y reemplazo opcional antes de Guardar corrección."
     },
     {
       "width": 768,
@@ -635,6 +671,18 @@
       "width": 768,
       "height": 1024,
       "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "fixture": "correction/without-replacement",
+      "passed": true
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "fixture": "correction/confirmed-write-failed-read",
       "passed": true
     },
     {
@@ -715,7 +763,7 @@
       "scroll": 430,
       "targets": true,
       "text": "16px",
-      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+      "message": "Borrador sin guardar. Revisa original, motivo y reemplazo opcional antes de Guardar corrección."
     },
     {
       "width": 430,
@@ -741,6 +789,18 @@
       "width": 430,
       "height": 932,
       "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "fixture": "correction/without-replacement",
+      "passed": true
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "fixture": "correction/confirmed-write-failed-read",
       "passed": true
     },
     {
@@ -821,7 +881,7 @@
       "scroll": 390,
       "targets": true,
       "text": "16px",
-      "message": "Revisar corrección: original 16 por error → reemplazo 26."
+      "message": "Borrador sin guardar. Revisa original, motivo y reemplazo opcional antes de Guardar corrección."
     },
     {
       "width": 390,
@@ -847,6 +907,18 @@
       "width": 390,
       "height": 844,
       "fixture": "short-name/primary/all-quadrants",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "fixture": "correction/without-replacement",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "fixture": "correction/confirmed-write-failed-read",
       "passed": true
     }
   ]
