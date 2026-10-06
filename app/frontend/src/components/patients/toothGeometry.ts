@@ -1,7 +1,10 @@
 import type { Dentition, ToothSurface } from '../../lib/api';
 
+export function fdiQuadrants(dentition: Dentition): number[] {
+  return dentition === 'permanent' ? [1, 2, 4, 3] : [5, 6, 8, 7];
+}
 export function fdiTeeth(dentition: Dentition): number[] {
-  const quadrants = dentition === 'permanent' ? [1, 2, 4, 3] : [5, 6, 8, 7];
+  const quadrants = fdiQuadrants(dentition);
   const count = dentition === 'permanent' ? 8 : 5;
   return quadrants.flatMap((q, index) =>
     Array.from({ length: count }, (_, i) => q * 10 + (index % 2 === 0 ? count - i : i + 1)),

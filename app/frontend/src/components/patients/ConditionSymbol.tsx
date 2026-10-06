@@ -1,7 +1,8 @@
 export function ConditionSymbol({
   code,
   resolved = false,
-}: { code: string; resolved?: boolean }): JSX.Element {
+  error = false,
+}: { code: string; resolved?: boolean; error?: boolean }): JSX.Element {
   let mark: JSX.Element;
   switch (code) {
     case 'pulpitis':
@@ -65,6 +66,7 @@ export function ConditionSymbol({
     >
       {mark}
       {resolved && <rect x="1" y="1" width="22" height="22" rx="3" strokeDasharray="3 2" />}
+      {error && <path d="M2 2 22 22" data-error-marker />}
     </svg>
   );
 }

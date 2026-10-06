@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { UNSAFE_DataRouterContext } from 'react-router-dom';
+import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import {
   ApiError,
@@ -120,6 +121,7 @@ function PatientDiagnosisWorkspace({
   const [duplicate, setDuplicate] = useState<PatientCondition | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [review, setReview] = useState(false);
   const [receipt, setReceipt] = useState<ConditionCorrectionReceipt | null>(null);
@@ -139,9 +141,17 @@ function PatientDiagnosisWorkspace({
   const savingRef = useRef(false);
   const routeCancel = useRef<(() => void) | null>(null);
   const initiatingRef = useRef<HTMLElement | null>(null);
-  const editorRef = useRef<HTMLSelectElement>(null);
+  const toothSelectRef = useRef<HTMLSelectElement>(null);
+  const pieceButtonRef = useRef<HTMLButtonElement>(null);
+  const firstSurfaceRef = useRef<HTMLInputElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const recordRefs = useRef(new Map<string, HTMLElement>());
+  useAutosizeTextarea({
+    ref: noteRef,
+    value: draft?.note ?? '',
+    maxHeight: Math.floor(window.innerHeight / 3),
+  });
   const dirty =
     !!draft &&
     (!!draft.correction || values(draft) !== draft.baseline || attempt !== null || conflictPending);
@@ -170,6 +180,7 @@ function PatientDiagnosisWorkspace({
     ].map((code) => [code, resolveCondition(catalog, code).label]),
   );
   const groups = conditionGroups(catalog);
+  const activeGroup = groups.find((group) => group.key === category) ?? groups[0];
   const loadCatalog = useCallback(async (): Promise<void> => {
     const request = ++catalogSequence.current;
     setCatalogError(false);
@@ -255,7 +266,7 @@ function PatientDiagnosisWorkspace({
   }, [focused]);
   useEffect(() => {
     if (draft?.correction) reasonRef.current?.focus();
-    else if (draft) editorRef.current?.focus();
+    else if (draft && !draft.tooth_fdi) pieceButtonRef.current?.focus();
   }, [draft?.id]);
   const onRouteBlocked = useCallback((proceed: () => void, cancel: () => void): void => {
     routeCancel.current = cancel;
@@ -376,6 +387,7 @@ function PatientDiagnosisWorkspace({
   };
   const chooseTooth = (tooth: number): void => {
     if (locked || immutable || (draft?.correction && !draft.correction.replacement)) return;
+    const tool = draft ? resolveCondition(catalog, draft.condition_code) : null;
     if (draft) setDraft({ ...draft, tooth_fdi: tooth });
     else {
       initiatingRef.current = document.activeElement as HTMLElement;
@@ -390,6 +402,10 @@ function PatientDiagnosisWorkspace({
         baseline: '',
       });
     }
+    window.requestAnimationFrame(() => {
+      if (tool?.supported && tool.surface_codes.length) firstSurfaceRef.current?.focus();
+      else noteRef.current?.focus();
+    });
   };
   const save = async (reviewed = false): Promise<boolean> => {
     if (draft?.correction && !attempt && !reviewed) {
@@ -544,7 +560,7 @@ function PatientDiagnosisWorkspace({
           );
       if (!alive.current) return false;
       setRecords((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
-      if (focused?.id === saved.id) setFocused(saved);
+      setFocused(saved);
       if (saved.status === 'resolved') setStatus('resolved');
       setAnnouncement(
         `Condición guardada: pieza ${saved.tooth_fdi}, ${labels[saved.condition_code] ?? saved.condition_code}, ${saved.status === 'resolved' ? 'resuelta' : 'activa'}.`,
@@ -769,6 +785,7 @@ function PatientDiagnosisWorkspace({
           </label>
           <select
             id="chart-tooth"
+            ref={toothSelectRef}
             className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
             value={draft?.tooth_fdi || ''}
             disabled={locked || immutable || !!(draft?.correction && !draft.correction.replacement)}
@@ -781,10 +798,26 @@ function PatientDiagnosisWorkspace({
               </option>
             ))}
           </select>
-          <div className="flex flex-wrap gap-2" aria-label="Condiciones disponibles">
-            {groups
-              .flatMap((group) => group.entries)
-              .map((tool) => (
+          <div aria-label="Condiciones disponibles" className="space-y-2">
+            {groups.length > 1 ? (
+              <div role="group" aria-label="Categorías" className="flex flex-wrap gap-2">
+                {groups.map((group) => (
+                  <Button
+                    key={group.key}
+                    variant="clinicalSecondary"
+                    aria-pressed={activeGroup?.key === group.key}
+                    className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
+                    onClick={() => setCategory(group.key)}
+                  >
+                    {group.label}
+                  </Button>
+                ))}
+              </div>
+            ) : groups.length === 1 ? (
+              <h4 className="font-medium">{groups[0].label}</h4>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {activeGroup?.entries.map((tool) => (
                 <Button
                   key={tool.code}
                   variant="clinicalSecondary"
@@ -803,6 +836,7 @@ function PatientDiagnosisWorkspace({
                   {tool.symbolUnavailable && <span className="sr-only">Símbolo no disponible</span>}
                 </Button>
               ))}
+            </div>
           </div>
         </div>
         <aside
@@ -916,77 +950,68 @@ function PatientDiagnosisWorkspace({
                       aria-label={`Pieza seleccionada ${draft.tooth_fdi}`}
                       role="img"
                       viewBox="0 0 42 122"
-                      className="mx-auto h-40 w-28 text-muted"
+                      className="mx-auto h-40 w-28 [@container(max-width:959px)]:h-24 text-muted"
                     >
                       <ToothDrawing tooth={draft.tooth_fdi} surfaces={draft.surfaces} />
                     </svg>
                   )}
-                  <label className="block text-sm" htmlFor="condition-tooth">
-                    Pieza FDI
-                  </label>
-                  <select
-                    id="condition-tooth"
-                    ref={editorRef}
-                    className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
-                    value={draft.tooth_fdi || ''}
-                    disabled={locked || immutable}
-                    onChange={(event) =>
-                      setDraft({ ...draft, tooth_fdi: Number(event.target.value) })
-                    }
-                  >
-                    <option value="">Selecciona una pieza</option>
-                    {fdiTeeth(dentition).map((tooth) => (
-                      <option key={tooth} value={tooth}>
-                        Pieza {tooth}
-                      </option>
-                    ))}
-                  </select>
                   <p className="text-sm">
                     Pieza {draft.tooth_fdi || 'sin seleccionar'} ·{' '}
                     {labels[draft.condition_code] ?? 'Selecciona condición'} ·{' '}
                     {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
                   </p>
-                  <fieldset
+                  <Button
+                    type="button"
+                    ref={pieceButtonRef}
+                    variant="clinicalSecondary"
                     disabled={
-                      locked ||
-                      !selectedTool?.supported ||
-                      !selectedTool.surface_codes.length ||
-                      draft.status === 'resolved'
+                      locked || immutable || !!(draft.correction && !draft.correction.replacement)
                     }
+                    onClick={() => toothSelectRef.current?.focus()}
                   >
-                    <legend className="text-sm font-medium">Superficies</legend>
-                    <div className="flex flex-wrap gap-2">
-                      {surfaces.map((item) => (
-                        <label
-                          key={item.code}
-                          className="flex min-h-[44px] items-center gap-2 rounded border border-border px-3"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={draft.surfaces.includes(item.code)}
-                            onChange={(event) =>
-                              setDraft({
-                                ...draft,
-                                surfaces: event.target.checked
-                                  ? [...draft.surfaces, item.code]
-                                  : draft.surfaces.filter((code) => code !== item.code),
-                              })
-                            }
-                          />
-                          {item.label} ({item.code})
-                        </label>
-                      ))}
-                    </div>
-                    {!selectedTool?.surface_codes.length && (
-                      <p className="text-xs text-muted">Esta condición no admite superficies.</p>
-                    )}
-                  </fieldset>
+                    {draft.tooth_fdi > 0 ? 'Cambiar pieza' : 'Elegir pieza'}
+                  </Button>
+                  {selectedTool?.supported &&
+                    (selectedTool.surface_codes.length ? (
+                      <fieldset disabled={locked || draft.status === 'resolved'}>
+                        <legend className="text-sm font-medium">Superficies</legend>
+                        <div className="flex flex-wrap gap-2">
+                          {surfaces.map((item) => (
+                            <label
+                              key={item.code}
+                              className="flex min-h-[44px] items-center gap-2 rounded border border-border px-3"
+                            >
+                              <input
+                                type="checkbox"
+                                ref={item.code === 'M' ? firstSurfaceRef : undefined}
+                                checked={draft.surfaces.includes(item.code)}
+                                onChange={(event) =>
+                                  setDraft({
+                                    ...draft,
+                                    surfaces: event.target.checked
+                                      ? [...draft.surfaces, item.code]
+                                      : draft.surfaces.filter((code) => code !== item.code),
+                                  })
+                                }
+                              />
+                              {item.label} ({item.code})
+                            </label>
+                          ))}
+                        </div>
+                        {draft.surfaces.length === 0 && (
+                          <p className="text-xs text-muted">Sin superficies especificadas</p>
+                        )}
+                      </fieldset>
+                    ) : (
+                      <p className="text-sm">Pieza completa, sin superficies</p>
+                    ))}
                   <label className="block text-sm" htmlFor="condition-note">
                     Nota de condición
                   </label>
                   <textarea
                     id="condition-note"
-                    className="min-h-24 w-full rounded border border-border bg-surface p-3"
+                    ref={noteRef}
+                    className="min-h-24 max-h-[33dvh] w-full rounded border border-border bg-surface p-3"
                     maxLength={1000}
                     value={draft.note ?? ''}
                     disabled={locked || draft.status === 'resolved'}
@@ -1209,6 +1234,7 @@ function PatientDiagnosisWorkspace({
                     <ConditionSymbol
                       code={resolveCondition(catalog, record.condition_code).symbol}
                       resolved={record.status === 'resolved'}
+                      error={record.status === 'entered_in_error'}
                     />
                     Pieza {record.tooth_fdi} ·{' '}
                     {labels[record.condition_code] ?? record.condition_code}

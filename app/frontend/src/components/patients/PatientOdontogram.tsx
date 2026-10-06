@@ -1,9 +1,16 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ConditionCatalog, Dentition, PatientCondition } from '../../lib/api';
-import { resolveCondition } from '../../lib/odontogramPresentation';
+import { resolveCondition, surfaceDescription } from '../../lib/odontogramPresentation';
 import { ConditionSymbol } from './ConditionSymbol';
 import { ToothDrawing } from './ToothDrawing';
-import { fdiTeeth, surfacePosition, surfaceShapes } from './toothGeometry';
+import { fdiQuadrants, fdiTeeth, surfacePosition, surfaceShapes } from './toothGeometry';
+
+const quadrantLabels = [
+  'Superior derecha',
+  'Superior izquierda',
+  'Inferior derecha',
+  'Inferior izquierda',
+];
 
 interface OdontogramProps {
   dentition: Dentition;
@@ -16,6 +23,11 @@ interface OdontogramProps {
   onHighlight: (tooth: number) => void;
   disabled?: boolean;
   complete?: boolean;
+}
+function quadrantOf(tooth: number, dentition: Dentition): number {
+  const quadrants = fdiQuadrants(dentition);
+  const candidate = Math.floor(tooth / 10);
+  return quadrants.includes(candidate) ? candidate : quadrants[0];
 }
 export function PatientOdontogram({
   dentition,
@@ -30,18 +42,43 @@ export function PatientOdontogram({
   complete = true,
 }: OdontogramProps): JSX.Element {
   const titleId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  const [quadrant, setQuadrant] = useState(() => quadrantOf(selectedTooth, dentition));
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      setNarrow((entries[0]?.contentRect.width ?? 0) < 720);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    setQuadrant(quadrantOf(selectedTooth, dentition));
+  }, [selectedTooth, dentition]);
   const teeth = fdiTeeth(dentition);
   const half = teeth.length / 2;
   const step = 720 / half;
   const labelFor = (code: string): string => labels[code] ?? resolveCondition(catalog, code).label;
-  const describe = (tooth: number): string => {
+  const describeRecords = (tooth: number): string => {
     const records = conditions.filter(
       (item) => item.dentition === dentition && item.tooth_fdi === tooth,
     );
-    return `Pieza ${tooth}: ${records.length ? records.map((item) => `${labelFor(item.condition_code)}, ${item.status === 'active' ? 'Activa' : item.status === 'resolved' ? 'Resuelta' : 'Registrada por error'}, ${item.surfaces.join(', ') || 'sin superficies'}`).join('; ') : complete ? 'sin condiciones guardadas' : 'condiciones no confirmadas'}`;
+    return records.length
+      ? records
+          .map(
+            (item) =>
+              `${labelFor(item.condition_code)}, ${item.status === 'active' ? 'Activa' : item.status === 'resolved' ? 'Resuelta' : 'Registrada por error'}, ${surfaceDescription(catalog, item.condition_code, item.surfaces)}`,
+          )
+          .join('; ')
+      : complete
+        ? 'sin condiciones guardadas'
+        : 'condiciones no confirmadas';
   };
+  const describe = (tooth: number): string => `Pieza ${tooth}: ${describeRecords(tooth)}`;
   return (
-    <section aria-label="Odontograma" className="[container-type:inline-size]">
+    <section ref={sectionRef} aria-label="Odontograma" className="[container-type:inline-size]">
       <header className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-semibold">Odontograma FDI</h3>
         <p className="text-xs text-muted">Derecha del paciente ← · → Izquierda</p>
@@ -155,6 +192,7 @@ export function PatientOdontogram({
                     <ConditionSymbol
                       code={resolveCondition(catalog, item.condition_code).symbol}
                       resolved={item.status === 'resolved'}
+                      error={item.status === 'entered_in_error'}
                     />
                   </g>
                 ))}
@@ -182,9 +220,57 @@ export function PatientOdontogram({
           ))}
         </div>
       </div>
+      {narrow && (
+        <div className="mt-2 space-y-2">
+          <div
+            role="group"
+            aria-label={`Cuadrantes ${dentition === 'permanent' ? 'permanentes' : 'temporales'}`}
+            className="flex flex-wrap gap-2"
+          >
+            {fdiQuadrants(dentition).map((candidate, index) => (
+              <button
+                key={candidate}
+                type="button"
+                aria-pressed={quadrant === candidate}
+                onClick={() => setQuadrant(candidate)}
+                className="min-h-[44px] min-w-[44px] rounded border border-border px-3 text-sm aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {quadrantLabels[index]}
+              </button>
+            ))}
+          </div>
+          <div
+            role="group"
+            aria-label={`Piezas del cuadrante ${quadrant}`}
+            className="flex flex-wrap gap-2"
+          >
+            {teeth
+              .filter((tooth) => Math.floor(tooth / 10) === quadrant)
+              .map((tooth) => (
+                <button
+                  key={tooth}
+                  type="button"
+                  data-quadrant-tooth={tooth}
+                  aria-label={`Seleccionar pieza ${tooth}: ${describeRecords(tooth)}`}
+                  aria-pressed={selectedTooth === tooth}
+                  disabled={disabled}
+                  className="min-h-[44px] min-w-[44px] rounded border border-border px-3 text-sm aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  onMouseEnter={() => onHighlight(tooth)}
+                  onMouseLeave={() => onHighlight(0)}
+                  onFocus={() => onHighlight(tooth)}
+                  onBlur={() => onHighlight(0)}
+                  onClick={() => onSelect(tooth)}
+                >
+                  Pieza {tooth}
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
       <p className="mt-2 text-xs text-muted">
-        Activa: símbolo continuo y superficies marcadas. Resuelta: símbolo con borde discontinuo.
-        Borrador: contorno azul. Los detalles completos están en la lista.
+        Activa: símbolo continuo y superficies marcadas. Resuelta: borde discontinuo. Registrada por
+        error: símbolo atenuado con barra diagonal. Borrador: contorno azul. Los detalles completos
+        están en la lista.
       </p>
     </section>
   );

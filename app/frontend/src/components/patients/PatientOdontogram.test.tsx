@@ -1,8 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import type { PatientCondition } from '../../lib/api';
 import { normalizeConditionCatalog } from '../../lib/odontogramPresentation';
 import { PatientOdontogram } from './PatientOdontogram';
+
+class NarrowResizeObserver {
+  constructor(private callback: (entries: { contentRect: { width: number } }[]) => void) {}
+  observe(): void {
+    this.callback([{ contentRect: { width: 345 } }]);
+  }
+  disconnect(): void {}
+}
+afterEach(() => vi.unstubAllGlobals());
 
 const record: PatientCondition = {
   id: 'c',
@@ -119,4 +128,178 @@ it('consumes the shared catalog for labels and neutral symbols', () => {
   expect(
     container.querySelector('[data-arch-tooth="37"] [data-condition-symbol="neutral"]'),
   ).not.toBeNull();
+});
+
+it('pages anatomical quadrants with named controls and keeps the draft piece across switches', () => {
+  vi.stubGlobal('ResizeObserver', NarrowResizeObserver);
+  const select = vi.fn();
+  render(
+    <PatientOdontogram
+      dentition="permanent"
+      conditions={[]}
+      labels={{}}
+      selectedTooth={16}
+      highlightedTooth={0}
+      onSelect={select}
+      onHighlight={vi.fn()}
+    />,
+  );
+  const quadrants = screen.getByRole('group', { name: 'Cuadrantes permanentes' });
+  expect(
+    within(quadrants)
+      .getAllByRole('button')
+      .map((node) => node.textContent),
+  ).toEqual(['Superior derecha', 'Superior izquierda', 'Inferior derecha', 'Inferior izquierda']);
+  const teethOf = (quadrant: number): string[] =>
+    within(screen.getByRole('group', { name: `Piezas del cuadrante ${quadrant}` }))
+      .getAllByRole('button')
+      .map((node) => node.textContent);
+  expect(teethOf(1)).toEqual([
+    'Pieza 18',
+    'Pieza 17',
+    'Pieza 16',
+    'Pieza 15',
+    'Pieza 14',
+    'Pieza 13',
+    'Pieza 12',
+    'Pieza 11',
+  ]);
+  expect(
+    within(screen.getByRole('group', { name: 'Piezas del cuadrante 1' }))
+      .getAllByRole('button')
+      .find((node) => node.textContent === 'Pieza 16'),
+  ).toHaveAttribute('aria-pressed', 'true');
+  const reachable: string[] = [...teethOf(1)];
+  fireEvent.click(within(quadrants).getByRole('button', { name: 'Superior izquierda' }));
+  expect(select).not.toHaveBeenCalled();
+  reachable.push(...teethOf(2));
+  expect(reachable).toContain('Pieza 22');
+  fireEvent.click(within(quadrants).getByRole('button', { name: 'Inferior derecha' }));
+  reachable.push(...teethOf(4));
+  fireEvent.click(within(quadrants).getByRole('button', { name: 'Inferior izquierda' }));
+  reachable.push(...teethOf(3));
+  expect(reachable).toHaveLength(32);
+  expect(new Set(reachable).size).toBe(32);
+  expect(
+    screen
+      .getByRole('group', { name: 'Piezas del cuadrante 3' })
+      .querySelector('[data-quadrant-tooth="38"]'),
+  ).not.toBeNull();
+  expect(
+    screen
+      .getByRole('group', { name: 'Piezas del cuadrante 3' })
+      .querySelector('[data-quadrant-tooth="16"]'),
+  ).toBeNull();
+  fireEvent.click(
+    within(screen.getByRole('group', { name: 'Piezas del cuadrante 3' }))
+      .getAllByRole('button')
+      .find((node) => node.textContent === 'Pieza 36') as HTMLElement,
+  );
+  expect(select).toHaveBeenCalledWith(36);
+});
+
+it('shows the selected quadrant first, keeps it after dentition change, and names all primary quadrants', () => {
+  vi.stubGlobal('ResizeObserver', NarrowResizeObserver);
+  const { rerender } = render(
+    <PatientOdontogram
+      dentition="permanent"
+      conditions={[]}
+      labels={{}}
+      selectedTooth={31}
+      highlightedTooth={0}
+      onSelect={vi.fn()}
+      onHighlight={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole('group', { name: 'Piezas del cuadrante 3' })).toBeInTheDocument();
+  rerender(
+    <PatientOdontogram
+      dentition="primary"
+      conditions={[]}
+      labels={{}}
+      selectedTooth={0}
+      highlightedTooth={0}
+      onSelect={vi.fn()}
+      onHighlight={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole('group', { name: 'Cuadrantes temporales' })).toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Piezas del cuadrante 5' })).toBeInTheDocument();
+  expect(
+    within(screen.getByRole('group', { name: 'Piezas del cuadrante 5' }))
+      .getAllByRole('button')
+      .map((node) => node.textContent),
+  ).toContain('Pieza 55');
+});
+
+it('describes whole-tooth and optional-empty extents with the shared surface wording', () => {
+  render(
+    <PatientOdontogram
+      dentition="permanent"
+      conditions={[
+        record,
+        { ...record, id: 'w', tooth_fdi: 26, condition_code: 'missing', surfaces: [] },
+        { ...record, id: 'e', tooth_fdi: 27, condition_code: 'caries', surfaces: [] },
+      ]}
+      labels={{}}
+      catalog={normalizeConditionCatalog({
+        version: 1,
+        conditions: [
+          { code: 'caries', label_es: 'Caries', surface_codes: ['M', 'D', 'O', 'V', 'L'] },
+          { code: 'missing', label_es: 'Ausente', surface_codes: [] },
+        ],
+      })}
+      selectedTooth={0}
+      highlightedTooth={0}
+      onSelect={vi.fn()}
+      onHighlight={vi.fn()}
+    />,
+  );
+  expect(
+    screen.getByRole('button', {
+      name: /Pieza 26: Ausente, Activa, Pieza completa, sin superficies/,
+    }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: /Pieza 27: Caries, Activa, Sin superficies especificadas/ }),
+  ).toBeInTheDocument();
+});
+
+it('marks entered_in_error records with a slash outside the concept geometry', () => {
+  const { container } = render(
+    <PatientOdontogram
+      dentition="permanent"
+      conditions={[
+        {
+          ...record,
+          status: 'entered_in_error',
+          correction: {
+            operation_id: 'op',
+            condition_id: 'c',
+            correction_revision_id: 'rev',
+            reason: 'Incorrecta',
+            replacement_condition_id: null,
+            replacement_revision_id: null,
+          },
+        },
+      ]}
+      labels={{}}
+      catalog={normalizeConditionCatalog({
+        version: 1,
+        conditions: [
+          { code: 'caries', label_es: 'Caries', surface_codes: ['M', 'D', 'O', 'V', 'L'] },
+        ],
+      })}
+      selectedTooth={0}
+      highlightedTooth={0}
+      onSelect={vi.fn()}
+      onHighlight={vi.fn()}
+    />,
+  );
+  const tooth = container.querySelector('[data-arch-tooth="36"]');
+  expect(
+    tooth?.querySelector('[data-condition-symbol="caries"] [data-error-marker]'),
+  ).not.toBeNull();
+  expect(tooth?.querySelector('[data-resolved-surface]')).toBeNull();
+  expect(screen.getByRole('button', { name: /Registrada por error/ })).toBeInTheDocument();
 });
