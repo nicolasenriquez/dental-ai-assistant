@@ -1806,3 +1806,76 @@ async def test_correction_migration_preserves_legacy_evidence_and_sql_guards(mon
             await pool.close()
         await admin.execute(f'DROP DATABASE IF EXISTS "{database}"')
         await admin.close()
+
+
+async def test_pagination_complete_reads_at_50_51_500(workspace_db):
+    """Complete paged reads keep every fact with no truncation or duplicates.
+
+    R10 synthetic fixtures:50 exactly one page,51 two pages,500 ten pages.
+    No speed promise is implied; completeness and ordering are asserted.
+    """
+    pool, owner, _, patient, _, _ = workspace_db
+
+    async def user():
+        return {"id": str(owner)}
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            permanent_fdi = [
+                *range(11, 19),
+                *range(21, 29),
+                *range(31, 39),
+                *range(41, 49),
+            ]
+            for size in (50, 51, 500):
+                rows = [
+                    (
+                        uuid4(),
+                        owner,
+                        patient,
+                        "permanent",
+                        permanent_fdi[index % 32],
+                        "caries",
+                        ["M"],
+                        "resolved",
+                        owner,
+                        owner,
+                    )
+                    for index in range(size)
+                ]
+                async with pool.acquire() as conn:
+                    await conn.executemany(
+                        """INSERT INTO patient_tooth_conditions
+                        (id,owner_user_id,patient_id,dentition,tooth_fdi,condition_code,
+                         surfaces,status,created_by_user_id,updated_by_user_id)
+                        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+                        rows,
+                    )
+                collected: list[str] = []
+                cursor = None
+                while True:
+                    url = f"/api/patients/{patient}/conditions?status=all&limit=50"
+                    if cursor:
+                        url += f"&cursor={cursor}"
+                    page = (await client.get(url)).json()
+                    assert len(page["items"]) <= 50, size
+                    assert page["total"] == size, size
+                    collected.extend(item["id"] for item in page["items"])
+                    cursor = page["next_cursor"]
+                    if not cursor:
+                        break
+                assert len(collected) == size, f"size {size} truncated"
+                assert len(set(collected)) == size, f"size {size} duplicated"
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "DELETE FROM patient_tooth_conditions"
+                        " WHERE owner_user_id=$1 AND patient_id=$2"
+                        " AND status='resolved'",
+                        owner,
+                        patient,
+                    )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
