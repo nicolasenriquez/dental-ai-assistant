@@ -1,5 +1,6 @@
 import { useId } from 'react';
-import type { Dentition, PatientCondition } from '../../lib/api';
+import type { ConditionCatalog, Dentition, PatientCondition } from '../../lib/api';
+import { resolveCondition } from '../../lib/odontogramPresentation';
 import { ConditionSymbol } from './ConditionSymbol';
 import { ToothDrawing } from './ToothDrawing';
 import { fdiTeeth, surfacePosition, surfaceShapes } from './toothGeometry';
@@ -8,6 +9,7 @@ interface OdontogramProps {
   dentition: Dentition;
   conditions: PatientCondition[];
   labels: Record<string, string>;
+  catalog?: ConditionCatalog | null;
   selectedTooth: number;
   highlightedTooth: number;
   onSelect: (tooth: number) => void;
@@ -19,6 +21,7 @@ export function PatientOdontogram({
   dentition,
   conditions,
   labels,
+  catalog,
   selectedTooth,
   highlightedTooth,
   onSelect,
@@ -30,11 +33,12 @@ export function PatientOdontogram({
   const teeth = fdiTeeth(dentition);
   const half = teeth.length / 2;
   const step = 720 / half;
+  const labelFor = (code: string): string => labels[code] ?? resolveCondition(catalog, code).label;
   const describe = (tooth: number): string => {
     const records = conditions.filter(
       (item) => item.dentition === dentition && item.tooth_fdi === tooth,
     );
-    return `Pieza ${tooth}: ${records.length ? records.map((item) => `${labels[item.condition_code] ?? item.condition_code}, ${item.status === 'active' ? 'Activa' : item.status === 'resolved' ? 'Resuelta' : 'Registrada por error'}, ${item.surfaces.join(', ') || 'sin superficies'}`).join('; ') : complete ? 'sin condiciones guardadas' : 'condiciones no confirmadas'}`;
+    return `Pieza ${tooth}: ${records.length ? records.map((item) => `${labelFor(item.condition_code)}, ${item.status === 'active' ? 'Activa' : item.status === 'resolved' ? 'Resuelta' : 'Registrada por error'}, ${item.surfaces.join(', ') || 'sin superficies'}`).join('; ') : complete ? 'sin condiciones guardadas' : 'condiciones no confirmadas'}`;
   };
   return (
     <section aria-label="Odontograma" className="[container-type:inline-size]">
@@ -149,7 +153,7 @@ export function PatientOdontogram({
                     className={item.status === 'active' ? 'text-primary' : 'text-muted'}
                   >
                     <ConditionSymbol
-                      code={item.condition_code}
+                      code={resolveCondition(catalog, item.condition_code).symbol}
                       resolved={item.status === 'resolved'}
                     />
                   </g>

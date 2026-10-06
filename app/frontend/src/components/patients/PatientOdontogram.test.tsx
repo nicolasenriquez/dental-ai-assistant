@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import type { PatientCondition } from '../../lib/api';
+import { normalizeConditionCatalog } from '../../lib/odontogramPresentation';
 import { PatientOdontogram } from './PatientOdontogram';
 
 const record: PatientCondition = {
@@ -85,4 +86,37 @@ it('keeps multiple active/resolved marks and mesial orientation, with text equiv
     '3 2',
   );
   expect(container.querySelector('[data-draft-tooth="11"]')).not.toBeNull();
+});
+it('consumes the shared catalog for labels and neutral symbols', () => {
+  const { container } = render(
+    <PatientOdontogram
+      dentition="permanent"
+      conditions={[
+        record,
+        { ...record, id: 'syn', tooth_fdi: 37, condition_code: 'synthetic', surfaces: [] },
+      ]}
+      labels={{}}
+      catalog={normalizeConditionCatalog({
+        version: 1,
+        conditions: [
+          { code: 'caries', label_es: 'Caries', surface_codes: ['M', 'D', 'O', 'V', 'L'] },
+          { code: 'synthetic', label_es: 'Hallazgo de prueba', surface_codes: [] },
+        ],
+      })}
+      selectedTooth={0}
+      highlightedTooth={0}
+      onSelect={vi.fn()}
+      onHighlight={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole('button', { name: /Pieza 36: Caries, Activa/ })).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: /Pieza 37: Hallazgo de prueba, Activa/ }),
+  ).toBeInTheDocument();
+  expect(
+    container.querySelector('[data-arch-tooth="36"] [data-condition-symbol="caries"]'),
+  ).not.toBeNull();
+  expect(
+    container.querySelector('[data-arch-tooth="37"] [data-condition-symbol="neutral"]'),
+  ).not.toBeNull();
 });

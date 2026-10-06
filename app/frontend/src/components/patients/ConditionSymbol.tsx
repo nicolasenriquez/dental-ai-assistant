@@ -52,6 +52,7 @@ export function ConditionSymbol({
   return (
     <svg
       aria-hidden="true"
+      data-condition-symbol={code}
       viewBox="0 0 24 24"
       width="20"
       height="20"

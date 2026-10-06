@@ -35,6 +35,90 @@ DSN = os.environ.get("WORKSPACE_LIVE_TEST_DSN", "")
 pytestmark = pytest.mark.skipif(not DSN, reason="WORKSPACE_LIVE_TEST_DSN not set")
 
 
+async def test_catalog_domain_http_and_migrated_sql_agree(workspace_db):
+    from itertools import combinations
+
+    from backend.patients.conditions import CATALOG, CreateCondition
+
+    pool, owner, _, patient, _, _ = workspace_db
+
+    async def user():
+        return {"id": str(owner)}
+
+    sql = """INSERT INTO patient_tooth_conditions
+        (id,owner_user_id,patient_id,dentition,tooth_fdi,condition_code,
+         surfaces,status,created_by_user_id,updated_by_user_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7,'resolved',$2,$2)"""
+
+    app.dependency_overrides[get_current_user] = user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            catalog = (await client.get("/api/patients/condition-catalog")).json()
+            assert [entry["code"] for entry in catalog["conditions"]] == list(CATALOG)
+            assert catalog["categories"] == [{"key": "diagnosis", "label_es": "Diagnóstico"}]
+            base = f"/api/patients/{patient}/conditions"
+            for entry in catalog["conditions"]:
+                assert entry["allowed_dentitions"] == ["permanent", "primary"]
+                for dentition, tooth in (("permanent", 16), ("primary", 51)):
+                    for size in range(6):
+                        for selected in combinations(("M", "D", "O", "V", "L"), size):
+                            body = {
+                                "id": str(uuid4()),
+                                "dentition": dentition,
+                                "tooth_fdi": tooth,
+                                "condition_code": entry["code"],
+                                "surfaces": list(selected),
+                            }
+                            allowed = not selected or bool(entry["surface_codes"])
+                            if allowed:
+                                command = CreateCondition.model_validate(body)
+                                assert command.surfaces == list(selected)
+                            else:
+                                with pytest.raises(ValueError):
+                                    CreateCondition.model_validate(body)
+                            response = await client.post(base, json=body)
+                            assert response.status_code == (201 if allowed else 422), body
+                            # Probe CHECKs directly, independently of service validation/active uniqueness.
+                            async with pool.acquire() as conn:
+                                args = (
+                                    uuid4(),
+                                    owner,
+                                    patient,
+                                    dentition,
+                                    tooth,
+                                    entry["code"],
+                                    list(selected),
+                                )
+                                if allowed:
+                                    await conn.execute(sql, *args)
+                                else:
+                                    with pytest.raises(asyncpg.CheckViolationError):
+                                        await conn.execute(sql, *args)
+            for extra in ("category_key", "icon", "draft", "allowed_dentitions"):
+                response = await client.post(
+                    base,
+                    json={
+                        "id": str(uuid4()),
+                        "dentition": "primary",
+                        "tooth_fdi": 52,
+                        "condition_code": "caries",
+                        extra: "untrusted",
+                    },
+                )
+                assert response.status_code == 422
+            async with pool.acquire() as conn:
+                assert await conn.fetchval("SELECT version_num FROM alembic_version") == "0024"
+                for code, surfaces in (("unknown", []), ("missing", ["O"])):
+                    with pytest.raises(asyncpg.CheckViolationError):
+                        await conn.execute(
+                            sql, uuid4(), owner, patient, "permanent", 16, code, surfaces
+                        )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
 @pytest.fixture
 async def workspace_db(monkeypatch):
     pool = await asyncpg.create_pool(DSN, min_size=1, max_size=3)

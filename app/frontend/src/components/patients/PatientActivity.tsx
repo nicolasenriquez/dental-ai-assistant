@@ -9,6 +9,7 @@ import {
   formatClinicalTime,
 } from '../../lib/clinicalDate';
 import { Button } from '../ui/Button';
+import { PatientActorLabel } from './PatientActorLabel';
 
 const filters = [
   { kind: 'all', label: 'Todos' },
@@ -100,9 +101,10 @@ export function PatientActivity({ patientId }: { patientId: string }) {
                         {formatClinicalTime(item.occurred_at)}
                       </time>
                     </p>
-                    <p className="break-words text-sm text-muted">
-                      {item.actor?.display_name || 'Autor no disponible'}
-                    </p>
+                    <PatientActorLabel
+                      actor={item.actor}
+                      actors={page?.items.flatMap((event) => (event.actor ? [event.actor] : []))}
+                    />
                   </div>
                 </li>
               );

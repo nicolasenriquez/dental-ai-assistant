@@ -1,7 +1,9 @@
 """Fixed clinician-entered condition vocabulary and strict FDI/cursor validation."""
 
 import binascii
+from dataclasses import dataclass
 from datetime import datetime
+from types import MappingProxyType
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -19,22 +21,35 @@ from .cursors import decode_cursor_payload, encode_cursor_payload
 
 Dentition = Literal["permanent", "primary"]
 Surface = Literal["M", "D", "O", "V", "L"]
-SURFACES = ("M", "D", "O", "V", "L")
-CATALOG = {
-    "pulpitis": "Pulpitis",
-    "caries": "Caries",
-    "incipient_caries": "Caries incipiente",
-    "pigmentation": "Pigmentación",
-    "fracture": "Fractura",
-    "missing": "Ausente",
-    "periapical_lt_2mm": "Lesión periapical <2 mm",
-    "periapical_2_4mm": "Lesión periapical 2–4 mm",  # noqa: RUF001 - fixed catalog label
-    "periapical_gt_4mm": "Lesión periapical >4 mm",
-    "rotated": "Rotado",
-    "displaced": "Desplazado",
-    "unerupted": "No erupcionado",
-}
-SURFACE_CODES = {"caries", "incipient_caries", "pigmentation", "fracture"}
+SURFACES: tuple[Surface, ...] = ("M", "D", "O", "V", "L")
+
+
+@dataclass(frozen=True)
+class ConditionDefinition:
+    label_es: str
+    surface_codes: tuple[Surface, ...] = ()
+    category_key: str = "diagnosis"
+    allowed_dentitions: tuple[Dentition, ...] = ("permanent", "primary")
+
+
+CONDITION_DEFINITIONS = MappingProxyType(
+    {
+        "pulpitis": ConditionDefinition("Pulpitis"),
+        "caries": ConditionDefinition("Caries", SURFACES),
+        "incipient_caries": ConditionDefinition("Caries incipiente", SURFACES),
+        "pigmentation": ConditionDefinition("Pigmentación", SURFACES),
+        "fracture": ConditionDefinition("Fractura", SURFACES),
+        "missing": ConditionDefinition("Ausente"),
+        "periapical_lt_2mm": ConditionDefinition("Lesión periapical <2 mm"),
+        "periapical_2_4mm": ConditionDefinition("Lesión periapical 2–4 mm"),  # noqa: RUF001
+        "periapical_gt_4mm": ConditionDefinition("Lesión periapical >4 mm"),
+        "rotated": ConditionDefinition("Rotado"),
+        "displaced": ConditionDefinition("Desplazado"),
+        "unerupted": ConditionDefinition("No erupcionado"),
+    }
+)
+CATALOG = {code: entry.label_es for code, entry in CONDITION_DEFINITIONS.items()}
+SURFACE_CODES = {code for code, entry in CONDITION_DEFINITIONS.items() if entry.surface_codes}
 ConditionNote = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
 ConditionStatus = Literal["active", "resolved", "entered_in_error"]
 ConditionFilter = Literal["all", "active", "resolved", "entered_in_error"]
@@ -50,7 +65,10 @@ def valid_tooth(dentition: str, tooth: int) -> bool:
 def canonical_surfaces(value: list[str], code: str) -> list[str]:
     if len(value) != len(set(value)) or any(surface not in SURFACES for surface in value):
         raise ValueError("Superficies inválidas o repetidas")
-    if value and code not in SURFACE_CODES:
+    definition = CONDITION_DEFINITIONS.get(code)
+    if value and (
+        definition is None or any(surface not in definition.surface_codes for surface in value)
+    ):
         raise ValueError("Esta condición no admite superficies")
     return [surface for surface in SURFACES if surface in value]
 
@@ -156,9 +174,15 @@ class CreateCondition(BaseModel):
     @field_validator("condition_code")
     @classmethod
     def code(cls, value: str) -> str:
-        if value not in CATALOG:
+        if value not in CONDITION_DEFINITIONS:
             raise ValueError("Condición no admitida")
         return value
+
+    @model_validator(mode="after")
+    def applicability(self) -> "CreateCondition":
+        if self.dentition not in CONDITION_DEFINITIONS[self.condition_code].allowed_dentitions:
+            raise ValueError("Condición incompatible con la dentición")
+        return self
 
     @field_validator("surfaces")
     @classmethod

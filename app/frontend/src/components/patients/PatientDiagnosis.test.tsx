@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import { TransitionGuardProvider } from '../../hooks/useTransitionGuard';
 import { ApiError } from '../../lib/api';
+import { normalizeConditionCatalog } from '../../lib/odontogramPresentation';
 import { PatientConditionHistory } from './PatientConditionHistory';
 import { PatientDiagnosis } from './PatientDiagnosis';
 
@@ -41,7 +42,40 @@ const record = {
   updated_at: '2026-10-03T12:00:00Z',
 };
 afterEach(() => vi.resetAllMocks());
-function mount(items = [record], focusedConditionId?: string): void {
+it('starts with current reads and keeps owned evidence/history when catalog fails', async () => {
+  mount([record], undefined, () => {
+    mocks.catalog.mockRejectedValue(new TypeError('catalog unavailable'));
+  });
+  await screen.findByText(/No pudimos cargar el catálogo/);
+  expect(mocks.list).toHaveBeenCalledWith('p', expect.objectContaining({ status: 'active' }));
+  expect(
+    await screen.findByRole('article', { name: /Condición no reconocida.*caries/ }),
+  ).toBeVisible();
+  expect(screen.getByLabelText('Estado')).toHaveValue('active');
+  expect(screen.getByText('Usuario u')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Historial de condición' }));
+  await waitFor(() => expect(mocks.revisions).toHaveBeenCalled());
+  expect(screen.getByRole('button', { name: 'Editar condición' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Resolver condición' })).toBeEnabled();
+  expect(mocks.edit).not.toHaveBeenCalled();
+});
+it('opens an exact error target in its historical filter and guards returning to current', async () => {
+  mount([], record.id, () => {
+    mocks.exact.mockResolvedValue({
+      ...record,
+      dentition: 'primary',
+      tooth_fdi: 51,
+      status: 'entered_in_error',
+    });
+  });
+  await screen.findByRole('article', { name: /Pieza 51.*Registrada por error/ });
+  expect(screen.getByLabelText('Estado')).toHaveValue('entered_in_error');
+  expect(screen.getByRole('button', { name: 'Temporal' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'active' } });
+  await screen.findByText('Sin registros actuales');
+  expect(mocks.correct).not.toHaveBeenCalled();
+});
+function mount(items = [record], focusedConditionId?: string, configure?: () => void): void {
   mocks.list.mockResolvedValue({ items, total: items.length, next_cursor: null });
   mocks.catalog.mockResolvedValue({
     version: 1,
@@ -52,6 +86,7 @@ function mount(items = [record], focusedConditionId?: string): void {
   });
   mocks.exact.mockResolvedValue(record);
   mocks.revisions.mockResolvedValue({ items: [], total: 0, next_cursor: null });
+  configure?.();
   render(
     <MemoryRouter>
       <TransitionGuardProvider>
@@ -124,14 +159,73 @@ it('deep target outside page selects dentition; revision conflict retains draft 
   );
 });
 
-it('loads every page and flags incomplete reads rather than displaying a false empty chart', async () => {
-  mount([]);
-  mocks.list
-    .mockResolvedValueOnce({ items: [record], total: 2, next_cursor: 'page2' })
-    .mockRejectedValueOnce(new TypeError('read failed'));
+it('loads every page and flags incomplete reads and counts rather than displaying a false empty chart', async () => {
+  mount([], undefined, () => {
+    mocks.list
+      .mockReset()
+      .mockResolvedValueOnce({ items: [record], total: 2, next_cursor: 'page2' })
+      .mockRejectedValueOnce(new TypeError('read failed'));
+  });
   await screen.findByText(/Los datos mostrados pueden estar incompletos/);
   expect(mocks.list).toHaveBeenNthCalledWith(2, 'p', expect.objectContaining({ cursor: 'page2' }));
   expect(await screen.findByRole('article', { name: 'Pieza 36 · Caries · Activa' })).toBeVisible();
+  expect(document.body.textContent).toContain(
+    'Lectura incompleta · 1 registros cargados en 1 piezas; no es un total completo',
+  );
+});
+
+it('shows the persisted record actor with UUID fallback and accessible full identifier', async () => {
+  const actor = { user_id: '12345678-0000-4000-8000-000000000000', display_name: null };
+  mount([{ ...record, updated_by: actor }]);
+  expect(await screen.findByText('Usuario 12345678')).toBeVisible();
+  expect(screen.getByText(`Identificador de cuenta: ${actor.user_id}`)).toBeInTheDocument();
+});
+
+it('expands colliding actor abbreviations while keeping full UUID disclosure', async () => {
+  const first = { user_id: '00000000-0000-4000-8000-000000000001', display_name: null };
+  const second = { user_id: '00000000-0000-4000-8000-000000000002', display_name: null };
+  mount([
+    { ...record, id: 'a', updated_by: first },
+    { ...record, id: 'b', updated_by: second },
+  ]);
+  const labels = await screen.findAllByText(/^Usuario /);
+  expect(labels.map((node) => node.textContent)).toEqual([
+    `Usuario ${first.user_id.replace(/-/g, '')}`,
+    `Usuario ${second.user_id.replace(/-/g, '')}`,
+  ]);
+});
+
+it('renders synthetic supported entries and unknown saved codes through the shared presentation', async () => {
+  mount(
+    [
+      { ...record, id: 'syn', condition_code: 'synthetic' },
+      { ...record, id: 'ghost', condition_code: 'ghost', tooth_fdi: 37 },
+    ],
+    undefined,
+    () => {
+      mocks.catalog.mockResolvedValue({
+        version: 1,
+        categories: [{ key: 'diagnosis', label_es: 'Diagnóstico' }],
+        conditions: [
+          {
+            code: 'synthetic',
+            label_es: 'Hallazgo de prueba',
+            surface_codes: [],
+            category_key: 'diagnosis',
+            allowed_dentitions: ['permanent', 'primary'],
+          },
+        ],
+      });
+    },
+  );
+  const palette = within(screen.getByLabelText('Condiciones disponibles'));
+  expect(await palette.findByRole('button', { name: /Hallazgo de prueba/ })).toBeEnabled();
+  expect(screen.getByRole('article', { name: /Condición no reconocida · ghost/ })).toBeVisible();
+  expect(screen.getAllByText('Símbolo no disponible').length).toBeGreaterThan(1);
+  expect(screen.getByText('Leyenda de conceptos')).toBeInTheDocument();
+  const edit = screen.getAllByRole('button', { name: 'Editar condición' });
+  expect(edit[0]).toBeEnabled();
+  expect(edit[1]).toBeDisabled();
 });
 
 it('keeps a draft on the selected dentition, confirms a change and clears only after discard', async () => {
@@ -363,6 +457,42 @@ it('exact revision paging preserves pages and retries failed cursor without writ
   expect(mocks.correct).not.toHaveBeenCalled();
 });
 
+it('resolves history surfaces from the shared catalog and labels the revision actor', async () => {
+  const actor = { user_id: '12345678-0000-4000-8000-000000000000', display_name: null };
+  mocks.revisions.mockResolvedValue({
+    items: [
+      {
+        id: 'rev',
+        condition_id: record.id,
+        revision: 1,
+        action: 'created',
+        before: null,
+        after: { ...record, condition_code: 'missing', surfaces: [], status: 'resolved' },
+        actor,
+        changed_at: record.updated_at,
+      },
+    ],
+    total: 1,
+    next_cursor: null,
+  });
+  render(
+    <PatientConditionHistory
+      patientId="p"
+      conditionId={record.id}
+      labels={{}}
+      catalog={normalizeConditionCatalog({
+        version: 1,
+        conditions: [{ code: 'missing', label_es: 'Ausente', surface_codes: [] }],
+      })}
+    />,
+  );
+  expect(
+    await screen.findByText(/Pieza 36 · Ausente · Pieza completa, sin superficies · Resuelta/),
+  ).toBeVisible();
+  expect(screen.getByText('Usuario 12345678')).toBeVisible();
+  expect(screen.getByText(`Identificador de cuenta: ${actor.user_id}`)).toBeInTheDocument();
+});
+
 it('missing exact revision is explicit and never labels latest as receipt snapshot', async () => {
   mocks.revisions.mockResolvedValue({ items: [], total: 0, next_cursor: null });
   render(
@@ -391,6 +521,7 @@ it('a persisted correction link retains exact target on failed owned read and re
     },
   };
   mount([corrected]);
+  fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'entered_in_error' } });
   mocks.exact.mockRejectedValueOnce(new TypeError('unavailable')).mockResolvedValueOnce(corrected);
   fireEvent.click(await screen.findByRole('button', { name: 'Ver corrección exacta' }));
   await screen.findByText(/No pudimos cargar el registro vinculado/);
@@ -430,7 +561,7 @@ it('late correction response cannot repaint another patient', async () => {
       <PatientDiagnosis patientId="other" />
     </MemoryRouter>,
   );
-  await screen.findByText('Sin condiciones en esta dentición y estado.');
+  await screen.findByText('Sin registros actuales');
   await act(async () =>
     finish({
       operation_id: 'op',

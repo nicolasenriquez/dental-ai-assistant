@@ -20,6 +20,12 @@ import {
   updatePatientCondition,
 } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
+import {
+  conditionGroups,
+  normalizeConditionCatalog,
+  resolveCondition,
+  surfaceDescription,
+} from '../../lib/odontogramPresentation';
 import { PatientIdentity } from '../PatientIdentity';
 import { Spinner } from '../Spinner';
 import { Button } from '../ui/Button';
@@ -33,6 +39,7 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import { ConditionSymbol } from './ConditionSymbol';
+import { PatientActorLabel } from './PatientActorLabel';
 import { PatientConditionHistory } from './PatientConditionHistory';
 import { PatientNoteNavigationGuard } from './PatientNoteNavigationGuard';
 import { PatientOdontogram } from './PatientOdontogram';
@@ -92,12 +99,16 @@ function PatientDiagnosisWorkspace({
   const guard = useOptionalTransitionGuard();
   const dataRouter = useContext(UNSAFE_DataRouterContext);
   const [catalog, setCatalog] = useState<ConditionCatalog | null>(null);
+  const [catalogError, setCatalogError] = useState(false);
+  const catalogSequence = useRef(0);
   const [records, setRecords] = useState<PatientCondition[]>([]);
   const [loading, setLoading] = useState(true);
   const [readError, setReadError] = useState(false);
   const [dentition, setDentition] = useState<Dentition>('permanent');
   const [highlightedTooth, setHighlightedTooth] = useState(0);
-  const [status, setStatus] = useState<'all' | 'active' | 'resolved'>('all');
+  const [status, setStatus] = useState<'all' | 'active' | 'resolved' | 'entered_in_error'>(
+    'active',
+  );
   const [focused, setFocused] = useState<PatientCondition | null>(null);
   const [focusError, setFocusError] = useState<string | null>(null);
   const [draft, setDraft] = useState<ConditionDraft | null>(null);
@@ -136,28 +147,51 @@ function PatientDiagnosisWorkspace({
     (!!draft.correction || values(draft) !== draft.baseline || attempt !== null || conflictPending);
   const locked = saving || attempt !== null;
   const immutable = draft?.expectedRevision !== undefined && !draft.correction;
+  const selectedTool = draft ? resolveCondition(catalog, draft.condition_code) : null;
+  const applicable =
+    !!selectedTool?.supported &&
+    selectedTool.allowed_dentitions.includes(draft?.dentition ?? dentition) &&
+    !!draft &&
+    draft.surfaces.every((surface) => selectedTool.surface_codes.includes(surface));
   const correctionValid =
     !!draft?.correction?.reason.trim() &&
     draft.correction.reason.trim().length <= 1000 &&
     (!draft.correction.replacement ||
-      (!!selectedCatalogEntry(catalog, draft.condition_code) &&
-        fdiTeeth(draft.dentition).includes(draft.tooth_fdi)));
+      (applicable && fdiTeeth(draft.dentition).includes(draft.tooth_fdi)));
   const labels = Object.fromEntries(
-    catalog?.conditions.map((item) => [item.code, item.label_es]) ?? [],
+    [
+      ...new Set([
+        ...(catalog?.conditions.map((item) => item.code) ?? []),
+        ...records.map((item) => item.condition_code),
+        focused?.condition_code ?? '',
+        draft?.condition_code ?? '',
+        draft?.correction?.source.condition_code ?? '',
+      ]),
+    ].map((code) => [code, resolveCondition(catalog, code).label]),
   );
-  const selectedTool = catalog?.conditions.find((item) => item.code === draft?.condition_code);
+  const groups = conditionGroups(catalog);
+  const loadCatalog = useCallback(async (): Promise<void> => {
+    const request = ++catalogSequence.current;
+    setCatalogError(false);
+    try {
+      const vocabulary = normalizeConditionCatalog(await getConditionCatalog());
+      if (alive.current && request === catalogSequence.current) setCatalog(vocabulary);
+    } catch {
+      if (alive.current && request === catalogSequence.current) {
+        setCatalog(null);
+        setCatalogError(true);
+      }
+    }
+  }, []);
   const load = useCallback(async (): Promise<void> => {
     const request = ++sequence.current;
     setLoading(true);
     setReadError(false);
     try {
-      const vocabulary = await getConditionCatalog();
-      if (request !== sequence.current) return;
-      setCatalog(vocabulary);
       let cursor: string | undefined;
       let all: PatientCondition[] = [];
       do {
-        const page = await getPatientConditions(patientId, { cursor, limit: 50 });
+        const page = await getPatientConditions(patientId, { cursor, limit: 50, status });
         if (request !== sequence.current) return;
         all = [...all, ...page.items].filter(
           (item, index, items) =>
@@ -171,7 +205,13 @@ function PatientDiagnosisWorkspace({
     } finally {
       if (request === sequence.current) setLoading(false);
     }
-  }, [patientId]);
+  }, [patientId, status]);
+  useEffect(() => {
+    void loadCatalog();
+    return () => {
+      catalogSequence.current++;
+    };
+  }, [loadCatalog]);
   const loadFocused = useCallback(async (): Promise<void> => {
     const request = ++focusSequence.current;
     setFocused(null);
@@ -188,7 +228,7 @@ function PatientDiagnosisWorkspace({
       if (request !== focusSequence.current) return;
       setFocused(current);
       setDentition(current.dentition);
-      setStatus('all');
+      setStatus(current.status);
     } catch (error) {
       if (request === focusSequence.current)
         setFocusError(
@@ -305,7 +345,7 @@ function PatientDiagnosisWorkspace({
       setHistoryId(conditionId);
       setFocused(current);
       setDentition(current.dentition);
-      setStatus('all');
+      setStatus(current.status);
       setHighlightedTooth(current.tooth_fdi);
     } catch {
       if (alive.current && request === focusSequence.current) setResultReadError(true);
@@ -313,7 +353,8 @@ function PatientDiagnosisWorkspace({
   };
   const chooseTool = (code: string): void => {
     if (locked || immutable || (draft?.correction && !draft.correction.replacement)) return;
-    const tool = catalog?.conditions.find((item) => item.code === code);
+    const tool = resolveCondition(catalog, code);
+    if (!tool.supported || !tool.allowed_dentitions.includes(draft?.dentition ?? dentition)) return;
     if (!draft) {
       initiatingRef.current = document.activeElement as HTMLElement;
       const next = {
@@ -457,7 +498,14 @@ function PatientDiagnosisWorkspace({
         savingRef.current = false;
       }
     }
-    if (!draft || savingRef.current || conflictPending || !draft.tooth_fdi || !draft.condition_code)
+    if (
+      !draft ||
+      savingRef.current ||
+      conflictPending ||
+      !draft.tooth_fdi ||
+      !draft.condition_code ||
+      (!attempt && draft.status !== 'resolved' && !applicable)
+    )
       return false;
     const normalized = {
       id: draft.id,
@@ -497,6 +545,7 @@ function PatientDiagnosisWorkspace({
       if (!alive.current) return false;
       setRecords((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
       if (focused?.id === saved.id) setFocused(saved);
+      if (saved.status === 'resolved') setStatus('resolved');
       setAnnouncement(
         `Condición guardada: pieza ${saved.tooth_fdi}, ${labels[saved.condition_code] ?? saved.condition_code}, ${saved.status === 'resolved' ? 'resuelta' : 'activa'}.`,
       );
@@ -671,6 +720,17 @@ function PatientDiagnosisWorkspace({
         </div>
       )}
       {loading && <p role="status">Cargando condiciones…</p>}
+      {catalogError && (
+        <div role="alert">
+          <p>
+            No pudimos cargar el catálogo. Los registros y su historial siguen disponibles; no se
+            puede revisar la aplicabilidad de nuevos datos.
+          </p>
+          <Button variant="clinicalSecondary" onClick={() => void loadCatalog()}>
+            Reintentar catálogo
+          </Button>
+        </div>
+      )}
       {readError && (
         <div role="alert">
           <p>
@@ -697,6 +757,7 @@ function PatientDiagnosisWorkspace({
             dentition={dentition}
             conditions={visible}
             labels={labels}
+            catalog={catalog}
             selectedTooth={draft?.tooth_fdi ?? focused?.tooth_fdi ?? 0}
             highlightedTooth={highlightedTooth}
             onSelect={chooseTooth}
@@ -721,21 +782,27 @@ function PatientDiagnosisWorkspace({
             ))}
           </select>
           <div className="flex flex-wrap gap-2" aria-label="Condiciones disponibles">
-            {catalog?.conditions.map((tool) => (
-              <Button
-                key={tool.code}
-                variant="clinicalSecondary"
-                aria-pressed={draft?.condition_code === tool.code}
-                className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
-                disabled={
-                  locked || immutable || !!(draft?.correction && !draft.correction.replacement)
-                }
-                onClick={() => chooseTool(tool.code)}
-              >
-                <ConditionSymbol code={tool.code} />
-                {tool.label_es}
-              </Button>
-            ))}
+            {groups
+              .flatMap((group) => group.entries)
+              .map((tool) => (
+                <Button
+                  key={tool.code}
+                  variant="clinicalSecondary"
+                  aria-pressed={draft?.condition_code === tool.code}
+                  className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
+                  disabled={
+                    locked ||
+                    immutable ||
+                    !tool.allowed_dentitions.includes(draft?.dentition ?? dentition) ||
+                    !!(draft?.correction && !draft.correction.replacement)
+                  }
+                  onClick={() => chooseTool(tool.code)}
+                >
+                  <ConditionSymbol code={tool.symbol} />
+                  {tool.label_es}
+                  {tool.symbolUnavailable && <span className="sr-only">Símbolo no disponible</span>}
+                </Button>
+              ))}
           </div>
         </div>
         <aside
@@ -881,7 +948,10 @@ function PatientDiagnosisWorkspace({
                   </p>
                   <fieldset
                     disabled={
-                      locked || !selectedTool?.surface_codes.length || draft.status === 'resolved'
+                      locked ||
+                      !selectedTool?.supported ||
+                      !selectedTool.surface_codes.length ||
+                      draft.status === 'resolved'
                     }
                   >
                     <legend className="text-sm font-medium">Superficies</legend>
@@ -1034,7 +1104,11 @@ function PatientDiagnosisWorkspace({
                         (!correctionValid ||
                           (conflictPending &&
                             (!conflict || conflict.status === 'entered_in_error')))
-                      : conflictPending || !draft.tooth_fdi || !draft.condition_code)
+                      : !attempt &&
+                        (conflictPending ||
+                          !draft.tooth_fdi ||
+                          !draft.condition_code ||
+                          (draft.status !== 'resolved' && !applicable)))
                   }
                 >
                   {saving && !pending && <Spinner />}
@@ -1071,17 +1145,50 @@ function PatientDiagnosisWorkspace({
               <select
                 className="min-h-[44px] rounded border border-border bg-surface px-2"
                 value={status}
-                onChange={(event) => setStatus(event.target.value as typeof status)}
+                onChange={(event) => {
+                  const next = event.target.value as typeof status;
+                  transition(() => {
+                    reset();
+                    setStatus(next);
+                  });
+                }}
               >
                 <option value="all">Todas</option>
-                <option value="active">Activas</option>
+                <option value="active">Actuales</option>
                 <option value="resolved">Resueltas</option>
+                <option value="entered_in_error">Registradas por error</option>
               </select>
             </label>
           </div>
           {!loading && !readError && visible.length === 0 && (
-            <p className="text-muted">Sin condiciones en esta dentición y estado.</p>
+            <p className="text-muted">
+              {status === 'active'
+                ? 'Sin registros actuales'
+                : 'Sin condiciones en esta dentición y estado.'}
+            </p>
           )}
+          {visible.length > 0 && (
+            <p className="text-sm text-muted">
+              {loading || readError ? 'Lectura incompleta · ' : ''}
+              {visible.length} {loading || readError ? 'registros cargados' : 'condiciones'} en{' '}
+              {new Set(visible.map((record) => record.tooth_fdi)).size} piezas
+              {loading || readError ? '; no es un total completo' : ''}
+            </p>
+          )}
+          <details className="text-sm">
+            <summary className="min-h-[44px] cursor-pointer">Leyenda de conceptos</summary>
+            <ul>
+              {groups
+                .flatMap((group) => group.entries)
+                .map((entry) => (
+                  <li key={entry.code} className="flex items-center gap-2">
+                    <ConditionSymbol code={entry.symbol} />
+                    {entry.label}
+                    {entry.symbolUnavailable && ' · Símbolo no disponible'}
+                  </li>
+                ))}
+            </ul>
+          </details>
           <ol className="divide-y divide-border">
             {visible.map((record) => (
               <li key={record.id}>
@@ -1100,7 +1207,7 @@ function PatientDiagnosisWorkspace({
                 >
                   <h4 className="flex items-center gap-2 font-medium">
                     <ConditionSymbol
-                      code={record.condition_code}
+                      code={resolveCondition(catalog, record.condition_code).symbol}
                       resolved={record.status === 'resolved'}
                     />
                     Pieza {record.tooth_fdi} ·{' '}
@@ -1108,16 +1215,22 @@ function PatientDiagnosisWorkspace({
                   </h4>
                   <p className="text-sm">
                     {conditionStatus(record.status)} ·{' '}
-                    {record.surfaces.join(', ') || 'Sin superficies'}
+                    {surfaceDescription(catalog, record.condition_code, record.surfaces)}
                   </p>
+                  {resolveCondition(catalog, record.condition_code).symbolUnavailable && (
+                    <p className="text-sm text-muted">Símbolo no disponible</p>
+                  )}
                   {record.note && (
                     <p className="whitespace-pre-wrap break-words text-sm">{record.note}</p>
                   )}
                   <p className="text-xs text-muted">
                     {formatClinicalDateShort(record.updated_at)}{' '}
                     {formatClinicalTime(record.updated_at)} · Revisión {record.revision}
-                    {record.updated_by.display_name ? ` · ${record.updated_by.display_name}` : ''}
                   </p>
+                  <PatientActorLabel
+                    actor={record.updated_by}
+                    actors={visible.map((item) => item.updated_by)}
+                  />
                   <div className="flex flex-wrap gap-2">
                     {record.correction && (
                       <>
@@ -1179,7 +1292,9 @@ function PatientDiagnosisWorkspace({
                       <>
                         <Button
                           variant="clinicalSecondary"
-                          disabled={saving}
+                          disabled={
+                            saving || !resolveCondition(catalog, record.condition_code).supported
+                          }
                           onClick={() => start(record)}
                         >
                           Editar condición
@@ -1209,6 +1324,7 @@ function PatientDiagnosisWorkspace({
                       patientId={patientId}
                       conditionId={record.id}
                       labels={labels}
+                      catalog={catalog}
                       targetRevisionId={targetRevisionId}
                     />
                   )}
@@ -1338,8 +1454,4 @@ function conditionStatus(status: PatientCondition['status']): string {
     : status === 'resolved'
       ? 'Resuelta'
       : 'Registrada por error';
-}
-
-function selectedCatalogEntry(catalog: ConditionCatalog | null, code: string): boolean {
-  return !!catalog?.conditions.some((item) => item.code === code);
 }

@@ -1,21 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  type ConditionCatalog,
   type ConditionSnapshot,
   type PatientConditionRevisionPage,
   getPatientConditionRevisions,
 } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
+import { resolveCondition, surfaceDescription } from '../../lib/odontogramPresentation';
 import { Button } from '../ui/Button';
+import { PatientActorLabel } from './PatientActorLabel';
 
 export function PatientConditionHistory({
   patientId,
   conditionId,
   labels,
+  catalog,
   targetRevisionId,
 }: {
   patientId: string;
   conditionId: string;
   labels: Record<string, string>;
+  catalog?: ConditionCatalog | null;
   targetRevisionId?: string;
 }): JSX.Element {
   const [page, setPage] = useState<PatientConditionRevisionPage | null>(null);
@@ -67,7 +72,7 @@ export function PatientConditionHistory({
     if (target) targetRef.current?.focus();
   }, [targetRevisionId, target, page?.next_cursor, loading, error, load]);
   const describe = (value: ConditionSnapshot): string =>
-    `Pieza ${value.tooth_fdi} · ${labels[value.condition_code] ?? value.condition_code} · ${value.surfaces.join(', ') || 'Sin superficies'} · ${value.status === 'active' ? 'Activa' : value.status === 'resolved' ? 'Resuelta' : 'Registrada por error'}`;
+    `Pieza ${value.tooth_fdi} · ${labels[value.condition_code] ?? resolveCondition(catalog, value.condition_code).label} · ${surfaceDescription(catalog, value.condition_code, value.surfaces)} · ${value.status === 'active' ? 'Activa' : value.status === 'resolved' ? 'Resuelta' : 'Registrada por error'}`;
   return (
     <section aria-label="Revisiones de condición" className="space-y-3 border-l border-border pl-4">
       <h4 className="font-medium">Historial de revisiones</h4>
@@ -108,8 +113,11 @@ export function PatientConditionHistory({
           </h5>
           <p className="text-xs text-muted">
             {formatClinicalDateShort(item.changed_at)} {formatClinicalTime(item.changed_at)}
-            {item.actor.display_name ? ` · ${item.actor.display_name}` : ''}
           </p>
+          <PatientActorLabel
+            actor={item.actor}
+            actors={page?.items.map((revision) => revision.actor)}
+          />
           {item.correction && (
             <p className="whitespace-pre-wrap break-words">
               Motivo de corrección: {item.correction.reason}

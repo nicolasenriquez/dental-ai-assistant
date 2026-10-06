@@ -1003,10 +1003,13 @@ export interface ConditionCatalogEntry {
   code: string;
   label_es: string;
   surface_codes: ToothSurface[];
+  category_key?: string;
+  allowed_dentitions?: Dentition[];
 }
 export interface ConditionCatalog {
   version: 1;
   conditions: ConditionCatalogEntry[];
+  categories?: { key: string; label_es: string }[];
 }
 export interface ConditionSnapshot {
   dentition: Dentition;

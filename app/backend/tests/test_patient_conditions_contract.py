@@ -21,6 +21,10 @@ async def test_condition_catalog_and_invalid_inputs():
             assert catalog.status_code == 200
             assert catalog.json()["version"] == 1
             assert len(catalog.json()["conditions"]) == 12
+            assert catalog.json()["categories"] == [{"key": "diagnosis", "label_es": "Diagnóstico"}]
+            for entry in catalog.json()["conditions"]:
+                assert entry["category_key"] == "diagnosis"
+                assert entry["allowed_dentitions"] == ["permanent", "primary"]
             base = f"/api/patients/{uuid4()}/conditions"
             valid = {
                 "id": str(uuid4()),
@@ -39,6 +43,9 @@ async def test_condition_catalog_and_invalid_inputs():
                 {"note": "x" * 1001},
                 {"condition_code": "missing", "surfaces": ["O"]},
                 {"status": "resolved"},
+                {"category_key": "diagnosis"},
+                {"icon": "caries"},
+                {"draft": True},
             ):
                 result = await client.post(base, json={**valid, **change})
                 assert result.status_code == 422, change
@@ -88,6 +95,20 @@ async def test_condition_catalog_and_cursor_schema():
     ):
         with pytest.raises(ValueError):
             decode_cursor(encoded, foreign, mode, status)
+    error_cursor = ConditionsCursor(
+        v=1,
+        patient_id=patient,
+        dentition="primary",
+        status="entered_in_error",
+        tooth_fdi=51,
+        created_at=datetime.now(UTC),
+        id=uuid4(),
+    )
+    error_encoded = encode_cursor(error_cursor)
+    assert decode_cursor(error_encoded, patient, "primary", "entered_in_error") == error_cursor
+    for status in ("all", "active", "resolved"):
+        with pytest.raises(ValueError):
+            decode_cursor(error_encoded, patient, "primary", status)
     data = cursor.model_dump(mode="json")
     for change in (
         {"v": True},

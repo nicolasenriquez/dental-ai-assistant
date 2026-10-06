@@ -64,6 +64,27 @@ it('preserves events on page failure and retries the same cursor; initial failur
   expect(list.mock.calls[2]).toEqual(list.mock.calls[3]);
 });
 
+it('labels persisted actors with distinguishable UUID abbreviations and full disclosure', async () => {
+  const first = { user_id: '00000000-0000-4000-8000-000000000001', display_name: null };
+  const second = { user_id: '00000000-0000-4000-8000-000000000002', display_name: null };
+  list.mockResolvedValueOnce({
+    items: [
+      { ...event('r1'), actor: first },
+      { ...event('r2'), actor: second },
+    ],
+    total: 2,
+    next_cursor: null,
+  });
+  mount();
+  const labels = await screen.findAllByText(/^Usuario /);
+  expect(labels.map((node) => node.textContent)).toEqual([
+    `Usuario ${first.user_id.replace(/-/g, '')}`,
+    `Usuario ${second.user_id.replace(/-/g, '')}`,
+  ]);
+  expect(screen.getByText(`Identificador de cuenta: ${first.user_id}`)).toBeInTheDocument();
+  expect(screen.queryByText('Autor no disponible')).toBeNull();
+});
+
 it('resets filter/cursor and rejects late responses from the previous category', async () => {
   let finish: (value: unknown) => void = () => {};
   list

@@ -13,9 +13,7 @@ from backend.auth.dependencies import get_current_user
 from backend.db import patient_conditions_repo as repo
 from backend.patients import condition_service
 from backend.patients.conditions import (
-    CATALOG,
-    SURFACE_CODES,
-    SURFACES,
+    CONDITION_DEFINITIONS,
     ConditionConflict,
     ConditionFilter,
     ConditionRevisionsCursor,
@@ -138,13 +136,16 @@ def _cursor(
 async def catalog(user: User) -> dict[str, Any]:
     return {
         "version": 1,
+        "categories": [{"key": "diagnosis", "label_es": "Diagnóstico"}],
         "conditions": [
             {
                 "code": code,
-                "label_es": label,
-                "surface_codes": list(SURFACES) if code in SURFACE_CODES else [],
+                "label_es": entry.label_es,
+                "surface_codes": list(entry.surface_codes),
+                "category_key": entry.category_key,
+                "allowed_dentitions": list(entry.allowed_dentitions),
             }
-            for code, label in CATALOG.items()
+            for code, entry in CONDITION_DEFINITIONS.items()
         ],
     }
 
