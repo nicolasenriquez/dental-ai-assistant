@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TransitionGuardProvider } from '../hooks/useTransitionGuard';
 import * as api from '../lib/api';
 import { PatientDetail } from './PatientDetail';
 
@@ -474,5 +475,197 @@ describe('PatientDetail evolution workspace', () => {
         email: null,
       }),
     );
+  });
+});
+
+describe('PatientDetail URL continuity (S6)', () => {
+  const conditionRecord: api.PatientCondition = {
+    id: '00000000-0000-4000-8000-000000000036',
+    patient_id: 'patient-1',
+    dentition: 'permanent',
+    tooth_fdi: 36,
+    condition_code: 'caries',
+    surfaces: ['M'],
+    note: 'Nota clínica privada',
+    status: 'active',
+    revision: 1,
+    created_by: { user_id: 'u', display_name: null },
+    updated_by: { user_id: 'u', display_name: null },
+    created_at: '2026-10-03T12:00:00Z',
+    updated_at: '2026-10-03T12:00:00Z',
+  };
+
+  function mockClinical() {
+    vi.spyOn(api, 'getPatientConditions').mockResolvedValue({
+      items: [],
+      total: 0,
+      next_cursor: null,
+    });
+    vi.spyOn(api, 'getConditionCatalog').mockResolvedValue({
+      version: 1,
+      conditions: [
+        { code: 'caries', label_es: 'Caries', surface_codes: ['M', 'D', 'O', 'V', 'L'] },
+      ],
+    });
+  }
+
+  function mockPatientDataS6() {
+    vi.spyOn(api, 'getClinicalPendingWork').mockResolvedValue({
+      items: [],
+      total: 0,
+      next_cursor: null,
+    });
+    vi.spyOn(api, 'getPatient').mockResolvedValue({ ...patient, phone: null, email: null });
+    vi.spyOn(api, 'getPatientEvolutions').mockResolvedValue([evolutionSummary]);
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function renderS6(path: string) {
+    return render(
+      <TransitionGuardProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/patients/:patientId" element={<PatientDetail />} />
+            <Route
+              path="/patients/:patientId/evolutions/:evolutionId"
+              element={<PatientDetail />}
+            />
+          </Routes>
+          <LocationProbe />
+        </MemoryRouter>
+      </TransitionGuardProvider>,
+    );
+  }
+
+  beforeEach(() => {
+    mockPatientDataS6();
+    mockClinical();
+    vi.spyOn(api, 'getPatientCondition').mockResolvedValue(conditionRecord);
+  });
+
+  it('writes canonical tab/clinical URL from a bare ficha and restores diagnosis on reload', async () => {
+    renderS6('/patients/patient-1');
+    await screen.findByRole('heading', { name: 'Ana Perez' });
+    expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1');
+    fireEvent.click(screen.getByRole('tab', { name: 'Clínica' }));
+    expect(await screen.findByRole('heading', { name: 'Diagnóstico manual' })).toBeVisible();
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/patients/patient-1?tab=clinical&clinical=diagnosis',
+    );
+    expect(screen.getByRole('button', { name: 'Diagnóstico' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('restores diagnosis from the canonical URL on a fresh load', async () => {
+    renderS6('/patients/patient-1?tab=clinical&clinical=diagnosis');
+    expect(await screen.findByRole('heading', { name: 'Diagnóstico manual' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Clínica' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('restores Evoluciones from an existing clinical=evolutions link', async () => {
+    renderS6('/patients/patient-1?tab=clinical&clinical=evolutions');
+    expect(await screen.findByRole('heading', { name: 'Historial de evoluciones' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Evoluciones' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('detail path takes precedence over query state', async () => {
+    vi.spyOn(api, 'getEvolution').mockResolvedValue(evolutionDetail);
+    renderS6('/patients/patient-1/evolutions/evolution-1?tab=info');
+    expect(await screen.findByRole('heading', { name: 'Evolución dental' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Clínica' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Evoluciones' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('applies deterministic defaults for unknown enums and never fetches a malformed condition UUID', async () => {
+    const exact = vi.mocked(api.getPatientCondition);
+    renderS6('/patients/patient-1?tab=clinical&clinical=weird&condition=not-a-uuid');
+    expect(await screen.findByRole('heading', { name: 'Diagnóstico manual' })).toBeVisible();
+    expect(await screen.findByText('No se encontró esta condición')).toBeVisible();
+    expect(exact).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/patients/patient-1?tab=clinical&clinical=weird&condition=not-a-uuid',
+    );
+  });
+
+  it('defaults an unknown tab to Resumen without clinical content', async () => {
+    renderS6('/patients/patient-1?tab=weird');
+    expect(await screen.findByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Diagnóstico manual' })).not.toBeInTheDocument();
+  });
+
+  it('fetches the focused historical condition UUID only inside diagnosis', async () => {
+    const exact = vi.mocked(api.getPatientCondition);
+    renderS6(`/patients/patient-1?tab=clinical&clinical=diagnosis&condition=${conditionRecord.id}`);
+    expect(await screen.findByRole('heading', { name: 'Diagnóstico manual' })).toBeVisible();
+    expect(exact).toHaveBeenCalledWith('patient-1', conditionRecord.id);
+    expect(
+      await screen.findByRole('article', { name: 'Pieza 36 · Caries · Activa' }),
+    ).toBeVisible();
+  });
+
+  it('switching sections drops clinical params while preserving unrelated safe parameters', async () => {
+    renderS6('/patients/patient-1?tab=info&note=n');
+    await screen.findByRole('heading', { name: 'Ana Perez' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Clínica' }));
+    expect(await screen.findByRole('heading', { name: 'Diagnóstico manual' })).toBeVisible();
+    const clinicalUrl = screen.getByTestId('location').textContent ?? '';
+    expect(clinicalUrl).toContain('/patients/patient-1');
+    expect(clinicalUrl).toContain('tab=clinical');
+    expect(clinicalUrl).toContain('clinical=diagnosis');
+    expect(clinicalUrl).toContain('note=n');
+    fireEvent.click(screen.getByRole('tab', { name: 'Información' }));
+    await screen.findByRole('heading', { name: 'Información personal' });
+    expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1?tab=info&note=n');
+  });
+
+  it('subview switches write the canonical URL and Evoluciones drops the condition focus', async () => {
+    renderS6(`/patients/patient-1?tab=clinical&clinical=diagnosis&condition=${conditionRecord.id}`);
+    await screen.findByRole('heading', { name: 'Diagnóstico manual' });
+    fireEvent.click(screen.getByRole('button', { name: 'Evoluciones' }));
+    await screen.findByRole('heading', { name: 'Historial de evoluciones' });
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/patients/patient-1?tab=clinical&clinical=evolutions',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Diagnóstico' }));
+    await screen.findByRole('heading', { name: 'Diagnóstico manual' });
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/patients/patient-1?tab=clinical&clinical=diagnosis',
+    );
+    expect(vi.mocked(api.getPatientCondition)).toHaveBeenCalledTimes(1);
+  });
+
+  it('canceled dirty navigation restores the prior URL and accepted discard navigates without writing', async () => {
+    const create = vi.spyOn(api, 'createPatientCondition');
+    renderS6('/patients/patient-1');
+    await screen.findByRole('heading', { name: 'Ana Perez' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Clínica' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
+    fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
+    fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Borrador' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Evoluciones' }));
+    expect(await screen.findByRole('dialog', { name: 'Condición sin guardar' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Seguir editando' }));
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/patients/patient-1?tab=clinical&clinical=diagnosis',
+    );
+    expect(screen.getByLabelText('Nota de condición')).toHaveValue('Borrador');
+    fireEvent.click(screen.getByRole('button', { name: 'Evoluciones' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar condición' }));
+    await screen.findByRole('heading', { name: 'Historial de evoluciones' });
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/patients/patient-1?tab=clinical&clinical=evolutions',
+    );
+    expect(create).not.toHaveBeenCalled();
   });
 });

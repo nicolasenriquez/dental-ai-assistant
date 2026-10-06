@@ -137,7 +137,9 @@ export function PatientDetail() {
   }, [loadDetail]);
 
   useEffect(() => {
-    const tab = new URLSearchParams(location.search).get('tab');
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    const clinical = params.get('clinical');
     setSection(
       evolutionId || location.state?.preserveHistory
         ? 'clinical'
@@ -146,9 +148,7 @@ export function PatientDetail() {
           : 'summary',
     );
     setClinicalSection(
-      evolutionId ||
-        location.state?.preserveHistory ||
-        new URLSearchParams(location.search).get('clinical') === 'evolutions'
+      evolutionId || location.state?.preserveHistory || clinical === 'evolutions'
         ? 'evolutions'
         : 'diagnosis',
     );
@@ -167,6 +167,18 @@ export function PatientDetail() {
   };
 
   const hasCurrentPatient = patient?.id === patientId;
+
+  const sectionSearch = (target: string): string => {
+    const next = new URLSearchParams(location.search);
+    next.set('tab', target);
+    if (target !== 'clinical') {
+      next.delete('clinical');
+      next.delete('condition');
+    } else if (!next.has('clinical')) {
+      next.set('clinical', clinicalSection === 'evolutions' ? 'evolutions' : 'diagnosis');
+    }
+    return next.toString();
+  };
 
   return (
     <main className="min-h-full bg-[var(--bg)] p-6 text-[var(--text-primary)] md:p-8">
@@ -304,10 +316,14 @@ export function PatientDetail() {
                     onClick={() => {
                       const change = (): void => {
                         setSection(item.id);
-                        if (evolutionId && item.id !== 'clinical')
-                          navigate(`/patients/${patientId}?tab=${item.id}`);
-                        else if (location.search && !evolutionId)
-                          navigate(`${location.pathname}?tab=${item.id}`, { replace: true });
+                        if (evolutionId) {
+                          if (item.id !== 'clinical')
+                            navigate(`/patients/${patientId}?tab=${item.id}`);
+                          return;
+                        }
+                        navigate(`${location.pathname}?${sectionSearch(item.id)}`, {
+                          replace: true,
+                        });
                       };
                       if (guard) guard.guardTransition(change);
                       else change();
@@ -367,7 +383,16 @@ export function PatientDetail() {
                         onClick={() => {
                           const change = (): void => {
                             setClinicalSection('diagnosis');
-                            if (evolutionId) navigate(`/patients/${patientId}?tab=clinical`);
+                            if (evolutionId) {
+                              navigate(`/patients/${patientId}?tab=clinical&clinical=diagnosis`);
+                              return;
+                            }
+                            const next = new URLSearchParams(location.search);
+                            next.set('tab', 'clinical');
+                            next.set('clinical', 'diagnosis');
+                            navigate(`${location.pathname}?${next.toString()}`, {
+                              replace: true,
+                            });
                           };
                           if (guard) guard.guardTransition(change);
                           else change();
@@ -380,7 +405,17 @@ export function PatientDetail() {
                         aria-pressed={clinicalSection === 'evolutions'}
                         className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
                         onClick={() => {
-                          const change = (): void => setClinicalSection('evolutions');
+                          const change = (): void => {
+                            setClinicalSection('evolutions');
+                            if (evolutionId) return;
+                            const next = new URLSearchParams(location.search);
+                            next.set('tab', 'clinical');
+                            next.set('clinical', 'evolutions');
+                            next.delete('condition');
+                            navigate(`${location.pathname}?${next.toString()}`, {
+                              replace: true,
+                            });
+                          };
                           if (guard) guard.guardTransition(change);
                           else change();
                         }}
