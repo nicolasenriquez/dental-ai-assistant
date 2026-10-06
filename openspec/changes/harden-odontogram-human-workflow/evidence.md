@@ -1,5 +1,83 @@
 # Evidence and finding disposition
 
+## S4 spatial selection and compact editor, 2026-10-06
+
+Executed `1.4 -> 2.4 -> 3.4` from clean baseline `47597ad`; S3's completed
+`3.3` unblocked the slice. Traceability is OD02/OD07, R6–R7/R13–R17,
+G02–G08, H02/H04 and D-04, without tracker groups or issues.
+
+- CODE: `PatientOdontogram` measures its own container via ResizeObserver.
+  Below720px the SVG becomes a non-interactive overview and four named44px
+  quadrant controls (`Superior derecha/izquierda`, `Inferior
+  derecha/izquierda`) page up to eight permanent/five primary teeth in a
+  wrapping44px grid; wide layouts keep the existing aligned overlay.
+  The active quadrant follows the selected FDI (upper patient-right by
+  default) and viewport changes never reset it. `ConditionSymbol` gains an
+  optional error slash outside the concept geometry; the chart caption names
+  all three persisted statuses plus the draft. `PatientDiagnosis` now has one
+  visible FDI context: the existing chart select plus an explicit
+  `Elegir pieza`/`Cambiar pieza` editor affordance that focuses it.
+  Whole-tooth codes render `Pieza completa, sin superficies` instead of five
+  disabled checks; surface-capable empty drafts show `Sin superficies
+  especificadas`; the preview is capped at96px on narrow containers; the note
+  autosizes to about one-third viewport then scrolls; choosing a tooth
+  focuses the applicable surface/note input. Palette renders one plain
+  `Diagnóstico` heading for a single populated category and44px native
+  category controls only for multiple populated server categories, without
+  writes or draft loss. Successful create/edit/resolve focus the exact saved
+  record.
+- TEST: the first focused run recorded3 failing new odontogram cases (two
+  ambiguous text queries colliding with SVG titles and one wrong no-surface
+  premise); after correcting those tests the focused diagnosis/odontogram
+  suite passes35/35. New coverage: quadrant paging and named controls, all32
+  permanent and20 primary FDI reachable across four quadrants, no selection
+  change on quadrant switch, selected-quadrant-first behavior, whole-tooth
+  versus optional-empty accessible wording, entered_in_error slash marker,
+  single FDI context, single/multi-category heading and navigation without
+  writes, no-hover-mutation and create/edit/resolve post-save focus.
+  Full frontend729tests/84files, tsc, Biome222files and the production Docker
+  build pass. Backend code did not change.
+- BROWSER/API/DB: [runnable checker](check-s4-odontogram.cjs) targets only the
+  explicitly acknowledged disposable app at `http://localhost:8001`.
+  [Results](s4-browser.json) plus
+  [1440](s4-odontogram-1440.png)/[1280](s4-odontogram-1280.png)/[1024](s4-odontogram-1024.png)/[768](s4-odontogram-768.png)/[430](s4-odontogram-430.png)/[390](s4-odontogram-390.png)
+  screenshots. All six sizes: no page overflow, exactly one FDI context, zero
+  undersized44px targets; the1440 chart (801px) uses the aligned overlay
+  while1280/1024/768/430/390 (641/704/448/385/345px) use quadrant paging with
+  four named controls and every permanent/primary FDI reachable. Selected16
+  survives quadrant switches and a390→1024 resize without reselection; hover
+  never mutates the draft and Space selects a named piece. Whole-tooth shows
+  the compact statement with no surface checks; a single Diagnóstico heading
+  renders and no empty family tabs exist. A1440 create of piece16/CariesO
+  focuses the exact saved record. Opening the Assistant at1440/1280/1024
+  reflows the chart to quadrant mode (577/451/261px) with44px targets and no
+  overflow; zero page errors. Owned disposable Postgres (loopback5546,
+  `odontogram-s4-20261006`, anonymous volume) migrated to0024; direct psql
+  reads match exactly one created condition/revision and the final count1.
+  Geometry and behavior were asserted programmatically; screenshot pixel
+  inspection by a human and real assistive-technology/contrast coverage
+  remain3.8.
+
+Commands, from repository root unless noted:
+
+| Command | Result |
+|---|---|
+| `bun run test src/components/patients/PatientDiagnosis.test.tsx src/components/patients/PatientOdontogram.test.tsx` from `app/frontend/` |35passed; first run3 failed (new-test selector defects, fixed) |
+| `bun run tsc --noEmit` / `bun x biome check src` from `app/frontend/` |Pass;222 files checked by Biome |
+| `bun run test` from `app/frontend/` |729passed,84files |
+| `docker build -f deploy/Dockerfile -t odontogram-s4:20261006 .` |Pass; built current UI/backend |
+| `$env:ODONTOGRAM_S4_DISPOSABLE='1'; bun openspec/changes/harden-odontogram-human-workflow/check-s4-odontogram.cjs` |Six-viewport browser/API/layout cases pass, zero page errors |
+| `docker exec odontogram-s4-db-20261006 psql -U odontogram -d odontogram -c "…"` |0024; one condition/one created revision reconcile with browser save |
+
+No new runtime dependency, auth change, agent write path or catalog
+expansion. Signup limiter blocked reruns from the loopback IP; only owned
+disposable `signup_attempts`/patient rows were cleared between runs. S5
+field-conflict recovery and S6 navigation remain future slices. Cleanup
+removed both owned containers, the owned anonymous volume (identified by
+creation time), the owned network and the verification image tag; shared
+containers stayed running. No tracker sync, archive, commit or push was
+performed.
+
 ## S3 current/history, actor and catalog, 2026-10-06
 
 Executed `1.3 -> 2.3 -> 3.3` from clean baseline `b2711d4`; S1's completed
