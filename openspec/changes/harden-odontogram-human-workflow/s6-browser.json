@@ -1,0 +1,41 @@
+{
+  "layers": [
+    "BROWSER",
+    "HTTP",
+    "real Postgres persistence"
+  ],
+  "bareFicha": {
+    "url": "/patients/87cefe03-4b02-4c8a-80cb-8f179d074f3a?tab=clinical&clinical=diagnosis"
+  },
+  "reload": {
+    "restored": "diagnosis"
+  },
+  "dirtyGuard": {
+    "canceled": "diagnosis",
+    "accepted": "evolutions",
+    "writes": 0
+  },
+  "backForward": {
+    "back": "evolutions",
+    "forward": "diagnosis+condition"
+  },
+  "deepLink": {
+    "condition": "19cca7e6-4677-4e3b-9f05-9562ad50359b",
+    "url": "http://localhost:8001/patients/87cefe03-4b02-4c8a-80cb-8f179d074f3a?tab=clinical&clinical=diagnosis&condition=19cca7e6-4677-4e3b-9f05-9562ad50359b"
+  },
+  "patientSwitch": {
+    "canceled": true,
+    "accepted": true,
+    "writes": 0
+  },
+  "invalidEnum": {
+    "tab": "clinical",
+    "clinical": "weird",
+    "fallback": "diagnosis"
+  },
+  "urlPrivacy": {
+    "checkedUrls": 3,
+    "leaked": false
+  },
+  "pageErrors": []
+}

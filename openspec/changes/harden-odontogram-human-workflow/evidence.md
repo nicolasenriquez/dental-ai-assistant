@@ -1,5 +1,223 @@
 # Evidence and finding disposition
 
+## Integrated verification and closeout, 2026-10-06
+
+Executed `3.7 -> 3.8 -> 4.1 -> 4.2 -> 4.3` after all six slices completed.
+Traceability is R10/R12–R17, H01–H04 and OD06/OD09/OD10/OD11/OD13/DP01–DP03.
+No tracker sync, archive, commit or push was performed.
+
+- CODE: shipped strings reviewed end to end (see tasks4.1/3.8). Docs updated:
+  `docs/API.md` (correction endpoint/receipt, entered_in_error, additive
+  catalog, nullable DTO fields, actor disclosure, canonical ficha URL state,
+  rollback boundary), `.impeccable/surfaces/patient-workspace.md`
+  (field-aware conflict review, actor labels, current/history defaults, URL
+  state), `.agents/skills/verify-dental-assistant/features/patients.md`
+  (correction/actors/views/navigation manual checks), `CHANGELOG.md`
+  entry. `design.md`'s Deferred Research and IA Roadmap retained unchanged.
+- TEST: new live `test_pagination_complete_reads_at_50_51_500` proves
+  complete paged reads at50/51/500 records with zero truncation/duplicates
+  (the1-record case is covered by existing live reads). Live recipe53
+  passed with zero skips. Full backend956passed/134skipped/1failed — the
+  single failure is the pre-existing unrelated glossary CRLF
+  byte-comparison (`test_clinical_catalog_build.py`), unchanged by this
+  change and recorded as a proof limit. ruff/format/mypy214files,
+  tsc, Biome222files, frontend746tests/84files and the production Docker
+  build pass. S2's frozen-replacement-retry and category-navigation cases
+  still pass unchanged: the shared catalog alters neither frozen retries
+  nor atomicity.
+- API/DB: owned disposable pgvector Postgres (loopback, migrated0024) ran
+  the live recipe including the catalog-to-domain-to-SQL matrix, legacy
+  v1/unknown-code CHECK probes, ownership/receipt races and the new
+  pagination fixtures; teardown removed the container/volume.
+- BROWSER: all five slice checkers (S2/S4/S5/S6 + baseline) were run on
+  owned disposable apps at localhost:8001 across the session; integrated
+  pass reruns the suites and adds `check-integrated-a11y.cjs`.
+
+### A–M regression matrix disposition
+
+| Case | Executed proof |
+|---|---|
+| A E2E+DB empty patient,16 CariesO save/reload | S4 checker (1440 create, focus, DB reconcile) |
+| B E2E+contract O→M,O canonical | S4/S5 checkers + contract suite |
+| C E2E+contract whole-tooth compact no-surfaces | S4 checker + live SQL CHECK probes |
+| D E2E+DB exact active duplicate | component tests (duplicate → open existing) + contract suite |
+| E E2E+DB edit/no-op/increment | S5 checker (merged edits r2/r3/r4) + contract suite |
+| F E2E+liveDB two-tab disjoint/same-field | S5 checker (two real tabs, second409, no lost fields) |
+| G E2E+liveDB resolve vs correct | S5 checker (correction vs resolution renewed review) + S2 checker |
+| H E2E+DB recurrence/linked replacement | S1/S3 live suites (replacement linkage, supersedes) |
+| I E2E bare URL/back/reload/dirty switch | S6 checker (canonical URL, reload, cancel/discard, zero writes) |
+| J API+liveDB foreign access | live suites (foreign UUID/source404 without disclosure) |
+| K E2E+contract permanent+primary | S3 live catalog matrix (12 codes × both dentitions) + S4 checker |
+| L E2E6sizes visual selection | S4 checker (all six sizes, 44px, quadrants, no reselection) |
+| M component/E2E/manual a11y | S4 keyboard + integrated contrast/keyboard checker; AT/virtual keyboard NOT COVERED (see below) |
+
+### Unsupported checks and proof limits
+
+- Real assistive technology (screen readers) and device virtual keyboards
+  were NOT exercised: this environment has neither. `s8-a11y.json` records
+  that explicitly; accessible-name/snapshot assertions and measured
+  keyboard remain the coverage.
+- Contrast was measured from actual rendered styles on the disposable app:
+  eight pairs, all ≥5.17:1 (minimum = primary button white/blue5.17,
+  muted text7.7, headings18.03).
+- Full backend run stops at the pre-existing glossary CRLF byte-comparison
+  failure; it is unrelated to this change and needs its own issue.
+- No clinical taxonomy certification, performance SLA or agent-ready claim
+  is made. OD06/09/10/13 and the IA roadmap remain explicitly deferred in
+  `design.md`.
+
+### Cleanup
+
+All owned disposable resources created during this change were removed:
+five app/DB container pairs (S2/S4/S5/S6/integrated), the S3 loopback
+Postgres, associated anonymous volumes and networks, and all verification
+image tags. Shared `dynachat-*`/`dentalpin-*` containers were never
+touched. `sync-archive-checklist.md` holds the human-gated sync/archive
+steps; strict OpenSpec validation passes and the change is complete but
+not archived.
+
+## S6 safe navigation continuity, 2026-10-06
+
+Executed `1.6 -> 2.6 -> 3.6` from the S5 working tree (uncommitted, per
+slice convention); the `0.6` baseline reproduction (bare ficha→Clínica
+retaining an empty query, reload returning Resumen, guarded
+back/forward/patient navigation) closed with this slice. Traceability is
+OD08, R9/R15 and G01/G08, without tracker groups or issues.
+
+- CODE: `PatientDetail` now writes canonical query state on every committed
+  view change via one `sectionSearch` helper: tab clicks always navigate
+  (replace) from bare ficha or existing query state, switching away from
+  clinical drops `clinical`/`condition` while preserving unrelated safe
+  parameters (`note`), and returning to clinical restores the remembered
+  subview. Diagnóstico/Evoluciones buttons write
+  `tab=clinical&clinical=diagnosis|evolutions`, with Evoluciones dropping
+  the condition focus. The evolution detail path keeps precedence over
+  query state; unknown tab/clinical enums fall back deterministically to
+  Resumen/diagnosis; a malformed condition UUID is never fetched (existing
+  regex guard) and clinical text/name/RUT never enter the URL. The existing
+  transition guard covers every tab/subview/directory switch, so canceled
+  navigation restores the prior URL/UI and accepted discard navigates
+  without writing.
+- TEST: the first focused run recorded10 failing new S6 cases (no URL write
+  from a bare ficha, subview switches never wrote `clinical=`, section
+  switches replaced params). Ten component cases now pass: canonical
+  tab/clinical pair from a bare ficha, fresh-load diagnosis/evolutions
+  restoration, detail-path precedence, unknown enum defaults, malformed
+  UUID never fetched, focused condition deep link inside diagnosis,
+  section switches dropping clinical params while preserving `note`,
+  subview switches dropping the condition focus, and canceled/accepted
+  dirty navigation. Full frontend746passed/84files, tsc and
+  Biome222files pass. Backend code did not change.
+- BROWSER/API/DB: [runnable checker](check-s6-navigation.cjs) targets only
+  the explicitly acknowledged disposable app at `http://localhost:8001`.
+  [Results](s6-browser.json) plus [reload](s6-reload-diagnosis.png) and
+  [dirty guard](s6-dirty-guard.png) screenshots. A bare ficha opens with no
+  query; clicking Clínica writes `tab=clinical&clinical=diagnosis` and a
+  reload restores diagnosis, not Resumen. A dirty diagnosis draft cancels a
+  subview switch with URL/draft intact and discards into Evoluciones with
+  zero writes; back/forward restore the committed evolutions and deep-link
+  URLs; the focused condition deep link shows the exact record; a
+  directory-mediated patient switch with a dirty draft cancels cleanly and
+  discards to `/patients` without writing; unknown enums fall back
+  deterministically and a malformed condition UUID is never fetched. Three
+  URL states were inspected for clinical text, patient name and RUT — none
+  leaked. Zero page errors. Owned disposable Postgres (loopback,
+  `odontogram-s6-db-20261006`, anonymous volume, network
+  `odontogram-s6-20261006`) migrated to0024; direct psql shows only the
+  API-created condition/revision (UI drafts wrote nothing).
+
+Commands, from repository root unless noted:
+
+| Command | Result |
+|---|---|
+| `bun run test src/pages/PatientDetail.test.tsx` from `app/frontend/` |27passed; first run10 failed (fail-first) |
+| `bun run tsc --noEmit` / `bun x biome check src` from `app/frontend/` |Pass;222 files checked by Biome |
+| `bun run test` from `app/frontend/` |746passed,84files |
+| `docker build -f deploy/Dockerfile -t odontogram-s6:20261006 .` |Pass; built current UI/backend |
+| `$env:ODONTOGRAM_S6_DISPOSABLE='1'; bun openspec/changes/harden-odontogram-human-workflow/check-s6-navigation.cjs` |Eight navigation/privacy scenarios pass, zero page errors |
+| `docker exec odontogram-s6-db-20261006 psql -U odontogram -d odontogram -c "…"` |0024; one condition/one revision reconcile with API fixture |
+
+No new runtime dependency, auth change, agent write path or catalog
+expansion. The signup limiter blocked reruns from the loopback IP; only
+owned disposable `signup_attempts`/patient/condition rows were cleared
+between runs. Cleanup removed both owned containers, the owned anonymous
+volume, the owned network and the verification image tag; shared containers
+stayed running. All six slices are now complete; integrated verification
+and closeout (3.7–4.3) remain. No tracker sync, archive, commit or push was
+performed.
+
+## S5 deliberate conflict review, 2026-10-06
+
+Executed `1.5 -> 2.5 -> 3.5` from baseline `8e92772` (S4 proof committed);
+S1's completed `3.1` unblocked the slice. Traceability is OD05, R3/R8 and
+D-03, without tracker groups or issues. The `0.5` baseline reproduction
+(remote M,O→stale M loss after generic rebase, same-note overwrite) closed
+with this slice.
+
+- CODE: edit/resolve drafts snapshot their starting surfaces/note as base
+  alongside the existing dirty baseline. On409 the editor loads the latest
+  owned source and shows per-field comparison lines; fields changed by both
+  sides require explicit `Mantener/Usar` choices, one-sided changes
+  auto-merge, unmodified fields adopt current values, and the reviewed retry
+  uses the latest expected_revision. The generic `Rebasar mis cambios`
+  whole-payload rebase is gone. Resolve drafts must re-confirm resolution
+  against the current active state. A current resolved/entered_in_error
+  source blocks edit/rebasing with read/discard only; failed current reads
+  block save and reload with GET only; a second409 refreshes the comparison
+  and clears prior choices without losing the draft. Correction conflicts
+  keep the D-03 review: reason/replacement retained, base/current source
+  evidence and status shown, renewed confirmation freezes a new
+  operation_id, and already-corrected sources block new correction.
+- TEST: the first focused run recorded7 failing new/rewritten cases (the
+  generic rebase button still existed). Nine S5 component cases now pass:
+  disjoint-field auto-merge, same-field note/surface explicit choices,
+  repeated409 refresh, failed-current-read blocking, terminal edit guards,
+  resolve re-confirmation and the correction conflict matrix. Focused
+  diagnosis suite35passed; full frontend736passed/84files, tsc and
+  Biome222files pass. Backend code did not change.
+- BROWSER/API/DB: [runnable checker](check-s5-conflict.cjs) targets only the
+  explicitly acknowledged disposable app at `http://localhost:8001`.
+  [Results](s5-browser.json) plus
+  [disjoint](s5-disjoint-conflict.png)/[same-field](s5-samefield-conflict.png)/[repeat](s5-repeat-conflict.png)/[terminal edit](s5-terminal-edit.png)/[correction vs resolution](s5-correct-vs-resolve.png)/[terminal correction](s5-terminal-correct.png)
+  screenshots. Two real tabs on one session: B changed surfaces while A
+  changed only the note; A's retry committed revision3 with note `Nota local
+  A` and surfaces `M,O` — neither field lost. A same-field note race forced
+  an explicit `Mantener mi nota` choice, a second remote edit forced a
+  second409 that refreshed the comparison, cleared the choice and retained
+  the draft, then committed local note at revision4. Editing a source
+  resolved in the other tab showed `Este registro ya está resuelto…` with
+  read/discard only. A correction opened before a concurrent resolution
+  retained its reason, showed the renewed review with `Fuente actual` and
+  committed only after confirmation (revision6, entered_in_error). A
+  correction against an already-corrected source blocked with reason
+  retained. An aborted current read blocked renewed save and recovered
+  through `Cargar versión actual` with GET only. Zero page errors. Owned
+  disposable Postgres (loopback, `odontogram-s5-db-20261006`, anonymous
+  volume, network `odontogram-s5-20261006`) migrated to0024; direct psql
+  reconciles four conditions and fifteen revisions exactly (36:
+  created/edited/edited/resolved; 46:
+  created/edited/edited/edited/resolved/corrected; 11:
+  created/corrected; 21: created/edited/corrected).
+
+Commands, from repository root unless noted:
+
+| Command | Result |
+|---|---|
+| `bun run test src/components/patients/PatientDiagnosis.test.tsx` from `app/frontend/` |35passed; first run7 failed (fail-first, generic rebase present) |
+| `bun run tsc --noEmit` / `bun x biome check src` from `app/frontend/` |Pass;222 files checked by Biome |
+| `bun run test` from `app/frontend/` |736passed,84files |
+| `docker build -f deploy/Dockerfile -t odontogram-s5:20261006 .` |Pass; built current UI/backend |
+| `$env:ODONTOGRAM_S5_DISPOSABLE='1'; bun openspec/changes/harden-odontogram-human-workflow/check-s5-conflict.cjs` |Six two-tab conflict/recovery scenarios pass, zero page errors |
+| `docker exec odontogram-s5-db-20261006 psql -U odontogram -d odontogram -c "…"` |0024; four conditions/fifteen revisions reconcile with browser receipts |
+
+No new runtime dependency, auth change, agent write path or catalog
+expansion. The signup limiter blocked reruns from the loopback IP; only
+owned disposable `signup_attempts`/patient/condition rows were cleared
+between runs. Cleanup removed both owned containers, the owned anonymous
+volume, the owned network and the verification image tag; shared containers
+stayed running. S6 navigation continuity remains the final slice. No
+tracker sync, archive, commit or push was performed.
+
 ## S4 spatial selection and compact editor, 2026-10-06
 
 Executed `1.4 -> 2.4 -> 3.4` from clean baseline `47597ad`; S3's completed

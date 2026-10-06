@@ -1,0 +1,75 @@
+{
+  "layers": [
+    "BROWSER",
+    "HTTP",
+    "real Postgres persistence"
+  ],
+  "disjointField": {
+    "revision": 3,
+    "note": "Nota local A",
+    "surfaces": [
+      "M",
+      "O"
+    ]
+  },
+  "sameFieldRepeat": {
+    "revision": 4,
+    "note": "Local46"
+  },
+  "terminalEdit": {
+    "status": "resolved",
+    "revision": 4
+  },
+  "correctVsResolve": {
+    "status": "entered_in_error",
+    "revision": 6
+  },
+  "terminalCorrect": {
+    "status": "entered_in_error"
+  },
+  "failedRead": {
+    "status": "entered_in_error",
+    "revision": 3,
+    "note": "Remota21"
+  },
+  "finalConditions": [
+    {
+      "tooth": 36,
+      "status": "resolved",
+      "revision": 4,
+      "note": "Nota local A",
+      "surfaces": [
+        "M",
+        "O"
+      ]
+    },
+    {
+      "tooth": 46,
+      "status": "entered_in_error",
+      "revision": 6,
+      "note": "Local46",
+      "surfaces": [
+        "M"
+      ]
+    },
+    {
+      "tooth": 11,
+      "status": "entered_in_error",
+      "revision": 2,
+      "note": "Base11",
+      "surfaces": [
+        "M"
+      ]
+    },
+    {
+      "tooth": 21,
+      "status": "entered_in_error",
+      "revision": 3,
+      "note": "Remota21",
+      "surfaces": [
+        "M"
+      ]
+    }
+  ],
+  "pageErrors": []
+}
