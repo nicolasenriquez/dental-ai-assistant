@@ -137,8 +137,52 @@ it('resolve is a draft until save, cancel preserves record and immutable fields 
     ),
   );
 });
-it('deep target outside page selects dentition; revision conflict retains draft with explicit rebase', async () => {
+it('deep target outside page selects dentition; revision conflict compares fields without generic rebase', async () => {
   mount([], record.id);
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
+  mocks.edit
+    .mockRejectedValueOnce(new ApiError(409, { detail: { code: 'revision_conflict' } }))
+    .mockResolvedValueOnce({ ...record, note: 'Local', surfaces: ['M', 'O'], revision: 3 });
+  mocks.exact.mockResolvedValue({ ...record, note: 'Guardada', surfaces: ['M', 'O'], revision: 2 });
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await screen.findByText('Versión actual: 2');
+  expect(screen.getByLabelText('Nota de condición')).toHaveValue('Local');
+  expect(screen.queryByRole('button', { name: 'Rebasar mis cambios' })).toBeNull();
+  expect(screen.getByText(/Superficies — Tuyas: M · Actuales: M, O/)).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await waitFor(() =>
+    expect(mocks.edit).toHaveBeenLastCalledWith(
+      'p',
+      record.id,
+      expect.objectContaining({ expected_revision: 2, note: 'Local', surfaces: ['M', 'O'] }),
+    ),
+  );
+});
+
+it('disjoint-field conflict keeps local note and adopts current surfaces with latest revision', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
+  mocks.edit
+    .mockRejectedValueOnce(new ApiError(409, { detail: { code: 'revision_conflict' } }))
+    .mockResolvedValueOnce({ ...record, note: 'Local', surfaces: ['M', 'O'], revision: 3 });
+  mocks.exact.mockResolvedValue({ ...record, note: 'Guardada', surfaces: ['M', 'O'], revision: 2 });
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await screen.findByText('Versión actual: 2');
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await waitFor(() =>
+    expect(mocks.edit).toHaveBeenLastCalledWith(
+      'p',
+      record.id,
+      expect.objectContaining({ expected_revision: 2, note: 'Local', surfaces: ['M', 'O'] }),
+    ),
+  );
+});
+
+it('same-field conflict requires explicit field choices and never force-writes', async () => {
+  mount();
   fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
   fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
   mocks.edit
@@ -147,14 +191,114 @@ it('deep target outside page selects dentition; revision conflict retains draft 
   mocks.exact.mockResolvedValue({ ...record, note: 'Remota', revision: 2 });
   fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
   await screen.findByText('Versión actual: 2');
-  expect(screen.getByLabelText('Nota de condición')).toHaveValue('Local');
-  fireEvent.click(screen.getByRole('button', { name: 'Rebasar mis cambios' }));
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Mantener mi nota' }));
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeEnabled();
   fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
   await waitFor(() =>
     expect(mocks.edit).toHaveBeenLastCalledWith(
       'p',
       record.id,
       expect.objectContaining({ expected_revision: 2, note: 'Local' }),
+    ),
+  );
+  expect(mocks.edit).toHaveBeenCalledTimes(2);
+});
+
+it('same-field surface conflict can adopt current surfaces explicitly', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Distal (D)' }));
+  mocks.edit
+    .mockRejectedValueOnce(new ApiError(409, { detail: { code: 'revision_conflict' } }))
+    .mockResolvedValueOnce({ ...record, surfaces: ['D'], revision: 3 });
+  mocks.exact.mockResolvedValue({ ...record, surfaces: ['O'], revision: 2 });
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await screen.findByText('Versión actual: 2');
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Usar superficies actuales' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await waitFor(() =>
+    expect(mocks.edit).toHaveBeenLastCalledWith(
+      'p',
+      record.id,
+      expect.objectContaining({ expected_revision: 2, surfaces: ['O'], note: 'Guardada' }),
+    ),
+  );
+});
+
+it('second 409 refreshes comparison and retains unsaved content without forcing a write', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
+  mocks.edit.mockRejectedValue(new ApiError(409, { detail: { code: 'revision_conflict' } }));
+  mocks.exact
+    .mockResolvedValueOnce({ ...record, note: 'Remota', revision: 2 })
+    .mockResolvedValueOnce({ ...record, note: 'Remota 2', revision: 3 });
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await screen.findByText('Versión actual: 2');
+  fireEvent.click(screen.getByRole('button', { name: 'Mantener mi nota' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await screen.findByText('Versión actual: 3');
+  expect(mocks.edit).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  expect(screen.getByLabelText('Nota de condición')).toHaveValue('Local');
+});
+
+it('failed current read blocks renewed edit and retains the draft', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
+  mocks.edit.mockRejectedValue(new ApiError(409, { detail: { code: 'revision_conflict' } }));
+  mocks.exact.mockRejectedValue(new TypeError('failed'));
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await screen.findByText(/No pudimos cargar la versión actual/);
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  expect(screen.getByLabelText('Nota de condición')).toHaveValue('Local');
+  fireEvent.click(screen.getByRole('button', { name: 'Cargar versión actual' }));
+  await waitFor(() => expect(mocks.exact).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  expect(mocks.edit).toHaveBeenCalledTimes(1);
+});
+
+it('terminal current blocks edit/rebasing and offers read/discard only', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
+  mocks.edit.mockRejectedValue(new ApiError(409, { detail: { code: 'revision_conflict' } }));
+  mocks.exact.mockResolvedValue({
+    ...record,
+    status: 'resolved',
+    note: 'Resuelta en otra sesión',
+    revision: 2,
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await screen.findByText('Versión actual: 2');
+  expect(screen.getByText(/No puede editarse/)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Usar versión actual' })).toBeEnabled();
+  expect(mocks.edit).toHaveBeenCalledTimes(1);
+});
+
+it('resolve requires renewed confirmation after conflict and uses latest revision', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Resolver condición' }));
+  mocks.edit
+    .mockRejectedValueOnce(new ApiError(409, { detail: { code: 'revision_conflict' } }))
+    .mockResolvedValueOnce({ ...record, status: 'resolved', revision: 3 });
+  mocks.exact.mockResolvedValue({ ...record, note: 'Remota', revision: 2 });
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await screen.findByText('Versión actual: 2');
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: 'Confirmar resolución sobre la versión actual' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
+  await waitFor(() =>
+    expect(mocks.edit).toHaveBeenLastCalledWith(
+      'p',
+      record.id,
+      expect.objectContaining({ expected_revision: 2, status: 'resolved', note: 'Remota' }),
     ),
   );
 });

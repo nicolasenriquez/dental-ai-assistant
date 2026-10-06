@@ -52,6 +52,11 @@ interface ConditionDraft extends CreatePatientCondition {
   expectedRevision?: number;
   status: 'active' | 'resolved';
   baseline: string;
+  base?: { surfaces: string[]; note: string };
+}
+interface ConflictChoices {
+  surfaces?: 'local' | 'current';
+  note?: 'local' | 'current';
 }
 interface ConditionAttempt {
   id: string;
@@ -75,6 +80,22 @@ function values(draft: CreatePatientCondition & { status: string }): string {
     draft.note,
     draft.status,
   ]);
+}
+function conflictLocalChanged(draft: ConditionDraft, field: 'surfaces' | 'note'): boolean {
+  if (!draft.base) return false;
+  return field === 'surfaces'
+    ? JSON.stringify(draft.surfaces) !== JSON.stringify(draft.base.surfaces)
+    : (draft.note ?? '') !== draft.base.note;
+}
+function conflictCurrentChanged(
+  draft: ConditionDraft,
+  conflict: PatientCondition,
+  field: 'surfaces' | 'note',
+): boolean {
+  if (!draft.base) return false;
+  return field === 'surfaces'
+    ? JSON.stringify(conflict.surfaces) !== JSON.stringify(draft.base.surfaces)
+    : (conflict.note ?? '') !== draft.base.note;
 }
 
 export function PatientDiagnosis({
@@ -118,6 +139,8 @@ function PatientDiagnosisWorkspace({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<PatientCondition | null>(null);
   const [conflictPending, setConflictPending] = useState(false);
+  const [conflictChoices, setConflictChoices] = useState<ConflictChoices>({});
+  const [resolveConfirmed, setResolveConfirmed] = useState(false);
   const [duplicate, setDuplicate] = useState<PatientCondition | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
@@ -155,6 +178,25 @@ function PatientDiagnosisWorkspace({
   const dirty =
     !!draft &&
     (!!draft.correction || values(draft) !== draft.baseline || attempt !== null || conflictPending);
+  const conflictFieldChoiceNeeded =
+    conflictPending && draft && !draft.correction && conflict && draft.base
+      ? {
+          surfaces:
+            conflictLocalChanged(draft, 'surfaces') &&
+            conflictCurrentChanged(draft, conflict, 'surfaces'),
+          note:
+            conflictLocalChanged(draft, 'note') && conflictCurrentChanged(draft, conflict, 'note'),
+        }
+      : null;
+  const conflictBlocked =
+    !!conflictPending &&
+    !!draft &&
+    !draft.correction &&
+    (!conflict ||
+      conflict.status !== 'active' ||
+      (conflictFieldChoiceNeeded?.surfaces && !conflictChoices.surfaces) ||
+      (conflictFieldChoiceNeeded?.note && !conflictChoices.note) ||
+      (draft.status === 'resolved' && !resolveConfirmed));
   const locked = saving || attempt !== null;
   const immutable = draft?.expectedRevision !== undefined && !draft.correction;
   const selectedTool = draft ? resolveCondition(catalog, draft.condition_code) : null;
@@ -300,6 +342,8 @@ function PatientDiagnosisWorkspace({
     setSaveError(null);
     setConflict(null);
     setConflictPending(false);
+    setConflictChoices({});
+    setResolveConfirmed(false);
     setDuplicate(null);
     setReview(false);
     setRecoveryBlocked(false);
@@ -322,6 +366,7 @@ function PatientDiagnosisWorkspace({
         status: resolve ? 'resolved' : 'active',
         expectedRevision: record.revision,
         baseline: values({ ...record, note: record.note ?? '' }),
+        base: { surfaces: record.surfaces, note: record.note ?? '' },
       });
     });
   };
@@ -517,21 +562,33 @@ function PatientDiagnosisWorkspace({
     if (
       !draft ||
       savingRef.current ||
-      conflictPending ||
+      conflictBlocked ||
       !draft.tooth_fdi ||
       !draft.condition_code ||
       (!attempt && draft.status !== 'resolved' && !applicable)
     )
       return false;
+    const conflictSource = conflictPending ? conflict : null;
+    const keepLocalField = (field: 'surfaces' | 'note'): boolean =>
+      conflictLocalChanged(draft, field) &&
+      (!conflictFieldChoiceNeeded?.[field] || conflictChoices[field] !== 'current');
     const normalized = {
       id: draft.id,
       dentition: draft.dentition,
       tooth_fdi: draft.tooth_fdi,
       condition_code: draft.condition_code,
-      surfaces: surfaces
-        .filter((item) => draft.surfaces.includes(item.code))
-        .map((item) => item.code),
-      note: draft.note?.trim() || null,
+      surfaces:
+        conflictSource && draft.base
+          ? keepLocalField('surfaces')
+            ? draft.surfaces
+            : conflictSource.surfaces
+          : draft.surfaces,
+      note:
+        conflictSource && draft.base
+          ? keepLocalField('note')
+            ? draft.note
+            : conflictSource.note
+          : draft.note,
     };
     const frozen = attempt ?? {
       id: draft.id,
@@ -539,10 +596,14 @@ function PatientDiagnosisWorkspace({
         ? { create: normalized }
         : {
             update: {
-              expected_revision: draft.expectedRevision,
-              surfaces: normalized.surfaces,
-              note: normalized.note,
-              ...(draft.status === 'resolved' ? { status: 'resolved' as const } : {}),
+              expected_revision: conflictSource ? conflictSource.revision : draft.expectedRevision,
+              surfaces: surfaces
+                .filter((item) => normalized.surfaces.includes(item.code))
+                .map((item) => item.code),
+              note: normalized.note?.trim() || null,
+              ...(draft.status === 'resolved' && (!conflictSource || resolveConfirmed)
+                ? { status: 'resolved' as const }
+                : {}),
             },
           }),
     };
@@ -593,6 +654,8 @@ function PatientDiagnosisWorkspace({
           );
         } else if (error.status === 409) {
           setConflictPending(true);
+          setConflictChoices({});
+          setResolveConfirmed(false);
           setSaveError(
             'La condición cambió. Conservamos tus cambios. Carga la versión actual antes de continuar.',
           );
@@ -1046,17 +1109,14 @@ function PatientDiagnosisWorkspace({
                       ? `Versión actual: ${conflict.revision}`
                       : 'Versión actual no disponible'}
                   </p>
-                  {conflict && (
-                    <p className="whitespace-pre-wrap break-words">
-                      {conflict.note} · {conditionStatus(conflict.status)}
-                    </p>
-                  )}
+                  {conflict && <p>Estado actual: {conditionStatus(conflict.status)}</p>}
                   <Button
                     type="button"
                     variant="clinicalSecondary"
-                    disabled={recoveryBlocked}
                     onClick={() => {
                       setConflict(null);
+                      setConflictChoices({});
+                      setResolveConfirmed(false);
                       void getPatientCondition(patientId, draft.correction?.source.id ?? draft.id)
                         .then((current) => {
                           if (alive.current) setConflict(current);
@@ -1068,37 +1128,106 @@ function PatientDiagnosisWorkspace({
                   >
                     Cargar versión actual
                   </Button>
-                  {conflict && !draft.correction && (
+                  {conflict && draft.base && !draft.correction && conflict.status === 'active' && (
                     <>
-                      <Button
-                        type="button"
-                        variant="clinicalSecondary"
-                        disabled={conflict.status !== 'active'}
-                        onClick={() => {
-                          setDraft({
-                            ...draft,
-                            expectedRevision: conflict.revision,
-                            baseline: values(conflict),
-                          });
-                          setConflictPending(false);
-                          setConflict(null);
-                          setSaveError(null);
-                        }}
-                      >
-                        Rebasar mis cambios
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="clinicalSecondary"
-                        onClick={() => {
-                          reset();
-                          setFocused(conflict);
-                          void load();
-                        }}
-                      >
-                        Usar versión actual
-                      </Button>
+                      {draft.status === 'resolved' && (
+                        <label className="flex min-h-[44px] items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={resolveConfirmed}
+                            onChange={(event) => setResolveConfirmed(event.target.checked)}
+                          />
+                          Confirmar resolución sobre la versión actual
+                        </label>
+                      )}
+                      {(conflictLocalChanged(draft, 'surfaces') ||
+                        conflictCurrentChanged(draft, conflict, 'surfaces')) && (
+                        <div className="space-y-1">
+                          <p className="text-sm">
+                            Superficies — Tuyas: {draft.surfaces.join(', ') || 'Sin superficies'} ·
+                            Actuales: {conflict.surfaces.join(', ') || 'Sin superficies'}
+                          </p>
+                          {conflictFieldChoiceNeeded?.surfaces && (
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="clinicalSecondary"
+                                aria-pressed={conflictChoices.surfaces === 'local'}
+                                onClick={() =>
+                                  setConflictChoices({ ...conflictChoices, surfaces: 'local' })
+                                }
+                              >
+                                Mantener mis superficies
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="clinicalSecondary"
+                                aria-pressed={conflictChoices.surfaces === 'current'}
+                                onClick={() =>
+                                  setConflictChoices({ ...conflictChoices, surfaces: 'current' })
+                                }
+                              >
+                                Usar superficies actuales
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {(conflictLocalChanged(draft, 'note') ||
+                        conflictCurrentChanged(draft, conflict, 'note')) && (
+                        <div className="space-y-1">
+                          <p className="whitespace-pre-wrap break-words text-sm">
+                            Nota — Tuya: {draft.note || 'Sin nota'} · Actual:{' '}
+                            {conflict.note || 'Sin nota'}
+                          </p>
+                          {conflictFieldChoiceNeeded?.note && (
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="clinicalSecondary"
+                                aria-pressed={conflictChoices.note === 'local'}
+                                onClick={() =>
+                                  setConflictChoices({ ...conflictChoices, note: 'local' })
+                                }
+                              >
+                                Mantener mi nota
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="clinicalSecondary"
+                                aria-pressed={conflictChoices.note === 'current'}
+                                onClick={() =>
+                                  setConflictChoices({ ...conflictChoices, note: 'current' })
+                                }
+                              >
+                                Usar nota actual
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </>
+                  )}
+                  {conflict && !draft.correction && conflict.status !== 'active' && (
+                    <p>
+                      Este registro ya está{' '}
+                      {conflict.status === 'resolved' ? 'resuelto' : 'registrado por error'} en la
+                      versión actual. No puede editarse; consulta su historial o descarta el
+                      borrador.
+                    </p>
+                  )}
+                  {conflict && !draft.correction && (
+                    <Button
+                      type="button"
+                      variant="clinicalSecondary"
+                      onClick={() => {
+                        reset();
+                        setFocused(conflict);
+                        void load();
+                      }}
+                    >
+                      Usar versión actual
+                    </Button>
                   )}
                   {draft.correction && conflict?.status === 'entered_in_error' && (
                     <p>
@@ -1130,7 +1259,7 @@ function PatientDiagnosisWorkspace({
                           (conflictPending &&
                             (!conflict || conflict.status === 'entered_in_error')))
                       : !attempt &&
-                        (conflictPending ||
+                        (conflictBlocked ||
                           !draft.tooth_fdi ||
                           !draft.condition_code ||
                           (draft.status !== 'resolved' && !applicable)))
@@ -1457,7 +1586,7 @@ function PatientDiagnosisWorkspace({
                 disabled={
                   saving ||
                   !!draft?.correction ||
-                  conflictPending ||
+                  conflictBlocked ||
                   !draft?.tooth_fdi ||
                   !draft?.condition_code
                 }
