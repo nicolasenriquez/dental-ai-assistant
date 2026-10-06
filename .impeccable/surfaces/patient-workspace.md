@@ -33,7 +33,11 @@ dismissal; Información provides contact and labelled copy actions.
 Información contains manual notes with revision history. Clínica contains manual
 Diagnóstico and approved Evoluciones. Selection is local; Guardar alone writes
 notes/conditions. Dirty navigation offers save/discard/remain. Uncertain saves keep
-the frozen UUID/payload for identical retry; 409 retains draft for explicit rebase.
+the frozen UUID/payload for identical retry; 409 retains the draft and shows
+base/local/current comparison with explicit per-field Mantener/Usar choices — no
+generic whole-payload rebase. Untouched local fields adopt the latest values;
+resolve must be re-confirmed against the current active state, and a second 409
+repeats the comparison without losing the draft.
 
 Diagnosis puts the anatomical permanent/primary chart, tools and equivalent text
 list before saved records. At 960px available width, a 300px inspector sits beside
@@ -52,10 +56,21 @@ failed refreshes retry GET only and never repeat the write.
 
 Actividad groups persisted evolution saves and note/condition revisions by local
 day. Todos/Evoluciones/Notas/Diagnósticos filters reset pagination. Titles, time and
-counts come from owned sources; missing author names say Autor no disponible.
-No clinical text, contacts or RUT appear in events. Exact UUID links read/focus the
-latest resource even outside page1, with its revision history available. Page errors
-retain known events and retry the same cursor; empty, loading and end are distinct.
+counts come from owned sources; actors show the persisted trusted display_name or a
+stable distinguishable account UUID label with full-UUID disclosure — never a
+fabricated professional identity, email or RUT, and never Autor no disponible when a
+UUID exists. No clinical text, contacts or RUT appear in events. Exact UUID links
+read/focus the latest resource even outside page1, with its revision history
+available. Page errors retain known events and retry the same cursor; empty, loading
+and end are distinct.
+
+Diagnosis defaults to Actuales while the API default stays all; Resueltas and
+Registradas por error remain explicit historical filters with text/legend status.
+Correction history shows the reason, actor and accessible original/replacement
+links. The ficha commits canonical query state on every view change —
+`tab=clinical&clinical=diagnosis|evolutions` plus a focused condition UUID only
+inside diagnosis; reload restores it, unknown enums default deterministically, and
+clinical text/name/RUT never enter the URL.
 
 B1 separates Resumen clínico (last approved evolution and saved count), clinical
 pending work (approval and recoverable drafts with their respective exact links),

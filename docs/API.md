@@ -96,16 +96,17 @@ saves and display_name is null when unavailable; there is no email fallback.
 
 | Method/path | Body/query | Response |
 | --- | --- | --- |
-| GET `/condition-catalog` | None | `{version:1,conditions:[{code,label_es,surface_codes}]}`; 12 supported codes |
+| GET `/condition-catalog` | None | `{version:1,categories:[{key,label_es}],conditions:[{code,label_es,surface_codes,category_key,allowed_dentitions}]}`; 12 supported codes |
 | GET `/{patient_id}/notes` | limit,cursor | Note page |
 | GET `/{patient_id}/notes/{note_id}` | None | Exact Note |
 | POST `/{patient_id}/notes` | `{id,body}` | Note201; identical retry200 |
 | PATCH `/{patient_id}/notes/{note_id}` | `{expected_revision,body}` | Note200 |
 | GET `/{patient_id}/notes/{note_id}/revisions` | limit,cursor | NoteRevision page |
-| GET `/{patient_id}/conditions` | Optional dentition; status=all/active/resolved, limit,cursor | Condition page |
+| GET `/{patient_id}/conditions` | Optional dentition; status=all/active/resolved/entered_in_error, limit,cursor | Condition page |
 | GET `/{patient_id}/conditions/{condition_id}` | None | Exact Condition |
 | POST `/{patient_id}/conditions` | `{id,dentition,tooth_fdi,condition_code,surfaces?,note?}` | Condition201; identical retry200 |
 | PATCH `/{patient_id}/conditions/{condition_id}` | `{expected_revision,surfaces?,note?,status?}` | Condition200 |
+| POST `/{patient_id}/conditions/{condition_id}/corrections` | `{operation_id,expected_revision,reason,replacement?}` | Receipt201; identical retry200 |
 | GET `/{patient_id}/conditions/{condition_id}/revisions` | limit,cursor | ConditionRevision page |
 
 Note body trims to 1–4000 characters. Condition note trims to 0–1000, blank→null.
@@ -118,12 +119,38 @@ Resolution is an explicit PATCH status:resolved. Resolved records are read-only;
 recurrence creates a fresh UUID. Active duplicates are constrained by
 owner/patient/dentition/tooth/code/canonical surfaces.
 
+Correction (manual error annotation) is a separate command, never a resolve:
+mandatory trimmed reason of 1–1000 characters, an optional validated replacement
+record, and a marked entered_in_error original whose identity/evidence stay intact.
+The receipt is `{operation_id,condition_id,correction_revision_id,replacement_condition_id,
+replacement_revision_id}` with both replacement IDs null or both present; 201 on first
+commit, 200 on identical retry of the frozen normalized command. Replacement is atomic
+with the correction and links back via `supersedes_condition_id`. Entered_in_error
+records reject new edits/resolves/corrections (409 condition_entered_in_error); an
+identical uncertain retry recovers its committed receipt before terminal rejection.
+Catalog `categories`/`category_key`/`allowed_dentitions` are additive presentation
+hints on version1; existing version1 consumers keep working and a legacy response
+without them still normalizes to the single diagnosis group and both dentitions.
+Category, icon, draft and other authority extras in mutations remain 422.
+
+Rollout boundary: deploy the status-aware client together with the backend before
+enabling correction entry. Downgrading the database preserves correction data, but a
+pre-change client cannot safely render entered_in_error records — never roll the app
+back to a status-unaware binary after such records are written.
+
 Note has id,patient_id,body,revision,created_by,updated_by,created_at,updated_at.
-Condition adds dentition,tooth_fdi,condition_code,surfaces,note,status instead of body.
-Actors contain user_id and nullable display_name. NoteRevision has id,note_id,revision,
+Condition adds dentition,tooth_fdi,condition_code,surfaces,note,status instead of body,
+plus nullable supersedes_condition_id and correction metadata
+`{operation_id,condition_id,correction_revision_id,reason,replacement_condition_id,
+replacement_revision_id}` (reason present on reads, absent from receipts). The
+internal command_snapshot is never exposed. Legacy records/revisions return null.
+Actors contain user_id and nullable display_name; UI shows the persisted actor's
+trusted display_name or a stable distinguishable account UUID label, never email/RUT.
+NoteRevision has id,note_id,revision,
 action,previous_body,new_body,actor,changed_at. ConditionRevision has
 id,condition_id,revision,action,before,after,actor,changed_at; snapshots contain
-dentition,tooth_fdi,condition_code,surfaces,note,status.
+dentition,tooth_fdi,condition_code,surfaces,note,status. Corrected revisions add
+action corrected plus the correction metadata.
 
 Resource and revision commit atomically. Client create UUID and normalized payload
 stay frozen while outcome is uncertain. Identical owned POST retry compares creation
@@ -161,9 +188,15 @@ Titles are fixed Spanish labels; tooth is optional and unknown actor/name stays 
 Activity contains no note/evolution text, contact or RUT.
 
 Evolution href is `/patients/{patient_id}/evolutions/{id}`. Note/condition href uses
-`?tab=info&note={id}` / `?tab=clinical&condition={id}`. Exact owned GET lets UI focus
-resources beyond page1, selects matching dentition and opens latest state with history.
-Inaccessible target has named not-found recovery within its accessible ficha.
+`?tab=info&note={id}` / `?tab=clinical&clinical=diagnosis&condition={id}`. The ficha
+commits canonical query state on every view change: `tab=clinical&clinical=diagnosis|evolutions`,
+plus the focused condition UUID only inside diagnosis. Switching to evolutions drops the
+condition focus; leaving clinical drops clinical params while preserving unrelated safe
+parameters. Unknown tab/clinical enums default to Resumen/diagnosis and a malformed
+condition UUID never fetches. Clinical text, patient name, note and RUT never enter
+the URL. Exact owned GET lets UI focus resources beyond page1, selects matching
+dentition and opens latest state with history. Inaccessible target has named
+not-found recovery within its accessible ficha.
 
 New clinical 404 envelope is `detail:{code:"not_found",message:"Registro no encontrado"}`.
 Revision 409 includes code,resource_id,current_revision. Validation 422 uses FastAPI's
