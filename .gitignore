@@ -115,3 +115,6 @@ EXAMPLE-CLAUDE.md
 # overrides and live sessions are not.
 .impeccable/config.local.json
 .impeccable/live/
+
+# Docker build output may contain expanded environment values.
+artifacts/**/docker-build.log

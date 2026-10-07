@@ -26,10 +26,10 @@ ARG VITE_GOOGLE_DRIVE_APP_ID
 ARG GOOGLE_DRIVE_ENABLED=false
 ENV VITE_GOOGLE_PICKER_API_KEY=${VITE_GOOGLE_PICKER_API_KEY} \
     VITE_GOOGLE_DRIVE_APP_ID=${VITE_GOOGLE_DRIVE_APP_ID}
-RUN if [ "$GOOGLE_DRIVE_ENABLED" = "true" ]; then \
-      test -n "$VITE_GOOGLE_PICKER_API_KEY" && \
-      test -n "$VITE_GOOGLE_DRIVE_APP_ID"; \
-    fi && bun run build
+RUN bun -e 'if (process.env.GOOGLE_DRIVE_ENABLED === "true" && \
+    (!process.env.VITE_GOOGLE_PICKER_API_KEY || !process.env.VITE_GOOGLE_DRIVE_APP_ID)) \
+    throw new Error("Google Drive requires Picker API key and app ID");' \
+    && bun run build
 # Output: /src/frontend/dist
 
 # ----------------------------------------------------------------------------
