@@ -199,7 +199,7 @@ This change SHALL NOT infer normal examination, change taxonomy/surface obligati
 - **THEN** no agent-ready or clinical taxonomy certification is claimed; agent write still requires a separately approved proposal/approval/provenance specification
 
 ### Requirement: R13 Per-record commit and truthful post-save continuity
-Create, edit, resolve and correct SHALL commit individual reviewed records, not an entire examination. The UI SHALL follow visual-contract.md, retain selected context, focus the exact returned result and announce the outcome once. Next actions SHALL be deliberate without automatic Assistant submission or evolution creation.
+Create, edit, resolve and correct SHALL commit individual reviewed records, not an entire examination. The UI SHALL follow the visual acceptance contract in design.md appendix A, retain selected context, focus the exact returned result and announce the outcome once. Next actions SHALL be deliberate without automatic Assistant submission or evolution creation.
 
 #### Scenario: Confirmed result
 - **WHEN** a command succeeds
@@ -216,7 +216,7 @@ Create, edit, resolve and correct SHALL commit individual reviewed records, not 
 - **THEN** it cannot repaint the new patient or claim their data was saved
 
 ### Requirement: R14 Consistent clinical symbols and visual grouping
-The UI SHALL retain the twelve-concept catalog and original Assistant identity. Concept, persisted status, draft, focus and hover SHALL remain distinct per visual-contract.md with explicit labels and a compact visible status legend. FDI grouping SHALL preserve individual records/actions, without a card per field.
+The UI SHALL retain the twelve-concept catalog and original Assistant identity. Concept, persisted status, draft, focus and hover SHALL remain distinct per the visual acceptance contract (design.md appendix A) with explicit labels and a compact visible status legend. FDI grouping SHALL preserve individual records/actions, without a card per field.
 
 #### Scenario: Status and counts
 - **WHEN** active, resolved, entered_in_error or draft data is displayed
@@ -225,16 +225,16 @@ The UI SHALL retain the twelve-concept catalog and original Assistant identity. 
 - **THEN** optional counts distinguish these units and exclude drafts; incomplete reads never imply complete totals
 
 ### Requirement: R15 Visual reference and spatial continuity
-The isolated wireframes/odontogram-reference.html SHALL guide composition alongside visual-contract.md. Future production proof SHALL cover six R6 sizes, the reference state matrix, long/short names and notes, both dentitions, and existing desktop Assistant panel open/closed at actual available widths.
+The visual acceptance contract in design.md appendix A SHALL guide composition. Future production proof SHALL cover six R6 sizes, its state matrix, long/short names and notes, both dentitions, and existing desktop Assistant panel open/closed at actual available widths.
 
 #### Scenario: Anatomical linking
 - **WHEN** an exact record or quadrant is activated
-- **THEN** anatomical order follows visual-contract.md; explicit record activation selects its FDI/dentition subject to dirty guards, while hover only highlights and never changes draft or note linkage
+- **THEN** anatomical order follows the visual acceptance contract; explicit record activation selects its FDI/dentition subject to dirty guards, while hover only highlights and never changes draft or note linkage
 - **WHEN** another quadrant is displayed
 - **THEN** draft FDI remains explicit and clinical records are not silently filtered to that quadrant
 
 #### Scenario: Reference proof boundary
-- **WHEN** the synthetic reference passes layout checks
+- **WHEN** layout-only or synthetic checks pass
 - **THEN** evidence does not claim production persistence, API/DB correctness, assistive technology or virtual-keyboard proof; mobile retains the existing full Assistant route
 
 #### Scenario: Existing navigation compatibility

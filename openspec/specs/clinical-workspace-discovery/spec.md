@@ -328,10 +328,10 @@ New note/condition creation SHALL use a client UUID reused for identical retry. 
 - **WHEN** an identical PATCH is retried after its update committed and the current latest revision is exactly expected_revision+1 representing that patch
 - **THEN** return existing resource without another revision
 - **WHEN** a different or later revision conflicts
-- **THEN** return409 and preserve the UI draft until explicit reload/rebase, never force overwrite
+- **THEN** return409 and show a base/local/current per-field comparison with explicit Mantener/Usar choices, retaining untouched local fields at latest values and blocking saving while recovery is incomplete; a second409 repeats the comparison — never a generic whole-payload rebase
 
 ### Requirement: Fixed tooth-condition identity and recurrence
-Dentition, FDI tooth and condition code SHALL be immutable after creation. Active duplicate identity SHALL be owner/patient/dentition/tooth/code/canonical surfaces, enforced by database partial uniqueness. Resolved records SHALL be read-only. Different surfaces may coexist; recurrence after resolution SHALL create a new resource. Resolver SHALL prepare a draft, with only Guardar persisting resolution.
+Dentition, FDI tooth and condition code SHALL be immutable after creation. Active duplicate identity SHALL be owner/patient/dentition/tooth/code/canonical surfaces, enforced by database partial uniqueness. Resolved records SHALL reject ordinary editing and resolution, but SHALL permit the separate error-correction annotation defined by odontogram-human-workflow. Different surfaces may coexist; recurrence after resolution SHALL create a new resource. Resolver SHALL prepare a draft, with only Guardar persisting resolution. Recording errors SHALL use explicit correction with a mandatory reason, marking the original entered_in_error and optionally creating a linked replacement atomically; correction SHALL NOT imply clinical resolution or overwrite historical evidence.
 
 #### Scenario: Concurrent active duplicate
 - **WHEN** two distinct UUIDs create the same active identity concurrently
@@ -341,9 +341,19 @@ Dentition, FDI tooth and condition code SHALL be immutable after creation. Activ
 
 #### Scenario: Correction and recurrence
 - **WHEN** tooth/code must be corrected
-- **THEN** clinician explicitly resolves the incorrect record and creates a correct record; history retains both
+- **THEN** the clinician reviews a separate correction with mandatory reason and explicitly saves it; the original keeps its identity/history, becomes entered_in_error, and an optional valid linked replacement commits in the same transaction
 - **WHEN** a resolved condition recurs
 - **THEN** a new UUID records it; old record is neither reopened nor overwritten
+
+#### Scenario: Correction of a resolved original
+- **WHEN** an owned resolved original is corrected with its current revision
+- **THEN** previous resolution evidence remains intact and a new corrected revision annotates the recording error without reactivating the original
+- **WHEN** an ordinary edit or resolution targets a resolved or entered_in_error record
+- **THEN** terminal-state rules reject the mutation, apart from an identical already-committed retry allowed by its command contract
+
+#### Scenario: Correction after concurrent resolution
+- **WHEN** another session resolves the original before a pending correction commits
+- **THEN** the stale correction returns409 without writes, and renewed correction requires review of the current source and explicit confirmation of a new operation against its latest revision
 
 ### Requirement: Predictable clinical draft continuity
 Draft transitions SHALL follow design.md (Appendix A). Highlight SHALL remain independent. Dirty navigation SHALL offer save/discard/remain. Contextual Assistant and layout changes SHALL preserve draft. Uncertain mutations SHALL retain UUID/frozen payload for retry. No clinical draft SHALL be persisted to browser storage.

@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: T1 Fixed variant-aware clinical catalog
-The server SHALL expose the versioned inventory in catalog.md:63 therapeutic variants and the twelve preserved findings, eight Spanish category labels, variant identity, clinical type, anatomy scope, surfaces, dentition and visual metadata. Findings SHALL retain their current resource contract.
+The server SHALL expose the versioned inventory in design.md appendix B:63 therapeutic variants and the twelve preserved findings, eight Spanish category labels, variant identity, clinical type, anatomy scope, surfaces, dentition and visual metadata. Findings SHALL retain their current resource contract.
 
 #### Scenario: Shared clinical type
 - **WHEN** the catalog includes zirconia and metal-ceramic crowns

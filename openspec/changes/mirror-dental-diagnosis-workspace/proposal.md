@@ -4,7 +4,7 @@ Dental AI Assistant currently records twelve findings, but chart activation crea
 
 ## Investigation / Current State
 
-See investigation.md and the two source-backed audits in docs/design. The existing owner-scoped condition workflow already supports explicit save, revisions, correction, conflicts and safe retries. D03 explicitly supersedes the create-only Guardar step for chart actions; preserve revisions, recovery and error-correction guarantees behind the mirrored interactions. DentalPin combines catalog variants with clinical types and different anatomical scopes; its diagnosis mode records existing work while planning records future work. Its cyan dot indicates surface support, not saved usage.
+Preparation investigation and the two source-backed audits in docs/design informed this proposal; the change-folder investigation/audit files were pruned during compaction and remain recoverable from git history. The existing owner-scoped condition workflow already supports explicit save, revisions, correction, conflicts and safe retries. D03 explicitly supersedes the create-only Guardar step for chart actions; preserve revisions, recovery and error-correction guarantees behind the mirrored interactions. DentalPin combines catalog variants with clinical types and different anatomical scopes; its diagnosis mode records existing work while planning records future work. Its cyan dot indicates surface support, not saved usage.
 
 ## What Changes
 
@@ -26,7 +26,7 @@ See investigation.md and the two source-backed audits in docs/design. The existi
 
 ### Modified Capabilities
 
-- `clinical-workspace-discovery`: modify the complete existing manual-diagnosis, chart composition and backed-activity requirements to reflect D03/D04 and the new persisted clinical resources. Existing IDs/revisions/correction APIs remain intact. The completed `harden-odontogram-human-workflow` is predecessor evidence; this change explicitly supersedes its creation-flow presentation constraints without editing or archiving that folder.
+- `clinical-workspace-discovery`: modify the complete existing manual-diagnosis, chart composition and backed-activity requirements to reflect D03/D04 and the new persisted clinical resources. Existing IDs/revisions/correction APIs remain intact. The archived `harden-odontogram-human-workflow` (2026-10-07) is predecessor evidence; this change explicitly supersedes its creation-flow presentation constraints without editing that archive.
 
 ## Change Profile
 
@@ -50,9 +50,9 @@ First prove the read-only tooth-click regression through rendered PatientDiagnos
 - D02: user explicitly selected the clinical lifecycle without commercial/agenda integrations.
 - D03: user selected direct application like DentalPin, including occlusal click and surface confirmation; no added Guardar step for whole-tooth creation.
 - D04: user selected editable dental notes/templates/links; attachments are explicitly deferred.
-- mirror-audit.md identifies previous invented differences and source-backed visual/event contracts. The four decisions were resolved through grilling via grill-with-docs; no material product decision remains open within this boundary.
+- design.md appendix A identifies previous invented differences and source-backed visual/event contracts. The four decisions were resolved through grilling via grill-with-docs; no material product decision remains open within this boundary.
 - OpenSpec is the change's source of truth. No tracker/map was used. Implementation stays deferred.
 
-- Final audit2026-10-06:75 target entries confirmed against all60 mapped seed variants plus3 core tools and12 findings. W8/W9/N5 add explicit deep Module ownership, safe legacy retirement and exact note candidate/highlight/layout behavior. architecture-cleanup.md defines the contract slice after integration, without widening commercial/media scope or changing product code.
+- Final audit2026-10-06:75 target entries confirmed against all60 mapped seed variants plus3 core tools and12 findings. W8/W9/N5 add explicit deep Module ownership, safe legacy retirement and exact note candidate/highlight/layout behavior. design.md appendix E defines the contract slice after integration, without widening commercial/media scope or changing product code.
 
 - Live follow-up: eight variant icon overrides and palette/layer colors are explicit; source floating-action collision is corrected rather than copied. Item shortcut advances next pending session; optional execution note commits atomically as a named target safety adaptation. Scope D01–D04 remains unchanged; current tests are baseline proof, not implementation approval.

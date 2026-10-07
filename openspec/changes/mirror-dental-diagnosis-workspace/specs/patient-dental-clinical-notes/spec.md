@@ -49,7 +49,7 @@ Owned notes SHALL support body-only edit with revision conflict recovery and con
 - **THEN** one commits and the other receives409 with the latest authorized snapshot and preserved local text, requiring explicit reconciliation before retry.
 
 ### Requirement: N5 Separate candidate selection from note highlighting
-The composer SHALL preserve the last valid chart tooth candidate when pointerleave clears highlighting. Card/condition-row hover SHALL change highlighting only. Binding SHALL re-enable when the chart candidate changes, and SHALL remain unchecked when the same candidate is revisited. The exact state and source layout SHALL follow notes-contract.md; no hover SHALL write or relink an existing note.
+The composer SHALL preserve the last valid chart tooth candidate when pointerleave clears highlighting. Card/condition-row hover SHALL change highlighting only. Binding SHALL re-enable when the chart candidate changes, and SHALL remain unchecked when the same candidate is revisited. The exact state and source layout SHALL follow design.md appendix C; no hover SHALL write or relink an existing note.
 
 #### Scenario: Unbind and leave
 - **WHEN** tooth16 is hovered, binding is unchecked and the pointer leaves then revisits16

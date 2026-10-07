@@ -42,7 +42,7 @@ Hover, focus and tool activation SHALL NOT persist clinical data. D03 anatomical
 - **THEN** the exact operation/draft remains recoverable, retry does not duplicate, and dirty edit navigation offers save/discard/remain without changing the successful create flow.
 
 ### Requirement: W4 Grouped clinical context and reference legend
-The workspace SHALL group saved findings and existing procedures by FDI with the reference individual record labels, shared identity for multi-tooth procedures, separate whole-arch groups and unique record totals. The legend SHALL start collapsed and expose source status indicators and five core clinical groups with type illustrations; the legend SHALL use base type illustrations while variant cards/records resolve the overrides in visual-parity-contract.md.
+The workspace SHALL group saved findings and existing procedures by FDI with the reference individual record labels, shared identity for multi-tooth procedures, separate whole-arch groups and unique record totals. The legend SHALL start collapsed and expose source status indicators and five core clinical groups with type illustrations; the legend SHALL use base type illustrations while variant cards/records resolve the overrides in design.md appendix D.
 
 #### Scenario: Overlapping clinical records
 - **WHEN** a tooth has a crown, root-canal procedure and caries finding
@@ -71,7 +71,7 @@ The diagnosis CTA SHALL offer explicit creation or continuation of a draft clini
 - **THEN** the chosen authorized plan opens with its saved work and no duplicate plan is created.
 
 ### Requirement: W7 Source-backed dental rendering and motion
-The workspace SHALL implement the anatomical, layer, pattern, opacity, background and motion contracts in mirror-audit.md. Four generic tooth profiles or identical glyphs SHALL NOT count as completed mirror coverage.
+The workspace SHALL implement the anatomical, layer, pattern, opacity, background and motion contracts in design.md appendix A. Four generic tooth profiles or identical glyphs SHALL NOT count as completed mirror coverage.
 
 #### Scenario: Replacement and planned states
 - **WHEN** a missing tooth has an implant or a bridge pontic, and another procedure is planned
@@ -82,7 +82,7 @@ The workspace SHALL implement the anatomical, layer, pattern, opacity, backgroun
 - **THEN**150ms card/tooth feedback,200ms pulp fill and source1s/1.5s preview/highlight/ring pulses use their specified values; reduced-motion disables decorative motion.
 
 ### Requirement: W8 Deep Module ownership and shared caller Seam
-The workspace SHALL expose coherent small Interfaces for dental interaction, presentation, notes and plan commands as defined in architecture-cleanup.md. UI callers SHALL emit intent and render committed models without duplicating transport/retry, visual registries or lifecycle rules. Callers and behavior tests SHALL cross the same public Seam; backend commands SHALL accept persistence dependencies and preserve server ownership/transaction invariants.
+The workspace SHALL expose coherent small Interfaces for dental interaction, presentation, notes and plan commands as defined in design.md appendix E. UI callers SHALL emit intent and render committed models without duplicating transport/retry, visual registries or lifecycle rules. Callers and behavior tests SHALL cross the same public Seam; backend commands SHALL accept persistence dependencies and preserve server ownership/transaction invariants.
 
 #### Scenario: Public journey through one owner
 - **WHEN** PatientDetail renders diagnosis and the clinician inspects, applies, retries and opens the note rail
@@ -93,7 +93,7 @@ The workspace SHALL expose coherent small Interfaces for dental interaction, pre
 - **THEN** they resolve one clinical/visual registry and preserved historical aliases without contradictory labels, scope or marks.
 
 ### Requirement: W9 Verified retirement without historical loss
-The implementation SHALL perform the expand→migrate→contract cleanup in architecture-cleanup.md after all replacement consumers pass the integrated journey. Superseded lower create-editor, forced focus, geometry and parallel palette/rail paths SHALL have zero active consumers and be removed. Historical conditions/general notes, IDs, revisions, correction/retry and accessibility SHALL remain supported. This change SHALL NOT drop historical schema or depend on destructive migration rollback.
+The implementation SHALL perform the expand→migrate→contract cleanup in design.md appendix E after all replacement consumers pass the integrated journey. Superseded lower create-editor, forced focus, geometry and parallel palette/rail paths SHALL have zero active consumers and be removed. Historical conditions/general notes, IDs, revisions, correction/retry and accessibility SHALL remain supported. This change SHALL NOT drop historical schema or depend on destructive migration rollback.
 
 #### Scenario: Retire old create interaction
 - **WHEN** integrated replacement tests pass and the removal slice is verified
@@ -108,7 +108,7 @@ The implementation SHALL perform the expand→migrate→contract cleanup in arch
 - **THEN** new tables/revisions/receipts remain intact, incumbent reads still operate and recovery does not execute a destructive down migration.
 
 ### Requirement: W10 Variant icons semantic colors and unobstructed actions
-The workspace SHALL follow visual-parity-contract.md for source-backed variant icon overrides, separate palette/layer color roles, dental tokens and measured state feedback. It SHALL preserve Dental AI/Chat global design tokens and use independently authored clinical artwork. Floating actions SHALL NOT overlap each other or the shell dock; a modal SHALL suspend the tooth popover and preserve context during exit.
+The workspace SHALL follow design.md appendix D for source-backed variant icon overrides, separate palette/layer color roles, dental tokens and measured state feedback. It SHALL preserve Dental AI/Chat global design tokens and use independently authored clinical artwork. Floating actions SHALL NOT overlap each other or the shell dock; a modal SHALL suspend the tooth popover and preserve context during exit.
 
 #### Scenario: Distinguishable variant cards
 - **WHEN** metal-ceramic, zirconia and Maryland bridges or occlusal/periodontal splints are presented

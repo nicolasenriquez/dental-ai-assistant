@@ -72,10 +72,10 @@ Fail-first external behavior at chosen seams; real Postgres for atomicity, const
 
 - Human D-01: flow first; IA roadmap separate. D-02: entered-in-error, mandatory reason, optional linked atomic replacement.
 - Human D-03: after a correction conflicts with a newly resolved source, retain reason/replacement, review the latest source and require explicit confirmation of a new attempt. Never silently advance expected_revision or reuse the rejected operation with a changed body. Editing/resolving terminal records remains forbidden.
-- Audit/commits/proof limits and finding disposition are in investigation.md and evidence.md.
+- Audit/commits/proof limits and finding dispositions were recorded in the preparation evidence (investigation, readiness/reference-gap reviews, extensibility audit, execution baseline and evidence log). That evidence was pruned from this folder for compaction and remains recoverable from git history; the traceability legend is design.md appendix B.
 - No implementation SDLC map or issue tracker was used; traceability refers to OD findings and requirement IDs, not invented tickets.
-- Full spec is the authoritative capability delta plus top-level spec.md index. Implementation is deferred.
+- Full spec is the authoritative capability delta under specs/. Implementation is deferred.
 
-- Subsequent reference gaps G01–G09 are bounded refinements in R9/R13–R15 and visual-contract.md, mapped to existing slices without expanding clinical taxonomy or agent scope.
-- Isolated synthetic HTML guides composition; rendered-reference validation remains separate from future production evidence.
-- Human D-04: `A. Catálogo mínimo (Recommended)` selected on2026-10-06. Backend definitions remain clinical authority; only diagnosis ships, with no empty future-family tabs. Minimal additive catalog and extension/fallback proofs belong to S3/S4. [Extensibility audit](extensibility-audit.md) records current source evidence, critique, scores and readiness limits.
+- Subsequent reference gaps G01–G09 are bounded refinements in R9/R13–R15 and the visual acceptance contract (design.md appendix A), mapped to existing slices without expanding clinical taxonomy or agent scope.
+- The isolated synthetic HTML used during preparation guided composition only; it was pruned with the other preparation evidence and its rendered-reference validation never counted as production evidence.
+- Human D-04: `A. Catálogo mínimo (Recommended)` selected on2026-10-06. Backend definitions remain clinical authority; only diagnosis ships, with no empty future-family tabs. Minimal additive catalog and extension/fallback proofs belong to S3/S4. The extensibility audit used for this decision was pruned; its closure lives in design decision9/R16–R17 and appendix B.
