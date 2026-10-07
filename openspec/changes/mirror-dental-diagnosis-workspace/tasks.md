@@ -13,8 +13,9 @@
 
 ## 1. Contract Coverage (Failing First)
 
-- [ ] 1.1 Add rendered PatientDiagnosis regression: no-tool tooth activation opens a contextual popover without writes; active-tool whole/occlusal click applies directly; lateral surface activation confirms through its compact modal. No unknown-condition draft or lower-form focus.
+- [x] 1.1 Add rendered PatientDiagnosis regression: no-tool tooth activation opens a contextual popover without writes; active-tool whole/occlusal click applies directly; lateral surface activation confirms through its compact modal. No unknown-condition draft or lower-form focus.
   Traceability: W1,W3; prior art PatientDiagnosis.test.tsx, PatientOdontogram.test.tsx and PatientDetail.test.tsx. First failing external behavior crosses the existing UI seam.
+  Notes: 2026-10-06 fail-first run of four new rendered PatientDiagnosis cases failed on missing tooth popover, tool-created textarea, missing surface modal and missing occlusal activation. Command: bun run test src/components/patients/PatientDiagnosis.test.tsx -t "tooth-first|whole-tooth activation|lateral surface selection|occlusal surface activation".
 - [ ] 1.2 Add catalog/HTTP therapeutic proofs for unique Spanish variants, complete registry metadata, observed bracket save, owner denial, idempotency and stale-revision recovery.
   Traceability: T1,T3,T4,T5; prior art app/backend/tests/test_patient_conditions_contract.py and test_patient_activity.py; frontend typed-client boundary tests.
 - [ ] 1.3 Add scope proofs for atomic bridge with roles, valid FDI/dentition, supported surface codes without inferred veneer/pediatric restrictions and whole-arch appliance with no FDI.
@@ -40,8 +41,9 @@
 
 ### Contextual inspection and reference application
 
-- [ ] 2.1 Separate hover, popover context and active tool in PatientDiagnosis; implement no-tool popover, direct whole/occlusal application, compact lateral surface modal and saved-record edit modal following native domain patterns. Preserve stable retry/conflict/correction paths, add logical Deshacer, integrate dentition controls and remove focus scroll displacement.
+- [x] 2.1 Separate hover, popover context and active tool in PatientDiagnosis; implement no-tool popover, direct whole/occlusal application, compact lateral surface modal and saved-record edit modal following native domain patterns. Preserve stable retry/conflict/correction paths, add logical Deshacer, integrate dentition controls and remove focus scroll displacement.
   Traceability: W1,W3,W5,W8; architecture-cleanup.md workspace Module; Slice1. Demo: inspect16, apply Pulpitis directly, apply occlusal Caries M directly, lateral Caries M/O through Confirmar, then edit/undo with existing safeguards. No backend condition-schema change.
+  Notes: 2026-10-06 implemented chart-command ownership in useDentalWorkspace, tooth-anchored inspection, anatomical pointer hit-testing and named keyboard surface controls, cropped 160px selector, saved-record domain modal, frozen create/correction retry and audited Deshacer. Dentition controls live inside Odontograma. Focused rendered suites passed78; tsc and full-src Biome passed. PRODUCT.md now records the D03 boundary. Existing correction/edit recovery remains behind the public PatientDiagnosis seam.
 
 ### Variant-aware observed procedures
 
@@ -90,8 +92,9 @@
 
 ## 3. Verification
 
-- [ ] 3.1 Run the focused finding/inspection regressions and browser no-write/no-focus-jump replay; preserve incumbent condition history/correction tests.
+- [x] 3.1 Run the focused finding/inspection regressions and browser no-write/no-focus-jump replay; preserve incumbent condition history/correction tests.
   Traceability: Slice1; W1,W3,W5.
+  Notes: 2026-10-06 focused UI78 passed; full frontend757 passed; incumbent condition HTTP contract4 passed. Isolated Docker localhost:8001 Playwright setup+journey2 passed, including unchanged scroll/no writes on tooth-first inspection, direct Pulpitis, logical undo with two revisions, actual chart-path Caries M with lost-response replay and one revision, lateral M/O confirmation, edit/reload,390px inspector and Temporal. See slice1-evidence.md for commands and evidence limits.
 - [ ] 3.2 Prove catalog coverage and existing-treatment save/reload, ownership, duplicate/replay and conflict recovery at HTTP plus real DB where transactional.
   Traceability: Slice2; T1,T3–T5,W2.
 - [ ] 3.3 Verify multi/arch valid and invalid fixtures, canonical surfaces/roles and atomic rollback through real DB and chart UI.
