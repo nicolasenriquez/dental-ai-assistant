@@ -53,7 +53,6 @@ test('mirror slice4 draft authoring, scope, replay, ordered sessions and reload'
   expect(plans[0].items.map((item: { treatment: { variant_id: string } }) => item.treatment.variant_id)).toEqual(['REST-BRIDGE-ZIR', 'ORTO-BRACK']);
   expect((await (await page.request.get(`/api/patients/${patientId}/dental-treatments`)).json()).total).toBe(0);
   await page.reload();
-  await page.getByRole('button', { name: 'Plan sintético · Borrador', exact: true }).click();
   await expect(page.getByText('1. Puente zirconio', { exact: true })).toBeVisible();
   await expect(page.getByText('1. Preparación revisada · Pendiente', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -131,7 +130,6 @@ test('mirror slice5 explicit confirmation, acceptance, closure, reactivation and
   const denied = await page.request.patch(`${base}/${closed.id}`, { data: { operation_id: randomUUID(), expected_revision: 7, title: 'Forbidden' } });
   expect(denied.status()).toBe(409);
   await page.reload();
-  await page.getByRole('button', { name: 'Ciclo clínico sintético · Cerrado', exact: true }).click();
   await expect(page.getByText('Cerrado · Revisión 7', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -215,7 +213,6 @@ test('mirror slice6 staged execution, atomic note replay, conflict and retained 
   expect(completed.items[0].stages.map((stage: { status: string }) => stage.status)).toEqual(['completed', 'cancelled']);
   await other.close();
   await page.reload();
-  await page.getByRole('button', { name: 'Ejecución sintética · Completado', exact: true }).click();
   await expect(page.getByText('Evidencia sintética de preparación', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Corregir registro del procedimiento', exact: true }).click();
   await page.getByRole('textbox', { name: 'Motivo de corrección', exact: true }).fill('Corrección sintética');
