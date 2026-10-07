@@ -6,6 +6,7 @@ Choose affected flow and list each entry point actually exercised. Run doctor, c
 | --- | --- | --- |
 | Sign-in / signup navigation | [sign-in](sign-in.md) | Local-mode login; public-only proof if running mode differs |
 | Patients | [patients](patients.md) | Authenticated UI and Postgres for real list/detail |
+| Odontogram human workflow | [odontogram](odontogram-human-workflow.md) | Live synthetic UI/HTTP/Postgres; CLI exact viewports; explicit failure injection and acceptance gaps |
 | Dental evolutions | [evolutions](evolutions.md) | Capture/failure retention locally; review/approved save requires enabled generation and disposable data |
 | Clinical assistant and contextual workspace | [clinical assistant](clinical-assistant.md) | Selection/pending-work locally; successful generation requires enabled clinical LLM; Drive needs Google mode |
 | Video-library chat | [library chat](library-chat.md) | Retrieval/model need configured OpenRouter |

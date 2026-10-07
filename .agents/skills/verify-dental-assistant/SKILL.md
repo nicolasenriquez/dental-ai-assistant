@@ -62,6 +62,7 @@ Each run writes `.playwright-cli/verification/local-<timestamp>/report.json` and
 - [features/README.md](features/README.md) — choose user-visible feature and proof scope.
 - [features/sign-in.md](features/sign-in.md) — public auth navigation and live sign-in.
 - [features/patients.md](features/patients.md) — patient list and owner-scoped detail.
+- [features/odontogram-human-workflow.md](features/odontogram-human-workflow.md) — manual corrections, conflict decisions, exact responsive proof and URL/reload acceptance.
 - [features/evolutions.md](features/evolutions.md) — draft review and approved save.
 - [features/clinical-assistant.md](features/clinical-assistant.md) — assistant and Drive boundaries.
 - [features/library-chat.md](features/library-chat.md) — RAG chat and citation surface.
