@@ -53,7 +53,8 @@ async def list_activity(
             ), filtered AS (
                 SELECT * FROM events WHERE $3::text='all' OR kind=$3
             )
-            SELECT page.*, totals.total FROM (SELECT count(*)::integer AS total FROM filtered) totals
+            SELECT page.*, totals.total, u.professional_display_name AS actor_display_name
+            FROM (SELECT count(*)::integer AS total FROM filtered) totals
             LEFT JOIN LATERAL (
                 SELECT * FROM filtered
                 WHERE $4::timestamptz IS NULL OR occurred_at<$4
@@ -61,6 +62,7 @@ async def list_activity(
                     OR (occurred_at=$4 AND kind=$5 AND event_id<$6::uuid)
                 ORDER BY occurred_at DESC, kind ASC, event_id DESC LIMIT $7
             ) page ON true
+            LEFT JOIN users u ON u.id=page.actor_user_id
             ORDER BY page.occurred_at DESC, page.kind ASC, page.event_id DESC
             """,
             owner,

@@ -103,11 +103,14 @@ def _cursor(
 
 
 def _note(row: dict[str, Any]) -> NoteResponse:
-    # No authorized user display name is stored today; never fall back to email.
     return NoteResponse(
         **row,
-        created_by=Actor(user_id=row["created_by_user_id"]),
-        updated_by=Actor(user_id=row["updated_by_user_id"]),
+        created_by=Actor(
+            user_id=row["created_by_user_id"], display_name=row.get("created_by_display_name")
+        ),
+        updated_by=Actor(
+            user_id=row["updated_by_user_id"], display_name=row.get("updated_by_display_name")
+        ),
     )
 
 
@@ -168,7 +171,13 @@ async def revisions(
     rows, total = await _owned(
         repo.list_revisions(UUID(str(user["id"])), patient_id, note_id, limit, before)
     )
-    items = [NoteRevision(**row, actor=Actor(user_id=row["actor_user_id"])) for row in rows[:limit]]
+    items = [
+        NoteRevision(
+            **row,
+            actor=Actor(user_id=row["actor_user_id"], display_name=row.get("actor_display_name")),
+        )
+        for row in rows[:limit]
+    ]
     next_cursor = None
     if len(rows) > limit:
         last = items[-1]

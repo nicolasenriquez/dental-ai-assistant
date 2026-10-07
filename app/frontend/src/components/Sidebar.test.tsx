@@ -382,6 +382,8 @@ describe('Sidebar logout', () => {
     fireEvent.click(userMenuTrigger);
     const logoutItem = screen.getByRole('menuitem', { name: /cerrar sesión/i });
     expect(logoutItem).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Perfil profesional' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'ArrowDown' });
     expect(logoutItem).toHaveFocus();
   });
 
@@ -551,6 +553,8 @@ describe('Sidebar navigation and conversations', () => {
         id: 'admin-1',
         email: 'admin@example.com',
         is_admin: true,
+        is_member: true,
+        professional_display_name: null,
         messages_used_today: 5,
         messages_remaining_today: 20,
         rate_window_resets_at: null,

@@ -25,6 +25,8 @@ export interface AuthUser {
  */
 export interface AuthMeResponse extends AuthUser {
   is_admin: boolean;
+  is_member: boolean;
+  professional_display_name: string | null;
   messages_used_today: number;
   messages_remaining_today: number;
   rate_window_resets_at: string | null;
@@ -119,6 +121,15 @@ export const login = (email: string, password: string) =>
   });
 
 export const logout = () => authRequest<void>('/logout', { method: 'POST' });
+
+export function updateProfessionalProfile(
+  professionalDisplayName: string | null,
+): Promise<{ professional_display_name: string | null }> {
+  return authRequest('/me/profile', {
+    method: 'PATCH',
+    body: JSON.stringify({ professional_display_name: professionalDisplayName }),
+  });
+}
 
 export const getAuthConfig = () => authRequest<AuthConfig>('/config', { method: 'GET' });
 

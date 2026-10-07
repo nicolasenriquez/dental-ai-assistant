@@ -9,6 +9,7 @@ from asyncpg import Connection, UniqueViolationError
 
 from backend.db.patient_notes_repo import _parent
 from backend.db.postgres import get_pg_pool
+from backend.db.users_repo import professional_display_names
 from backend.patients.conditions import (
     ConditionConflict,
     ConditionRevisionsCursor,
@@ -18,7 +19,11 @@ from backend.patients.conditions import (
 
 SNAPSHOT_KEYS = ("dentition", "tooth_fdi", "condition_code", "surfaces", "note", "status")
 CONDITION_READ = """
-    SELECT c.*, to_jsonb(r) AS correction_revision FROM patient_tooth_conditions c
+    SELECT c.*, cu.professional_display_name AS created_by_display_name,
+           uu.professional_display_name AS updated_by_display_name,
+           to_jsonb(r) AS correction_revision FROM patient_tooth_conditions c
+    LEFT JOIN users cu ON cu.id=c.created_by_user_id
+    LEFT JOIN users uu ON uu.id=c.updated_by_user_id
     LEFT JOIN patient_tooth_condition_revisions r ON r.condition_id=c.id
         AND r.patient_id=c.patient_id AND r.owner_user_id=c.owner_user_id
         AND r.revision=c.revision AND r.action='corrected'
@@ -43,6 +48,18 @@ def _metadata(row: Any) -> dict[str, Any]:
     value["correction"] = (
         {**_receipt(correction), "reason": correction["correction_reason"]} if correction else None
     )
+    return value
+
+
+async def _with_names(conn: Connection, row: Any) -> dict[str, Any]:
+    value = dict(row)
+    names = await professional_display_names(
+        conn, [value.get("created_by_user_id"), value.get("updated_by_user_id")]
+    )
+    created = value.get("created_by_user_id")
+    updated = value.get("updated_by_user_id")
+    value["created_by_display_name"] = names.get(created) if created else None
+    value["updated_by_display_name"] = names.get(updated) if updated else None
     return value
 
 
@@ -84,7 +101,9 @@ async def _duplicate(conn: Connection, owner: UUID, patient: UUID, value: dict[s
     )
     if existing:
         raise ConditionConflict(
-            "active_condition_exists", existing["id"], existing=_metadata(existing)
+            "active_condition_exists",
+            existing["id"],
+            existing=_metadata(await _with_names(conn, existing)),
         )
     # A concurrently resolved duplicate may vanish between insert and reread; safe to retry.
     raise ConditionConflict("revision_conflict", value["id"])
@@ -192,7 +211,7 @@ async def create_condition(
             await _duplicate(conn, owner, patient, {**value, "id": identifier})
             raise AssertionError("duplicate lookup must raise")
         await _revision(conn, owner, patient, identifier, 1, None, snapshot(row), row["created_at"])
-        return _metadata(row), True
+        return _metadata(await _with_names(conn, row)), True
 
 
 async def update_condition(
@@ -253,7 +272,7 @@ async def update_condition(
         await _revision(
             conn, owner, patient, identifier, row["revision"], before, after, row["updated_at"]
         )
-        return _metadata(row)
+        return _metadata(await _with_names(conn, row))
 
 
 async def _committed_correction(
@@ -430,8 +449,10 @@ async def list_revisions(
         )
         rows = await conn.fetch(
             """
-            SELECT r.*,c.supersedes_condition_id FROM patient_tooth_condition_revisions r
+            SELECT r.*,c.supersedes_condition_id,u.professional_display_name AS actor_display_name
+            FROM patient_tooth_condition_revisions r
             JOIN patient_tooth_conditions c ON c.id=r.condition_id AND c.patient_id=r.patient_id AND c.owner_user_id=r.owner_user_id
+            LEFT JOIN users u ON u.id=r.actor_user_id
             WHERE r.condition_id=$1 AND r.owner_user_id=$2 AND r.patient_id=$3
                 AND ($4::int IS NULL OR (r.revision,r.id)<($4,$5::uuid))
             ORDER BY r.revision DESC,r.id DESC LIMIT $6

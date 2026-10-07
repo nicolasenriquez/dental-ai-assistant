@@ -9,7 +9,8 @@ interface queries video content with streaming answers and exact-timestamp citat
 ## Authentication
 
 All endpoints under `/api/` require a valid session cookie unless noted otherwise.
-Auth routes (`/api/auth/*`) are public and do not require a session.
+Signup, login, configuration and Google sign-in routes are public. Account reads,
+profile updates and logout require a session.
 
 | Endpoint Group | Auth Required |
 |--------------|---------------|
@@ -926,7 +927,31 @@ Get the currently authenticated user.
 
 **Response `200`:**
 ```json
-{ "id": "user_xyz", "email": "user@example.com" }
+{
+  "id": "user_xyz",
+  "email": "user@example.com",
+  "is_admin": false,
+  "is_member": false,
+  "professional_display_name": null,
+  "messages_used_today": 0,
+  "messages_remaining_today": 25,
+  "rate_window_resets_at": null
+}
 ```
 
 ---
+
+### `PATCH /api/auth/me/profile`
+
+**Auth:** Required. Updates only the authenticated account, never a supplied user ID.
+
+Request and `200` response:
+```json
+{ "professional_display_name": "Dra. Camila Ríos" }
+```
+
+The declared professional label is nullable, printable, trimmed and at most 120
+characters. Blank or null clears it; unknown fields, control characters and oversized
+values return `422`. Clinical author reads resolve this stored label against the
+immutable author UUID; unnamed legacy accounts retain UUID-based fallback. No email,
+patient name or credential verification is inferred. Historical receipts are unchanged.

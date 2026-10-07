@@ -188,7 +188,7 @@ async def get_user_by_email(email: str) -> dict[str, Any] | None:
         row = await conn.fetchrow(
             """
             SELECT id, email, password_hash, created_at, last_login_at,
-                   is_member, member_verified_at
+                   is_member, member_verified_at, professional_display_name
             FROM users
             WHERE email = $1
             """,
@@ -204,13 +204,31 @@ async def get_user_by_id(user_id: UUID | str) -> dict[str, Any] | None:
         row = await conn.fetchrow(
             """
             SELECT id, email, created_at, last_login_at,
-                   is_member, member_verified_at
+                   is_member, member_verified_at, professional_display_name
             FROM users
             WHERE id = $1
             """,
             UUID(str(user_id)) if not isinstance(user_id, UUID) else user_id,
         )
     return dict(row) if row else None
+
+
+async def professional_display_names(
+    conn: asyncpg.Connection, user_ids: list[UUID | str | None]
+) -> dict[UUID, str]:
+    """Trusted professional display names keyed by user id.
+
+    Users without a stored name are omitted; callers fall back to the immutable
+    user id. Never derive a name from email or any other inferred source.
+    """
+    unique = {UUID(str(uid)) for uid in user_ids if uid}
+    if not unique:
+        return {}
+    rows = await conn.fetch(
+        "SELECT id, professional_display_name FROM users WHERE id = ANY($1::uuid[])",
+        sorted(unique),
+    )
+    return {r["id"]: r["professional_display_name"] for r in rows if r["professional_display_name"]}
 
 
 async def update_last_login(user_id: UUID | str) -> None:
@@ -220,6 +238,14 @@ async def update_last_login(user_id: UUID | str) -> None:
         await conn.execute(
             "UPDATE users SET last_login_at = now() WHERE id = $1",
             UUID(str(user_id)) if not isinstance(user_id, UUID) else user_id,
+        )
+
+
+async def set_professional_display_name(user_id: UUID, name: str | None) -> None:
+    """Update only the authenticated account's declared professional label."""
+    async with get_pg_pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET professional_display_name=$2 WHERE id=$1", user_id, name
         )
 
 

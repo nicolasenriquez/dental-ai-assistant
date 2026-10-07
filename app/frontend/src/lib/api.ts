@@ -1408,6 +1408,7 @@ export interface DentalNoteContext {
   entity_id: string;
 }
 export interface DentalClinicalNote {
+  author?: PatientActor | null;
   id: string;
   note_type: DentalNoteContext['note_type'] | 'administrative';
   entity_kind: DentalNoteContext['entity_kind'];

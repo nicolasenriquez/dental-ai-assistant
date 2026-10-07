@@ -112,7 +112,11 @@ def _item(row: dict[str, Any], patient: UUID) -> ActivityItem:
             "corrected": "Condición corregida",
         }[action]
         href = f"/patients/{patient}?tab=clinical&condition={resource}"
-    actor = Actor(user_id=row["actor_user_id"]) if row["actor_user_id"] else None
+    actor = (
+        Actor(user_id=row["actor_user_id"], display_name=row.get("actor_display_name"))
+        if row["actor_user_id"]
+        else None
+    )
     return ActivityItem(**row, title=title, href=href, actor=actor)
 
 

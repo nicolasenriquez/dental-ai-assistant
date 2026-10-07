@@ -87,8 +87,12 @@ class RevisionsPage(BaseModel):
 def _condition(row: dict[str, Any]) -> ConditionResponse:
     return ConditionResponse(
         **row,
-        created_by=Actor(user_id=row["created_by_user_id"]),
-        updated_by=Actor(user_id=row["updated_by_user_id"]),
+        created_by=Actor(
+            user_id=row["created_by_user_id"], display_name=row.get("created_by_display_name")
+        ),
+        updated_by=Actor(
+            user_id=row["updated_by_user_id"], display_name=row.get("updated_by_display_name")
+        ),
     )
 
 
@@ -237,7 +241,7 @@ async def revisions(
             **row,
             before=json.loads(row["before_snapshot"]) if row["before_snapshot"] else None,
             after=json.loads(row["after_snapshot"]),
-            actor=Actor(user_id=row["actor_user_id"]),
+            actor=Actor(user_id=row["actor_user_id"], display_name=row.get("actor_display_name")),
         )
         for row in rows[:limit]
     ]

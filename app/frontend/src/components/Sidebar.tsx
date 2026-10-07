@@ -6,6 +6,7 @@ import {
   type ReactNode,
   type RefObject,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +17,7 @@ import { useToast } from '../hooks/useToast';
 import { useOptionalTransitionGuard } from '../hooks/useTransitionGuard';
 import { acquireConversation, deleteConversation } from '../lib/api';
 import { ConfirmDialog } from './ConfirmDialog';
+import { ProfessionalProfile } from './ProfessionalProfile';
 import { VideoExplorer } from './VideoExplorer';
 import { ChatThreadList } from './sidebar/ChatThreadList';
 import { SidebarHeader } from './sidebar/SidebarHeader';
@@ -208,6 +210,8 @@ export function Sidebar({
     if (!result.ok && result.error) addToast(`No pudimos renombrar: ${result.error}`, 'error');
   };
 
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileReturnFocus = useRef<HTMLButtonElement | null>(null);
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
@@ -367,10 +371,22 @@ export function Sidebar({
               loggingOut={loggingOut}
               onClose={onClose}
               onLogout={() => guardTransition(() => void handleLogout())}
+              onProfile={(trigger) =>
+                guardTransition(() => {
+                  profileReturnFocus.current = trigger;
+                  setProfileOpen(true);
+                })
+              }
             />
           )}
         </div>
       </motion.aside>
+      {profileOpen && (
+        <ProfessionalProfile
+          returnFocus={profileReturnFocus.current}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
 
       {isMobile && !isOpen && utilities.length > 0 && (
         <div className="sidebar-mobile-utilities" role="toolbar" aria-label="Utilidades">

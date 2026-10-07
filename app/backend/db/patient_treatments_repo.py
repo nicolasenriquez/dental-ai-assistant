@@ -10,6 +10,7 @@ from asyncpg import Connection
 
 from backend.db.patient_notes_repo import _parent
 from backend.db.postgres import get_pg_pool
+from backend.db.users_repo import professional_display_names
 from backend.patients.treatment_catalog import VARIANTS, VERSION
 from backend.patients.treatments import TreatmentConflict, validate_surfaces
 
@@ -38,8 +39,13 @@ async def _record(
     result = dict(row)
     result.pop("owner_user_id")
     result["teeth"] = [dict(m) for m in members]
-    result["created_by"] = {"user_id": result.pop("created_by_user_id"), "display_name": None}
-    result["updated_by"] = {"user_id": result.pop("updated_by_user_id"), "display_name": None}
+    names = await professional_display_names(
+        conn, [row["created_by_user_id"], row["updated_by_user_id"]]
+    )
+    created = result.pop("created_by_user_id")
+    updated = result.pop("updated_by_user_id")
+    result["created_by"] = {"user_id": created, "display_name": names.get(created)}
+    result["updated_by"] = {"user_id": updated, "display_name": names.get(updated)}
     return dict(json.loads(_json(result)))
 
 
@@ -343,8 +349,9 @@ async def list_revisions(
             patient,
         )
         rows = await conn.fetch(
-            """SELECT * FROM patient_dental_treatment_revisions WHERE treatment_id=$1 AND owner_user_id=$2 AND patient_id=$3
-            AND ($4::timestamptz IS NULL OR (changed_at,id)<($4,$5::uuid)) ORDER BY changed_at DESC,id DESC LIMIT $6""",
+            """SELECT r.*,u.professional_display_name AS actor_display_name FROM patient_dental_treatment_revisions r
+            LEFT JOIN users u ON u.id=r.actor_user_id WHERE r.treatment_id=$1 AND r.owner_user_id=$2 AND r.patient_id=$3
+            AND ($4::timestamptz IS NULL OR (r.changed_at,r.id)<($4,$5::uuid)) ORDER BY r.changed_at DESC,r.id DESC LIMIT $6""",
             identifier,
             owner,
             patient,
@@ -360,7 +367,10 @@ async def list_revisions(
                 "before": json.loads(r["before_snapshot"]) if r["before_snapshot"] else None,
                 "after": json.loads(r["after_snapshot"]),
                 "reason": r["reason"],
-                "actor": {"user_id": str(r["actor_user_id"]), "display_name": None},
+                "actor": {
+                    "user_id": str(r["actor_user_id"]),
+                    "display_name": r["actor_display_name"],
+                },
                 "changed_at": r["changed_at"].isoformat(),
             }
             for r in rows

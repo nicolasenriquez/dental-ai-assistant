@@ -1,4 +1,4 @@
-import { Ellipsis, LogOut, Shield } from 'lucide-react';
+import { Ellipsis, LogOut, Shield, UserRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -11,6 +11,7 @@ interface SidebarUserMenuProps {
   loggingOut: boolean;
   onClose: () => void;
   onLogout: () => void;
+  onProfile?: (trigger: HTMLButtonElement | null) => void;
 }
 
 export function SidebarUserMenu({
@@ -20,6 +21,7 @@ export function SidebarUserMenu({
   loggingOut,
   onClose,
   onLogout,
+  onProfile,
 }: SidebarUserMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -94,6 +96,20 @@ export function SidebarUserMenu({
             <div className="sidebar-user-menu-email" role="presentation">
               {email}
             </div>
+            {onProfile && (
+              <button
+                type="button"
+                className="sidebar-menu-item"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onProfile(triggerRef.current);
+                }}
+              >
+                <UserRound aria-hidden="true" size={16} />
+                Perfil profesional
+              </button>
+            )}
             {isAdmin && (
               <Link
                 to="/admin"

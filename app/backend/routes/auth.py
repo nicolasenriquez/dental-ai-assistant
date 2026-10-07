@@ -12,11 +12,12 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from backend import config, rate_limit, signup_rate_limit
 from backend.auth.dependencies import COOKIE_NAME, get_current_user, is_admin_email
@@ -30,6 +31,30 @@ from backend.integrations import circle
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class ProfessionalProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    professional_display_name: str | None = Field(max_length=120)
+
+    @field_validator("professional_display_name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.isprintable() and value.strip():
+            raise ValueError("El nombre no puede contener caracteres de control")
+        return value.strip() or None
+
+
+@router.patch("/me/profile", response_model=ProfessionalProfile)
+async def update_professional_profile(
+    body: ProfessionalProfile, user: dict[str, Any] = Depends(get_current_user)
+) -> ProfessionalProfile:
+    await users_repo.set_professional_display_name(
+        UUID(str(user["id"])), body.professional_display_name
+    )
+    return body
 
 
 class SignupRequest(BaseModel):
@@ -62,6 +87,7 @@ class MeResponse(BaseModel):
     email: str
     is_admin: bool
     is_member: bool
+    professional_display_name: str | None
     messages_used_today: int
     messages_remaining_today: int
     rate_window_resets_at: str | None
@@ -442,6 +468,7 @@ async def me(user: dict[str, Any] = Depends(get_current_user)) -> MeResponse:
         email=str(user["email"]),
         is_admin=is_admin_email(str(user["email"])),
         is_member=is_member,
+        professional_display_name=user.get("professional_display_name"),
         messages_used_today=rl_status.used,
         messages_remaining_today=rl_status.remaining,
         rate_window_resets_at=rl_status.resets_at.isoformat() if rl_status.resets_at else None,

@@ -40,6 +40,9 @@ autonomous scribe tools and from generic chat assistants.
 - Patients: private name/phone/RUT search, evolution filter, deterministic sort and exact ficha
   links. Search text stays in authenticated memory and request bodies; safe controls use the URL.
   Identity has masked RUT, birth date and optional phone/email, with deliberate header disclosure.
+- Professional profile: the authenticated user can declare or clear their author display name
+  from the account menu. Clinical reads resolve that stored label without changing author UUIDs;
+  this label does not certify professional credentials.
 - Patient workspace: Resumen, Información, Clínica and Actividad. Summary prioritizes clinical
   approval/draft recovery and separates Drive status. New evolution remains primary.
 - Manual notes and saved tooth-condition edits require explicit Guardar. Without a tool, tooth

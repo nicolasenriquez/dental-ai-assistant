@@ -11,6 +11,7 @@ from asyncpg import Connection
 from backend.db.patient_notes_repo import _parent
 from backend.db.patient_treatments_repo import _json
 from backend.db.postgres import get_pg_pool
+from backend.db.users_repo import professional_display_names
 from backend.patients.treatments import TreatmentConflict
 
 
@@ -28,6 +29,11 @@ async def _record(
         raise LookupError
     result = dict(row)
     result.pop("owner_user_id")
+    names = await professional_display_names(conn, [row["created_by"]])
+    result["author"] = {
+        "user_id": row["created_by"],
+        "display_name": names.get(row["created_by"]),
+    }
     result["entity_kind"] = (
         "treatment" if row["treatment_id"] else "plan" if row["plan_id"] else "patient"
     )
@@ -205,6 +211,7 @@ async def list_notes(
                     owner,
                     patient,
                 )
+                names = await professional_display_names(conn, [general["created_by"]])
                 items.append(
                     dict(
                         json.loads(
@@ -212,6 +219,10 @@ async def list_notes(
                                 {
                                     **dict(general),
                                     "note_type": "administrative",
+                                    "author": {
+                                        "user_id": general["created_by"],
+                                        "display_name": names.get(general["created_by"]),
+                                    },
                                     "entity_kind": "patient",
                                     "entity_id": patient,
                                     "entity_label": None,
@@ -242,7 +253,7 @@ async def list_revisions(
             patient,
         )
         rows = await conn.fetch(
-            "SELECT id,revision,action,before_snapshot,after_snapshot,actor_user_id,changed_at FROM patient_dental_clinical_note_revisions WHERE note_id=$1 AND owner_user_id=$2 AND patient_id=$3 AND ($4::timestamptz IS NULL OR (changed_at,id)<($4,$5)) ORDER BY changed_at DESC,id DESC LIMIT $6",
+            "SELECT r.id,r.revision,r.action,r.before_snapshot,r.after_snapshot,r.actor_user_id,r.changed_at,u.professional_display_name AS actor_display_name FROM patient_dental_clinical_note_revisions r LEFT JOIN users u ON u.id=r.actor_user_id WHERE r.note_id=$1 AND r.owner_user_id=$2 AND r.patient_id=$3 AND ($4::timestamptz IS NULL OR (r.changed_at,r.id)<($4,$5)) ORDER BY r.changed_at DESC,r.id DESC LIMIT $6",
             identifier,
             owner,
             patient,

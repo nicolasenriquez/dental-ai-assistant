@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from asyncpg import Connection
 
 from backend.db.postgres import get_pg_pool
+from backend.db.users_repo import professional_display_names
 from backend.patients.notes import NoteConflict, NotesCursor, RevisionsCursor
 
 
@@ -16,12 +17,28 @@ async def _parent(conn: Connection, owner: UUID, patient: UUID) -> None:
         raise LookupError
 
 
+async def _with_names(conn: Connection, row: Any) -> dict[str, Any]:
+    value = dict(row)
+    names = await professional_display_names(
+        conn, [value.get("created_by_user_id"), value.get("updated_by_user_id")]
+    )
+    created = value.get("created_by_user_id")
+    updated = value.get("updated_by_user_id")
+    value["created_by_display_name"] = names.get(created) if created else None
+    value["updated_by_display_name"] = names.get(updated) if updated else None
+    return value
+
+
 async def get_note(owner: UUID, patient: UUID, note: UUID) -> dict[str, Any]:
     async with get_pg_pool().acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT n.* FROM patient_notes n
+            SELECT n.*, cu.professional_display_name AS created_by_display_name,
+                   uu.professional_display_name AS updated_by_display_name
+            FROM patient_notes n
             JOIN patients p ON p.id=n.patient_id AND p.owner_user_id=n.owner_user_id
+            LEFT JOIN users cu ON cu.id=n.created_by_user_id
+            LEFT JOIN users uu ON uu.id=n.updated_by_user_id
             WHERE n.id=$1 AND n.owner_user_id=$2 AND n.patient_id=$3
         """,
             note,
@@ -65,9 +82,9 @@ async def create_note(
             )
             if original != body:
                 raise NoteConflict("idempotency_conflict", note)
-            return dict(row), False
+            return await _with_names(conn, row), False
         await _revision(conn, owner, patient, note, 1, None, body, row["created_at"])
-        return dict(row), True
+        return await _with_names(conn, row), True
 
 
 async def _revision(
@@ -123,10 +140,10 @@ async def update_note(
                 and latest["revision"] == expected + 1
                 and latest["new_body"] == body
             ):
-                return dict(row)
+                return await _with_names(conn, row)
             raise NoteConflict("revision_conflict", note, row["revision"])
         if row["body"] == body:
-            return dict(row)
+            return await _with_names(conn, row)
         updated = await conn.fetchrow(
             """
             UPDATE patient_notes SET body=$4,revision=revision+1,updated_by_user_id=$2,updated_at=clock_timestamp()
@@ -148,7 +165,7 @@ async def update_note(
             body,
             updated["updated_at"],
         )
-        return dict(updated)
+        return await _with_names(conn, updated)
 
 
 async def list_notes(
@@ -163,9 +180,14 @@ async def list_notes(
         )
         rows = await conn.fetch(
             """
-            SELECT * FROM patient_notes WHERE owner_user_id=$1 AND patient_id=$2
-              AND ($3::timestamptz IS NULL OR (updated_at,id)<($3,$4::uuid))
-            ORDER BY updated_at DESC,id DESC LIMIT $5
+            SELECT n.*, cu.professional_display_name AS created_by_display_name,
+                   uu.professional_display_name AS updated_by_display_name
+            FROM patient_notes n
+            LEFT JOIN users cu ON cu.id=n.created_by_user_id
+            LEFT JOIN users uu ON uu.id=n.updated_by_user_id
+            WHERE n.owner_user_id=$1 AND n.patient_id=$2
+              AND ($3::timestamptz IS NULL OR (n.updated_at,n.id)<($3,$4::uuid))
+            ORDER BY n.updated_at DESC,n.id DESC LIMIT $5
         """,
             owner,
             patient,
@@ -198,9 +220,12 @@ async def list_revisions(
         )
         rows = await conn.fetch(
             """
-            SELECT * FROM patient_note_revisions WHERE note_id=$1 AND owner_user_id=$2 AND patient_id=$3
-              AND ($4::integer IS NULL OR (revision,id)<($4,$5::uuid))
-            ORDER BY revision DESC,id DESC LIMIT $6
+            SELECT r.*, u.professional_display_name AS actor_display_name
+            FROM patient_note_revisions r
+            LEFT JOIN users u ON u.id=r.actor_user_id
+            WHERE r.note_id=$1 AND r.owner_user_id=$2 AND r.patient_id=$3
+              AND ($4::integer IS NULL OR (r.revision,r.id)<($4,$5::uuid))
+            ORDER BY r.revision DESC,r.id DESC LIMIT $6
         """,
             note,
             owner,
