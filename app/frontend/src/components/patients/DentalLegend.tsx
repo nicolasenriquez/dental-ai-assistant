@@ -41,8 +41,10 @@ export function DentalLegend({
   return (
     <details className="text-sm">
       <summary className="min-h-[44px] cursor-pointer">Leyenda de conceptos</summary>
-      <p className="my-2">
-        Estado del tratamiento: Existente · <span className="text-danger">P</span> Planificado
+      <p className="my-2 text-muted">
+        Activa: símbolo continuo y superficies marcadas. Resuelta: borde discontinuo. Registrada por
+        error: símbolo atenuado con barra diagonal. Selección: contorno azul. Los detalles completos
+        están en la lista.
       </p>
       <div className="space-y-3">
         <section aria-label="Leyenda Diagnóstico">

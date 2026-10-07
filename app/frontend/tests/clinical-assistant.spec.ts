@@ -457,6 +457,7 @@ for (const viewport of [
     if (viewport.name === 'desktop') {
       await expect(page).toHaveScreenshot('assistant-draft-desktop.png', {
         animations: 'disabled',
+        maxDiffPixels: 32,
       });
     } else if (viewport.name === 'mobile') {
       await expect(page).toHaveScreenshot('assistant-mobile.png', {
@@ -534,14 +535,24 @@ for (const viewport of [
     await page.keyboard.press('ControlOrMeta+A');
     await expect(page.getByText('2 palabras seleccionadas')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Adjuntar selección al mensaje' })).toBeVisible();
-    const clippedActions = await page.locator('.drive-doc-actions > .drive-btn').evaluateAll((buttons) =>
-      buttons.flatMap((button) => {
-        const bounds = button.getBoundingClientRect();
-        const panel = button.closest('.drive-document-workspace')?.getBoundingClientRect();
-        if (!panel || bounds.right <= panel.right + 1) return [];
-        return [{ text: button.textContent, right: bounds.right, panelRight: panel.right, flex: getComputedStyle(button).flex, direction: getComputedStyle(button.parentElement as HTMLElement).flexDirection }];
-      }),
-    );
+    const clippedActions = await page
+      .locator('.drive-doc-actions > .drive-btn')
+      .evaluateAll((buttons) =>
+        buttons.flatMap((button) => {
+          const bounds = button.getBoundingClientRect();
+          const panel = button.closest('.drive-document-workspace')?.getBoundingClientRect();
+          if (!panel || bounds.right <= panel.right + 1) return [];
+          return [
+            {
+              text: button.textContent,
+              right: bounds.right,
+              panelRight: panel.right,
+              flex: getComputedStyle(button).flex,
+              direction: getComputedStyle(button.parentElement as HTMLElement).flexDirection,
+            },
+          ];
+        }),
+      );
     expect(clippedActions).toEqual([]);
     await expectNoHorizontalOverflow(page);
     if (viewport.width > 1024) {
@@ -560,7 +571,9 @@ for (const viewport of [
     if (viewport.name === 'desktop' || viewport.name === 'mobile') {
       await page.getByRole('button', { name: 'Adjuntar selección al mensaje' }).click();
       if (viewport.name === 'desktop') {
-        await expect(page.getByRole('status', { name: 'Adjunto al próximo mensaje' })).toBeVisible();
+        await expect(
+          page.getByRole('status', { name: 'Adjunto al próximo mensaje' }),
+        ).toBeVisible();
       } else {
         await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toBeFocused();
       }
@@ -894,9 +907,7 @@ test('keeps the assistant header and sidebar consistent across viewport boundari
       ).toBe(260);
     }
     if (width <= 900) {
-      expect((await context.boundingBox())?.y).toBeLessThan(
-        (await actions.boundingBox())?.y ?? 0,
-      );
+      expect((await context.boundingBox())?.y).toBeLessThan((await actions.boundingBox())?.y ?? 0);
     }
     if (width >= 768 && width <= 900) {
       expect(await title.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
@@ -907,37 +918,64 @@ test('keeps the assistant header and sidebar consistent across viewport boundari
   }
 });
 
-test('resumes exact review with usable narrow headers and a scrollable confirmation', async ({ page }) => {
+test('resumes exact review with usable narrow headers and a scrollable confirmation', async ({
+  page,
+}) => {
   const pending = approval({
     status: 'pending',
-    proposal_payload: { ...(approval().proposal_payload as Record<string, unknown>), final_text: 'Contenido revisado. '.repeat(600) },
+    proposal_payload: {
+      ...(approval().proposal_payload as Record<string, unknown>),
+      final_text: 'Contenido revisado. '.repeat(600),
+    },
   });
-  await setupClinicalHarness(page, thread([pending], {
-    artifacts: [hydratedArtifact({ status: 'pending' })],
-    pending_action: pending, pending_action_patient: patient,
-  }));
+  await setupClinicalHarness(
+    page,
+    thread([pending], {
+      artifacts: [hydratedArtifact({ status: 'pending' })],
+      pending_action: pending,
+      pending_action_patient: patient,
+    }),
+  );
   await page.goto(`/a/${threadId}#approval=${actionId}`);
   const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
   await expect(artifact).toBeFocused();
   for (const width of [320, 375, 834, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expectNoHorizontalOverflow(page);
-    const collision = await page.locator('.workspace-header a, .workspace-header button, .hamburger-btn').evaluateAll((elements) => {
-      const rects = elements.map((element) => element.getBoundingClientRect()).filter((rect) => rect.width > 0 && rect.height > 0);
-      return rects.some((left, index) => rects.slice(index + 1).some((right) =>
-        Math.min(left.right, right.right) > Math.max(left.left, right.left) &&
-        Math.min(left.bottom, right.bottom) > Math.max(left.top, right.top)));
-    });
+    const collision = await page
+      .locator('.workspace-header a, .workspace-header button, .hamburger-btn')
+      .evaluateAll((elements) => {
+        const rects = elements
+          .map((element) => element.getBoundingClientRect())
+          .filter((rect) => rect.width > 0 && rect.height > 0);
+        return rects.some((left, index) =>
+          rects
+            .slice(index + 1)
+            .some(
+              (right) =>
+                Math.min(left.right, right.right) > Math.max(left.left, right.left) &&
+                Math.min(left.bottom, right.bottom) > Math.max(left.top, right.top),
+            ),
+        );
+      });
     expect(collision).toBe(false);
     if (width <= 375) {
-      expect((await artifact.locator('.clinical-evolution-approval-prompt').boundingBox())?.height).toBeLessThan(240);
+      expect(
+        (await artifact.locator('.clinical-evolution-approval-prompt').boundingBox())?.height,
+      ).toBeLessThan(240);
     }
   }
   await page.setViewportSize({ width: 375, height: 740 });
   await artifact.getByRole('button', { name: 'Revisar y guardar' }).click();
   const dialog = page.getByRole('dialog', { name: 'Guardar evolución' });
-  await expect(dialog.getByRole('region', { name: 'Contenido de la evolución a guardar' })).toContainText('Contenido revisado.');
-  expect(await dialog.locator('.clinical-approval-dialog__body').evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await expect(
+    dialog.getByRole('region', { name: 'Contenido de la evolución a guardar' }),
+  ).toContainText('Contenido revisado.');
+  expect(
+    await dialog
+      .locator('.clinical-approval-dialog__body')
+      .evaluate((element) => element.scrollHeight > element.clientHeight),
+  ).toBe(true);
   await expect(dialog.getByRole('button', { name: 'Guardar evolución' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();

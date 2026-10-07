@@ -48,11 +48,12 @@ resolved conditions have symbols and text. All pages must load before a chart is
 called complete; partial failure preserves confirmed records with retry.
 
 The palette is an illustrated eight-category registry with independently authored
-lateral/occlusal profiles and variant motifs; cards use a 104px minimum grid, 72px
-minimum height, 2px borders and 6px support dots, and the legend has five base groups
-with explicit Existente/Planificado labels. A concept-colored tool preview runs about 1s and never
-writes; planned chart overlays render at 0.7 opacity with a P marker and appear only
-for the selected plan. Reduced motion suppresses preview rings and pulses but keeps
+lateral/occlusal profiles and variant motifs; cards use a 120px minimum grid, 72px
+minimum height, 2px borders and 6px support dots. The daily legend has five base
+groups without a plan label; historical read-only plan evidence stays available
+through stored plan links and history. A concept-colored tool preview runs about 1s and never
+writes; the read-only selected-plan chart overlay renders at 0.7 opacity with a P
+marker. Reduced motion suppresses preview rings and pulses but keeps
 state text. The editable dental-note composer is shared by diagnosis, observed
 procedures: free text without templates, tooth binding highlights linked members without replacing the candidate,
 280-character and longer bodies grow the field, and body-only edits, logical deletes
@@ -123,3 +124,15 @@ Current/resolved filters remain; Historial completo includes error annotations, 
 separate daily error filter. Notes require at least 1160px available width for a rail;
 otherwise the Sheet preserves the draft and returns focus to Notas on dismissal.
 Selection is steady; card transitions and linked-note highlights respect reduced motion.
+
+## Diagnosis detail closure, 7 October 2026
+
+The stored-record badge appears only after all condition and procedure cursor pages
+complete and match server totals; failed/incomplete reads preserve evidence and retry
+without a completeness claim. The count follows the displayed dentition/status.
+Active-tool context shares the chart title row; dentition controls wrap deliberately.
+Daily status help lives in the legend. Unknown authors retain distinguishable UUID
+labels; the account-menu professional profile edits only the user's declared name.
+Its Sheet preserves failed input and restores the account-menu trigger's focus.
+Desktop Notes and diagnosis headings share the same top alignment; reduced motion
+suppresses preview animation without removing semantic anatomy or keyboard focus.

@@ -1,9 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { type Page, expect, test } from '@playwright/test';
 
 const evidencePrefix = process.env.E2E_EVIDENCE_PREFIX ?? 'slice8';
+const evidenceDir = path.resolve(__dirname, '../../../.playwright-cli/verification/mirror-dental-diagnosis');
+
+async function evidencePath(name: string): Promise<string> {
+  await mkdir(evidenceDir, { recursive: true });
+  return path.join(evidenceDir, name);
+}
 
 function syntheticRut(): string {
   const body = String(20000000 + Math.floor(Math.random() * 60000000));
@@ -64,7 +70,7 @@ test('mirror slice8 diagnosis to selected plan, two sessions, history and guarde
   await expect(planChart.locator('[data-arch-tooth="16"] text').filter({ hasText: /^P$/ })).toHaveCount(1);
   await expect(planChart.getByRole('button', { name: /^Pieza 17:/ })).not.toHaveAccessibleName(/Bracket/);
   await planChart.scrollIntoViewIfNeeded();
-   await page.screenshot({ path: path.resolve(__dirname, `../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/${evidencePrefix}-selected-plan-1440.png`) });
+   await page.screenshot({ path: await evidencePath(`${evidencePrefix}-selected-plan-1440.png`) });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Continuidad sintética', exact: true })).toBeVisible();
   expect(new URL(page.url()).searchParams.get('plan')).toBe(planId);
@@ -118,7 +124,7 @@ test('mirror slice8 diagnosis to selected plan, two sessions, history and guarde
   await expect.poll(() => page.locator('.sidebar-container').evaluate((node) => node.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
   await page.getByText(/Revisión 6 · Completar sesión/).scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-   await page.screenshot({ path: path.resolve(__dirname, `../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/${evidencePrefix}-history-390.png`) });
+   await page.screenshot({ path: await evidencePath(`${evidencePrefix}-history-390.png`) });
   await page.goto(plannedTreatmentEvent.href);
   await expect(page.getByRole('heading', { name: 'Continuidad sintética', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.activeElement?.textContent)).toContain('Bracket individual');
@@ -162,7 +168,7 @@ test('mirror slice8 diagnosis to selected plan, two sessions, history and guarde
   expect(persisted.items[0].stages.map((stage: { status: string }) => stage.status)).toEqual(['completed', 'completed']);
   expect(persisted.items[0].treatment.state).toBe('performed');
   const evidence = JSON.stringify({ patientId, secondId, findingId: finding.id, observedId: observed.id, planId, unusedId, persisted, activity }, null, 2);
-   await writeFile(path.resolve(__dirname, `../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/${evidencePrefix}-persisted.json`), evidence);
+   await writeFile(await evidencePath(`${evidencePrefix}-persisted.json`), evidence);
   await test.info().attach('slice8-persisted', { body: evidence, contentType: 'application/json' });
 });
 
@@ -242,7 +248,7 @@ test('mirror slice10 preserves pre-mirror identities and one note composer acros
   await page.reload();
   await page.getByRole('button', { name: 'Notas', exact: true }).click();
   await expect(page.getByRole('article', { name: 'Nota Diagnóstico', exact: true }).filter({ hasText: draftBody })).toContainText(draftBody);
-  await page.screenshot({ path: path.resolve(__dirname, '../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/slice10-preserved-notes-390.png') });
+   await page.screenshot({ path: await evidencePath('slice10-preserved-notes-390.png') });
   await test.info().attach('slice10-note', { body: JSON.stringify(saved), contentType: 'application/json' });
 });
 

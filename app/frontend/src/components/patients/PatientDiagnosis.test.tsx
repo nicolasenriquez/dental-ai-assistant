@@ -46,6 +46,25 @@ const record = {
   updated_at: '2026-10-03T12:00:00Z',
 };
 afterEach(() => vi.resetAllMocks());
+it('counts saved conditions only after all cursor pages finish and rejects incomplete totals', async () => {
+  mount([], undefined, () => {
+    mocks.list
+      .mockResolvedValueOnce({ items: [record], total: 2, next_cursor: 'next' })
+      .mockResolvedValueOnce({
+        items: [{ ...record, id: 'second', tooth_fdi: 16 }],
+        total: 2,
+        next_cursor: null,
+      });
+  });
+  expect(
+    await screen.findByLabelText('2 registros guardados en esta dentición y estado'),
+  ).toBeVisible();
+  expect(mocks.list).toHaveBeenLastCalledWith('p', expect.objectContaining({ cursor: 'next' }));
+  mocks.list.mockResolvedValue({ items: [record], total: 2, next_cursor: null });
+  fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'all' } });
+  await screen.findByRole('button', { name: 'Reintentar condiciones' });
+  expect(screen.queryByLabelText(/registros guardados en esta dentición y estado/)).toBeNull();
+});
 it('starts with current reads and keeps owned evidence/history when catalog fails', async () => {
   mount([record], undefined, () => {
     mocks.catalog.mockRejectedValue(new TypeError('catalog unavailable'));
@@ -450,11 +469,11 @@ it('loads every page and flags incomplete reads and counts rather than displayin
   );
 });
 
-it('shows the persisted record actor with UUID fallback and accessible full identifier', async () => {
+it('shows the persisted record actor with compact UUID fallback and tooltip identifier', async () => {
   const actor = { user_id: '12345678-0000-4000-8000-000000000000', display_name: null };
   mount([{ ...record, updated_by: actor }]);
   expect(await screen.findByText('Usuario 12345678')).toBeVisible();
-  expect(screen.getByText(`Identificador de cuenta: ${actor.user_id}`)).toBeInTheDocument();
+  expect(screen.getByTitle(`Identificador de cuenta: ${actor.user_id}`)).toBeInTheDocument();
 });
 
 it('expands colliding actor abbreviations while keeping full UUID disclosure', async () => {

@@ -128,6 +128,7 @@ export function useDentalWorkspace(
         for (const item of page.items) if (!all.some((r) => r.id === item.id)) all.push(item);
         setTreatments([...all]);
         cursor = page.next_cursor ?? undefined;
+        if (!cursor && all.length !== page.total) throw new Error('Incomplete treatment page');
       } while (cursor);
     } catch {
       if (alive.current && request === readSequence.current) setTreatmentReadError(true);

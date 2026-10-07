@@ -307,6 +307,7 @@ function PatientDiagnosisWorkspace({
         );
         setRecords(all);
         cursor = page.next_cursor ?? undefined;
+        if (!cursor && all.length !== page.total) throw new Error('Incomplete condition page');
       } while (cursor);
     } catch {
       if (request === sequence.current) setReadError(true);
@@ -1020,18 +1021,6 @@ function PatientDiagnosisWorkspace({
             </Button>
           </div>
         )}
-        {dental.activeTool && (
-          <p className="text-sm">
-            Herramienta: {toolLabel(dental.activeTool)}. Activa una pieza o superficie.{' '}
-            <Button
-              variant="clinicalSecondary"
-              disabled={dental.busy || !!dental.attempt}
-              onClick={() => transition(() => dental.selectTool(null))}
-            >
-              Cancelar herramienta
-            </Button>
-          </p>
-        )}
         {activeVariant?.scope === 'multi_tooth' && (
           <div className="space-y-2" aria-label="Selección de varias piezas">
             <div className="flex flex-wrap gap-2">
@@ -1137,6 +1126,33 @@ function PatientDiagnosisWorkspace({
         <div className="space-y-4">
           <div className="min-w-0 space-y-4">
             <PatientOdontogram
+              toolIndicator={
+                dental.activeTool && (
+                  <div className="flex items-center gap-2">
+                    <span
+                      role="status"
+                      aria-label={`Herramienta activa: ${toolLabel(dental.activeTool)}`}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-sm font-medium text-foreground"
+                    >
+                      {activeVariant ? (
+                        <TreatmentSymbol variant={activeVariant} />
+                      ) : (
+                        <ConditionSymbol
+                          code={resolveCondition(catalog, dental.activeTool).symbol}
+                        />
+                      )}
+                      {toolLabel(dental.activeTool)}
+                    </span>
+                    <Button
+                      variant="clinicalSecondary"
+                      disabled={dental.busy || !!dental.attempt}
+                      onClick={() => transition(() => dental.selectTool(null))}
+                    >
+                      Cancelar herramienta
+                    </Button>
+                  </div>
+                )
+              }
               controls={
                 <div className="flex gap-2" aria-label="Dentición">
                   {(['permanent', 'primary'] as const).map((mode) => (
@@ -1217,7 +1233,7 @@ function PatientDiagnosisWorkspace({
               ) : groups.length === 1 ? (
                 <h4 className="font-medium">{groups[0].label}</h4>
               ) : null}
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1.5">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
                 {activeGroup?.entries.map((tool) => (
                   <Button
                     key={tool.code}
@@ -1723,7 +1739,20 @@ function PatientDiagnosisWorkspace({
           )}
           <div className="min-w-0 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="font-semibold">Condiciones por pieza</h3>
+              <h3 className="flex items-center gap-2 font-semibold">
+                Condiciones por pieza
+                {!loading &&
+                  !readError &&
+                  !dental.treatmentLoading &&
+                  !dental.treatmentReadError && (
+                    <span
+                      aria-label={`${visible.length + currentTreatments.length} registros guardados en esta dentición y estado`}
+                      className="rounded bg-surface px-2 py-0.5 text-xs text-muted"
+                    >
+                      {visible.length + currentTreatments.length}
+                    </span>
+                  )}
+              </h3>
               <label className="text-sm">
                 Estado{' '}
                 <select
@@ -1790,7 +1819,11 @@ function PatientDiagnosisWorkspace({
                 .map((record, index, ordered) => (
                   <li key={record.id}>
                     {(index === 0 || recordGroup(record) !== recordGroup(ordered[index - 1])) && (
-                      <h4 className="pt-4 font-semibold">{recordGroup(record)}</h4>
+                      <h4 className="pt-3 font-semibold">
+                        <span className="inline-flex rounded bg-surface px-2 py-1 text-sm">
+                          {recordGroup(record)}
+                        </span>
+                      </h4>
                     )}
                     {'condition_code' in record ? (
                       <>
@@ -1805,7 +1838,7 @@ function PatientDiagnosisWorkspace({
                             else recordRefs.current.delete(record.id);
                           }}
                           aria-label={`Pieza ${record.tooth_fdi} · ${labels[record.condition_code] ?? record.condition_code} · ${conditionStatus(record.status)}`}
-                          className={`space-y-3 rounded py-4 focus-visible:ring-2 focus-visible:ring-primary ${highlightedTooth === record.tooth_fdi ? 'bg-surface' : ''}`}
+                          className={`space-y-2 rounded px-2 py-3 focus-visible:ring-2 focus-visible:ring-primary ${highlightedTooth === record.tooth_fdi ? 'bg-surface' : ''}`}
                         >
                           <h4 className="flex items-center gap-2 font-medium">
                             <ConditionSymbol
@@ -1813,7 +1846,6 @@ function PatientDiagnosisWorkspace({
                               resolved={record.status === 'resolved'}
                               error={record.status === 'entered_in_error'}
                             />
-                            Pieza {record.tooth_fdi} ·{' '}
                             {labels[record.condition_code] ?? record.condition_code}
                           </h4>
                           <p className="text-sm">
@@ -1826,14 +1858,17 @@ function PatientDiagnosisWorkspace({
                           {record.note && (
                             <p className="whitespace-pre-wrap break-words text-sm">{record.note}</p>
                           )}
-                          <p className="text-xs text-muted">
-                            {formatClinicalDateShort(record.updated_at)}{' '}
-                            {formatClinicalTime(record.updated_at)} · Revisión {record.revision}
-                          </p>
-                          <PatientActorLabel
-                            actor={record.updated_by}
-                            actors={visible.map((item) => item.updated_by)}
-                          />
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                            <PatientActorLabel
+                              compact
+                              actor={record.updated_by}
+                              actors={visible.map((item) => item.updated_by)}
+                            />
+                            <p>
+                              {formatClinicalDateShort(record.updated_at)}{' '}
+                              {formatClinicalTime(record.updated_at)} · Revisión {record.revision}
+                            </p>
+                          </div>
                           <div className="flex flex-wrap gap-2">
                             {record.correction && (
                               <>
@@ -1943,7 +1978,7 @@ function PatientDiagnosisWorkspace({
                       </>
                     ) : (
                       <article
-                        className="space-y-2 py-4"
+                        className="space-y-2 rounded px-2 py-3"
                         aria-label={`${treatmentAnatomy(record)} · ${record.label_es} · ${record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}`}
                         onMouseEnter={() =>
                           setNoteHighlightedTeeth(record.teeth.map((member) => member.tooth_fdi))
@@ -1954,8 +1989,15 @@ function PatientDiagnosisWorkspace({
                         }
                         onBlur={() => setNoteHighlightedTeeth([])}
                       >
-                        <h4 className="font-medium">
-                          {treatmentAnatomy(record)} · {record.label_es}
+                        <h4 className="flex items-center gap-2 font-medium">
+                          <TreatmentSymbol
+                            variant={
+                              dental.treatmentCatalog?.variants.find(
+                                (v) => v.id === record.variant_id,
+                              ) ?? { icon_key: record.clinical_type, palette_role: 'restoration' }
+                            }
+                          />
+                          {record.label_es}
                         </h4>
                         <p>
                           {record.state === 'entered_in_error'
@@ -1966,14 +2008,17 @@ function PatientDiagnosisWorkspace({
                         {record.note && (
                           <p className="whitespace-pre-wrap break-words">{record.note}</p>
                         )}
-                        <p className="text-xs text-muted">
-                          {formatClinicalDateShort(record.updated_at)}{' '}
-                          {formatClinicalTime(record.updated_at)} · Revisión {record.revision}
-                        </p>
-                        <PatientActorLabel
-                          actor={record.updated_by}
-                          actors={currentTreatments.map((r) => r.updated_by)}
-                        />
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                          <PatientActorLabel
+                            compact
+                            actor={record.updated_by}
+                            actors={currentTreatments.map((r) => r.updated_by)}
+                          />
+                          <p>
+                            {formatClinicalDateShort(record.updated_at)}{' '}
+                            {formatClinicalTime(record.updated_at)} · Revisión {record.revision}
+                          </p>
+                        </div>
                         <Button variant="clinicalSecondary" onClick={() => openTreatment(record)}>
                           Editar / Historial de procedimiento
                         </Button>

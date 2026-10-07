@@ -69,7 +69,7 @@ export default defineConfig({
     {
       name: 'workspace',
       dependencies: ['setup'],
-      testMatch: /(?:clinical-workspace|patient-diagnosis|patient-activity|patient-plans|patient-dental-notes|patient-clinical-journey)\.spec\.ts/,
+      testMatch: /(?:clinical-workspace|patient-diagnosis|patient-activity|patient-plans|patient-dental-notes|patient-clinical-journey|diagnosis-detail)\.spec\.ts/,
       use: { storageState: authStatePath },
     },
     {

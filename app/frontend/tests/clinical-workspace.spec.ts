@@ -17,7 +17,7 @@ test('assistant header preserves identity and aligned secondary actions at narro
   for (const width of [320, 375, 834, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const header = page.locator('.clinical-assistant-area .workspace-header');
-    const title = header.locator('.workspace-header__copy > strong');
+    const title = header.getByRole('heading', { name: 'Camila Soto', exact: true });
     const back = header.getByRole('link', { name: /Volver a ficha/ });
     const drive = header.getByRole('button', { name: 'Abrir Google Drive' });
     const pending = header.getByRole('link', { name: 'Ver pendientes' });
@@ -28,8 +28,7 @@ test('assistant header preserves identity and aligned secondary actions at narro
     const identityBox = (await identity.boundingBox())!;
     const backBox = (await back.boundingBox())!;
     expect(backBox.y).toBeGreaterThanOrEqual(identityBox.y + identityBox.height);
-    if (width <= 834) await expect(title).toBeHidden();
-    else await expect(title).toBeVisible();
+    await expect(title).toBeVisible();
     expect(backBox.height).toBeGreaterThanOrEqual(44);
     expect(await drive.evaluate((button) => getComputedStyle(button).flexDirection)).toBe('row');
     const driveBox = (await drive.boundingBox())!;

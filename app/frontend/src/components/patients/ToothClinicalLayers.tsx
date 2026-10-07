@@ -44,6 +44,7 @@ export function ToothClinicalLayers({
         role: findingPaletteRole(r.condition_code),
         surfaces: r.surfaces,
         planned: false,
+        preview: false,
       })),
     ...treatments
       .filter((r) => r.state !== 'entered_in_error' && r.state !== 'cancelled')
@@ -55,9 +56,21 @@ export function ToothClinicalLayers({
           role: variant?.layer_role ?? r.clinical_type,
           surfaces: r.teeth.find((m) => m.tooth_fdi === tooth)?.surfaces ?? [],
           planned: r.state === 'planned',
+          preview: false,
         };
       }),
   ];
+  const previewVariant = catalog?.variants.find((variant) => variant.id === preview);
+  if (preview) {
+    rows.push({
+      id: 'preview',
+      key: previewVariant?.icon_key ?? preview,
+      role: previewVariant?.layer_role ?? findingPaletteRole(preview),
+      surfaces: [],
+      planned: false,
+      preview: true,
+    });
+  }
   const centers: Record<ToothSurface, [number, number]> = {
     M: [10, 108],
     D: [32, 108],
@@ -87,24 +100,12 @@ export function ToothClinicalLayers({
           <path d="M0 2h5" stroke="currentColor" />
         </pattern>
       </defs>
-      {preview && (
-        <g
-          className={`dental-preview dental-${catalog?.variants.find((v) => v.id === preview)?.layer_role ?? findingPaletteRole(preview)}`}
-          transform={transforms.lateral}
-        >
-          <path
-            data-preview-tool={preview}
-            d={anatomy.path}
-            fill="currentColor"
-            stroke="currentColor"
-          />
-        </g>
-      )}
       {rows.map((row) => (
         <g
           key={row.id}
-          data-clinical-layer={row.id}
-          className={`dental-${row.role}`}
+          data-clinical-layer={row.preview ? undefined : row.id}
+          data-preview-tool={row.preview ? preview : undefined}
+          className={`dental-${row.role}${row.preview ? ' dental-preview' : ''}`}
           opacity={row.planned ? 0.7 : 1}
         >
           <g transform={transforms.lateral}>
@@ -194,6 +195,25 @@ export function ToothClinicalLayers({
             )}
           </g>
           <g transform={transforms.occlusal} clipPath={`url(#${id}-occlusal)`}>
+            {row.preview &&
+              (previewVariant?.visual_family === 'surface' ||
+                [
+                  'caries',
+                  'incipient_caries',
+                  'pigmentation',
+                  'filling_composite',
+                  'filling_amalgam',
+                  'filling_temporary',
+                  'sealant',
+                  'veneer',
+                ].includes(row.key)) && (
+                <path
+                  d={toothOcclusalProfile(tooth)}
+                  fill="currentColor"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+              )}
             {row.surfaces.map((surface) => {
               const position = surfacePosition(surface, tooth);
               const center = centers[position];

@@ -31,6 +31,7 @@ const quadrantLabels = [
 
 interface OdontogramProps {
   controls?: ReactNode;
+  toolIndicator?: ReactNode;
   dentition: Dentition;
   conditions: PatientCondition[];
   treatments?: PatientTreatment[];
@@ -55,6 +56,7 @@ function quadrantOf(tooth: number, dentition: Dentition): number {
 }
 export function PatientOdontogram({
   controls,
+  toolIndicator,
   dentition,
   conditions,
   treatments = [],
@@ -145,11 +147,14 @@ export function PatientOdontogram({
   const describe = (tooth: number): string => `Pieza ${tooth}: ${describeRecords(tooth)}`;
   return (
     <section ref={sectionRef} aria-label="Odontograma" className="[container-type:inline-size]">
-      <header className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold">Odontograma FDI</h3>
-        <p className="text-xs text-muted">Derecha del paciente ← · → Izquierda</p>
+      <header className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-semibold">Odontograma FDI</h3>
+          {toolIndicator}
+        </div>
+        {controls}
       </header>
-      {controls && <div className="mb-3">{controls}</div>}
+      <p className="mb-2 text-xs text-muted">Derecha del paciente ← · → Izquierda</p>
       <div className="overflow-x-auto" aria-label="Arcadas dentales desplazables">
         <div
           className="relative mx-auto max-w-[900px] rounded border border-border bg-surface p-2"
@@ -454,11 +459,6 @@ export function PatientOdontogram({
           </div>
         </div>
       )}
-      <p className="mt-2 text-xs text-muted">
-        Activa: símbolo continuo y superficies marcadas. Resuelta: borde discontinuo. Registrada por
-        error: símbolo atenuado con barra diagonal. Borrador: contorno azul. Los detalles completos
-        están en la lista.
-      </p>
     </section>
   );
 }

@@ -241,7 +241,7 @@ export function PatientDetail() {
                 </div>
               )}
               <header className="patient-page-header">
-                <div className="flex min-w-0 items-start gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <span
                     className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-surface text-primary"
                     aria-hidden="true"
@@ -253,21 +253,23 @@ export function PatientDetail() {
                     <h1 className="patient-page-title text-3xl font-semibold tracking-tight">
                       {patient.first_name} {patient.last_name}
                     </h1>
-                    <p className="mt-2 text-sm text-muted">
-                      {getPatientAge(patient.birth_date) === null
-                        ? 'Sin fecha de nacimiento'
-                        : `${getPatientAge(patient.birth_date)} años`}
-                      {patient.birth_date &&
-                        ` · Nacimiento ${formatClinicalDate(`${patient.birth_date}T00:00:00`)}`}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {patient.phone && (
-                        <PatientHeaderDisclosure kind="Teléfono" value={patient.phone} />
-                      )}
-                      {patient.email && (
-                        <PatientHeaderDisclosure kind="Correo" value={patient.email} />
-                      )}
-                      <PatientHeaderDisclosure kind="RUT" value={patient.rut_masked} />
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                      <p>
+                        {getPatientAge(patient.birth_date) === null
+                          ? 'Sin fecha de nacimiento'
+                          : `${getPatientAge(patient.birth_date)} años`}
+                        {patient.birth_date &&
+                          ` · Nacimiento ${formatClinicalDate(`${patient.birth_date}T00:00:00`)}`}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {patient.phone && (
+                          <PatientHeaderDisclosure kind="Teléfono" value={patient.phone} />
+                        )}
+                        {patient.email && (
+                          <PatientHeaderDisclosure kind="Correo" value={patient.email} />
+                        )}
+                        <PatientHeaderDisclosure kind="RUT" value={patient.rut_masked} />
+                      </div>
                     </div>
                   </div>
                 </div>

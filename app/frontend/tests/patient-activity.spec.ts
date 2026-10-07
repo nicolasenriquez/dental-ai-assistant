@@ -118,11 +118,11 @@ test('slice8 real manual saves, chart, activity, keyboard/privacy and Assistant 
   await page.getByRole('tab', { name: 'Clínica', exact: true }).click();
   await expect(page.getByText('Cargando condiciones…')).toBeHidden();
   await page.getByRole('button', { name: 'Caries', exact: true }).click();
-  await page.getByLabel('Seleccionar pieza FDI').selectOption('36');
-  await page.getByRole('checkbox', { name: 'Mesial (M)' }).check();
-  await page.getByLabel('Nota de condición').fill('Condición sintética integrada');
+  await page.getByRole('button', { name: /^Pieza 36:/ }).click();
+  const surfaces = page.getByRole('dialog', { name: 'Seleccionar superficies' });
+  await surfaces.getByRole('checkbox', { name: 'Mesial (M)' }).check();
   expect((await (await page.request.get(`${base}/conditions`)).json()).total).toBe(0);
-  await page.getByRole('button', { name: 'Guardar condición', exact: true }).click();
+  await surfaces.getByRole('button', { name: 'Confirmar', exact: true }).click();
   await expect(page.getByRole('article', { name: 'Pieza 36 · Caries · Activa' })).toBeVisible();
   await page.getByRole('tab', { name: 'Actividad', exact: true }).click();
   await expect(page.getByText('2 eventos', { exact: true })).toBeVisible();

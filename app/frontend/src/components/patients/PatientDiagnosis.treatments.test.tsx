@@ -106,6 +106,24 @@ function mount(): void {
   );
 }
 
+it('counts procedures across cursor pages and hides the badge on an incomplete final page', async () => {
+  mocks.list
+    .mockResolvedValueOnce({ items: [saved], total: 2, next_cursor: 'next' })
+    .mockResolvedValueOnce({ items: [{ ...saved, id: 'second' }], total: 2, next_cursor: null });
+  mount();
+  expect(
+    await screen.findByLabelText('2 registros guardados en esta dentición y estado'),
+  ).toBeVisible();
+  expect(mocks.list).toHaveBeenLastCalledWith('p', expect.objectContaining({ cursor: 'next' }));
+});
+
+it('never presents partial procedure reads as a stored total', async () => {
+  mocks.list.mockResolvedValue({ items: [saved], total: 2, next_cursor: null });
+  mount();
+  await screen.findByRole('button', { name: 'Reintentar procedimientos' });
+  expect(screen.queryByLabelText(/registros guardados en esta dentición y estado/)).toBeNull();
+});
+
 it('opens an exact authorized procedure link and retries its read without a write', async () => {
   mocks.read.mockRejectedValueOnce(new ApiError(404, 'Unavailable')).mockResolvedValueOnce(saved);
   render(<PatientDiagnosis patientId="p" focusedTreatmentId={saved.id} />);
