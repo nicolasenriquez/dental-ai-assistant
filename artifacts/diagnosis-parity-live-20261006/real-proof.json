@@ -1,8 +1,0 @@
-{
-  "boundary": "current backend HTTP/domain/real PostgreSQL; future mirror resources not implemented",
-  "port": 5439,
-  "migration": "pass",
-  "tests": "pass",
-  "cleanup": "owned container removed; no named volume created",
-  "test_exit_code": 0
-}

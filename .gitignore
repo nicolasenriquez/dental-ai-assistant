@@ -118,3 +118,4 @@ EXAMPLE-CLAUDE.md
 
 # Docker build output may contain expanded environment values.
 artifacts/**/docker-build.log
+.impeccable/
