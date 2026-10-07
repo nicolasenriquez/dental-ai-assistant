@@ -1,5 +1,6 @@
 - complementary:
-  - text: Dental AI Assistant
+  - link "Dental AI Assistant":
+    - /url: /patients
   - button "Colapsar navegación" [expanded]
   - navigation "Navegación principal":
     - link "Pacientes":
@@ -8,7 +9,7 @@
       - /url: /assistant
     - link "Chat":
       - /url: /chat
-    - button "Nuevo chat"
+  - button "Nuevo chat"
   - button "Buscar conversaciones": Buscar Ctrl K
   - region "Conversaciones":
     - text: ""
@@ -22,9 +23,8 @@
     - progressbar "Cuota de mensajes diaria"
   - button "Biblioteca"
   - button "Abrir menú de usuario para admin@email.com"
-  - text: Dental AI Assistant
 - banner:
-  - strong: Baseline conversation
+  - heading "Baseline conversation" [level=1]
   - text: Biblioteca de videos
   - button "Exportar"
 - article "Asistente":

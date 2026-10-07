@@ -1,5 +1,6 @@
 - complementary:
-  - text: Dental AI Assistant
+  - link "Dental AI Assistant":
+    - /url: /patients
   - button "Colapsar navegación" [expanded]
   - navigation "Navegación principal":
     - link "Pacientes":
@@ -9,7 +10,6 @@
     - link "Chat":
       - /url: /chat
   - button "Abrir menú de usuario para admin@email.com"
-  - text: Dental AI Assistant
 - main:
   - link "‹ Volver a Juan Perez":
     - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
@@ -38,19 +38,19 @@
   - article "Evolución propuesta":
     - heading "Borrador para revisar" [level=3]
     - time: /\d+ ene \d+ · \d+:\d+/
-    - text: Motivo / contexto
+    - heading "Motivo / contexto" [level=4]
     - button "Editar Motivo / contexto"
     - paragraph: Consulta de control.
-    - text: Hallazgos
+    - heading "Hallazgos" [level=4]
     - button "Editar Hallazgos"
     - paragraph: Hallazgo de baseline.
-    - text: Diagnóstico / impresión clínica
+    - heading "Diagnóstico / impresión clínica" [level=4]
     - button "Editar Diagnóstico / impresión clínica"
     - paragraph: Impresión clínica de baseline.
-    - text: Tratamiento / conducta
+    - heading "Tratamiento / conducta" [level=4]
     - button "Editar Tratamiento / conducta"
     - paragraph: Conducta de baseline.
-    - text: Seguimiento
+    - heading "Seguimiento" [level=4]
     - button "Editar Seguimiento"
     - paragraph: Control posterior.
     - button "Guardar evolución"

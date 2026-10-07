@@ -1,5 +1,6 @@
 - complementary:
-  - text: Dental AI Assistant
+  - link "Dental AI Assistant":
+    - /url: /patients
   - button "Colapsar navegación" [expanded]
   - navigation "Navegación principal":
     - link "Pacientes":
@@ -9,18 +10,41 @@
     - link "Chat":
       - /url: /chat
   - button "Abrir menú de usuario para admin@email.com"
-  - text: Dental AI Assistant
 - main:
   - heading "Pacientes" [level=1]
   - paragraph: Gestiona pacientes y sus evoluciones dentales.
   - button "+ Nuevo paciente"
-  - text: Buscar por nombre o RUT
-  - textbox "Buscar por nombre o RUT":
-    - /placeholder: Buscar por nombre o RUT...
-  - status
-  - heading "PACIENTES" [level=2]
-  - link /Juan Perez \d+ años RUT ••\.•••\.\d+-8 Última evolución \d+ sep \d+ · \d+:\d+/:
-    - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
-    - strong: Juan Perez
-    - text: ""
-    - time: /\d+ sep \d+ · \d+:\d+/
+  - text: Buscar por nombre, teléfono o RUT
+  - textbox "Buscar por nombre, teléfono o RUT":
+    - /placeholder: Buscar paciente…
+  - text: Evoluciones
+  - combobox "Evoluciones":
+    - option "Todas" [selected]
+    - option "Con evoluciones"
+    - option "Sin evoluciones"
+  - text: Ordenar por
+  - combobox "Ordenar por":
+    - option "Apellidos" [selected]
+    - option "Nombres"
+    - option "Última evolución"
+  - button "Orden descendente"
+  - paragraph: Nombre, teléfono o RUT. Para un RUT completo, incluye guion y DV.
+  - status: 1 paciente
+  - table "Pacientes encontrados":
+    - caption: Pacientes encontrados
+    - rowgroup:
+      - row "Paciente Edad Última evolución Abrir ficha":
+        - columnheader "Paciente"
+        - columnheader "Edad"
+        - columnheader "Última evolución"
+        - columnheader "Abrir ficha"
+    - rowgroup:
+      - row /Juan Perez \d+ años \d+ sep \d+ · \d+:\d+/:
+        - cell "Juan Perez":
+          - link "Juan Perez":
+            - /url: /patients/fc583c6a-8f9e-4579-9169-cc9335644c12
+            - strong: Juan Perez
+        - cell /\d+ años/
+        - cell /\d+ sep \d+ · \d+:\d+/:
+          - time: /\d+ sep \d+ · \d+:\d+/
+        - cell

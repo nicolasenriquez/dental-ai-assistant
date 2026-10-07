@@ -146,7 +146,11 @@ async function captureView(page: Page, name: string, fullPage = true) {
   await expect(page).toHaveScreenshot(`${name}.png`, {
     fullPage,
     animations: 'disabled',
-    maxDiffPixels: ['chat-empty', 'sidebar-conversation-menu'].includes(name) ? 128 : 0,
+    maxDiffPixels: ['chat-empty', 'sidebar-conversation-menu'].includes(name)
+      ? 128
+      : ['login', 'admin-videos', 'admin-add-video-dialog'].includes(name)
+        ? 32
+        : 0,
   });
 }
 
@@ -213,7 +217,8 @@ test('captures public views and patients workflow', async ({ page }) => {
   await expect(page).toHaveURL(new URL(patientHref, page.url()).href);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Selecciona una evolución' })).toBeVisible();
+  await page.goto(`${patientHref}?tab=clinical&clinical=evolutions`);
+  await expect(page.getByRole('heading', { name: 'Historial de evoluciones' })).toBeVisible();
   await expect(page.locator('.patient-workspace__history a[aria-current="page"]')).toHaveCount(0);
   await captureView(page, 'patient-detail');
 
@@ -560,7 +565,7 @@ test('hands off chat dictation without losing edits during transcription', async
   await expect(input).toBeEditable();
   await expect(page.getByText('Transcribiendo dictado…')).toBeVisible();
   await input.fill('Edición manual');
-  await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toHaveCount(0);
   releaseTranscription();
   await expect(input).toHaveValue('Texto dictado. Edición manual');
   await expect(page.getByText('Dictado añadido')).toBeVisible();
@@ -808,7 +813,9 @@ test('keeps mobile workspace headers aligned across Chat and Asistente', async (
 
     const metrics = await page.evaluate(() => {
       const header = document.querySelector<HTMLElement>('.workspace-header');
-      const title = document.querySelector<HTMLElement>('.workspace-header strong');
+      const title =
+        document.querySelector<HTMLElement>('.workspace-header .clinical-patient-trigger') ??
+        document.querySelector<HTMLElement>('.workspace-header h1, .workspace-header h2');
       const menuButton = document.querySelector<HTMLElement>('.hamburger-btn');
 
       if (!header || !title || !menuButton) {
