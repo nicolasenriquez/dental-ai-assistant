@@ -9,6 +9,7 @@ Conventions (see CLAUDE.md §Testing):
 """
 
 import os
+import sys
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -28,6 +29,7 @@ os.environ["AI_TUTOR_DISABLE_DOTENV"] = "1"
 # CPython 3.14.4 on Windows aborts in OpenSSL when TLS key logging is enabled.
 os.environ.pop("SSLKEYLOGFILE", None)
 
+import asyncpg
 import pytest
 
 import backend.rag.retriever_hybrid as retriever_hybrid_module
@@ -184,6 +186,24 @@ def patch_pg_pool(monkeypatch):
     monkeypatch.setattr(google_drive_repo_mod, "get_pg_pool", getter)
     monkeypatch.setattr(evolution_exports_service, "get_pg_pool", getter)
     monkeypatch.setattr(rate_limit_mod, "get_pg_pool", getter)
+
+
+@pytest.fixture
+async def migrated_pg_pool(monkeypatch, patch_pg_pool):
+    """Real repository integration on an explicitly selected disposable database."""
+    dsn = os.environ.get("LEGACY_TEST_DATABASE_URL")
+    if not dsn:
+        pytest.skip("Set LEGACY_TEST_DATABASE_URL to a disposable migrated PostgreSQL database")
+    pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute("TRUNCATE users, videos, conversations, channel_sync_runs CASCADE")
+        for name, module in tuple(sys.modules.items()):
+            if name.startswith("backend.") and hasattr(module, "get_pg_pool"):
+                monkeypatch.setattr(module, "get_pg_pool", lambda: pool)
+        yield pool
+    finally:
+        await pool.close()
 
 
 @pytest.fixture(autouse=True)

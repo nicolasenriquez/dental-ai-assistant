@@ -16,9 +16,7 @@ import pytest
 os.environ.setdefault("JWT_SECRET", "test-secret-please-do-not-use-in-prod")
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
 
-pytestmark = pytest.mark.skip(
-    reason="Tests require SQLite schema.init_db; pending rewrite for asyncpg/Alembic."
-)
+pytestmark = pytest.mark.usefixtures("migrated_pg_pool")
 
 from backend.db.repository import (  # noqa: E402
     create_conversation,

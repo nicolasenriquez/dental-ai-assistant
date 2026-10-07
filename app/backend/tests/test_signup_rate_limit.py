@@ -21,29 +21,17 @@ from __future__ import annotations
 
 import inspect
 import os
-import tempfile
 from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-# Point DATABASE_URL + DB_PATH at throw-away storage BEFORE any backend imports.
-os.environ["DATABASE_URL"] = "postgresql://test:test@127.0.0.1:5435/test"
-os.environ.setdefault("JWT_SECRET", "test-secret-please-do-not-use-in-prod")
-_tmp_dir = tempfile.mkdtemp(prefix="dynachat-signup-test-")
-os.environ["DB_PATH"] = str(Path(_tmp_dir) / "chat.db")
+import asyncpg
+import pytest
+from httpx import ASGITransport, AsyncClient
 
-import asyncpg  # noqa: E402
-import pytest  # noqa: E402
-from httpx import ASGITransport, AsyncClient  # noqa: E402
+from backend import signup_rate_limit
 
-from backend import signup_rate_limit  # noqa: E402
-
-pytestmark = pytest.mark.skip(
-    reason="Tests bring up their own pool via deleted init_users_schema; pending Alembic rewrite."
-)
-
-DSN = os.environ["DATABASE_URL"]
+pytestmark = pytest.mark.usefixtures("migrated_pg_pool")
 
 
 # ---------------------------------------------------------------------------
@@ -58,63 +46,20 @@ def patch_signup_rate_limit():
     yield
 
 
-@pytest.fixture(autouse=True)
-async def patch_pg_pool(monkeypatch):
-    """Override conftest stub — create a real backend pool against the test DB.
-
-    ASGITransport does not run the FastAPI lifespan, so we bring the pool up
-    (and the two schemas) ourselves. The backend's DATABASE_URL was captured
-    at `backend.config` import time (which happened from conftest) — we patch
-    the module-level constant in `postgres.py` to point at the test DB before
-    creating the pool.
-    """
-    from backend.db import postgres as pg
-
-    monkeypatch.setattr(pg, "DATABASE_URL", DSN)
-    # Ensure a clean pool bound to this test's event loop — a stale pool from a
-    # previous test is bound to the previous asyncio loop and raises on use.
-    await pg.close_pg_pool()
-    await pg.init_pg_pool()
-    await pg.init_users_schema()
-    await pg.init_signup_attempts_schema()
-    yield
-    await pg.close_pg_pool()
-
-
 # ---------------------------------------------------------------------------
 # Per-test table truncation + direct asyncpg conn for seeding/asserting
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture
-async def db() -> AsyncIterator[asyncpg.Connection]:
+async def db(migrated_pg_pool) -> AsyncIterator[asyncpg.Connection]:
     """Standalone asyncpg connection for seeding rows and asserting counts.
 
     Independent of the backend's pool so it survives ASGI lifespan teardown.
     """
     # Ensure schemas exist (idempotent — harmless if backend already ran it).
-    conn = await asyncpg.connect(DSN)
+    conn = await asyncpg.connect(os.environ["LEGACY_TEST_DATABASE_URL"])
     try:
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS citext;")
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
-        await conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                email CITEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                last_login_at TIMESTAMPTZ
-            );
-            CREATE TABLE IF NOT EXISTS signup_attempts (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                ip INET NOT NULL,
-                email_attempted CITEXT,
-                outcome TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-            );
-            """
-        )
         await conn.execute("TRUNCATE signup_attempts, users CASCADE;")
         yield conn
     finally:

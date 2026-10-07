@@ -17,6 +17,7 @@ import asyncpg
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from alembic.script import ScriptDirectory
 from backend.auth.dependencies import get_current_user
 from backend.clinical_assistant import pending_work, service
 from backend.clinical_assistant.schemas import PrepareSaveRequest
@@ -109,7 +110,11 @@ async def test_catalog_domain_http_and_migrated_sql_agree(workspace_db):
                 )
                 assert response.status_code == 422
             async with pool.acquire() as conn:
-                assert await conn.fetchval("SELECT version_num FROM alembic_version") == "0024"
+                revision = await conn.fetchval("SELECT version_num FROM alembic_version")
+                migrations = ScriptDirectory(str(Path(__file__).parents[1] / "alembic"))
+                assert "0024" in {
+                    r.revision for r in migrations.iterate_revisions(revision, "base")
+                }
                 for code, surfaces in (("unknown", []), ("missing", ["O"])):
                     with pytest.raises(asyncpg.CheckViolationError):
                         await conn.execute(
@@ -1706,7 +1711,9 @@ async def test_correction_migration_preserves_legacy_evidence_and_sql_guards(mon
         current = await patient_conditions_repo.get_condition(owner, patient, source)
         assert current["status"] == "resolved" and current["correction"] is None
         async with pool.acquire() as conn:
-            assert await conn.fetchval("SELECT version_num FROM alembic_version") == "0024"
+            revision = await conn.fetchval("SELECT version_num FROM alembic_version")
+            migrations = ScriptDirectory(str(Path(__file__).parents[1] / "alembic"))
+            assert "0024" in {r.revision for r in migrations.iterate_revisions(revision, "base")}
             actual = [
                 dict(row)
                 for row in await conn.fetch(

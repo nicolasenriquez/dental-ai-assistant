@@ -41,9 +41,23 @@ def bypass_auth():
     app.dependency_overrides.pop(get_current_admin, None)
 
 
-pytestmark = pytest.mark.skip(
-    reason="temp_db_schema fixture uses deleted SQLite schema module; pending Alembic rewrite."
-)
+pytestmark = pytest.mark.usefixtures("migrated_pg_pool")
+CHUNK = {"content": "chunk1", "start_seconds": 0.0, "end_seconds": 1.0, "snippet": "chunk1"}
+
+
+@pytest.fixture(autouse=True)
+def mock_ingest_providers(monkeypatch):
+    from backend.routes import channels
+    from backend.services import supadata, video_ingest
+
+    monkeypatch.setattr(video_ingest, "_get_client", lambda: supadata._get_client())
+    monkeypatch.setattr(
+        video_ingest, "get_video_title", AsyncMock(return_value=("Test Video", "Test Channel"))
+    )
+    monkeypatch.setattr(video_ingest, "get_video_description", AsyncMock(return_value=""))
+    monkeypatch.setattr(
+        channels, "get_video_title", AsyncMock(return_value=("Test Video", "Test Channel"))
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -165,12 +179,14 @@ async def test_sync_channel_idempotent_skips_existing_videos():
 
         # Patch where names are bound in channels.py (import = local name)
         with (
-            patch("backend.routes.channels.chunk_video_timestamped", return_value=([], False)),
             patch(
-                "backend.routes.channels.chunk_video_fallback",
-                return_value=(["chunk1", "chunk2"], False),
+                "backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)
             ),
-            patch("backend.routes.channels.embed_batch", return_value=[[0.1] * 512]),
+            patch(
+                "backend.services.video_ingest.chunk_video_fallback",
+                return_value=([CHUNK], False),
+            ),
+            patch("backend.services.video_ingest.embed_batch", return_value=[[0.1] * 1536]),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -194,9 +210,13 @@ async def test_sync_channel_returns_sync_run_id():
         mock_get_client.return_value = mock_client
 
         with (
-            patch("backend.routes.channels.chunk_video_timestamped", return_value=([], False)),
-            patch("backend.routes.channels.chunk_video_fallback", return_value=(["chunk1"], False)),
-            patch("backend.routes.channels.embed_batch", return_value=[[0.1] * 512]),
+            patch(
+                "backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)
+            ),
+            patch(
+                "backend.services.video_ingest.chunk_video_fallback", return_value=([CHUNK], False)
+            ),
+            patch("backend.services.video_ingest.embed_batch", return_value=[[0.1] * 1536]),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -270,9 +290,13 @@ async def test_sync_channel_429_triggers_backoff():
         mock_get_client.return_value = mock_client
 
         with (
-            patch("backend.routes.channels.chunk_video_timestamped", return_value=([], False)),
-            patch("backend.routes.channels.chunk_video_fallback", return_value=(["chunk1"], False)),
-            patch("backend.routes.channels.embed_batch", return_value=[[0.1] * 512]),
+            patch(
+                "backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)
+            ),
+            patch(
+                "backend.services.video_ingest.chunk_video_fallback", return_value=([CHUNK], False)
+            ),
+            patch("backend.services.video_ingest.embed_batch", return_value=[[0.1] * 1536]),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -296,7 +320,7 @@ async def test_list_sync_runs_empty():
 
 async def test_list_sync_runs_returns_recent_runs():
     """GET /api/channels/sync-runs returns recent sync run history."""
-    now_str = datetime.now(UTC).isoformat()
+    now_str = datetime.now(UTC)
     await repository.create_sync_run(sync_run_id="run-1", started_at=now_str)
     await repository.update_sync_run(
         sync_run_id="run-1",
@@ -369,9 +393,13 @@ async def test_sync_channel_embedding_failure_updates_sync_video_status(
         mock_get_client.return_value = mock_client
 
         with (
-            patch("backend.routes.channels.chunk_video_timestamped", return_value=([], False)),
-            patch("backend.routes.channels.chunk_video_fallback", return_value=(["chunk1"], False)),
-            patch("backend.routes.channels.embed_batch", side_effect=failing_embed),
+            patch(
+                "backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)
+            ),
+            patch(
+                "backend.services.video_ingest.chunk_video_fallback", return_value=([CHUNK], False)
+            ),
+            patch("backend.services.video_ingest.embed_batch", side_effect=failing_embed),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -388,7 +416,9 @@ async def test_sync_channel_embedding_failure_updates_sync_video_status(
     sync_videos = await repository.list_sync_videos_for_run(sync_runs[0]["id"])
     assert len(sync_videos) == 1
     assert sync_videos[0]["status"] == "error"
-    assert "Embedding failed" in sync_videos[0]["error_message"]
+    assert (
+        "Chunk preparation failed: Embedding service unavailable" in sync_videos[0]["error_message"]
+    )
 
 
 async def test_sync_channel_empty_chunks_videos_error_not_new(temp_db_schema, bypass_auth):
@@ -400,8 +430,10 @@ async def test_sync_channel_empty_chunks_videos_error_not_new(temp_db_schema, by
         mock_get_client.return_value = mock_client
 
         with (
-            patch("backend.routes.channels.chunk_video_timestamped", return_value=([], False)),
-            patch("backend.routes.channels.chunk_video_fallback", return_value=([], True)),
+            patch(
+                "backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)
+            ),
+            patch("backend.services.video_ingest.chunk_video_fallback", return_value=([], True)),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -458,9 +490,13 @@ async def test_sync_channel_invalidate_cache_called(temp_db_schema, bypass_auth)
         mock_get_client.return_value = mock_client
 
         with (
-            patch("backend.routes.channels.chunk_video_timestamped", return_value=([], False)),
-            patch("backend.routes.channels.chunk_video_fallback", return_value=(["chunk1"], False)),
-            patch("backend.routes.channels.embed_batch", return_value=[[0.1] * 512]),
+            patch(
+                "backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)
+            ),
+            patch(
+                "backend.services.video_ingest.chunk_video_fallback", return_value=([CHUNK], False)
+            ),
+            patch("backend.services.video_ingest.embed_batch", return_value=[[0.1] * 1536]),
             patch("backend.rag.retriever_hybrid.invalidate_cache") as mock_invalidate,
         ):
             async with AsyncClient(
@@ -474,7 +510,7 @@ async def test_sync_channel_invalidate_cache_called(temp_db_schema, bypass_auth)
 
 async def test_list_sync_videos_for_run(temp_db_schema, bypass_auth):
     """list_sync_videos_for_run returns all sync video records for a run."""
-    now_str = datetime.now(UTC).isoformat()
+    now_str = datetime.now(UTC)
     await repository.create_sync_run(sync_run_id="test-run", started_at=now_str)
     await repository.update_sync_run(
         sync_run_id="test-run",
@@ -538,13 +574,15 @@ async def test_sync_channel_stores_timestamps(temp_db_schema, bypass_auth):
 
     with (
         patch("backend.routes.channels.fetch_video_for_ingest", new=fake_helper),
-        patch("backend.routes.channels.chunk_video_timestamped", return_value=(chunk_dicts, False)),
-        patch("backend.routes.channels.chunk_video_fallback", return_value=([], False)),
-        patch("backend.routes.channels.embed_batch", return_value=[[0.1] * 512, [0.2] * 512]),
-        patch("backend.services.supadata._get_client") as mock_get_client,
         patch(
-            "backend.routes.channels.repo.create_chunk", new_callable=AsyncMock
-        ) as mock_create_chunk,
+            "backend.services.video_ingest.chunk_video_timestamped",
+            return_value=(chunk_dicts, False),
+        ),
+        patch("backend.services.video_ingest.chunk_video_fallback", return_value=([], False)),
+        patch(
+            "backend.services.video_ingest.embed_batch", return_value=[[0.1] * 1536, [0.2] * 1536]
+        ),
+        patch("backend.services.supadata._get_client") as mock_get_client,
         patch("backend.rag.retriever_hybrid.invalidate_cache"),
     ):
         mock_client = AsyncMock()
@@ -559,15 +597,16 @@ async def test_sync_channel_stores_timestamps(temp_db_schema, bypass_auth):
     assert data["videos_new"] == 1
     assert data["videos_error"] == 0
 
-    # Verify create_chunk received the real timestamps from segments, not 0.0
-    calls = mock_create_chunk.call_args_list
-    assert len(calls) == 2
-    first = calls[0].kwargs
+    # Verify the atomic video write persisted the real segment timestamps.
+    videos = await repository.list_videos()
+    chunks = await repository.list_chunks_for_video(videos[0]["id"])
+    assert len(chunks) == 2
+    first = chunks[0]
     assert first["start_seconds"] == 0.0
     assert first["end_seconds"] == 30.0
     assert first["snippet"] == "Intro."
     # Regression check: non-first chunk must have non-zero start_seconds
-    second = calls[1].kwargs
+    second = chunks[1]
     assert second["start_seconds"] == 30.0
     assert second["end_seconds"] == 90.0
     assert second["snippet"] == "Main content."
@@ -591,17 +630,24 @@ async def test_sync_channel_uses_real_description_from_supadata(temp_db_schema, 
 
     with (
         patch("backend.services.supadata._get_client") as mock_get_client,
-        patch("backend.routes.channels.chunk_video_timestamped", return_value=([], False)),
-        patch("backend.routes.channels.chunk_video_fallback", return_value=(["chunk1"], False)),
-        patch("backend.routes.channels.embed_batch", return_value=[[0.1] * 512]),
+        patch("backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)),
+        patch("backend.services.video_ingest.chunk_video_fallback", return_value=([CHUNK], False)),
+        patch("backend.services.video_ingest.embed_batch", return_value=[[0.1] * 1536]),
         patch("backend.rag.retriever_hybrid.invalidate_cache"),
     ):
         mock_client = AsyncMock()
-        mock_client.youtube.channel.videos = lambda *args, **kwargs: mock_supadata_records
+        mock_client.youtube.channel.videos = make_mock_channel_videos(["dQw4w9WgXcQ"])
+        mock_client.transcript = make_mock_transcript("Hello")
         mock_get_client.return_value = mock_client
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.post("/api/channels/sync")
+        with patch(
+            "backend.services.video_ingest.get_video_description",
+            new=AsyncMock(return_value=mock_supadata_records[0]["description"]),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.post("/api/channels/sync")
 
     assert response.status_code == 200
 
@@ -612,30 +658,26 @@ async def test_sync_channel_uses_real_description_from_supadata(temp_db_schema, 
     # We can't directly inspect create_video call args here since it's in repo,
     # but we can verify the sync succeeded with videos_new=1
     assert sync_videos[0]["status"] == "ingested"
+    assert (await repository.list_videos())[0]["description"] == mock_supadata_records[0][
+        "description"
+    ]
 
 
 async def test_sync_channel_falls_back_to_placeholder_when_no_description(
     temp_db_schema, bypass_auth
 ):
     """supadata_data has no description field → placeholder used."""
-    mock_supadata_records = [
-        {
-            "title": "Test Video",
-            # description key absent — should fall back to placeholder
-            "url": "https://youtube.com/watch?v=abc123",
-            "transcript": [{"text": "Hello", "offset": 0, "duration": 1000}],
-        }
-    ]
 
     with (
         patch("backend.services.supadata._get_client") as mock_get_client,
-        patch("backend.routes.channels.chunk_video_timestamped", return_value=([], False)),
-        patch("backend.routes.channels.chunk_video_fallback", return_value=(["chunk1"], False)),
-        patch("backend.routes.channels.embed_batch", return_value=[[0.1] * 512]),
+        patch("backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)),
+        patch("backend.services.video_ingest.chunk_video_fallback", return_value=([CHUNK], False)),
+        patch("backend.services.video_ingest.embed_batch", return_value=[[0.1] * 1536]),
         patch("backend.rag.retriever_hybrid.invalidate_cache"),
     ):
         mock_client = AsyncMock()
-        mock_client.youtube.channel.videos = lambda *args, **kwargs: mock_supadata_records
+        mock_client.youtube.channel.videos = make_mock_channel_videos(["dQw4w9WgXcQ"])
+        mock_client.transcript = make_mock_transcript("Hello")
         mock_get_client.return_value = mock_client
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -646,4 +688,6 @@ async def test_sync_channel_falls_back_to_placeholder_when_no_description(
     sync_runs = await repository.list_sync_runs(limit=10)
     sync_videos = await repository.list_sync_videos_for_run(sync_runs[0]["id"])
     assert sync_videos[0]["status"] == "ingested"
-    assert sync_videos[0]["description"] == "Synced from channel UC_testchannel"
+    assert (await repository.list_videos())[0]["description"] == (
+        "Ingested from https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    )

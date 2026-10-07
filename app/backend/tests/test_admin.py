@@ -28,9 +28,7 @@ from httpx import ASGITransport, AsyncClient
 os.environ.setdefault("JWT_SECRET", "test-secret-please-do-not-use-in-prod")
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
 
-pytestmark = pytest.mark.skip(
-    reason="temp_db_schema fixture uses deleted SQLite schema module; pending Alembic rewrite."
-)
+pytestmark = pytest.mark.usefixtures("migrated_pg_pool")
 
 ADMIN_EMAIL = "admin@example.com"
 
@@ -45,29 +43,6 @@ def set_admin_email(monkeypatch):
     from backend import config as _config
 
     monkeypatch.setattr(_config, "ADMIN_USER_EMAIL", ADMIN_EMAIL)
-
-
-@pytest.fixture(autouse=True)
-def temp_db_schema(tmp_path, monkeypatch):
-    """Fresh SQLite per test — admin mutations (create/delete video) must not
-    leak between tests. See test_channel_sync.py for why all three modules
-    need DB_PATH patched.
-    """
-    db_path = str(tmp_path / "test_chat.db")
-    monkeypatch.setenv("DB_PATH", db_path)
-
-    from backend import config as _config
-    from backend.db import repository as _repository
-    from backend.db import schema as _schema
-
-    monkeypatch.setattr(_config, "DB_PATH", db_path)
-    monkeypatch.setattr(_schema, "DB_PATH", db_path)
-    monkeypatch.setattr(_repository, "DB_PATH", db_path)
-
-    import asyncio
-
-    asyncio.run(_schema.init_db())
-    return db_path
 
 
 @pytest.fixture(autouse=True)
@@ -341,16 +316,16 @@ async def test_resync_replaces_chunks_on_success(client):
             new=fake_supadata,
         ),
         patch(
-            "backend.routes.admin.chunk_video_timestamped",
+            "backend.services.video_ingest.chunk_video_timestamped",
             return_value=(chunk_dicts, False),
         ),
         patch(
-            "backend.routes.admin.chunk_video_fallback",
+            "backend.services.video_ingest.chunk_video_fallback",
             return_value=([], False),
         ),
         patch(
-            "backend.routes.admin.embed_batch",
-            return_value=[[0.5] * 4, [0.6] * 4, [0.7] * 4],
+            "backend.services.video_ingest.embed_batch",
+            return_value=[[0.5] * 1536, [0.6] * 1536, [0.7] * 1536],
         ),
     ):
         r = await client.post(f"/api/admin/videos/{video['id']}/re-sync")
@@ -404,10 +379,13 @@ async def test_add_video_by_url_succeeds(client):
             "backend.routes.admin.fetch_video_for_ingest",
             new=fake_supadata,
         ),
-        patch("backend.routes.admin.chunk_video_timestamped", return_value=([], False)),
-        patch("backend.routes.admin.chunk_video_fallback", return_value=(fallback_chunks, False)),
+        patch("backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)),
         patch(
-            "backend.routes.admin.embed_batch",
+            "backend.services.video_ingest.chunk_video_fallback",
+            return_value=(fallback_chunks, False),
+        ),
+        patch(
+            "backend.services.video_ingest.embed_batch",
             return_value=[[0.1] * 4, [0.2] * 4],
         ),
     ):
@@ -453,15 +431,15 @@ async def test_add_video_rejects_duplicate(client):
             "backend.routes.admin.fetch_video_for_ingest",
             new=fake_supadata,
         ),
-        patch("backend.routes.admin.chunk_video_timestamped", return_value=([], False)),
+        patch("backend.services.video_ingest.chunk_video_timestamped", return_value=([], False)),
         patch(
-            "backend.routes.admin.chunk_video_fallback",
+            "backend.services.video_ingest.chunk_video_fallback",
             return_value=(
                 [{"content": "c0", "start_seconds": 0.0, "end_seconds": 30.0, "snippet": "c0"}],
                 False,
             ),
         ),
-        patch("backend.routes.admin.embed_batch", return_value=[[0.1] * 4]),
+        patch("backend.services.video_ingest.embed_batch", return_value=[[0.1] * 1536]),
     ):
         r = await client.post(
             "/api/admin/videos",

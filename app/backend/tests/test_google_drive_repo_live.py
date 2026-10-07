@@ -106,7 +106,8 @@ async def test_live_schema_matches_contract(db):
         )
         check = await conn.fetchval(
             "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-            "WHERE conrelid = 'google_drive_connections'::regclass AND contype = 'c'"
+            "WHERE conrelid = 'google_drive_connections'::regclass AND contype = 'c' "
+            "AND conname = 'ck_google_drive_connections_status'"
         )
         fks = await conn.fetch(
             "SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint "

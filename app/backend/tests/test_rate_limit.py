@@ -231,9 +231,7 @@ async def test_me_reflects_usage_after_sending(fake_users_repo, message_store):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(
-    reason="Integration test needs real or faked asyncpg Connection; pending Postgres test infra."
-)
+@pytest.mark.usefixtures("migrated_pg_pool")
 async def test_post_message_returns_429_when_over_cap(fake_users_repo, message_store):
     client = await _signup("over-cap@example.com")
     try:
@@ -265,9 +263,7 @@ async def test_post_message_returns_429_when_over_cap(fake_users_repo, message_s
         await client.aclose()
 
 
-@pytest.mark.skip(
-    reason="Integration test needs real or faked asyncpg Connection; pending Postgres test infra."
-)
+@pytest.mark.usefixtures("migrated_pg_pool")
 async def test_rate_limit_429_does_not_persist_user_message(fake_users_repo, message_store):
     """When the cap is hit, we must reject BEFORE writing the user's content
     to the messages table — otherwise the chat history would show ghost user

@@ -5,41 +5,19 @@ Verifies:
   - create_chunk stores and returns start_seconds, end_seconds, snippet correctly
   - Round-trip through list_chunks preserves the new fields
 
-NOTE: Tests in this module were written against the SQLite schema with
-`aiosqlite` + `schema.init_db`. After the Postgres/Alembic migration they
-need a rewrite against a real test Postgres. Skipped pending that rewrite.
+Runs against an explicitly selected migrated PostgreSQL database.
 """
 
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="Tests require SQLite schema.init_db; pending rewrite for asyncpg/Alembic."
-)
-
-try:
-    import aiosqlite
-except ImportError:
-    aiosqlite = None
+pytestmark = pytest.mark.usefixtures("migrated_pg_pool")
 
 from backend.db import repository  # noqa: E402
 
 
 class TestCreateChunkWithTimestamps:
-    async def test_create_chunk_with_timestamp_fields(
-        self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_create_chunk_with_timestamp_fields(self) -> None:
         """create_chunk stores and returns start_seconds, end_seconds, snippet."""
-        db_path = tmp_path / "test_chunk.db"  # type: ignore[operator]
-
-        import backend.config
-
-        monkeypatch.setattr(backend.config, "DB_PATH", str(db_path))
-        monkeypatch.setattr(repository, "DB_PATH", str(db_path))
-        monkeypatch.setattr(schema, "DB_PATH", str(db_path))  # type: ignore[name-defined]  # noqa: F821
-
-        async with aiosqlite.connect(db_path):
-            await schema.init_db()  # type: ignore[name-defined]  # noqa: F821
-
         # Create a video first (required for FK constraint)
         video = await repository.create_video(
             title="Test Video",
@@ -65,21 +43,8 @@ class TestCreateChunkWithTimestamps:
         assert result["end_seconds"] == 20.0
         assert result["snippet"] == "Test snippet text"
 
-    async def test_create_chunk_roundtrip_through_list_chunks(
-        self, tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_create_chunk_roundtrip_through_list_chunks(self) -> None:
         """Chunks persist correctly through list_chunks."""
-        db_path = tmp_path / "test_chunk_roundtrip.db"  # type: ignore[operator]
-
-        import backend.config
-
-        monkeypatch.setattr(backend.config, "DB_PATH", str(db_path))
-        monkeypatch.setattr(repository, "DB_PATH", str(db_path))
-        monkeypatch.setattr(schema, "DB_PATH", str(db_path))  # type: ignore[name-defined]  # noqa: F821
-
-        async with aiosqlite.connect(db_path):
-            await schema.init_db()  # type: ignore[name-defined]  # noqa: F821
-
         video = await repository.create_video(
             title="Test Video",
             description="A test video",

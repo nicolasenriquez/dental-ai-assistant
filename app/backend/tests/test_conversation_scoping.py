@@ -24,9 +24,7 @@ import pytest
 os.environ.setdefault("JWT_SECRET", "test-secret-please-do-not-use-in-prod")
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
 
-pytestmark = pytest.mark.skip(
-    reason="Tests require SQLite init_db fixture; pending rewrite for asyncpg/Alembic."
-)
+pytestmark = pytest.mark.usefixtures("migrated_pg_pool")
 
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
@@ -100,7 +98,6 @@ def stub_pg_lifecycle(monkeypatch):
     async def noop():
         return None
 
-    monkeypatch.setattr(pg, "init_users_schema", noop)
     monkeypatch.setattr(pg, "close_pg_pool", noop)
 
 
