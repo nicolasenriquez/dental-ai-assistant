@@ -1,0 +1,323 @@
+{
+  "patientId": "d41406dd-5c1b-4a3f-b324-c3b3cb56d218",
+  "secondId": "faee7021-d5f1-46fe-ad0b-cce8c7245ef3",
+  "findingId": "d7964105-9d63-4610-bea5-8162cad6f742",
+  "observedId": "f3c7a5ec-06e5-4250-88d6-53f06c0a57f8",
+  "planId": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+  "unusedId": "2169203a-1f46-4b92-a317-cefc5b14112d",
+  "persisted": {
+    "acceptance_note": null,
+    "accepted_at": "2026-10-07 15:28:09.055571+00:00",
+    "accepted_by": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+    "closed_at": null,
+    "closed_by": null,
+    "closure_note": null,
+    "closure_reason": null,
+    "confirmed_at": "2026-10-07 15:28:08.891551+00:00",
+    "confirmed_by": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+    "created_at": "2026-10-07 15:28:07.885683+00:00",
+    "created_by": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+    "diagnosis": null,
+    "id": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+    "internal_notes": null,
+    "items": [
+      {
+        "id": "22d83464-92dd-4f3c-b228-2955b969c572",
+        "patient_id": "d41406dd-5c1b-4a3f-b324-c3b3cb56d218",
+        "plan_id": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+        "sequence": 1,
+        "stages": [
+          {
+            "cancellation_reason": null,
+            "cancelled_at": null,
+            "cancelled_by": null,
+            "clinical_note": {
+              "body": "Texto clínico privado sintético",
+              "created_at": "2026-10-07 15:28:09.519866+00:00",
+              "created_by": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+              "deleted_at": null,
+              "id": "7e16fd39-35fb-43a6-9ab9-53eadc82069a",
+              "revision": 1,
+              "treatment_id": "f50be4d8-4ab7-4340-a954-f9b51426e4da"
+            },
+            "clinical_note_id": "7e16fd39-35fb-43a6-9ab9-53eadc82069a",
+            "completed_at": "2026-10-07 15:28:09.525313+00:00",
+            "completed_by": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+            "id": "2f47f548-53b5-434e-8b98-d9f0cff58ca8",
+            "label": "Preparación",
+            "note": null,
+            "sequence": 1,
+            "status": "completed"
+          },
+          {
+            "cancellation_reason": null,
+            "cancelled_at": null,
+            "cancelled_by": null,
+            "clinical_note": {
+              "body": "Borrador segunda sesión",
+              "created_at": "2026-10-07 15:28:09.885510+00:00",
+              "created_by": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+              "deleted_at": null,
+              "id": "26ef4758-2049-44ce-9e39-7fa714c42592",
+              "revision": 1,
+              "treatment_id": "f50be4d8-4ab7-4340-a954-f9b51426e4da"
+            },
+            "clinical_note_id": "26ef4758-2049-44ce-9e39-7fa714c42592",
+            "completed_at": "2026-10-07 15:28:09.889928+00:00",
+            "completed_by": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+            "id": "e3ebd598-125a-4fc7-82ac-97be426b9878",
+            "label": "Colocación",
+            "note": null,
+            "sequence": 2,
+            "status": "completed"
+          }
+        ],
+        "status": "completed",
+        "treatment": {
+          "arch": null,
+          "catalog_version": "dental-clinical-v1",
+          "category_key": "orthodontics",
+          "clinical_type": "bracket",
+          "created_at": "2026-10-07 15:28:08.253847+00:00",
+          "created_by": {
+            "display_name": null,
+            "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd"
+          },
+          "dentition": "permanent",
+          "id": "f50be4d8-4ab7-4340-a954-f9b51426e4da",
+          "label_es": "Bracket individual (reposición)",
+          "note": null,
+          "patient_id": "d41406dd-5c1b-4a3f-b324-c3b3cb56d218",
+          "provenance": "planned_in_clinic",
+          "replacement_id": null,
+          "revision": 3,
+          "scope": "tooth",
+          "state": "performed",
+          "supersedes_id": null,
+          "teeth": [
+            {
+              "role": "tooth",
+              "surfaces": [],
+              "tooth_fdi": 16
+            }
+          ],
+          "updated_at": "2026-10-07 15:28:09.890737+00:00",
+          "updated_by": {
+            "display_name": null,
+            "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd"
+          },
+          "variant_id": "ORTO-BRACK"
+        },
+        "treatment_id": "f50be4d8-4ab7-4340-a954-f9b51426e4da"
+      }
+    ],
+    "patient_id": "d41406dd-5c1b-4a3f-b324-c3b3cb56d218",
+    "revision": 6,
+    "state": "completed",
+    "title": "Continuidad sintética",
+    "updated_at": "2026-10-07 15:28:09.893309+00:00",
+    "updated_by": "25ee2ec3-c626-4225-af97-87b2a2e677bd"
+  },
+  "activity": {
+    "items": [
+      {
+        "event_id": "2c6ceb35-ce9d-4885-ba52-dbd5d99dfdf9",
+        "resource_id": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+        "kind": "plans",
+        "action": "complete_stage",
+        "occurred_at": "2026-10-07T15:28:09.893309Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Sesión completada",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&history=1"
+      },
+      {
+        "event_id": "8fec18cf-8205-4980-820e-d428fdefa9bc",
+        "resource_id": "f50be4d8-4ab7-4340-a954-f9b51426e4da",
+        "kind": "treatments",
+        "action": "edited",
+        "occurred_at": "2026-10-07T15:28:09.890737Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Procedimiento editado",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&treatment=f50be4d8-4ab7-4340-a954-f9b51426e4da&history=1"
+      },
+      {
+        "event_id": "1dbf4f90-3193-4eb1-982e-cf2d79c0e2c0",
+        "resource_id": "26ef4758-2049-44ce-9e39-7fa714c42592",
+        "kind": "clinical_notes",
+        "action": "created",
+        "occurred_at": "2026-10-07T15:28:09.885510Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Nota clínica creada",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=diagnosis&dental_note=26ef4758-2049-44ce-9e39-7fa714c42592"
+      },
+      {
+        "event_id": "1b2d586b-2cc7-4039-b725-37639ec0da20",
+        "resource_id": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+        "kind": "plans",
+        "action": "complete_stage",
+        "occurred_at": "2026-10-07T15:28:09.527891Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Sesión completada",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&history=1"
+      },
+      {
+        "event_id": "5409bd36-4f7f-43a0-af0d-aac40701530d",
+        "resource_id": "f50be4d8-4ab7-4340-a954-f9b51426e4da",
+        "kind": "treatments",
+        "action": "edited",
+        "occurred_at": "2026-10-07T15:28:09.525847Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Procedimiento editado",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&treatment=f50be4d8-4ab7-4340-a954-f9b51426e4da&history=1"
+      },
+      {
+        "event_id": "db04fe23-4e0c-4c43-8b58-24ef8be29578",
+        "resource_id": "7e16fd39-35fb-43a6-9ab9-53eadc82069a",
+        "kind": "clinical_notes",
+        "action": "created",
+        "occurred_at": "2026-10-07T15:28:09.519866Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Nota clínica creada",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=diagnosis&dental_note=7e16fd39-35fb-43a6-9ab9-53eadc82069a"
+      },
+      {
+        "event_id": "dba7b2eb-77ae-4ce1-be1a-9381d0f98f46",
+        "resource_id": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+        "kind": "plans",
+        "action": "accept",
+        "occurred_at": "2026-10-07T15:28:09.055913Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Aceptación clínica registrada",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&history=1"
+      },
+      {
+        "event_id": "c3461605-cffb-4ecf-8a3a-c3cea7944065",
+        "resource_id": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+        "kind": "plans",
+        "action": "confirm",
+        "occurred_at": "2026-10-07T15:28:08.892090Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Plan confirmado",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&history=1"
+      },
+      {
+        "event_id": "3ece4674-35fc-4da8-9607-84a9cef69a6f",
+        "resource_id": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+        "kind": "plans",
+        "action": "add_item",
+        "occurred_at": "2026-10-07T15:28:08.260054Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Procedimiento planificado",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&history=1"
+      },
+      {
+        "event_id": "a28b4f1a-e820-4a1c-88c7-0722941abb2e",
+        "resource_id": "f50be4d8-4ab7-4340-a954-f9b51426e4da",
+        "kind": "treatments",
+        "action": "created",
+        "occurred_at": "2026-10-07T15:28:08.253847Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Procedimiento registrado",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&treatment=f50be4d8-4ab7-4340-a954-f9b51426e4da&history=1"
+      },
+      {
+        "event_id": "79bdb942-93e0-4967-b0a5-5dbbf8af405e",
+        "resource_id": "6828bb6d-d67e-460b-be51-acba1cd1ad48",
+        "kind": "plans",
+        "action": "create",
+        "occurred_at": "2026-10-07T15:28:07.885683Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Plan creado",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=6828bb6d-d67e-460b-be51-acba1cd1ad48&history=1"
+      },
+      {
+        "event_id": "1d8b28b6-771d-42d1-993a-d54104ac1f56",
+        "resource_id": "f3c7a5ec-06e5-4250-88d6-53f06c0a57f8",
+        "kind": "treatments",
+        "action": "created",
+        "occurred_at": "2026-10-07T15:28:07.674200Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Procedimiento registrado",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=diagnosis&treatment=f3c7a5ec-06e5-4250-88d6-53f06c0a57f8"
+      },
+      {
+        "event_id": "c9aaf098-ca42-4052-bc57-792696c7f438",
+        "resource_id": "d7964105-9d63-4610-bea5-8162cad6f742",
+        "kind": "diagnoses",
+        "action": "created",
+        "occurred_at": "2026-10-07T15:28:07.474338Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Condición registrada",
+        "tooth_fdi": 16,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&condition=d7964105-9d63-4610-bea5-8162cad6f742"
+      },
+      {
+        "event_id": "6e1ee013-2f45-4631-b993-3fb1f2afe7b5",
+        "resource_id": "2169203a-1f46-4b92-a317-cefc5b14112d",
+        "kind": "plans",
+        "action": "create",
+        "occurred_at": "2026-10-07T15:28:06.794547Z",
+        "actor": {
+          "user_id": "25ee2ec3-c626-4225-af97-87b2a2e677bd",
+          "display_name": null
+        },
+        "title": "Plan creado",
+        "tooth_fdi": null,
+        "href": "/patients/d41406dd-5c1b-4a3f-b324-c3b3cb56d218?tab=clinical&clinical=plans&plan=2169203a-1f46-4b92-a317-cefc5b14112d&history=1"
+      }
+    ],
+    "next_cursor": null,
+    "total": 14
+  }
+}
