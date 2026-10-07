@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { fdiTeeth } from '../components/patients/toothGeometry';
 import {
   ApiError,
   type CorrectPatientCondition,
   type CorrectPatientTreatment,
   type CreatePatientCondition,
   type CreatePatientTreatment,
+  type Dentition,
   type EditPatientTreatment,
   type PatientCondition,
   type PatientTreatment,
@@ -36,6 +38,10 @@ type TreatmentAttempt =
   | { kind: 'treatment-correct'; id: string; body: CorrectPatientTreatment };
 type DentalAttempt = ApplicationAttempt | UndoAttempt | TreatmentAttempt;
 interface DentalWorkspace {
+  selectedTeeth: number[];
+  selectionMode: 'range' | 'free';
+  setSelectionMode: (mode: 'range' | 'free') => void;
+  selectMember: (tooth: number, dentition: Dentition) => void;
   activeTool: string | null;
   selectTool: (code: string | null) => void;
   busy: boolean;
@@ -79,6 +85,9 @@ export function useDentalWorkspace(
   onCommitted: (record?: PatientCondition) => void,
 ): DentalWorkspace {
   const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [selectedTeeth, setSelectedTeeth] = useState<number[]>([]);
+  const [selectionMode, setSelectionMode] = useState<'range' | 'free'>('range');
+  const rangeStart = useRef<number | null>(null);
   const [attempt, setAttempt] = useState<DentalAttempt | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +199,8 @@ export function useDentalWorkspace(
       if (!alive.current || mountedPatient.current !== patientId) return false;
       setAttempt(null);
       setActiveTool(null);
+      setSelectedTeeth([]);
+      rangeStart.current = null;
       setApplied(record ?? null);
       setAppliedTreatment(command.kind === 'treatment-apply' ? (treatment ?? null) : null);
       if (treatment) {
@@ -254,8 +265,47 @@ export function useDentalWorkspace(
     });
   };
   return {
+    selectedTeeth,
+    selectionMode,
+    setSelectionMode: (mode): void => {
+      setSelectionMode(mode);
+      setSelectedTeeth([]);
+      rangeStart.current = null;
+    },
+    selectMember: (tooth, dentition): void => {
+      const upper = (n: number): boolean => [1, 2, 5, 6].includes(Math.floor(n / 10));
+      if (selectedTeeth.length && upper(selectedTeeth[0]) !== upper(tooth)) {
+        setError('Selecciona piezas de la misma arcada.');
+        return;
+      }
+      setError(null);
+      if (selectionMode === 'free') {
+        setSelectedTeeth((current) =>
+          current.includes(tooth)
+            ? current.filter((n) => n !== tooth)
+            : [...current, tooth].sort((a, b) => a - b),
+        );
+      } else {
+        const start = rangeStart.current;
+        if (start === null) {
+          rangeStart.current = tooth;
+          setSelectedTeeth([tooth]);
+        } else {
+          const arch = fdiTeeth(dentition).filter((n) => upper(n) === upper(tooth));
+          const a = arch.indexOf(start);
+          const b = arch.indexOf(tooth);
+          setSelectedTeeth(arch.slice(Math.min(a, b), Math.max(a, b) + 1).sort((x, y) => x - y));
+          rangeStart.current = null;
+        }
+      }
+    },
     activeTool,
-    selectTool: setActiveTool,
+    selectTool: (code): void => {
+      setSelectedTeeth([]);
+      rangeStart.current = null;
+      setSelectionMode('range');
+      setActiveTool(code);
+    },
     busy,
     error,
     attempt,
@@ -269,6 +319,8 @@ export function useDentalWorkspace(
         setError(null);
         setLatestTreatment(null);
         setActiveTool(null);
+        setSelectedTeeth([]);
+        rangeStart.current = null;
         onCommitted();
       }
     },

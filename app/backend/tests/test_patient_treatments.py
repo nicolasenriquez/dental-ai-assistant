@@ -412,3 +412,211 @@ async def test_treatment_saved_variant_snapshots(treatment_db):
         assert {row["clinical_type"] for row in saved} == {"crown"}
         assert {row["label_es"] for row in saved} == {"Corona metal-cerámica", "Corona zirconio"}
         assert (await client.get(base)).json()["total"] == 2
+
+
+async def test_anatomical_scope_http_validation(monkeypatch):
+    from backend.patients import treatment_service
+
+    calls = []
+
+    async def capture(owner, patient, identifier, body):
+        calls.append(body.model_dump(mode="json"))
+        return {"committed": calls[-1]}, True
+
+    monkeypatch.setattr(treatment_service, "execute", capture)
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4())}
+    base = f"/api/patients/{uuid4()}/dental-treatments"
+    bridge = {
+        "id": str(uuid4()),
+        "operation_id": str(uuid4()),
+        "expected_revision": 0,
+        "variant_id": "REST-BRIDGE-MC",
+        "dentition": "permanent",
+        "teeth": [{"tooth_fdi": 16, "role": "pillar"}, {"tooth_fdi": 15, "role": "pontic"}],
+    }
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            response = await client.post(base, json=bridge)
+            assert response.status_code == 201, response.text
+            assert [m["tooth_fdi"] for m in calls[-1]["teeth"]] == [15, 16]
+            for variant in ("REST-SPLINT-PERIO", "PERIO-SPLINT-RAR"):
+                response = await client.post(
+                    base,
+                    json={
+                        **bridge,
+                        "variant_id": variant,
+                        "teeth": [{"tooth_fdi": 11}, {"tooth_fdi": 21}],
+                    },
+                )
+                assert response.status_code == 201, response.text
+            for dentition in ("permanent", "primary"):
+                response = await client.post(
+                    base,
+                    json={
+                        **bridge,
+                        "variant_id": "REST-SPLINT-OCC",
+                        "dentition": dentition,
+                        "teeth": [],
+                        "arch": "upper",
+                    },
+                )
+                assert response.status_code == 201, response.text
+                assert calls[-1]["teeth"] == [] and calls[-1]["arch"] == "upper"
+            count = len(calls)
+            for change in (
+                {"teeth": bridge["teeth"][:1]},
+                {"teeth": [bridge["teeth"][0], bridge["teeth"][0]]},
+                {
+                    "teeth": [
+                        {"tooth_fdi": 16, "role": "pillar"},
+                        {"tooth_fdi": 46, "role": "pontic"},
+                    ]
+                },
+                {
+                    "teeth": [
+                        {"tooth_fdi": 16, "role": "pontic"},
+                        {"tooth_fdi": 15, "role": "pontic"},
+                    ]
+                },
+                {"teeth": [{"tooth_fdi": 16}, {"tooth_fdi": 15}]},
+                {"dentition": "primary"},
+                {"arch": "upper"},
+                {"variant_id": "ORTO-BRACK"},
+                {"variant_id": "REST-SPLINT-OCC", "arch": "upper"},
+                {"variant_id": "REST-SPLINT-OCC", "teeth": []},
+                {"variant_id": "REST-SPLINT-OCC", "teeth": [], "arch": "mouth"},
+                {
+                    "teeth": [
+                        {"tooth_fdi": 16, "role": "pillar", "surfaces": ["M"]},
+                        bridge["teeth"][1],
+                    ]
+                },
+                {"variant_id": "REST-SPLINT-PERIO"},
+            ):
+                assert (await client.post(base, json={**bridge, **change})).status_code == 422
+            assert len(calls) == count
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_scope_expansion_preserves_old_single_tooth_receipt_hash():
+    from backend.patients.treatment_service import execute
+    from backend.patients.treatments import CreateTreatment
+
+    body = {
+        "id": str(uuid4()),
+        "operation_id": str(uuid4()),
+        "expected_revision": 0,
+        "variant_id": "ORTO-BRACK",
+        "dentition": "permanent",
+        "teeth": [{"tooth_fdi": 16, "role": "tooth", "surfaces": []}],
+        "note": None,
+    }
+
+    async def old_receipt(owner, patient, identifier, action, payload):
+        assert payload == body
+        return {"old": "receipt"}, False
+
+    assert await execute(
+        uuid4(),
+        uuid4(),
+        UUID(body["id"]),
+        CreateTreatment.model_validate(body),
+        adapter=old_receipt,
+    ) == ({"old": "receipt"}, False)
+
+
+async def test_multi_arch_atomic_reads_replay_and_rollback(treatment_db, monkeypatch):
+    from backend.db import patient_treatments_repo as repo
+
+    pool, owner, foreign, patient = treatment_db
+    base = f"/api/patients/{patient}/dental-treatments"
+    body = {
+        "id": str(uuid4()),
+        "operation_id": str(uuid4()),
+        "expected_revision": 0,
+        "variant_id": "REST-BRIDGE-ZIR",
+        "dentition": "permanent",
+        "teeth": [
+            {"tooth_fdi": 16, "role": "pillar"},
+            {"tooth_fdi": 15, "role": "pontic"},
+            {"tooth_fdi": 14, "role": "pillar"},
+        ],
+    }
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://testserver"
+    ) as client:
+        for change in (
+            {"teeth": body["teeth"][:1]},
+            {"teeth": [body["teeth"][0], body["teeth"][0]]},
+            {"teeth": [{"tooth_fdi": 16, "role": "pillar"}, {"tooth_fdi": 36, "role": "pontic"}]},
+            {"teeth": [{"tooth_fdi": 16}, {"tooth_fdi": 15}]},
+            {"dentition": "primary"},
+            {"variant_id": "REST-SPLINT-OCC", "teeth": []},
+        ):
+            assert (await client.post(base, json={**body, **change})).status_code == 422
+        async with pool.acquire() as conn:
+            for table in (
+                "patient_dental_treatments",
+                "patient_dental_treatment_teeth",
+                "patient_dental_treatment_revisions",
+                "patient_clinical_commands",
+            ):
+                assert (
+                    await conn.fetchval(
+                        f"SELECT count(*) FROM {table} WHERE patient_id=$1", patient
+                    )
+                    == 0
+                )
+        response = await client.post(base, json=body)
+        assert response.status_code == 201, response.text
+        receipt = response.json()
+        assert [m["role"] for m in receipt["committed"]["teeth"]] == ["pillar", "pontic", "pillar"]
+        assert (
+            await client.post(base, json={**body, "teeth": list(reversed(body["teeth"]))})
+        ).json() == receipt
+        arch = {
+            **body,
+            "id": str(uuid4()),
+            "operation_id": str(uuid4()),
+            "variant_id": "REST-SPLINT-OCC",
+            "teeth": [],
+            "arch": "lower",
+        }
+        response = await client.post(base, json=arch)
+        assert response.status_code == 201, response.text
+        snapshot = response.json()["committed"]
+        assert snapshot["arch"] == "lower" and snapshot["teeth"] == []
+        assert (await client.get(f"{base}/{arch['id']}")).json() == snapshot
+        assert (await client.get(base)).json()["total"] == 2
+        app.dependency_overrides[get_current_user] = lambda: {"id": str(foreign)}
+        assert (await client.get(f"{base}/{arch['id']}")).status_code == 404
+        assert (await client.post(base, json=arch)).status_code == 404
+        app.dependency_overrides[get_current_user] = lambda: {"id": str(owner)}
+        original = repo._revision
+
+        async def fail(*args, **kwargs):
+            raise RuntimeError("Injected multi-member revision failure")
+
+        monkeypatch.setattr(repo, "_revision", fail)
+        failed = {**body, "id": str(uuid4()), "operation_id": str(uuid4())}
+        with pytest.raises(RuntimeError):
+            await client.post(base, json=failed)
+        monkeypatch.setattr(repo, "_revision", original)
+        async with pool.acquire() as conn:
+            for table in (
+                "patient_dental_treatments",
+                "patient_dental_treatment_teeth",
+                "patient_dental_treatment_revisions",
+                "patient_clinical_commands",
+            ):
+                expected = 3 if table == "patient_dental_treatment_teeth" else 2
+                assert (
+                    await conn.fetchval(
+                        f"SELECT count(*) FROM {table} WHERE patient_id=$1", patient
+                    )
+                    == expected
+                )
+        assert (await client.post(base, json=failed)).status_code == 201

@@ -27,10 +27,11 @@ async def execute(
         if isinstance(body, EditTreatment)
         else "correct"
     )
-    return await adapter(
-        owner,
-        patient,
-        identifier,
-        action,
-        body.model_dump(mode="json", exclude_unset=isinstance(body, EditTreatment)),
-    )
+    payload = body.model_dump(mode="json", exclude_unset=isinstance(body, EditTreatment))
+    # Keep pre-Slice3 single-tooth payload hashes replayable after expanding the input schema.
+    if payload.get("arch") is None:
+        payload.pop("arch", None)
+    replacement = payload.get("replacement")
+    if replacement and replacement.get("arch") is None:
+        replacement.pop("arch", None)
+    return await adapter(owner, patient, identifier, action, payload)

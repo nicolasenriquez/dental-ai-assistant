@@ -167,8 +167,8 @@ refresh/rebase rather than overwriting newer work.
 `GET /api/patients/treatment-catalog` requires authentication and returns
 `dental-clinical-v1`, eight Spanish categories, 63 therapeutic variants and twelve preserved
 finding codes. Variants include scope, supported surfaces/dentitions, visual family, icon key and
-separate palette/layer roles. Only single-tooth variants are enabled in this slice; multi-tooth and
-whole-arch entries include a disabled explanation and their commands return422.
+separate palette/layer roles. All63 variants are enabled; their catalog scope governs anatomical
+validation independently from their icon or clinical type.
 
 | Endpoint | Behavior |
 | --- | --- |
@@ -180,11 +180,24 @@ whole-arch entries include a disabled explanation and their commands return422.
 | `GET /api/patients/{p}/dental-treatments/{t}/revisions` | Actor/time, before/after and correction evidence |
 
 Create body contains stable UUID `id`, UUID `operation_id`, `expected_revision:0`, `variant_id`,
-`dentition`, one `teeth:[{tooth_fdi,role:"tooth",surfaces:[]}]` member and optional `note` (max1000).
+`dentition`, `teeth:[{tooth_fdi,role,surfaces:[]}]` and optional `note` (max1000).
 The server snapshots Spanish variant metadata, sets `state:"existing"` and
 `provenance:"observed_existing"`, and derives actor/time. It creates no finding or planned execution.
 FDI must match the dentition; surfaces are canonical M/D/O/V/L, unique and supported by the variant.
 No pediatric-only or vestibular-only restriction is inferred from a label or icon.
+
+- `tooth` requires exactly one member with `role:"tooth"` and no arch.
+- `multi_tooth` requires at least two unique valid members in the same arch. Bridges require
+  explicit `pillar`/`pontic` roles and at least one pillar; splints use `role:"tooth"`.
+- `global_arch` requires `arch:"upper"|"lower"` and `teeth:[]`, without individual FDI members.
+  `REST-SPLINT-OCC` records an existing appliance in diagnosis; it is not forced onto one tooth
+  because its clinical type is splint.
+
+Members are canonicalized by ascending FDI and surfaces by M/D/O/V/L before receipt hashing.
+Reordered equivalent members replay the same command. Single-tooth commands omit null arch from
+their canonical payload so pre-expansion command receipts remain replayable. Invalid anatomy
+persists no treatment, member, revision or receipt. Diagnosis shows a shared procedure ID at each
+member, one list record per procedure, affected-tooth totals and separate whole-arch context.
 
 PATCH contains `operation_id`, current `expected_revision`, and `note` and/or `surfaces`.
 Correction contains `operation_id`, current `expected_revision`, nonempty `reason` (max1000) and

@@ -16,6 +16,92 @@ async function syntheticPatient(page:Page):Promise<string> {
 }
 
 test.use({ storageState: path.join(os.tmpdir(), 'ai-tutor-playwright', 'auth.json') });
+test('mirror slice3 atomic bridge roles, free primary splint and whole-arch reload', async ({ page }) => {
+  test.skip(process.env.E2E_BASE_URL !== 'http://localhost:8001', 'Isolated E2E only');
+  const patientId = await syntheticPatient(page);
+  const base = `/api/patients/${patientId}/dental-treatments`;
+  await page.goto(`/patients/${patientId}?tab=clinical&clinical=diagnosis`);
+  await expect(page.getByText('Cargando procedimientos…')).toBeHidden();
+  const categories = page.getByRole('group', { name: 'Categorías', exact: true });
+  await categories.getByRole('button', { name: 'Restauradora', exact: true }).click();
+  await page.getByRole('button', { name: 'Puente zirconio', exact: true }).click();
+  await page.getByRole('button', { name: /^Pieza 16:/ }).click();
+  await page.getByRole('button', { name: /^Pieza 14:/ }).click();
+  expect((await (await page.request.get(base)).json()).total).toBe(0);
+  await page.getByRole('button', { name: 'Revisar selección', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'Confirmar procedimiento en varias piezas', exact: true });
+  await expect(modal.getByLabel('Rol de pieza 15')).toHaveValue('pontic');
+  await page.screenshot({ path: test.info().outputPath('slice3-bridge-roles.png') });
+  await modal.getByRole('button', { name: 'Confirmar', exact: true }).click();
+  await expect(modal).toBeHidden();
+  const bridge = (await (await page.request.get(base)).json()).items[0];
+  expect(bridge).toMatchObject({ scope: 'multi_tooth', variant_id: 'REST-BRIDGE-ZIR', teeth: [
+    { tooth_fdi: 14, role: 'pillar', surfaces: [] }, { tooth_fdi: 15, role: 'pontic', surfaces: [] },
+    { tooth_fdi: 16, role: 'pillar', surfaces: [] },
+  ] });
+  await page.reload();
+  await expect(page.getByText('1 registros en 3 piezas', { exact: true })).toBeVisible();
+  await expect(page.locator(`[data-treatment-connector="${bridge.id}"]`)).toHaveCount(1);
+  for (const tooth of [14, 15, 16]) {
+    await page.getByRole('button', { name: new RegExp(`^Pieza ${tooth}:`) }).click();
+    const inspector = page.getByRole('dialog', { name: `Pieza ${tooth}`, exact: true });
+    await expect(inspector.getByText('Puente zirconio · Existente', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+  }
+  await categories.getByRole('button', { name: 'Restauradora', exact: true }).click();
+  await page.getByRole('button', { name: 'Férula de descarga', exact: true }).click();
+  const picker = page.getByRole('dialog', { name: 'Seleccionar arcada', exact: true });
+  let command: unknown;
+  await page.route(`**${base}`, async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    command = route.request().postDataJSON();
+    await route.fetch(); await route.abort();
+  }, { times: 1 });
+  await picker.getByRole('button', { name: 'Arcada superior', exact: true }).click();
+  await expect(picker.getByRole('button', { name: 'Reintentar operación', exact: true })).toBeVisible();
+  const retry = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith(base));
+  await picker.getByRole('button', { name: 'Reintentar operación', exact: true }).click();
+  expect((await retry).postDataJSON()).toEqual(command);
+  await expect(picker).toBeHidden();
+  await page.reload();
+  const archRow = page.getByRole('article', { name: 'Arcada superior · Férula de descarga · Existente', exact: true });
+  await expect(archRow).toBeVisible();
+  await archRow.getByRole('button', { name: 'Editar / Historial de procedimiento', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Editar procedimiento', exact: true });
+  await editor.getByLabel('Nota de procedimiento').fill('Aparato existente sintético');
+  await editor.getByRole('button', { name: 'Guardar procedimiento', exact: true }).click();
+  await expect(editor).toBeHidden();
+  const records = (await (await page.request.get(base)).json()).items;
+  const arch = records.find((r: {scope:string}) => r.scope === 'global_arch');
+  expect(arch).toMatchObject({ arch: 'upper', teeth: [], note: 'Aparato existente sintético', revision: 2 });
+  expect((await (await page.request.get(`${base}/${arch.id}/revisions`)).json()).total).toBe(2);
+  await page.getByRole('heading', { name: 'Odontograma FDI' }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('slice3-chart-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('button', { name: 'Temporal', exact: true }).click();
+  await categories.getByRole('button', { name: 'Restauradora', exact: true }).click();
+  await page.getByRole('button', { name: 'Férula periodontal de contención', exact: true }).click();
+  await page.getByRole('button', { name: 'Selección libre', exact: true }).click();
+  await page.getByLabel('Seleccionar pieza FDI', { exact: true }).selectOption('51');
+  await page.getByLabel('Seleccionar pieza FDI', { exact: true }).selectOption('61');
+  await page.getByRole('tab', { name: 'Información', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Condición sin guardar', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Seguir editando', exact: true }).click();
+  await page.getByRole('button', { name: 'Revisar selección', exact: true }).click();
+  await expect(modal.getByText('Pieza 51', { exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('slice3-primary-narrow.png') });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await modal.getByRole('button', { name: 'Confirmar', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(modal).toBeHidden();
+  await page.reload();
+  await page.getByRole('button', { name: 'Temporal', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'Piezas 51, 61 · Férula periodontal de contención · Existente', exact: true })).toBeVisible();
+  expect((await (await page.request.get(base)).json()).total).toBe(3);
+  expect((await (await page.request.get(`/api/patients/${patientId}/conditions`)).json()).total).toBe(0);
+  await test.info().attach('slice3-persisted-ids', { body: JSON.stringify({patientId, bridgeId:bridge.id, archId:arch.id, archRevision:arch.revision}), contentType:'application/json' });
+});
 test('mirror slice2 existing bracket, variants, exact replay, conflict and correction history', async ({ page }) => {
   test.skip(process.env.E2E_BASE_URL !== 'http://localhost:8001', 'Isolated E2E only');
   const patientId = await syntheticPatient(page);
@@ -27,7 +113,7 @@ test('mirror slice2 existing bracket, variants, exact replay, conflict and corre
   await categories.getByRole('button', { name: 'Restauradora', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Corona metal-cerámica', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Corona zirconio', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Puente metal-cerámica', exact: true })).toBeDisabled();
+   await expect(page.getByRole('button', { name: 'Puente metal-cerámica', exact: true })).toBeEnabled();
   await page.screenshot({ path: test.info().outputPath('slice2-catalog-desktop.png') });
   await categories.getByRole('button', { name: 'Ortodoncia', exact: true }).click();
   const tool = page.getByRole('button', { name: 'Bracket individual (reposición)', exact: true });
@@ -155,7 +241,7 @@ test('mirror slice1 inspection, direct application, surface confirmation, retry,
   await edit.getByLabel('Nota de condición').fill('Edición sintética Slice1');
   await edit.getByRole('button', { name: 'Guardar condición', exact: true }).click();
   await expect(edit).toBeHidden();
-  await expect(row.getByText('Edición sintética Slice1', { exact: true })).toBeVisible();
+  await expect(row.locator(':scope > p').filter({ hasText: /^Edición sintética Slice1$/ })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel('Seleccionar pieza FDI').selectOption('16');
   await expect(page.getByRole('dialog', { name: 'Pieza 16', exact: true })).toBeVisible();

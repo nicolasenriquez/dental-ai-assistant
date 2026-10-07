@@ -34,14 +34,20 @@ const variants: TreatmentVariant[] = [
   ['REST-CROWN-ZIR', 'Corona zirconio', 'restorative', 'crown'],
   ['REST-COMP', 'Obturación composite', 'restorative', 'filling_composite'],
   ['REST-BRIDGE-MC', 'Puente metal-cerámica', 'restorative', 'bridge'],
+  ['REST-SPLINT-OCC', 'Férula de descarga', 'restorative', 'splint'],
 ].map(([id, label_es, category_key, clinical_type]) => ({
   id,
   label_es,
   category_key,
   clinical_type,
-  scope: clinical_type === 'bridge' ? 'multi_tooth' : 'tooth',
-  enabled: clinical_type !== 'bridge',
-  disabled_reason: clinical_type === 'bridge' ? 'Próxima etapa' : null,
+  scope:
+    clinical_type === 'bridge'
+      ? 'multi_tooth'
+      : clinical_type === 'splint'
+        ? 'global_arch'
+        : 'tooth',
+  enabled: true,
+  disabled_reason: null,
   surface_codes: clinical_type === 'filling_composite' ? ['M', 'D', 'O', 'V', 'L'] : [],
   allowed_dentitions: ['permanent', 'primary'],
   visual_family: 'lateral',
@@ -139,7 +145,7 @@ it('applies existing bracket once, retains exact uncertain command and logically
   );
 });
 
-it('distinguishes crown variants and explains disabled anatomical scopes', async () => {
+it('distinguishes crown variants and enables anatomical scopes', async () => {
   mount();
   fireEvent.click(await screen.findByRole('button', { name: 'Restauradora' }));
   const metal = screen.getByRole('button', { name: 'Corona metal-cerámica' });
@@ -149,8 +155,117 @@ it('distinguishes crown variants and explains disabled anatomical scopes', async
   fireEvent.click(zirconia);
   expect(zirconia).toHaveAttribute('aria-pressed', 'true');
   expect(metal).toHaveAttribute('aria-pressed', 'false');
-  expect(screen.getByRole('button', { name: 'Puente metal-cerámica' })).toBeDisabled();
-  expect(screen.getByText(/Requiere selección de varias piezas/)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Puente metal-cerámica' })).toBeEnabled();
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
+it('selects a chart range, confirms bridge roles once and preserves shared record identity', async () => {
+  const bridge: PatientTreatment = {
+    ...saved,
+    variant_id: 'REST-BRIDGE-MC',
+    label_es: 'Puente metal-cerámica',
+    clinical_type: 'bridge',
+    scope: 'multi_tooth',
+    teeth: [
+      { tooth_fdi: 14, role: 'pillar', surfaces: [] },
+      { tooth_fdi: 15, role: 'pontic', surfaces: [] },
+      { tooth_fdi: 16, role: 'pillar', surfaces: [] },
+    ],
+  };
+  mocks.create.mockImplementation(async () => {
+    mocks.list.mockResolvedValue({ items: [bridge], total: 1, next_cursor: null });
+    return { committed: bridge };
+  });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Restauradora' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Puente metal-cerámica' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 16:/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 14:/ }));
+  expect(mocks.create).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Revisar selección' }));
+  const modal = await screen.findByRole('dialog', {
+    name: 'Confirmar procedimiento en varias piezas',
+  });
+  expect(within(modal).getByLabelText('Rol de pieza 15')).toHaveValue('pontic');
+  fireEvent.click(within(modal).getByRole('button', { name: 'Confirmar' }));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
+  expect(mocks.create.mock.calls[0][1]).toMatchObject({
+    variant_id: bridge.variant_id,
+    teeth: bridge.teeth,
+  });
+  expect(await screen.findByText('1 registros en 3 piezas')).toBeVisible();
+  for (const tooth of [14, 15, 16]) {
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^Pieza ${tooth}:`) }));
+    const inspector = await screen.findByRole('dialog', { name: `Pieza ${tooth}` });
+    expect(inspector).toHaveTextContent(bridge.label_es);
+    fireEvent.keyDown(inspector, { key: 'Escape' });
+  }
+});
+
+it('whole-arch picker writes no FDI, retries exact command and renders separate arch context', async () => {
+  const arch: PatientTreatment = {
+    ...saved,
+    variant_id: 'REST-SPLINT-OCC',
+    label_es: 'Férula de descarga',
+    clinical_type: 'splint',
+    scope: 'global_arch',
+    arch: 'upper',
+    teeth: [],
+  };
+  mocks.create
+    .mockRejectedValueOnce(new TypeError('Response lost'))
+    .mockImplementationOnce(async () => {
+      mocks.list.mockResolvedValue({ items: [arch], total: 1, next_cursor: null });
+      return { committed: arch };
+    });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Restauradora' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Férula de descarga' }));
+  const picker = await screen.findByRole('dialog', { name: 'Seleccionar arcada' });
+  expect(mocks.create).not.toHaveBeenCalled();
+  fireEvent.click(within(picker).getByRole('button', { name: 'Arcada superior' }));
+  fireEvent.click(await within(picker).findByRole('button', { name: 'Reintentar operación' }));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
+  expect(mocks.create.mock.calls[0][1]).toEqual(mocks.create.mock.calls[1][1]);
+  expect(mocks.create.mock.calls[0][1]).toMatchObject({ teeth: [], arch: 'upper' });
+  expect(await screen.findByRole('article', { name: /Arcada superior.*Férula/ })).toBeVisible();
+  expect(screen.getByText(/1 registros en 0 piezas/)).toHaveTextContent('1 arcadas');
+  fireEvent.click(screen.getByRole('button', { name: 'Editar / Historial de procedimiento' }));
+  expect(await screen.findByRole('dialog', { name: 'Editar procedimiento' })).toHaveTextContent(
+    'Arcada superior',
+  );
+});
+
+it('free selection rejects mixed arches, guards dentition change and cancels without writes', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Restauradora' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Puente metal-cerámica' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Selección libre' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 11:/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 21:/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 41:/ }));
+  expect(screen.getByText('Selecciona piezas de la misma arcada.')).toBeVisible();
+  expect(screen.getByRole('button', { name: /^Pieza 41:/ })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Temporal' }));
+  const guard = await screen.findByRole('dialog', { name: 'Condición sin guardar' });
+  fireEvent.click(within(guard).getByRole('button', { name: 'Seguir editando' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Revisar selección' }));
+  const modal = await screen.findByRole('dialog', {
+    name: 'Confirmar procedimiento en varias piezas',
+  });
+  fireEvent.change(within(modal).getByLabelText('Rol de pieza 11'), {
+    target: { value: 'pontic' },
+  });
+  fireEvent.change(within(modal).getByLabelText('Rol de pieza 21'), {
+    target: { value: 'pontic' },
+  });
+  expect(within(modal).getByRole('button', { name: 'Confirmar' })).toBeDisabled();
+  fireEvent.keyDown(modal, { key: 'Escape' });
+  fireEvent.click(await screen.findByRole('button', { name: 'Descartar condición' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(mocks.create).not.toHaveBeenCalled();
 });
 

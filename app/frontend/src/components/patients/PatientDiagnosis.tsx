@@ -29,6 +29,7 @@ import {
   resolveCondition,
   surfaceDescription,
 } from '../../lib/odontogramPresentation';
+import { treatmentAnatomy, treatmentMembers } from '../../lib/treatmentAnatomy';
 import { PatientIdentity } from '../PatientIdentity';
 import { Spinner } from '../Spinner';
 import { Button } from '../ui/Button';
@@ -50,6 +51,7 @@ import { PatientOdontogram } from './PatientOdontogram';
 import { ToothDrawing } from './ToothDrawing';
 import { ToothInspectionPopover } from './ToothInspectionPopover';
 import { TreatmentRecordModal } from './TreatmentRecordModal';
+import { TreatmentScopeModal } from './TreatmentScopeModal';
 import { TreatmentSymbol } from './TreatmentSymbol';
 import { fdiTeeth, toothFamily } from './toothGeometry';
 
@@ -151,6 +153,7 @@ function PatientDiagnosisWorkspace({
   const [draft, setDraft] = useState<ConditionDraft | null>(null);
   const [treatmentEdit, setTreatmentEdit] = useState<PatientTreatment | null>(null);
   const [treatmentDirty, setTreatmentDirty] = useState(false);
+  const [scopeReview, setScopeReview] = useState(false);
   const [treatmentSaveAvailable, setTreatmentSaveAvailable] = useState(false);
   const treatmentSaveRef = useRef<(() => Promise<void>) | null>(null);
   const [inspection, setInspection] = useState<{ tooth: number; anchor: HTMLElement } | null>(null);
@@ -343,7 +346,12 @@ function PatientDiagnosisWorkspace({
           ? false
           : status === 'all' || r.state === 'existing' || r.state === 'performed'),
   );
-  const dirty = recordDirty || treatmentDirty || !!surfaceSelection || !!dental.attempt;
+  const dirty =
+    recordDirty ||
+    treatmentDirty ||
+    !!surfaceSelection ||
+    !!dental.attempt ||
+    dental.selectedTeeth.length > 0;
   const applyChart = (tooth: number, codes: ToothSurface[]): Promise<boolean> => {
     if (!dental.activeTool) return Promise.resolve(false);
     return activeVariant
@@ -371,7 +379,10 @@ function PatientDiagnosisWorkspace({
     });
   };
   useEffect(() => {
-    if (!dental.activeTool) setSurfaceSelection(null);
+    if (!dental.activeTool) {
+      setSurfaceSelection(null);
+      setScopeReview(false);
+    }
   }, [dental.activeTool]);
   useEffect(() => {
     void loadFocused();
@@ -413,6 +424,7 @@ function PatientDiagnosisWorkspace({
   };
   const reset = (): void => {
     setTreatmentEdit(null);
+    setScopeReview(false);
     setTreatmentDirty(false);
     dental.selectTool(null);
     setInspection(null);
@@ -502,8 +514,12 @@ function PatientDiagnosisWorkspace({
     const variant = dental.treatmentCatalog?.variants.find((v) => v.id === code);
     if (variant) {
       if (!variant.enabled || draft || treatmentEdit || dental.busy || dental.attempt) return;
-      setInspection(null);
-      dental.selectTool(dental.activeTool === code ? null : code);
+      transition(() => {
+        initiatingRef.current = document.activeElement as HTMLElement;
+        setInspection(null);
+        setScopeReview(false);
+        dental.selectTool(dental.activeTool === code ? null : code);
+      });
       return;
     }
     if (locked || immutable || (draft?.correction && !draft.correction.replacement)) return;
@@ -511,8 +527,10 @@ function PatientDiagnosisWorkspace({
     if (!tool.supported || !tool.allowed_dentitions.includes(draft?.dentition ?? dentition)) return;
     if (!draft) {
       if (dental.busy || dental.attempt) return;
-      setInspection(null);
-      dental.selectTool(dental.activeTool === code ? null : code);
+      transition(() => {
+        setInspection(null);
+        dental.selectTool(dental.activeTool === code ? null : code);
+      });
       return;
     }
     const compatible = !!tool?.surface_codes.length;
@@ -537,6 +555,12 @@ function PatientDiagnosisWorkspace({
       : resolveCondition(catalog, dental.activeTool);
     if (!tool.supported || !tool.allowed_dentitions.includes(dentition)) return;
     setInspection(null);
+    if (activeVariant?.scope === 'global_arch') return;
+    if (activeVariant?.scope === 'multi_tooth') {
+      initiatingRef.current = anchor ?? toothSelectRef.current;
+      dental.selectMember(tooth, dentition);
+      return;
+    }
     if (tool.surface_codes.length && !surface) {
       initiatingRef.current = anchor ?? toothSelectRef.current;
       setSurfaceSelection({ tooth, codes: [] });
@@ -926,11 +950,41 @@ function PatientDiagnosisWorkspace({
           <Button
             variant="clinicalSecondary"
             disabled={dental.busy || !!dental.attempt}
-            onClick={() => dental.selectTool(null)}
+            onClick={() => transition(() => dental.selectTool(null))}
           >
             Cancelar herramienta
           </Button>
         </p>
+      )}
+      {activeVariant?.scope === 'multi_tooth' && (
+        <div className="space-y-2" aria-label="Selección de varias piezas">
+          <div className="flex flex-wrap gap-2">
+            {(['range', 'free'] as const).map((mode) => (
+              <Button
+                key={mode}
+                variant="clinicalSecondary"
+                aria-pressed={dental.selectionMode === mode}
+                disabled={dental.busy || !!dental.attempt}
+                onClick={() => transition(() => dental.setSelectionMode(mode))}
+              >
+                {mode === 'range' ? 'Selección por rango' : 'Selección libre'}
+              </Button>
+            ))}
+          </div>
+          <p className="text-sm">
+            {dental.selectionMode === 'range'
+              ? 'Activa la primera y última pieza del rango.'
+              : 'Activa cada pieza para añadirla o retirarla.'}{' '}
+            Misma arcada. Seleccionadas: {dental.selectedTeeth.join(', ') || 'ninguna'}.
+          </p>
+          <Button
+            variant="clinical"
+            disabled={dental.selectedTeeth.length < 2 || dental.busy || !!dental.attempt}
+            onClick={() => setScopeReview(true)}
+          >
+            Revisar selección
+          </Button>
+        </div>
       )}
       {dental.applied && (
         <div
@@ -954,7 +1008,7 @@ function PatientDiagnosisWorkspace({
           role="status"
           className="flex flex-wrap items-center gap-2 rounded border border-border p-3"
         >
-          Guardada en ficha: pieza {dental.appliedTreatment.teeth[0]?.tooth_fdi} ·{' '}
+          Guardada en ficha: {treatmentAnatomy(dental.appliedTreatment).toLowerCase()} ·{' '}
           {dental.appliedTreatment.label_es}
           <Button
             variant="clinicalSecondary"
@@ -1043,6 +1097,7 @@ function PatientDiagnosisWorkspace({
               focused?.tooth_fdi ??
               0
             }
+            selectedTeeth={dental.selectedTeeth}
             highlightedTooth={highlightedTooth}
             onSelect={chooseTooth}
             surfaceCodes={dental.activeTool ? (activeSurfaceCodes as ToothSurface[]) : []}
@@ -1621,6 +1676,8 @@ function PatientDiagnosisWorkspace({
                 ]).size
               }{' '}
               piezas
+              {currentTreatments.some((r) => r.arch) &&
+                ` · ${new Set(currentTreatments.filter((r) => r.arch).map((r) => r.arch)).size} arcadas`}
               {loading || readError || dental.treatmentLoading || dental.treatmentReadError
                 ? '; no es un total completo'
                 : ''}
@@ -1655,8 +1712,12 @@ function PatientDiagnosisWorkspace({
             {[...visible, ...currentTreatments]
               .sort(
                 (a, b) =>
-                  ('condition_code' in a ? a.tooth_fdi : a.teeth[0].tooth_fdi) -
-                  ('condition_code' in b ? b.tooth_fdi : b.teeth[0].tooth_fdi),
+                  ('condition_code' in a
+                    ? a.tooth_fdi
+                    : (a.teeth[0]?.tooth_fdi ?? (a.arch === 'upper' ? 100 : 101))) -
+                  ('condition_code' in b
+                    ? b.tooth_fdi
+                    : (b.teeth[0]?.tooth_fdi ?? (b.arch === 'upper' ? 100 : 101))),
               )
               .map((record) => (
                 <li key={record.id}>
@@ -1812,18 +1873,18 @@ function PatientDiagnosisWorkspace({
                   ) : (
                     <article
                       className="space-y-2 py-4"
-                      aria-label={`Pieza ${record.teeth[0].tooth_fdi} · ${record.label_es} · ${record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}`}
-                      onMouseEnter={() => setHighlightedTooth(record.teeth[0].tooth_fdi)}
+                      aria-label={`${treatmentAnatomy(record)} · ${record.label_es} · ${record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}`}
+                      onMouseEnter={() => setHighlightedTooth(record.teeth[0]?.tooth_fdi ?? 0)}
                       onMouseLeave={() => setHighlightedTooth(0)}
-                      onFocus={() => setHighlightedTooth(record.teeth[0].tooth_fdi)}
+                      onFocus={() => setHighlightedTooth(record.teeth[0]?.tooth_fdi ?? 0)}
                       onBlur={() => setHighlightedTooth(0)}
                     >
                       <h4 className="font-medium">
-                        Pieza {record.teeth[0].tooth_fdi} · {record.label_es}
+                        {treatmentAnatomy(record)} · {record.label_es}
                       </h4>
                       <p>
                         {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}{' '}
-                        · {record.teeth[0].surfaces.join(', ') || 'Pieza completa'}
+                        · {treatmentMembers(record)}
                       </p>
                       {record.note && (
                         <p className="whitespace-pre-wrap break-words">{record.note}</p>
@@ -1846,100 +1907,122 @@ function PatientDiagnosisWorkspace({
           </ol>
         </div>
       </div>
-      {inspection && !draft && !surfaceSelection && (
-        <ToothInspectionPopover
-          tooth={inspection.tooth}
-          anchor={inspection.anchor}
-          onClose={() => setInspection(null)}
-        >
-          <p className="mt-2 text-sm text-muted">Registros existentes</p>
-          <p className="text-sm">
-            {
-              { incisor: 'Incisivo', canine: 'Canino', premolar: 'Premolar', molar: 'Molar' }[
-                toothFamily(inspection.tooth)
-              ]
-            }{' '}
-            · {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
-          </p>
-          {loading || readError ? <p>Lectura incompleta. Reintenta las condiciones.</p> : null}
-          {!loading &&
-            !readError &&
-            !all.some(
-              (item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition,
-            ) && <p className="text-sm">Sin condiciones guardadas</p>}
-          {all
-            .filter((item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition)
-            .map((record) => (
-              <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
-                <p className="flex items-center gap-2">
-                  <ConditionSymbol code={resolveCondition(catalog, record.condition_code).symbol} />
-                  {labels[record.condition_code]} · {conditionStatus(record.status)}
-                </p>
-                <p>{surfaceDescription(catalog, record.condition_code, record.surfaces)}</p>
-                <div className="flex flex-wrap gap-2">
-                  {record.status === 'active' && (
+      {inspection &&
+        !draft &&
+        !surfaceSelection &&
+        !scopeReview &&
+        activeVariant?.scope !== 'global_arch' && (
+          <ToothInspectionPopover
+            tooth={inspection.tooth}
+            anchor={inspection.anchor}
+            onClose={() => setInspection(null)}
+          >
+            <p className="mt-2 text-sm text-muted">Registros existentes</p>
+            <p className="text-sm">
+              {
+                { incisor: 'Incisivo', canine: 'Canino', premolar: 'Premolar', molar: 'Molar' }[
+                  toothFamily(inspection.tooth)
+                ]
+              }{' '}
+              · {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
+            </p>
+            {loading || readError ? <p>Lectura incompleta. Reintenta las condiciones.</p> : null}
+            {!loading &&
+              !readError &&
+              !all.some(
+                (item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition,
+              ) && <p className="text-sm">Sin condiciones guardadas</p>}
+            {all
+              .filter((item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition)
+              .map((record) => (
+                <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
+                  <p className="flex items-center gap-2">
+                    <ConditionSymbol
+                      code={resolveCondition(catalog, record.condition_code).symbol}
+                    />
+                    {labels[record.condition_code]} · {conditionStatus(record.status)}
+                  </p>
+                  <p>{surfaceDescription(catalog, record.condition_code, record.surfaces)}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {record.status === 'active' && (
+                      <Button
+                        variant="clinicalSecondary"
+                        disabled={!resolveCondition(catalog, record.condition_code).supported}
+                        onClick={() => start(record)}
+                      >
+                        Editar
+                      </Button>
+                    )}
                     <Button
                       variant="clinicalSecondary"
-                      disabled={!resolveCondition(catalog, record.condition_code).supported}
-                      onClick={() => start(record)}
+                      onClick={() => {
+                        setInspection(null);
+                        setHistoryId(record.id);
+                        setFocused(record);
+                        publishFocus(record.id);
+                      }}
                     >
-                      Editar
+                      Historial
                     </Button>
-                  )}
-                  <Button
-                    variant="clinicalSecondary"
-                    onClick={() => {
-                      setInspection(null);
-                      setHistoryId(record.id);
-                      setFocused(record);
-                      publishFocus(record.id);
-                    }}
-                  >
-                    Historial
+                  </div>
+                </div>
+              ))}
+            {currentTreatments
+              .filter((r) => r.teeth.some((m) => m.tooth_fdi === inspection.tooth))
+              .map((record) => (
+                <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
+                  <p>
+                    {record.label_es} ·{' '}
+                    {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}
+                  </p>
+                  <p>
+                    {record.teeth
+                      .find((m) => m.tooth_fdi === inspection.tooth)
+                      ?.surfaces.join(', ') || 'Pieza completa'}
+                  </p>
+                  <Button variant="clinicalSecondary" onClick={() => openTreatment(record)}>
+                    Editar / Historial
                   </Button>
                 </div>
-              </div>
-            ))}
-          {currentTreatments
-            .filter((r) => r.teeth.some((m) => m.tooth_fdi === inspection.tooth))
-            .map((record) => (
-              <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
-                <p>
-                  {record.label_es} ·{' '}
-                  {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}
-                </p>
-                <p>
-                  {record.teeth
-                    .find((m) => m.tooth_fdi === inspection.tooth)
-                    ?.surfaces.join(', ') || 'Pieza completa'}
-                </p>
-                <Button variant="clinicalSecondary" onClick={() => openTreatment(record)}>
-                  Editar / Historial
-                </Button>
-              </div>
-            ))}
-          <Button
-            variant="clinicalSecondary"
-            onClick={() => {
-              setInspection(null);
-              document
-                .querySelector<HTMLElement>('[aria-label="Condiciones disponibles"] button')
-                ?.focus({ preventScroll: true });
-            }}
-          >
-            Registrar
-          </Button>
-          <Button
-            variant="clinicalSecondary"
-            onClick={() => {
-              const anchor = inspection.anchor;
-              setInspection(null);
-              anchor.focus({ preventScroll: true });
-            }}
-          >
-            Cerrar pieza
-          </Button>
-        </ToothInspectionPopover>
+              ))}
+            <Button
+              variant="clinicalSecondary"
+              onClick={() => {
+                setInspection(null);
+                document
+                  .querySelector<HTMLElement>('[aria-label="Condiciones disponibles"] button')
+                  ?.focus({ preventScroll: true });
+              }}
+            >
+              Registrar
+            </Button>
+            <Button
+              variant="clinicalSecondary"
+              onClick={() => {
+                const anchor = inspection.anchor;
+                setInspection(null);
+                anchor.focus({ preventScroll: true });
+              }}
+            >
+              Cerrar pieza
+            </Button>
+          </ToothInspectionPopover>
+        )}
+      {activeVariant && (scopeReview || activeVariant.scope === 'global_arch') && (
+        <TreatmentScopeModal
+          key={activeVariant.id}
+          variant={activeVariant}
+          dentition={dentition}
+          dental={dental}
+          returnFocus={initiatingRef.current}
+          suspended={!!pending}
+          onClose={() => {
+            transition(() => {
+              setScopeReview(false);
+              dental.discard();
+            });
+          }}
+        />
       )}
       {surfaceSelection && dental.activeTool && (
         <DentalConditionModal

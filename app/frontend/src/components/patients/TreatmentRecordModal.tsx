@@ -2,6 +2,7 @@ import { type MutableRefObject, useEffect, useState } from 'react';
 import type { useDentalWorkspace } from '../../hooks/useDentalWorkspace';
 import type { PatientTreatment, ToothSurface } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
+import { treatmentAnatomy, treatmentMembers } from '../../lib/treatmentAnatomy';
 import { Button } from '../ui/Button';
 import { DentalConditionModal } from './DentalConditionModal';
 import { PatientActorLabel } from './PatientActorLabel';
@@ -68,15 +69,14 @@ export function TreatmentRecordModal({
               ? {
                   variant_id: replacement,
                   dentition: base.dentition,
-                  teeth: [
-                    {
-                      ...base.teeth[0],
-                      surfaces: dental.treatmentCatalog?.variants.find((v) => v.id === replacement)
-                        ?.surface_codes.length
-                        ? surfaces
-                        : [],
-                    },
-                  ],
+                  arch: base.arch,
+                  teeth: base.teeth.map((member) => ({
+                    ...member,
+                    surfaces: dental.treatmentCatalog?.variants.find((v) => v.id === replacement)
+                      ?.surface_codes.length
+                      ? surfaces
+                      : [],
+                  })),
                   note: note.trim() || null,
                 }
               : undefined,
@@ -100,8 +100,9 @@ export function TreatmentRecordModal({
     >
       <div className="space-y-3">
         <h3 className="font-semibold">
-          {base.label_es} · Pieza {base.teeth[0]?.tooth_fdi}
+          {base.label_es} · {treatmentAnatomy(base)}
         </h3>
+        <p className="text-sm text-muted">{treatmentMembers(base)}</p>
         <p>
           {immutable ? 'Registrado por error · Solo lectura' : 'Existente · Observación manual'} ·
           Revisión {base.revision}
@@ -177,7 +178,12 @@ export function TreatmentRecordModal({
             >
               <option value="">Sin reemplazo</option>
               {dental.treatmentCatalog?.variants
-                .filter((v) => v.enabled)
+                .filter(
+                  (v) =>
+                    v.enabled &&
+                    v.scope === base.scope &&
+                    (base.scope !== 'multi_tooth' || v.clinical_type === base.clinical_type),
+                )
                 .map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.label_es}
@@ -195,8 +201,8 @@ export function TreatmentRecordModal({
         )}
         {review && (
           <p role="status">
-            Confirmar corrección: {base.label_es}, pieza {base.teeth[0]?.tooth_fdi}. Motivo:{' '}
-            {reason}. Evidencia original: {base.note || 'Sin nota'} ·{' '}
+            Confirmar corrección: {base.label_es}, {treatmentAnatomy(base)}. Motivo: {reason}.
+            Evidencia original: {base.note || 'Sin nota'} ·{' '}
             {base.teeth[0]?.surfaces.join(', ') || 'Pieza completa'}.{' '}
             {replacement
               ? `Reemplazo: ${dental.treatmentCatalog?.variants.find((v) => v.id === replacement)?.label_es}`
@@ -281,7 +287,7 @@ export function TreatmentRecordModal({
               </p>
               <p>
                 {entry.after.label_es} · {entry.after.note || 'Sin nota'} ·{' '}
-                {entry.after.teeth[0]?.surfaces.join(', ') || 'Pieza completa'}
+                {treatmentMembers(entry.after)}
               </p>
               {entry.reason && <p>Motivo: {entry.reason}</p>}
               {entry.before && (

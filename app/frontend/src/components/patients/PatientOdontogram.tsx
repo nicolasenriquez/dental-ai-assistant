@@ -29,6 +29,7 @@ interface OdontogramProps {
   labels: Record<string, string>;
   catalog?: ConditionCatalog | null;
   selectedTooth: number;
+  selectedTeeth?: number[];
   highlightedTooth: number;
   onSelect: (tooth: number, anchor?: HTMLElement, surface?: ToothSurface) => void;
   surfaceCodes?: ToothSurface[];
@@ -50,6 +51,7 @@ export function PatientOdontogram({
   labels,
   catalog,
   selectedTooth,
+  selectedTeeth = [],
   highlightedTooth,
   onSelect,
   surfaceCodes = [],
@@ -152,6 +154,39 @@ export function PatientOdontogram({
           <text x="12" y="358" className="fill-muted" fontSize="11">
             Inferior
           </text>
+          {treatments
+            .filter((r) => r.state !== 'entered_in_error' && r.scope === 'multi_tooth')
+            .map((record) => {
+              const positions = record.teeth
+                .map((member) => teeth.indexOf(member.tooth_fdi))
+                .filter((index) => index >= 0)
+                .sort((a, b) => a - b);
+              return (
+                <g
+                  key={record.id}
+                  data-treatment-connector={record.id}
+                  className="stroke-primary"
+                  fill="none"
+                  strokeWidth="2"
+                >
+                  <title>
+                    {record.label_es}:{' '}
+                    {record.teeth
+                      .map(
+                        (m) =>
+                          `${m.tooth_fdi} ${m.role === 'pillar' ? 'Pilar' : m.role === 'pontic' ? 'Póntico' : ''}`,
+                      )
+                      .join(', ')}
+                  </title>
+                  {positions.slice(1).map((index, k) => (
+                    <path
+                      key={index}
+                      d={`M${41 + (positions[k] % half) * step} ${index < half ? 154 : 201} H${41 + (index % half) * step}`}
+                    />
+                  ))}
+                </g>
+              );
+            })}
           {teeth.map((tooth, index) => {
             const upper = index < half;
             const x = 20 + (index % half) * step;
@@ -170,7 +205,7 @@ export function PatientOdontogram({
                 transform={`translate(${x} ${upper ? 22 : 208})`}
               >
                 <title>{describe(tooth)}</title>
-                {selectedTooth === tooth && (
+                {(selectedTooth === tooth || selectedTeeth.includes(tooth)) && (
                   <rect
                     data-draft-tooth={tooth}
                     x="-1"
@@ -275,7 +310,7 @@ export function PatientOdontogram({
               key={tooth}
               type="button"
               aria-label={describe(tooth)}
-              aria-pressed={selectedTooth === tooth}
+              aria-pressed={selectedTooth === tooth || selectedTeeth.includes(tooth)}
               disabled={disabled}
               className="min-h-[44px] min-w-0 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               onMouseEnter={() => onHighlight(tooth)}
@@ -287,6 +322,18 @@ export function PatientOdontogram({
           ))}
         </div>
       </div>
+      {treatments.some((r) => r.arch) && (
+        <div className="mt-2 flex flex-wrap gap-2" aria-label="Procedimientos de arcada">
+          {treatments
+            .filter((r) => r.arch)
+            .map((record) => (
+              <p key={record.id} className="rounded border border-border px-3 py-2 text-sm">
+                Arcada {record.arch === 'upper' ? 'superior' : 'inferior'} · {record.label_es} ·{' '}
+                {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}
+              </p>
+            ))}
+        </div>
+      )}
       {narrow && (
         <div className="mt-2 space-y-2">
           <div
@@ -319,7 +366,7 @@ export function PatientOdontogram({
                   type="button"
                   data-quadrant-tooth={tooth}
                   aria-label={`Seleccionar pieza ${tooth}: ${describeRecords(tooth)}`}
-                  aria-pressed={selectedTooth === tooth}
+                  aria-pressed={selectedTooth === tooth || selectedTeeth.includes(tooth)}
                   disabled={disabled}
                   className="min-h-[44px] min-w-[44px] rounded border border-border px-3 text-sm aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                   onMouseEnter={() => onHighlight(tooth)}

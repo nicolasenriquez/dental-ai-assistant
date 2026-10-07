@@ -1,4 +1,4 @@
-"""Strict observed-treatment commands. Scope expansion follows in Slice3."""
+"""Strict observed-treatment commands with catalog-driven anatomical scopes."""
 
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -23,7 +23,7 @@ class TreatmentConflict(ValueError):
 class ToothMember(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tooth_fdi: Annotated[int, Field(strict=True)]
-    role: Literal["tooth"] = "tooth"
+    role: Literal["tooth", "pillar", "pontic"] = "tooth"
     surfaces: list[Surface] = Field(default_factory=list)
 
 
@@ -32,7 +32,8 @@ class TreatmentInput(BaseModel):
     id: UUID
     variant_id: str
     dentition: Dentition
-    teeth: Annotated[list[ToothMember], Field(min_length=1, max_length=1)]
+    teeth: Annotated[list[ToothMember], Field(max_length=32)]
+    arch: Literal["upper", "lower"] | None = None
     note: Note | None = None
 
     @model_validator(mode="after")
@@ -40,10 +41,37 @@ class TreatmentInput(BaseModel):
         variant = VARIANTS.get(self.variant_id)
         if variant is None or not variant["enabled"]:
             raise ValueError("Variante o ámbito no disponible")
+        if self.dentition not in variant["allowed_dentitions"]:
+            raise ValueError("Dentición no admitida")
+        scope = variant["scope"]
+        if scope == "global_arch":
+            if self.arch is None or self.teeth:
+                raise ValueError("Selecciona una arcada sin piezas individuales")
+        elif self.arch is not None:
+            raise ValueError("Este procedimiento no admite arcada global")
+        if scope == "tooth" and len(self.teeth) != 1:
+            raise ValueError("Selecciona una sola pieza")
+        if scope == "multi_tooth" and len(self.teeth) < 2:
+            raise ValueError("Selecciona al menos dos piezas")
+        if len({m.tooth_fdi for m in self.teeth}) != len(self.teeth):
+            raise ValueError("Piezas repetidas")
         for member in self.teeth:
             if not valid_tooth(self.dentition, member.tooth_fdi):
                 raise ValueError("Pieza inválida para esta dentición")
             member.surfaces = validate_surfaces(member.surfaces, self.variant_id)
+            bridge = variant["clinical_type"] == "bridge"
+            if (bridge and member.role not in ("pillar", "pontic")) or (
+                not bridge and member.role != "tooth"
+            ):
+                raise ValueError("Rol inválido para este procedimiento")
+        if scope == "multi_tooth":
+            if len({m.tooth_fdi // 10 in (1, 2, 5, 6) for m in self.teeth}) != 1:
+                raise ValueError("Las piezas deben pertenecer a la misma arcada")
+            if variant["clinical_type"] == "bridge" and not any(
+                m.role == "pillar" for m in self.teeth
+            ):
+                raise ValueError("El puente requiere al menos un pilar")
+        self.teeth.sort(key=lambda m: m.tooth_fdi)
         self.note = self.note or None
         return self
 

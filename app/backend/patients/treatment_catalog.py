@@ -129,10 +129,8 @@ def _variant(row: str) -> dict[str, Any]:
         "icon_key": _OVERRIDES.get(identifier, clinical_type),
         "palette_role": role,
         "layer_role": "restoration" if clinical_type.startswith("root_canal") else role,
-        "enabled": scope == "tooth",
-        "disabled_reason": None
-        if scope == "tooth"
-        else "La selección de varias piezas o arcada estará disponible en la siguiente etapa.",
+        "enabled": True,
+        "disabled_reason": None,
     }
 
 

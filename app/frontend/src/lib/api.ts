@@ -1180,6 +1180,7 @@ export interface TreatmentInput {
   variant_id: string;
   dentition: Dentition;
   teeth: TreatmentMember[];
+  arch?: 'upper' | 'lower' | null;
   note?: string | null;
 }
 export interface PatientTreatment extends TreatmentInput {
