@@ -50,13 +50,23 @@ async def _record(
         item.pop("owner_user_id")
         item["treatment"] = await treatments._record(conn, owner, patient, item["treatment_id"])
         stages = await conn.fetch(
-            "SELECT id,label,note,sequence,status,completed_at,completed_by FROM patient_clinical_plan_stages WHERE item_id=$1 AND plan_id=$2 AND owner_user_id=$3 AND patient_id=$4 ORDER BY sequence",
+            "SELECT id,label,note,sequence,status,completed_at,completed_by,cancelled_at,cancelled_by,cancellation_reason,clinical_note_id FROM patient_clinical_plan_stages WHERE item_id=$1 AND plan_id=$2 AND owner_user_id=$3 AND patient_id=$4 ORDER BY sequence",
             item["id"],
             identifier,
             owner,
             patient,
         )
         item["stages"] = [dict(s) for s in stages]
+        for stage in item["stages"]:
+            stage["clinical_note"] = None
+            if stage["clinical_note_id"]:
+                note = await conn.fetchrow(
+                    "SELECT id,treatment_id,body,revision,created_at,created_by,deleted_at FROM patient_dental_clinical_notes WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3",
+                    stage["clinical_note_id"],
+                    owner,
+                    patient,
+                )
+                stage["clinical_note"] = dict(note) if note else None
         result["items"].append(item)
     return dict(json.loads(_json(result)))
 
@@ -170,6 +180,8 @@ async def _author(
             raise LookupError
         if item["status"] != "pending":
             raise TreatmentConflict("item_read_only", before)
+        if item["treatment"]["state"] != "planned":
+            raise TreatmentConflict("treatment_read_only", before)
         item_id = UUID(item["id"])
         if action == "edit_item":
             treatment_id = UUID(item["treatment_id"])
@@ -279,6 +291,10 @@ async def command(
                 raise TreatmentConflict("revision_conflict", before)
             if action in TRANSITIONS:
                 await _transition(conn, owner, patient, identifier, action, body, before)
+            elif action in ("complete_stage", "cancel_stage"):
+                changed = await _execute_stage(
+                    conn, owner, patient, identifier, action, body, before
+                )
             else:
                 changed = await _author(conn, owner, patient, identifier, action, body, before)
             await conn.execute(
@@ -306,6 +322,120 @@ async def command(
             _json(receipt),
         )
         return receipt, True
+
+
+async def _execution_note(
+    conn: Connection, owner: UUID, patient: UUID, treatment: UUID, body: str
+) -> dict[str, Any]:
+    identifier = uuid4()
+    row = await conn.fetchrow(
+        "INSERT INTO patient_dental_clinical_notes(id,patient_id,owner_user_id,note_type,treatment_id,body,created_by,updated_by) VALUES($1,$2,$3,'treatment',$4,$5,$3,$3) RETURNING id,treatment_id,body,revision,created_at,created_by,deleted_at",
+        identifier,
+        patient,
+        owner,
+        treatment,
+        body,
+    )
+    snapshot = dict(json.loads(_json(dict(row))))
+    await conn.execute(
+        "INSERT INTO patient_dental_clinical_note_revisions(id,note_id,patient_id,owner_user_id,revision,action,after_snapshot,actor_user_id) VALUES($1,$2,$3,$4,1,'created',$5::jsonb,$4)",
+        uuid4(),
+        identifier,
+        patient,
+        owner,
+        _json(snapshot),
+    )
+    return snapshot
+
+
+async def _execute_stage(
+    conn: Connection,
+    owner: UUID,
+    patient: UUID,
+    identifier: UUID,
+    action: str,
+    body: dict[str, Any],
+    before: dict[str, Any],
+) -> list[dict[str, Any]]:
+    item = next((i for i in before["items"] if i["id"] == body["item_id"]), None)
+    stage = next((s for s in item["stages"] if s["id"] == body["stage_id"]), None) if item else None
+    if item is None or stage is None:
+        raise LookupError
+    if before["state"] != "active" or item["status"] != "pending" or stage["status"] != "pending":
+        raise TreatmentConflict("stage_read_only", before)
+    treatment_id = UUID(item["treatment_id"])
+    original = await treatments._record(conn, owner, patient, treatment_id, lock=True)
+    if original["state"] != "planned":
+        raise TreatmentConflict("treatment_read_only", before)
+    completing = action == "complete_stage"
+    status = "completed" if completing else "cancelled"
+    changed = []
+    note_id = None
+    if completing and body.get("clinical_note_body"):
+        note = await _execution_note(conn, owner, patient, treatment_id, body["clinical_note_body"])
+        note_id = UUID(note["id"])
+        changed.append({"kind": "clinical_note", "id": note["id"], "revision": note["revision"]})
+    await conn.execute(
+        "UPDATE patient_clinical_plan_stages SET status=$6,completed_at=CASE WHEN $6='completed' THEN clock_timestamp() END,completed_by=CASE WHEN $6='completed' THEN $4 END,cancelled_at=CASE WHEN $6='cancelled' THEN clock_timestamp() END,cancelled_by=CASE WHEN $6='cancelled' THEN $4 END,cancellation_reason=$7,clinical_note_id=$8 WHERE id=$1 AND item_id=$2 AND plan_id=$3 AND owner_user_id=$4 AND patient_id=$5",
+        UUID(stage["id"]),
+        UUID(item["id"]),
+        identifier,
+        owner,
+        patient,
+        status,
+        body.get("reason") if not completing else None,
+        note_id,
+    )
+    statuses = [status if s["id"] == stage["id"] else s["status"] for s in item["stages"]]
+    if "pending" not in statuses:
+        item_status = "completed" if "completed" in statuses else "cancelled"
+        await conn.execute(
+            "UPDATE patient_clinical_plan_items SET status=$5 WHERE id=$1 AND plan_id=$2 AND owner_user_id=$3 AND patient_id=$4",
+            UUID(item["id"]),
+            identifier,
+            owner,
+            patient,
+            item_status,
+        )
+        await conn.execute(
+            "UPDATE patient_dental_treatments SET state=$4,revision=revision+1,updated_at=clock_timestamp(),updated_by_user_id=$2 WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3",
+            treatment_id,
+            owner,
+            patient,
+            "performed" if item_status == "completed" else "cancelled",
+        )
+        if item_status == "completed" and all(
+            i["id"] == item["id"] or i["status"] == "completed" for i in before["items"]
+        ):
+            await conn.execute(
+                "UPDATE patient_clinical_plans SET state='completed' WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3",
+                identifier,
+                owner,
+                patient,
+            )
+    else:
+        # Partial execution also appends therapeutic evidence; state remains planned.
+        await conn.execute(
+            "UPDATE patient_dental_treatments SET revision=revision+1,updated_at=clock_timestamp(),updated_by_user_id=$2 WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3",
+            treatment_id,
+            owner,
+            patient,
+        )
+    current = await treatments._record(conn, owner, patient, treatment_id)
+    snapshot = await _record(conn, owner, patient, identifier)
+    executed_item = next(i for i in snapshot["items"] if i["id"] == item["id"])
+    # Keep the historical therapeutic action vocabulary readable by older clients.
+    await treatments._revision(
+        conn,
+        owner,
+        patient,
+        {**original, "execution": {"plan_id": str(identifier), "stages": item["stages"]}},
+        {**current, "execution": {"plan_id": str(identifier), "stages": executed_item["stages"]}},
+        "edited",
+        body.get("reason"),
+    )
+    changed.append({"kind": "treatment", "id": current["id"], "revision": current["revision"]})
+    return changed
 
 
 async def _transition(

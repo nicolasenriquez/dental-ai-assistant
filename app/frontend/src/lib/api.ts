@@ -1207,6 +1207,7 @@ export interface TreatmentReceipt {
   revision: number;
   changed_resources: { kind: string; id: string; revision: number }[];
   committed: PatientTreatment;
+  committed_plan?: ClinicalPlan;
 }
 export interface CreatePatientTreatment extends TreatmentInput {
   operation_id: string;
@@ -1221,6 +1222,7 @@ export interface EditPatientTreatment {
 export interface CorrectPatientTreatment {
   operation_id: string;
   expected_revision: number;
+  expected_plan_revision?: number;
   reason: string;
   replacement?: TreatmentInput | null;
 }
@@ -1308,6 +1310,19 @@ export interface ClinicalPlanStage {
   status: 'pending' | 'completed' | 'cancelled';
   completed_at: string | null;
   completed_by: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
+  cancellation_reason?: string | null;
+  clinical_note?: ExecutionClinicalNote | null;
+}
+export interface ExecutionClinicalNote {
+  id: string;
+  treatment_id: string;
+  body: string;
+  revision: number;
+  created_at: string;
+  created_by: string;
+  deleted_at: string | null;
 }
 export interface ClinicalPlanItem {
   id: string;
@@ -1455,6 +1470,25 @@ export function getClinicalPlanRevisions(
   const query = new URLSearchParams({ limit: '20' });
   if (cursor) query.set('cursor', cursor);
   return request(`/patients/${patientId}/clinical-plans/${id}/revisions?${query}`);
+}
+
+export type PlanStageExecution =
+  | { action: 'complete'; body: PlanCommand & { clinical_note_body?: string | null } }
+  | { action: 'cancel'; body: PlanCommand & { reason?: string | null } };
+export function executeClinicalPlanStage(
+  patientId: string,
+  planId: string,
+  itemId: string,
+  stageId: string,
+  command: PlanStageExecution,
+): Promise<PlanReceipt> {
+  return request(
+    `/patients/${patientId}/clinical-plans/${planId}/items/${itemId}/stages/${stageId}/${command.action}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(command.body),
+    },
+  );
 }
 
 export type PlanAction = 'confirm' | 'accept' | 'reopen' | 'close' | 'reactivate' | 'archive';

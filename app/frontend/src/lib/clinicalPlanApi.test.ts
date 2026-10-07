@@ -1,7 +1,30 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { ApiError, addClinicalPlanItem, transitionClinicalPlan } from './api';
+import {
+  ApiError,
+  addClinicalPlanItem,
+  executeClinicalPlanStage,
+  transitionClinicalPlan,
+} from './api';
 
 afterEach(() => vi.unstubAllGlobals());
+it('sends one selected session with optional treatment note and no client-derived state', async () => {
+  const body = {
+    operation_id: 'operation',
+    expected_revision: 4,
+    clinical_note_body: 'Nota explícita',
+  };
+  const fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+  vi.stubGlobal('fetch', fetch);
+  await executeClinicalPlanStage('patient', 'plan', 'item', 'first-stage', {
+    action: 'complete',
+    body,
+  });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0][0]).toBe(
+    '/api/patients/patient/clinical-plans/plan/items/item/stages/first-stage/complete',
+  );
+  expect(fetch.mock.calls[0][1].body).toBe(JSON.stringify(body));
+});
 it('posts exactly one atomic planned aggregate and keeps operation identity on retry', async () => {
   const command = {
     operation_id: 'operation',

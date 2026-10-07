@@ -11,9 +11,11 @@ import {
   type TreatmentCatalog,
   addClinicalPlanItem,
   addClinicalPlanStage,
+  correctPatientTreatment,
   createClinicalPlan,
   editClinicalPlan,
   editClinicalPlanStage,
+  executeClinicalPlanStage,
   getClinicalPlan,
   getClinicalPlanRevisions,
   getClinicalPlans,
@@ -76,6 +78,13 @@ interface PatientClinicalPlanWorkspace {
     value: { label: string; note: string | null },
     stageId?: string,
   ) => Promise<boolean>;
+  executeStage: (
+    itemId: string,
+    stageId: string | null,
+    action: 'complete' | 'cancel',
+    text: string | null,
+  ) => Promise<boolean>;
+  correct: (itemId: string, reason: string) => Promise<boolean>;
   loadHistory: (next?: string) => Promise<void>;
   transition: (
     action: PlanAction,
@@ -242,6 +251,48 @@ export function usePatientClinicalPlan(patientId: string): PatientClinicalPlanWo
       setError('Historial incompleto. Reintenta cargarlo.');
     }
   };
+  const executeStage = (
+    itemId: string,
+    stageId: string | null,
+    action: 'complete' | 'cancel',
+    text: string | null,
+  ): Promise<boolean> => {
+    if (!plan) return Promise.resolve(false);
+    const item = plan.items.find((i) => i.id === itemId);
+    const selected =
+      stageId ??
+      item?.stages.filter((s) => s.status === 'pending').sort((a, b) => a.sequence - b.sequence)[0]
+        ?.id;
+    if (!selected) return Promise.resolve(false);
+    const id = plan.id;
+    const body = revision();
+    const command =
+      action === 'complete'
+        ? { action, body: { ...body, clinical_note_body: text } }
+        : { action, body: { ...body, reason: text } };
+    return run(() => executeClinicalPlanStage(patientId, id, itemId, selected, command));
+  };
+  const correct = (itemId: string, reason: string): Promise<boolean> => {
+    if (!plan) return Promise.resolve(false);
+    const item = plan.items.find((i) => i.id === itemId);
+    if (!item) return Promise.resolve(false);
+    const body = {
+      operation_id: crypto.randomUUID(),
+      expected_revision: item.treatment.revision,
+      expected_plan_revision: plan.revision,
+      reason,
+    };
+    return run(async () => {
+      const receipt = await correctPatientTreatment(patientId, item.treatment_id, body);
+      if (!receipt.committed_plan) throw new Error('Missing committed plan receipt');
+      return {
+        ...receipt,
+        resource_id: receipt.committed_plan.id,
+        revision: receipt.committed_plan.revision,
+        committed: receipt.committed_plan,
+      };
+    });
+  };
   const transition = (
     action: PlanAction,
     note: string | null,
@@ -284,6 +335,8 @@ export function usePatientClinicalPlan(patientId: string): PatientClinicalPlanWo
     add,
     reorder,
     stage,
+    executeStage,
+    correct,
     loadHistory,
     discard,
     back: () => {

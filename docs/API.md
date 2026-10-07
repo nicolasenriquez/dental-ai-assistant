@@ -216,7 +216,7 @@ orders by descending time/UUID. Reads include logical errors for history access;
 current/error states locally. Later-page failure is reported as incomplete with a read-only retry.
 Application rollback retains additive migration0025 tables and their clinical evidence.
 
-### Clinical plan authoring and lifecycle
+### Clinical plan authoring, lifecycle and execution
 
 All routes below require the authenticated patient owner. Migration0026 adds plan aggregates,
 ordered items/sessions and append-only plan revisions. Application rollback retains these tables.
@@ -231,6 +231,8 @@ ordered items/sessions and append-only plan revisions. Application rollback reta
 | `POST /{plan}/reorder` | Supply every item UUID exactly once in `item_ids` |
 | `POST /{plan}/items/{item}/stages` | Add a pending session with a stable UUID |
 | `PATCH /{plan}/items/{item}/stages/{stage}` | Edit pending session label/note |
+| `POST /{plan}/items/{item}/stages/{stage}/complete` | Complete one session in an active plan, with an optional atomic treatment note |
+| `POST /{plan}/items/{item}/stages/{stage}/cancel` | Cancel one pending session and retain actor/time and optional reason |
 | `POST /{plan}/confirm`, `/accept`, `/reopen`, `/close`, `/reactivate`, `/archive` | Explicit clinical lifecycle commands |
 
 Collection routes use the base path without a trailing slash. Lists return
@@ -271,7 +273,40 @@ The patient UI preserves local drafts for explicit conflict review and exact unc
 Dirty authoring offers Guardar y continuar, Descartar y continuar or Permanecer. Navigation never
 authorizes a clinical lifecycle action. Lifecycle confirmations explain the state change and retain
 actor/time/reason evidence. These commands create no budgets, appointments, payments, consent
-signatures or outgoing messages. Stage execution and its automatic completion are a later slice.
+signatures or outgoing messages.
+
+Execution requires an active plan, pending item/session and a planned treatment. Completion takes
+`operation_id`, `expected_revision` and optional `clinical_note_body` (max4000). Whitespace-only
+text omits note creation. Cancellation takes the same command identity/revision and optional
+nonempty `reason` (max1000). Session note metadata (max1000) remains distinct from this clinical
+note. Client actor/time/status fields are forbidden. Both commands return200, including replay.
+
+Migration0027 adds cancellation metadata and treatment-owned notes/revisions. Completion with text
+commits note, execution, therapeutic evidence, plan history and receipt in one transaction, or none.
+The receipt lists the note in `changed_resources` with kind `clinical_note`; each session's
+`clinical_note` contains its authorized saved note. Sessions disclose completion/cancellation actor
+and time, and immutable completed evidence survives closure/reactivation/correction.
+
+The item shortcut resolves and freezes the first pending session, ordered by sequence, then uses
+the same stage endpoint. It never completes all sessions. A procedure remains planned while any
+session is pending. Once none remain pending, at least one completed session finalizes the item as
+completed and the treatment as performed. All-cancelled sessions finalize both as cancelled. An
+active plan becomes completed only when every item is completed; cancelled items remain in the
+denominator and prevent automatic completion. Clinical closure remains available.
+
+Linked treatment corrections use the existing `/dental-treatments/{t}/corrections` endpoint with
+required `expected_plan_revision` in addition to the current treatment `expected_revision` and
+reason. The plan lock precedes the treatment lock. Correction advances both revisions atomically,
+marks the original entered in error, preserves all sessions and does not change plan/item lifecycle
+state. An optional replacement retains clinical provenance/state and links to the original; revision
+snapshots retain execution evidence. The receipt also returns `committed_plan`. Stale aggregate
+or treatment revisions return409 with the authorized plan snapshot; missing plan revision returns422.
+Previously stored observed-treatment payload hashes remain replayable.
+
+Execution/correction confirmations preserve local text on failure. Navigation offers discard/remain
+for unconfirmed clinical actions, never implicit execution through Guardar y continuar. The optional
+execution note is the treatment-only note storage implemented here; the wider editable dental-note
+composer/feed remains a later slice. Application rollback retains migration0027 data.
 
 ### Bounded lists and Activity
 

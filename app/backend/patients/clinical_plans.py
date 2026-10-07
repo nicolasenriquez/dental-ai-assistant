@@ -95,3 +95,16 @@ class AcceptPlan(PlanCommand):
 class ClosePlan(PlanCommand):
     reason: ClosureReason
     note: Text | None = None
+
+
+class CompleteStage(PlanCommand):
+    clinical_note_body: (
+        Annotated[str, StringConstraints(strip_whitespace=True, max_length=4000)] | None
+    ) = None
+
+
+class CancelStage(PlanCommand):
+    reason: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+        | None
+    ) = None

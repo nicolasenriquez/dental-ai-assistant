@@ -109,5 +109,6 @@ class CorrectTreatment(BaseModel):
     model_config = ConfigDict(extra="forbid")
     operation_id: UUID
     expected_revision: Annotated[int, Field(strict=True, ge=1)]
+    expected_plan_revision: Annotated[int, Field(strict=True, ge=1)] | None = None
     reason: Reason
     replacement: TreatmentInput | None = None

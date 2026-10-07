@@ -157,14 +157,35 @@ async def command(
                 raise TreatmentConflict("idempotency_conflict")
             return dict(json.loads(prior["receipt"])), False
         changed = []
+        plan_before = None
+        plan_current = None
+        if action != "create":
+            # Shared aggregate lock always precedes therapeutic row locks.
+            from backend.db import patient_clinical_plans_repo as plans
+
+            plan_id = await conn.fetchval(
+                "SELECT plan_id FROM patient_clinical_plan_items WHERE treatment_id=$1 AND owner_user_id=$2 AND patient_id=$3",
+                identifier,
+                owner,
+                patient,
+            )
+            if plan_id:
+                plan_before = await plans._record(conn, owner, patient, plan_id, lock=True)
+                if body.get("expected_plan_revision") is None:
+                    raise ValueError("La corrección requiere la revisión actual del plan")
+                if plan_before["revision"] != body["expected_plan_revision"]:
+                    raise TreatmentConflict("revision_conflict", plan_before)
         if action == "create":
             current = await _insert(conn, owner, patient, body)
             await _revision(conn, owner, patient, None, current, "created")
         else:
             before = await _record(conn, owner, patient, identifier, lock=True)
             if before["revision"] != body["expected_revision"]:
-                raise TreatmentConflict("revision_conflict", before)
-            if before["state"] != "existing" or before["provenance"] != "observed_existing":
+                raise TreatmentConflict("revision_conflict", plan_before or before)
+            if plan_before:
+                if action != "correct" or before["state"] == "entered_in_error":
+                    raise TreatmentConflict("treatment_read_only", plan_before)
+            elif before["state"] != "existing" or before["provenance"] != "observed_existing":
                 raise TreatmentConflict("treatment_read_only", before)
             if action == "edit":
                 note = body.get("note", before["note"])
@@ -197,19 +218,67 @@ async def command(
                     replacement_id,
                 )
                 if replacement:
-                    new = await _insert(conn, owner, patient, replacement, identifier)
-                    await _revision(conn, owner, patient, None, new, "created")
+                    new = await _insert(
+                        conn, owner, patient, replacement, identifier, planned=bool(plan_before)
+                    )
+                    if plan_before:
+                        await conn.execute(
+                            "UPDATE patient_dental_treatments SET state=$4 WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3",
+                            UUID(new["id"]),
+                            owner,
+                            patient,
+                            before["state"],
+                        )
+                        new = await _record(conn, owner, patient, UUID(new["id"]))
+                    replacement_snapshot = new
+                    if plan_before:
+                        linked_item = next(
+                            i for i in plan_before["items"] if i["treatment_id"] == str(identifier)
+                        )
+                        replacement_snapshot = {
+                            **new,
+                            "execution": {"plan_id": str(plan_id), "stages": linked_item["stages"]},
+                        }
+                    await _revision(conn, owner, patient, None, replacement_snapshot, "created")
                     changed.append({"kind": "treatment", "id": new["id"], "revision": 1})
             current = await _record(conn, owner, patient, identifier)
+            prior_snapshot, current_snapshot = before, current
+            if plan_before:
+                linked_item = next(
+                    i for i in plan_before["items"] if i["treatment_id"] == str(identifier)
+                )
+                execution = {"plan_id": str(plan_id), "stages": linked_item["stages"]}
+                prior_snapshot = {**before, "execution": execution}
+                current_snapshot = {**current, "execution": execution}
             await _revision(
                 conn,
                 owner,
                 patient,
-                before,
-                current,
+                prior_snapshot,
+                current_snapshot,
                 "edited" if action == "edit" else "corrected",
                 body.get("reason"),
             )
+            if plan_before:
+                await conn.execute(
+                    "UPDATE patient_clinical_plans SET revision=revision+1,updated_by=$2,updated_at=clock_timestamp() WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3",
+                    plan_id,
+                    owner,
+                    patient,
+                )
+                plan_current = await plans._record(conn, owner, patient, plan_id)
+                await plans._revision(
+                    conn,
+                    owner,
+                    patient,
+                    plan_before,
+                    plan_current,
+                    "correct_treatment",
+                    body["reason"],
+                )
+                changed.append(
+                    {"kind": "plan", "id": plan_current["id"], "revision": plan_current["revision"]}
+                )
         changed.insert(
             0, {"kind": "treatment", "id": current["id"], "revision": current["revision"]}
         )
@@ -220,6 +289,8 @@ async def command(
             "changed_resources": changed,
             "committed": current,
         }
+        if plan_current:
+            receipt["committed_plan"] = plan_current
         await conn.execute(
             "INSERT INTO patient_clinical_commands(owner_user_id,operation_id,patient_id,payload_hash,receipt) VALUES($1,$2,$3,$4,$5::jsonb)",
             owner,

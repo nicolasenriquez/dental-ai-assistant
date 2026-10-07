@@ -18,6 +18,11 @@ async def test_plan_auth_and_strict_payloads() -> None:
         transport=ASGITransport(app=app), base_url="https://testserver"
     ) as client:
         assert (await client.get(base)).status_code == 401
+        assert (
+            await client.post(
+                f"{base}/{uuid4()}/items/{uuid4()}/stages/{uuid4()}/complete", json=command(1)
+            )
+        ).status_code == 401
         app.dependency_overrides[get_current_user] = lambda: {"id": str(uuid4())}
         try:
             body = {"id": str(uuid4()), "operation_id": str(uuid4()), "expected_revision": 0}
@@ -37,9 +42,11 @@ async def plan_db(monkeypatch):
     if not url:
         pytest.skip("Requires isolated migrated TREATMENT_TEST_DATABASE_URL")
     from backend.db import patient_clinical_plans_repo as repo
+    from backend.db import patient_treatments_repo as treatments
 
     pool = await asyncpg.create_pool(url, min_size=1, max_size=5)
     monkeypatch.setattr(repo, "get_pg_pool", lambda: pool)
+    monkeypatch.setattr(treatments, "get_pg_pool", lambda: pool)
     owner, foreign, patient = uuid4(), uuid4(), uuid4()
     async with pool.acquire() as conn:
         for user in (owner, foreign):
@@ -66,6 +73,338 @@ async def plan_db(monkeypatch):
 
 def command(revision: int, **fields):
     return {"operation_id": str(uuid4()), "expected_revision": revision, **fields}
+
+
+async def active_plan(client: AsyncClient, patient: UUID, stages: int = 2):
+    base = f"/api/patients/{patient}/clinical-plans"
+    identifier = str(uuid4())
+    assert (await client.post(base, json=command(0, id=identifier))).status_code == 201
+    path = f"{base}/{identifier}"
+    response = await client.post(
+        f"{path}/items",
+        json=command(
+            1,
+            id=str(uuid4()),
+            treatment={
+                "id": str(uuid4()),
+                "variant_id": "ORTO-BRACK",
+                "dentition": "permanent",
+                "teeth": [{"tooth_fdi": 16}],
+            },
+            stages=[{"label": f"Sesión {i + 1}"} for i in range(stages)],
+        ),
+    )
+    assert response.status_code == 201, response.text
+    assert (await client.post(f"{path}/confirm", json=command(2))).status_code == 200
+    response = await client.post(f"{path}/accept", json=command(3))
+    assert response.status_code == 200
+    return path, response.json()["committed"]
+
+
+@pytest.mark.parametrize("last_action", ["complete", "cancel"])
+async def test_execution_partial_completion_replay_note_and_correction(plan_db, last_action):
+    pool, owner, _, patient = plan_db
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://testserver"
+    ) as client:
+        path, plan = await active_plan(client, patient)
+        item = plan["items"][0]
+        stages = f"{path}/items/{item['id']}/stages"
+        payload = command(4, clinical_note_body="Evidencia clínica sintética")
+        result = await client.post(f"{stages}/{item['stages'][0]['id']}/complete", json=payload)
+        assert result.status_code == 200, result.text
+        partial = result.json()["committed"]
+        assert partial["state"] == "active"
+        assert partial["items"][0]["status"] == "pending"
+        assert partial["items"][0]["treatment"]["state"] == "planned"
+        evidence = partial["items"][0]["stages"][0]
+        assert evidence["completed_by"] == str(owner) and evidence["completed_at"]
+        assert evidence["clinical_note"]["body"] == payload["clinical_note_body"]
+        assert any(r["kind"] == "clinical_note" for r in result.json()["changed_resources"])
+        final = await client.post(
+            f"{stages}/{item['stages'][1]['id']}/{last_action}", json=command(5)
+        )
+        assert final.status_code == 200, final.text
+        completed = final.json()["committed"]
+        assert completed["state"] == "completed"
+        assert completed["items"][0]["status"] == "completed"
+        assert completed["items"][0]["treatment"]["state"] == "performed"
+        assert completed["items"][0]["stages"][0] == evidence
+        assert (
+            await client.post(f"{stages}/{item['stages'][0]['id']}/complete", json=payload)
+        ).json() == result.json()
+        assert (
+            await client.post(
+                f"{stages}/{item['stages'][0]['id']}/complete",
+                json={**payload, "clinical_note_body": "Changed"},
+            )
+        ).status_code == 409
+        treatment_path = f"/api/patients/{patient}/dental-treatments/{item['treatment_id']}"
+        correction = command(
+            completed["items"][0]["treatment"]["revision"],
+            expected_plan_revision=6,
+            reason="Registro equivocado",
+            replacement={
+                "id": str(uuid4()),
+                "variant_id": "ORTO-BRACK",
+                "dentition": "permanent",
+                "teeth": [{"tooth_fdi": 17}],
+            },
+        )
+        corrected = await client.post(f"{treatment_path}/corrections", json=correction)
+        assert corrected.status_code == 201, corrected.text
+        assert corrected.json()["committed"]["state"] == "entered_in_error"
+        current = (await client.get(path)).json()
+        assert current["state"] == "completed" and current["revision"] == 7
+        assert current["items"][0]["stages"] == completed["items"][0]["stages"]
+        assert corrected.json()["committed_plan"] == current
+        original_history = (await client.get(f"{treatment_path}/revisions")).json()["items"]
+        assert (
+            original_history[0]["after"]["execution"]["stages"] == completed["items"][0]["stages"]
+        )
+        replacement = (
+            await client.get(
+                f"/api/patients/{patient}/dental-treatments/{correction['replacement']['id']}"
+            )
+        ).json()
+        assert (
+            replacement["state"] == "performed" and replacement["provenance"] == "planned_in_clinic"
+        )
+        assert replacement["supersedes_id"] == item["treatment_id"]
+        replacement_history = (
+            await client.get(
+                f"/api/patients/{patient}/dental-treatments/{replacement['id']}/revisions"
+            )
+        ).json()
+        assert replacement_history["items"][0]["after"]["execution"]["plan_id"] == completed["id"]
+        assert (
+            await client.post(f"{treatment_path}/corrections", json=correction)
+        ).json() == corrected.json()
+        assert (await client.post(f"{path}/reopen", json=command(7))).status_code == 409
+        assert (await client.post(f"{path}/archive", json=command(7))).status_code == 200
+    async with pool.acquire() as conn:
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_dental_clinical_notes WHERE patient_id=$1", patient
+            )
+            == 1
+        )
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_dental_clinical_note_revisions WHERE patient_id=$1",
+                patient,
+            )
+            == 1
+        )
+
+
+async def test_execution_all_cancelled_denominator_closure_and_reactivation(plan_db):
+    _, _, _, patient = plan_db
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://testserver"
+    ) as client:
+        path, plan = await active_plan(client, patient)
+        item = plan["items"][0]
+        for revision, stage in enumerate(item["stages"], 4):
+            result = await client.post(
+                f"{path}/items/{item['id']}/stages/{stage['id']}/cancel",
+                json=command(revision, reason="No se realizará"),
+            )
+            assert result.status_code == 200, result.text
+        current = result.json()["committed"]
+        assert current["state"] == "active" and current["items"][0]["status"] == "cancelled"
+        assert current["items"][0]["treatment"]["state"] == "cancelled"
+        assert all(
+            s["completed_at"] is None and s["cancelled_at"] for s in current["items"][0]["stages"]
+        )
+        assert (
+            await client.post(f"{path}/close", json=command(6, reason="cancelled_by_clinic"))
+        ).status_code == 200
+        reopened = await client.post(f"{path}/reactivate", json=command(7))
+        assert reopened.status_code == 200
+        assert reopened.json()["committed"]["items"] == current["items"]
+
+
+async def test_execution_concurrent_closure_owner_and_note_rollback(plan_db, monkeypatch):
+    from backend.db import patient_clinical_plans_repo as repo
+
+    pool, _, foreign, patient = plan_db
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://testserver"
+    ) as client:
+        path, plan = await active_plan(client, patient, stages=1)
+        item = plan["items"][0]
+        endpoint = f"{path}/items/{item['id']}/stages/{item['stages'][0]['id']}/complete"
+        payload = command(4, clinical_note_body="Atomic note")
+        write_note = repo._execution_note
+
+        async def fail(*args, **kwargs):
+            await write_note(*args, **kwargs)
+            raise RuntimeError("Injected note failure")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(repo, "_execution_note", fail)
+            with pytest.raises(RuntimeError):
+                await client.post(endpoint, json=payload)
+        assert (await client.get(path)).json() == plan
+        async with pool.acquire() as conn:
+            assert (
+                await conn.fetchval(
+                    "SELECT count(*) FROM patient_dental_clinical_notes WHERE patient_id=$1",
+                    patient,
+                )
+                == 0
+            )
+            assert (
+                await conn.fetchval(
+                    "SELECT count(*) FROM patient_dental_clinical_note_revisions WHERE patient_id=$1",
+                    patient,
+                )
+                == 0
+            )
+        results = await asyncio.gather(
+            client.post(endpoint, json=payload),
+            client.post(f"{path}/close", json=command(4, reason="other")),
+        )
+        assert sorted(r.status_code for r in results) == [200, 409]
+        current = (await client.get(path)).json()
+        assert current["revision"] == 5
+        assert (current["state"], current["items"][0]["treatment"]["state"]) in [
+            ("closed", "planned"),
+            ("completed", "performed"),
+        ]
+        app.dependency_overrides[get_current_user] = lambda: {"id": str(foreign)}
+        denied = await client.post(endpoint, json=payload)
+        assert denied.status_code == 404 and "latest" not in denied.text
+    async with pool.acquire() as conn:
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_clinical_commands WHERE patient_id=$1", patient
+            )
+            == 5
+        )
+
+
+async def test_execution_cancelled_item_prevents_auto_completion_and_concurrent_replay(plan_db):
+    pool, _, _, patient = plan_db
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://testserver"
+    ) as client:
+        path, plan = await active_plan(client, patient, stages=1)
+        second = await client.post(
+            f"{path}/items",
+            json=command(
+                4,
+                id=str(uuid4()),
+                treatment={
+                    "id": str(uuid4()),
+                    "variant_id": "ORTO-BRACK",
+                    "dentition": "permanent",
+                    "teeth": [{"tooth_fdi": 17}],
+                },
+            ),
+        )
+        assert second.status_code == 201
+        first, last = second.json()["committed"]["items"]
+        cancel = f"{path}/items/{first['id']}/stages/{first['stages'][0]['id']}/cancel"
+        assert (await client.post(cancel, json=command(5))).status_code == 200
+        endpoint = f"{path}/items/{last['id']}/stages/{last['stages'][0]['id']}/complete"
+        payload = command(6, clinical_note_body="   ")
+        responses = await asyncio.gather(*(client.post(endpoint, json=payload) for _ in range(2)))
+        assert [r.status_code for r in responses] == [200, 200]
+        assert responses[0].json() == responses[1].json()
+        current = (await client.get(path)).json()
+        assert current["state"] == "active"
+        assert [i["status"] for i in current["items"]] == ["cancelled", "completed"]
+        assert current["revision"] == 7
+        assert (await client.post(endpoint, json=command(7))).status_code == 409
+        assert (await client.post(f"{path}/archive", json=command(7))).status_code == 409
+    async with pool.acquire() as conn:
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_dental_clinical_notes WHERE patient_id=$1", patient
+            )
+            == 0
+        )
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM patient_clinical_commands WHERE patient_id=$1", patient
+            )
+            == 7
+        )
+
+
+@pytest.mark.parametrize("state", ["draft", "pending", "completed", "closed", "archived"])
+async def test_execution_denied_states_and_strict_payloads(plan_db, state):
+    pool, _, _, patient = plan_db
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://testserver"
+    ) as client:
+        path, plan = await active_plan(client, patient, stages=1)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE patient_clinical_plans SET state=$2 WHERE id=$1", UUID(plan["id"]), state
+            )
+        item = plan["items"][0]
+        endpoint = f"{path}/items/{item['id']}/stages/{item['stages'][0]['id']}"
+        for action in ("complete", "cancel"):
+            assert (await client.post(f"{endpoint}/{action}", json=command(4))).status_code == 409
+        for extra in (
+            {"completed_by": str(uuid4())},
+            {"clinical_note_body": "x" * 4001},
+            {"expected_revision": True},
+        ):
+            assert (
+                await client.post(f"{endpoint}/complete", json=command(4, **extra))
+            ).status_code == 422
+        assert (
+            await client.post(f"{path}/items/{uuid4()}/stages/{uuid4()}/complete", json=command(4))
+        ).status_code == 404
+        assert (await client.get(path)).json()["revision"] == 4
+
+
+async def test_execution_linked_correction_race_revision_and_rollback(plan_db, monkeypatch):
+    from backend.db import patient_clinical_plans_repo as repo
+
+    _, _, _, patient = plan_db
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://testserver"
+    ) as client:
+        path, plan = await active_plan(client, patient, stages=2)
+        item = plan["items"][0]
+        correction_path = (
+            f"/api/patients/{patient}/dental-treatments/{item['treatment_id']}/corrections"
+        )
+        assert (
+            await client.post(correction_path, json=command(1, reason="Error"))
+        ).status_code == 422
+        assert (
+            await client.post(
+                correction_path, json=command(1, reason="Error", expected_plan_revision=3)
+            )
+        ).status_code == 409
+        payload = command(1, reason="Error", expected_plan_revision=4)
+
+        async def fail(*args, **kwargs):
+            raise RuntimeError("Injected linked correction history failure")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(repo, "_revision", fail)
+            with pytest.raises(RuntimeError):
+                await client.post(correction_path, json=payload)
+        assert (await client.get(path)).json() == plan
+        endpoint = f"{path}/items/{item['id']}/stages/{item['stages'][0]['id']}/complete"
+        results = await asyncio.gather(
+            client.post(correction_path, json=payload), client.post(endpoint, json=command(4))
+        )
+        assert sorted(r.status_code for r in results) in ([200, 409], [201, 409])
+        current = (await client.get(path)).json()
+        assert current["state"] == "active" and current["revision"] == 5
+        if current["items"][0]["treatment"]["state"] == "entered_in_error":
+            assert (await client.post(endpoint, json=command(5))).status_code == 409
+            assert all(s["status"] == "pending" for s in current["items"][0]["stages"])
+        else:
+            assert current["items"][0]["stages"][0]["status"] == "completed"
 
 
 async def test_draft_atomic_authoring_reload_replay_owner(plan_db, monkeypatch) -> None:

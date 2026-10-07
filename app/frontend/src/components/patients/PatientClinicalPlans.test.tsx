@@ -13,6 +13,8 @@ vi.mock('../../lib/api', async (original) => ({
   transitionClinicalPlan: vi.fn(),
   editClinicalPlan: vi.fn(),
   getClinicalPlanRevisions: vi.fn(),
+  executeClinicalPlanStage: vi.fn(),
+  correctPatientTreatment: vi.fn(),
 }));
 
 const fixture: api.ClinicalPlan = {
@@ -38,6 +40,48 @@ const fixture: api.ClinicalPlan = {
   closure_reason: null,
   closure_note: null,
 };
+
+function executionFixture(): api.ClinicalPlan {
+  const treatment: api.PatientTreatment = {
+    id: 'treatment',
+    variant_id: 'ORTO-BRACK',
+    dentition: 'permanent',
+    teeth: [{ tooth_fdi: 16, role: 'tooth', surfaces: [] }],
+    patient_id: 'patient',
+    catalog_version: 'test',
+    label_es: 'Bracket',
+    clinical_type: 'bracket',
+    category_key: 'orthodontics',
+    scope: 'tooth',
+    arch: null,
+    provenance: 'planned_in_clinic',
+    state: 'planned',
+    revision: 1,
+    supersedes_id: null,
+    replacement_id: null,
+    created_by: { user_id: 'owner', display_name: null },
+    updated_by: { user_id: 'owner', display_name: null },
+    created_at: fixture.created_at,
+    updated_at: fixture.updated_at,
+  };
+  const stages: api.ClinicalPlanStage[] = ['first', 'second'].map((id, index) => ({
+    id,
+    sequence: index + 1,
+    label: `Sesión ${index + 1}`,
+    note: null,
+    status: 'pending',
+    completed_at: null,
+    completed_by: null,
+  }));
+  return {
+    ...fixture,
+    state: 'active',
+    revision: 4,
+    items: [
+      { id: 'item', treatment_id: treatment.id, sequence: 1, status: 'pending', treatment, stages },
+    ],
+  };
+}
 
 describe('patient plan authoring', () => {
   beforeEach(() => {
@@ -355,5 +399,180 @@ describe('patient plan authoring', () => {
     fireEvent.click(screen.getByRole('button', { name: /Plan de prueba/ }));
     await screen.findByRole('heading', { name: 'Plan de prueba' });
     expect(api.createClinicalPlan).toHaveBeenCalledTimes(1);
+  });
+  it('advances only the next pending session, freezes optional note for retry and retains evidence', async () => {
+    const active = executionFixture();
+    const { treatment, stages } = active.items[0];
+    const partial: api.ClinicalPlan = {
+      ...active,
+      revision: 5,
+      items: [
+        {
+          ...active.items[0],
+          stages: [
+            {
+              ...stages[0],
+              status: 'completed',
+              completed_at: fixture.updated_at,
+              completed_by: 'owner',
+              clinical_note: {
+                id: 'note',
+                body: 'Texto clínico explícito',
+                treatment_id: treatment.id,
+                revision: 1,
+                created_by: 'owner',
+                created_at: fixture.updated_at,
+                deleted_at: null,
+              },
+            },
+            stages[1],
+          ],
+        },
+      ],
+    };
+    vi.mocked(api.getClinicalPlans).mockResolvedValue({
+      items: [active],
+      total: 1,
+      next_cursor: null,
+    });
+    vi.mocked(api.getClinicalPlan).mockResolvedValue(active);
+    vi.mocked(api.executeClinicalPlanStage)
+      .mockRejectedValueOnce(new Error('Lost response'))
+      .mockResolvedValueOnce({
+        operation_id: 'op',
+        resource_id: active.id,
+        revision: 5,
+        changed_resources: [],
+        committed: partial,
+      });
+    render(<PatientClinicalPlans patientId="patient" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Plan guardado · En curso' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Completar siguiente sesión' }));
+    expect(api.executeClinicalPlanStage).not.toHaveBeenCalled();
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Nota clínica del procedimiento (opcional)' }),
+      { target: { value: 'Texto clínico explícito' } },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar ejecución' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Completar sesión' })).getByRole('button', {
+        name: 'Completar sesión',
+      }),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Reintentar misma operación' }));
+    await screen.findByText('1/2 sesiones completadas');
+    expect(vi.mocked(api.executeClinicalPlanStage).mock.calls[0]).toEqual(
+      vi.mocked(api.executeClinicalPlanStage).mock.calls[1],
+    );
+    expect(api.executeClinicalPlanStage).toHaveBeenCalledWith('patient', 'plan', 'item', 'first', {
+      action: 'complete',
+      body: {
+        operation_id: expect.any(String),
+        expected_revision: 4,
+        clinical_note_body: 'Texto clínico explícito',
+      },
+    });
+    expect(screen.getByText('Texto clínico explícito')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Completar sesión 1' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Completar sesión 2' })).toBeInTheDocument();
+  });
+  it('retains execution text on closure conflict and cancels without fabricated completion', async () => {
+    const active = executionFixture();
+    vi.mocked(api.getClinicalPlans).mockResolvedValue({
+      items: [active],
+      total: 1,
+      next_cursor: null,
+    });
+    vi.mocked(api.getClinicalPlan).mockResolvedValue(active);
+    vi.mocked(api.executeClinicalPlanStage).mockRejectedValueOnce(
+      new api.ApiError(409, { detail: { latest: { ...active, state: 'closed', revision: 5 } } }),
+    );
+    render(<PatientClinicalPlans patientId="patient" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Plan guardado · En curso' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar sesión 2' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Motivo de cancelación (opcional)' }), {
+      target: { value: 'Texto local' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar ejecución' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Cancelar sesión' })).getByRole('button', {
+        name: 'Cancelar sesión',
+      }),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Revisar versión guardada' }));
+    await screen.findByText('Cerrado · Revisión 5');
+    expect(screen.getByRole('textbox', { name: 'Motivo de cancelación (opcional)' })).toHaveValue(
+      'Texto local',
+    );
+    expect(screen.getByRole('button', { name: 'Revisar ejecución' })).toBeDisabled();
+    expect(screen.getByText('0/2 sesiones completadas')).toBeInTheDocument();
+    expect(api.executeClinicalPlanStage).toHaveBeenCalledTimes(1);
+  });
+  it('corrects linked performed work with both revisions while retaining its completed sessions', async () => {
+    const active = executionFixture();
+    const completed: api.ClinicalPlan = {
+      ...active,
+      state: 'completed',
+      revision: 6,
+      items: [
+        {
+          ...active.items[0],
+          status: 'completed',
+          treatment: { ...active.items[0].treatment, state: 'performed', revision: 3 },
+          stages: active.items[0].stages.map((stage) => ({
+            ...stage,
+            status: 'completed',
+            completed_at: fixture.updated_at,
+            completed_by: 'owner',
+          })),
+        },
+      ],
+    };
+    const corrected: api.ClinicalPlan = {
+      ...completed,
+      revision: 7,
+      items: [
+        {
+          ...completed.items[0],
+          treatment: { ...completed.items[0].treatment, state: 'entered_in_error', revision: 4 },
+        },
+      ],
+    };
+    vi.mocked(api.getClinicalPlans).mockResolvedValue({
+      items: [completed],
+      total: 1,
+      next_cursor: null,
+    });
+    vi.mocked(api.getClinicalPlan).mockResolvedValue(completed);
+    vi.mocked(api.correctPatientTreatment).mockResolvedValue({
+      operation_id: 'op',
+      resource_id: 'treatment',
+      revision: 4,
+      changed_resources: [],
+      committed: corrected.items[0].treatment,
+      committed_plan: corrected,
+    });
+    render(<PatientClinicalPlans patientId="patient" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Plan guardado · Completado' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Corregir registro del procedimiento' }),
+    );
+    fireEvent.change(screen.getByRole('textbox', { name: 'Motivo de corrección' }), {
+      target: { value: 'Registro equivocado' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar corrección' }));
+    const dialog = screen.getByRole('dialog', { name: 'Corregir registro del procedimiento' });
+    expect(within(dialog).getByText(/estado del plan y la evidencia/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Marcar como erróneo' }));
+    await screen.findByText('Completado · Revisión 7');
+    expect(screen.getByText('2/2 sesiones completadas')).toBeInTheDocument();
+    expect(screen.getByText(/Registro marcado como erróneo/)).toBeInTheDocument();
+    expect(api.correctPatientTreatment).toHaveBeenCalledWith('patient', 'treatment', {
+      operation_id: expect.any(String),
+      expected_revision: 3,
+      expected_plan_revision: 6,
+      reason: 'Registro equivocado',
+    });
+    expect(screen.queryByRole('button', { name: 'Reabrir plan' })).not.toBeInTheDocument();
   });
 });

@@ -31,6 +31,8 @@ async def execute(
     # Keep pre-Slice3 single-tooth payload hashes replayable after expanding the input schema.
     if payload.get("arch") is None:
         payload.pop("arch", None)
+    if payload.get("expected_plan_revision") is None:
+        payload.pop("expected_plan_revision", None)
     replacement = payload.get("replacement")
     if replacement and replacement.get("arch") is None:
         replacement.pop("arch", None)

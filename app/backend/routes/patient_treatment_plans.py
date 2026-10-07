@@ -11,7 +11,9 @@ from backend.patients.clinical_plans import (
     AcceptPlan,
     AddItem,
     AddStage,
+    CancelStage,
     ClosePlan,
+    CompleteStage,
     CreatePlan,
     EditItem,
     EditPlan,
@@ -144,6 +146,42 @@ async def revisions(
         repo.list_revisions(owner, patient_id, plan_id, limit, _before(cursor, binding))
     )
     return dict(_page(rows, total, limit, binding, "changed_at"))
+
+
+@router.post("/{plan_id}/items/{item_id}/stages/{stage_id}/complete")
+async def complete_stage(
+    patient_id: UUID, plan_id: UUID, item_id: UUID, stage_id: UUID, body: CompleteStage, user: User
+) -> dict[str, Any]:
+    receipt, _ = await _owned(
+        service.execute(
+            UUID(str(user["id"])),
+            patient_id,
+            plan_id,
+            "complete_stage",
+            body,
+            item_id=item_id,
+            stage_id=stage_id,
+        )
+    )
+    return dict(receipt)
+
+
+@router.post("/{plan_id}/items/{item_id}/stages/{stage_id}/cancel")
+async def cancel_stage(
+    patient_id: UUID, plan_id: UUID, item_id: UUID, stage_id: UUID, body: CancelStage, user: User
+) -> dict[str, Any]:
+    receipt, _ = await _owned(
+        service.execute(
+            UUID(str(user["id"])),
+            patient_id,
+            plan_id,
+            "cancel_stage",
+            body,
+            item_id=item_id,
+            stage_id=stage_id,
+        )
+    )
+    return dict(receipt)
 
 
 async def _transition(

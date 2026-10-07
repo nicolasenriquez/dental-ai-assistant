@@ -8,6 +8,8 @@ import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import type { ClinicalPlanStage } from '../../lib/api';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { Button } from '../ui/Button';
+import { ClinicalPlanCorrection } from './ClinicalPlanCorrection';
+import { ClinicalPlanExecution } from './ClinicalPlanExecution';
 import { ClinicalPlanItemComposer } from './ClinicalPlanItemComposer';
 import { ClinicalPlanLifecycle, closureLabels } from './ClinicalPlanLifecycle';
 import { ClinicalPlanStageEditor } from './ClinicalPlanStageEditor';
@@ -28,6 +30,7 @@ export function PatientClinicalPlans({
   const [notes, setNotes] = useState('');
   const [dirty, setDirty] = useState(false);
   const [lifecycleDirty, setLifecycleDirty] = useState(false);
+  const [executionDirty, setExecutionDirty] = useState(false);
   const [editingMetadata, setEditingMetadata] = useState(false);
   const [stageEditor, setStageEditor] = useState<{
     itemId: string;
@@ -38,12 +41,12 @@ export function PatientClinicalPlans({
   const draftFormRef = useRef<HTMLFormElement>(null);
   const savedContinuation = useRef<(() => void) | null>(null);
   const current = useRef({
-    dirty: dirty || lifecycleDirty,
+    dirty: dirty || lifecycleDirty || executionDirty,
     busy: workspace.busy,
     uncertain: workspace.uncertain,
   });
   current.current = {
-    dirty: dirty || lifecycleDirty,
+    dirty: dirty || lifecycleDirty || executionDirty,
     busy: workspace.busy,
     uncertain: workspace.uncertain,
   };
@@ -51,6 +54,7 @@ export function PatientClinicalPlans({
     if (!workspace.commits) return;
     setDirty(false);
     setLifecycleDirty(false);
+    setExecutionDirty(false);
     setEditingMetadata(false);
     setStageEditor(null);
     setTitle('');
@@ -83,7 +87,7 @@ export function PatientClinicalPlans({
     };
   }, [guard]);
   const transition = (continuation: () => void): void => {
-    if (dirty || lifecycleDirty || workspace.busy || workspace.uncertain)
+    if (dirty || lifecycleDirty || executionDirty || workspace.busy || workspace.uncertain)
       setLeave(() => continuation);
     else continuation();
   };
@@ -253,6 +257,21 @@ export function PatientClinicalPlans({
             <p role="status">
               {planStateLabels[plan.state]} · Revisión {plan.revision}
             </p>
+            <p role="status">
+              {plan.items.filter((item) => item.status === 'completed').length}/{plan.items.length}{' '}
+              procedimientos completados
+            </p>
+            {plan.state === 'completed' && (
+              <p role="status">
+                Plan completado automáticamente. Las sesiones realizadas se conservan.
+              </p>
+            )}
+            {plan.items.some((item) => item.status === 'cancelled') && (
+              <p className="text-sm text-muted">
+                Los procedimientos cancelados siguen en el total; no cuentan como trabajo
+                completado. Puedes cerrar el plan con un motivo.
+              </p>
+            )}
             <p className="whitespace-pre-wrap">{plan.diagnosis}</p>
             <p className="whitespace-pre-wrap text-sm text-muted">{plan.internal_notes}</p>
           </header>
@@ -261,7 +280,7 @@ export function PatientClinicalPlans({
             key={`lifecycle-${plan.id}-${workspace.commits}`}
             plan={plan}
             actions={workspace.actions}
-            blocked={dirty || workspace.uncertain}
+            blocked={dirty || executionDirty || workspace.uncertain}
             busy={workspace.busy}
             onDirty={setLifecycleDirty}
             onTransition={workspace.transition}
@@ -269,7 +288,9 @@ export function PatientClinicalPlans({
           {workspace.editable && (
             <Button
               variant="clinicalSecondary"
-              disabled={dirty || lifecycleDirty || workspace.busy || workspace.uncertain}
+              disabled={
+                dirty || lifecycleDirty || executionDirty || workspace.busy || workspace.uncertain
+              }
               onClick={() => {
                 setTitle(plan.title ?? '');
                 setDiagnosis(plan.diagnosis ?? '');
@@ -307,39 +328,44 @@ export function PatientClinicalPlans({
                         .join(', ')}
                 </p>
                 <p className="whitespace-pre-wrap text-sm text-muted">{item.treatment.note}</p>
-                <ul className="my-2 space-y-2">
-                  {item.stages.map((s) => (
-                    <li key={s.id} className="flex flex-wrap items-center gap-2">
-                      <span>
-                        {s.sequence}. {s.label} ·{' '}
-                        {s.status === 'pending'
-                          ? 'Pendiente'
-                          : s.status === 'completed'
-                            ? 'Completada'
-                            : 'Cancelada'}
-                      </span>
-                      {s.note && (
-                        <span className="whitespace-pre-wrap text-sm text-muted">{s.note}</span>
-                      )}
-                      {workspace.editable && s.status === 'pending' && (
-                        <Button
-                          variant="clinicalSecondary"
-                          disabled={
-                            dirty || lifecycleDirty || workspace.busy || workspace.uncertain
-                          }
-                          onClick={() => setStageEditor({ itemId: item.id, stage: s })}
-                        >
-                          Editar sesión {s.sequence}
-                        </Button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <ClinicalPlanExecution
+                  key={`execution-${item.id}-${workspace.commits}`}
+                  item={item}
+                  planTitle={plan.title || 'Plan sin título'}
+                  active={plan.state === 'active'}
+                  editable={
+                    workspace.editable &&
+                    item.status === 'pending' &&
+                    item.treatment.state === 'planned'
+                  }
+                  blocked={dirty || lifecycleDirty || executionDirty || workspace.uncertain}
+                  busy={workspace.busy}
+                  uncertain={workspace.uncertain}
+                  onDirty={setExecutionDirty}
+                  onEdit={(stage) => setStageEditor({ itemId: item.id, stage })}
+                  onExecute={workspace.executeStage}
+                />
+                <ClinicalPlanCorrection
+                  key={`correction-${item.id}-${workspace.commits}`}
+                  item={item}
+                  planTitle={plan.title || 'Plan sin título'}
+                  blocked={dirty || lifecycleDirty || executionDirty || workspace.uncertain}
+                  busy={workspace.busy}
+                  uncertain={workspace.uncertain}
+                  onDirty={setExecutionDirty}
+                  onCorrect={workspace.correct}
+                />
                 {workspace.editable && item.status === 'pending' && (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="clinicalSecondary"
-                      disabled={dirty || lifecycleDirty || workspace.busy || workspace.uncertain}
+                      disabled={
+                        dirty ||
+                        lifecycleDirty ||
+                        executionDirty ||
+                        workspace.busy ||
+                        workspace.uncertain
+                      }
                       onClick={() => setStageEditor({ itemId: item.id })}
                     >
                       Añadir sesión
@@ -350,6 +376,7 @@ export function PatientClinicalPlans({
                         index === 0 ||
                         dirty ||
                         lifecycleDirty ||
+                        executionDirty ||
                         workspace.busy ||
                         workspace.uncertain
                       }
@@ -381,7 +408,8 @@ export function PatientClinicalPlans({
             workspace.catalog &&
             !editingMetadata &&
             !stageEditor &&
-            !lifecycleDirty && (
+            !lifecycleDirty &&
+            !executionDirty && (
               <ClinicalPlanItemComposer
                 formRef={draftFormRef}
                 key={`composer-${plan.id}-${workspace.commits}`}
@@ -409,6 +437,9 @@ export function PatientClinicalPlans({
                         add_stage: 'Añadir sesión',
                         edit_stage: 'Editar sesión',
                         edit_item: 'Editar procedimiento',
+                        complete_stage: 'Completar sesión',
+                        cancel_stage: 'Cancelar sesión',
+                        correct_treatment: 'Corregir procedimiento',
                       } as Record<string, string>
                     )[entry.action] ??
                     'Cambio clínico'}{' '}
@@ -425,6 +456,28 @@ export function PatientClinicalPlans({
                     <p className="whitespace-pre-wrap text-sm text-muted">
                       Cierre: {entry.after.closure_note}
                     </p>
+                  )}
+                  {(entry.action === 'complete_stage' ||
+                    entry.action === 'cancel_stage' ||
+                    entry.action === 'correct_treatment') && (
+                    <ul className="ml-4 text-sm text-muted">
+                      {entry.after.items
+                        .filter((item) => {
+                          const prior = entry.before?.items.find((i) => i.id === item.id);
+                          return !prior || item.treatment.revision !== prior.treatment.revision;
+                        })
+                        .map((item) => (
+                          <li key={item.id}>
+                            {item.treatment.label_es}:{' '}
+                            {item.stages
+                              .map(
+                                (stage) =>
+                                  `${stage.label} (${stage.status === 'completed' ? 'Completada' : stage.status === 'cancelled' ? 'Cancelada' : 'Pendiente'})`,
+                              )
+                              .join(', ')}
+                          </li>
+                        ))}
+                    </ul>
                   )}
                 </li>
               ))}
@@ -449,7 +502,9 @@ export function PatientClinicalPlans({
           busy={workspace.busy}
           error={navigationError ?? workspace.error}
           secondaryLabel={
-            !lifecycleDirty && (dirty || workspace.uncertain) ? 'Guardar y continuar' : undefined
+            !lifecycleDirty && !executionDirty && (dirty || workspace.uncertain)
+              ? 'Guardar y continuar'
+              : undefined
           }
           onSecondary={() => {
             setNavigationError(null);
@@ -479,6 +534,7 @@ export function PatientClinicalPlans({
             workspace.discard();
             setDirty(false);
             setLifecycleDirty(false);
+            setExecutionDirty(false);
             setLeave(null);
             continuation();
           }}

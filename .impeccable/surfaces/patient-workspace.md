@@ -100,3 +100,11 @@ Clinical lifecycle actions require their own confirmation. Acceptance records a 
 event; closure requires a Spanish reason. Closed/completed/archived plans are read-only, with
 reactivation or archival exposed only in their applicable state. Actor labels disclose stored
 account IDs through the existing patient actor control. No commercial or agenda actions appear.
+
+Active plan items show completed/total sessions, immutable actor/time evidence and treatment-owned
+execution notes. Completar siguiente sesión advances one pending session; explicit completion or
+cancellation requires its own confirmation. Cancelled items stay in the plan denominator. Automatic
+completion appears only when every item is completed. Unconfirmed execution/correction text guards
+navigation with discard/remain and survives conflict review. Linked corrections preserve sessions and
+plan state; closed reactivation retains partial performed evidence. Narrow controls wrap, and the
+same confirmation remains keyboard-operable with reduced motion.
