@@ -1,0 +1,675 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.7, pytest-8.3.4, pluggy-1.6.0
+rootdir: C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend
+configfile: pyproject.toml
+plugins: anyio-4.13.0, asyncio-0.25.2, respx-0.22.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collected 1135 items
+
+tests\eval\test_eval_retrieval.py .................................      [  2%]
+tests\test_admin.py sssssssssssssssssss                                  [  4%]
+tests\test_auth.py ......................                                [  6%]
+tests\test_auth_circle.py .....                                          [  6%]
+tests\test_auth_mode_google.py .............................             [  9%]
+tests\test_catalog.py .............                                      [ 10%]
+tests\test_channel_sync.py sssssssssssssssss                             [ 12%]
+tests\test_chunk_timestamps.py ....                                      [ 12%]
+tests\test_chunker_timestamps.py .........                               [ 13%]
+tests\test_ci_workflow.py .                                              [ 13%]
+tests\test_circle.py ...........                                         [ 14%]
+tests\test_citations.py ..............                                   [ 15%]
+tests\test_clinical_agent.py ............                                [ 16%]
+tests\test_clinical_assistant_contract.py .............................. [ 19%]
+.........................................                                [ 22%]
+tests\test_clinical_assistant_repo_live.py ssssss                        [ 23%]
+tests\test_clinical_catalog_build.py .................                   [ 24%]
+tests\test_clinical_generation_contract.py ........................      [ 27%]
+tests\test_clinical_grounding.py ..............                          [ 28%]
+tests\test_clinical_grounding_repo_live.py s                             [ 28%]
+tests\test_clinical_terminology_catalog.py ..........                    [ 29%]
+tests\test_clinical_terminology_eval.py ........................         [ 31%]
+tests\test_clinical_terminology_repo_live.py sss                         [ 31%]
+tests\test_clinical_terminology_resolution.py ..................         [ 33%]
+tests\test_clinical_turn_runner.py .......                               [ 33%]
+tests\test_clinical_workspace.py ......                                  [ 34%]
+tests\test_clinical_workspace_live.py ssssssssssssssssssssssssssssssss   [ 37%]
+tests\test_config_env_loading.py ..                                      [ 37%]
+tests\test_conversation_scoping.py sssss                                 [ 37%]
+tests\test_cors_origins_config.py ......                                 [ 38%]
+tests\test_create_chunk.py ss                                            [ 38%]
+tests\test_drive_token_cipher.py ...........                             [ 39%]
+tests\test_evolution_export_approval.py .......                          [ 40%]
+tests\test_evolution_export_approval_live.py ssssss                      [ 40%]
+tests\test_evolution_export_claim_live.py ssssssss                       [ 41%]
+tests\test_evolution_export_hydration.py ..                              [ 41%]
+tests\test_evolution_export_migration.py ....                            [ 41%]
+tests\test_evolution_export_recovery.py .................                [ 43%]
+tests\test_evolution_export_scheduling.py ......                         [ 43%]
+tests\test_evolution_export_service.py ...............                   [ 45%]
+tests\test_evolution_journal_time.py ...                                 [ 45%]
+tests\test_evolution_persistence_contract.py ...............             [ 46%]
+tests\test_expansion.py .........                                        [ 47%]
+tests\test_google_drive_config.py ..........                             [ 48%]
+tests\test_google_drive_journals.py ................                     [ 49%]
+tests\test_google_drive_managed_integration.py .................         [ 51%]
+tests\test_google_drive_managed_routes.py .............................. [ 54%]
+....................                                                     [ 55%]
+tests\test_google_drive_oauth_integration.py ...............             [ 57%]
+tests\test_google_drive_oauth_routes.py ................................ [ 59%]
+...........                                                              [ 60%]
+tests\test_google_drive_repo_live.py sssssssssss                         [ 61%]
+tests\test_google_drive_sources.py ...........                           [ 62%]
+tests\test_google_drive_text_export.py ........                          [ 63%]
+tests\test_ingest_cache_invalidation.py ..                               [ 63%]
+tests\test_ingest_dynamous_parse.py ......                               [ 64%]
+tests\test_ingest_segments.py ...........                                [ 65%]
+tests\test_ingestion_safety.py ................                          [ 66%]
+tests\test_message_persist_shield.py ...                                 [ 66%]
+tests\test_patient_activity.py .....s                                    [ 67%]
+tests\test_patient_clinical_plans.py .ssssssssssssssssssssss             [ 69%]
+tests\test_patient_conditions_contract.py ....                           [ 69%]
+tests\test_patient_cursor_transport.py ...............                   [ 71%]
+tests\test_patient_dental_notes.py .ssss                                 [ 71%]
+tests\test_patient_treatments.py ..sssss..s                              [ 72%]
+tests\test_patients_contract.py ........................................ [ 75%]
+......                                                                   [ 76%]
+tests\test_plan_creation_retired.py .                                    [ 76%]
+tests\test_rate_limit.py .......ss..                                     [ 77%]
+tests\test_repository_acquire_pattern.py ....                            [ 77%]
+tests\test_repository_channel_sync.py ......                             [ 78%]
+tests\test_repository_hybrid_search.py .......                           [ 79%]
+tests\test_retriever_hybrid.py ..........                                [ 79%]
+tests\test_retriever_member_filter.py ...                                [ 80%]
+tests\test_runtime_ssl.py .                                              [ 80%]
+tests\test_search_conversations.py sssssssssss                           [ 81%]
+tests\test_security_headers.py ..                                        [ 81%]
+tests\test_services_supadata.py ...............                          [ 82%]
+tests\test_services_youtube_meta.py ..............                       [ 83%]
+tests\test_signup_rate_limit.py sssssssssss                              [ 84%]
+tests\test_sources_event.py ............................................ [ 88%]
+.                                                                        [ 88%]
+tests\test_spa_catchall.py .........                                     [ 89%]
+tests\test_sse_heartbeat.py ......                                       [ 90%]
+tests\test_sse_status_events.py ..............                           [ 91%]
+tests\test_stream_chat_max_tokens.py ........                            [ 92%]
+tests\test_system_prompt.py .....                                        [ 92%]
+tests\test_tool_loop.py .......                                          [ 93%]
+tests\test_tools.py ....................................                 [ 96%]
+tests\test_transcriptions.py ...............                             [ 97%]
+tests\test_version.py ..                                                 [ 97%]
+tests\test_video_atomicity_live.py s                                     [ 97%]
+tests\test_video_ingest.py .......................                       [100%]
+
+============================== warnings summary ===============================
+main.py:190
+main.py:190
+main.py:190
+main.py:190
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\main.py:190: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    from backend.routes import (  # noqa: E402
+
+tests/eval/test_eval_retrieval.py::TestExtractYoutubeId::test_standard_watch_url
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:1186: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    return asyncio.get_event_loop_policy()
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:857: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    _restore_event_loop_policy(asyncio.get_event_loop_policy()),
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:756: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    old_loop_policy = asyncio.get_event_loop_policy()
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:761: DeprecationWarning: 'asyncio.set_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    asyncio.set_event_loop_policy(policy)
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:1157: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:872: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    policy = asyncio.get_event_loop_policy()
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:778: DeprecationWarning: 'asyncio.set_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    asyncio.set_event_loop_policy(old_loop_policy)
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:925: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    policy = asyncio.get_event_loop_policy()
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:949: DeprecationWarning: 'asyncio.set_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    asyncio.set_event_loop_policy(previous_policy)
+
+tests/eval/test_eval_retrieval.py: 4 warnings
+tests/test_auth.py: 22 warnings
+tests/test_auth_circle.py: 5 warnings
+tests/test_auth_mode_google.py: 26 warnings
+tests/test_catalog.py: 6 warnings
+tests/test_chunk_timestamps.py: 4 warnings
+tests/test_circle.py: 11 warnings
+tests/test_citations.py: 4 warnings
+tests/test_clinical_agent.py: 10 warnings
+tests/test_clinical_assistant_contract.py: 57 warnings
+tests/test_clinical_generation_contract.py: 8 warnings
+tests/test_clinical_grounding.py: 9 warnings
+tests/test_clinical_turn_runner.py: 7 warnings
+tests/test_clinical_workspace.py: 5 warnings
+tests/test_evolution_export_approval.py: 6 warnings
+tests/test_evolution_export_hydration.py: 2 warnings
+tests/test_evolution_export_recovery.py: 17 warnings
+tests/test_evolution_export_scheduling.py: 4 warnings
+tests/test_evolution_export_service.py: 2 warnings
+tests/test_evolution_persistence_contract.py: 1 warning
+tests/test_expansion.py: 9 warnings
+tests/test_google_drive_journals.py: 16 warnings
+tests/test_google_drive_managed_integration.py: 17 warnings
+tests/test_google_drive_managed_routes.py: 50 warnings
+tests/test_google_drive_oauth_integration.py: 13 warnings
+tests/test_google_drive_oauth_routes.py: 43 warnings
+tests/test_google_drive_sources.py: 11 warnings
+tests/test_ingest_cache_invalidation.py: 2 warnings
+tests/test_ingestion_safety.py: 16 warnings
+tests/test_message_persist_shield.py: 3 warnings
+tests/test_patient_activity.py: 5 warnings
+tests/test_patient_clinical_plans.py: 23 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+tests/test_patient_dental_notes.py: 5 warnings
+tests/test_patient_treatments.py: 10 warnings
+tests/test_patients_contract.py: 16 warnings
+tests/test_plan_creation_retired.py: 1 warning
+tests/test_rate_limit.py: 7 warnings
+tests/test_repository_acquire_pattern.py: 4 warnings
+tests/test_repository_channel_sync.py: 6 warnings
+tests/test_repository_hybrid_search.py: 7 warnings
+tests/test_retriever_hybrid.py: 4 warnings
+tests/test_retriever_member_filter.py: 3 warnings
+tests/test_security_headers.py: 2 warnings
+tests/test_services_supadata.py: 15 warnings
+tests/test_services_youtube_meta.py: 14 warnings
+tests/test_sources_event.py: 11 warnings
+tests/test_spa_catchall.py: 9 warnings
+tests/test_sse_heartbeat.py: 5 warnings
+tests/test_sse_status_events.py: 5 warnings
+tests/test_stream_chat_max_tokens.py: 8 warnings
+tests/test_system_prompt.py: 4 warnings
+tests/test_tool_loop.py: 7 warnings
+tests/test_tools.py: 17 warnings
+tests/test_transcriptions.py: 15 warnings
+tests/test_version.py: 2 warnings
+tests/test_video_ingest.py: 9 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:961: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    policy = asyncio.get_event_loop_policy()
+
+tests/test_google_drive_journals.py::test_invalid_journal_path_is_rejected_before_repository_or_provider[/api/google-drive/evolution-journals/monthly/2026-W37/parts/1]
+tests/test_google_drive_journals.py::test_invalid_journal_path_is_rejected_before_repository_or_provider[/api/google-drive/evolution-journals/weekly/2026-W00/parts/1]
+tests/test_google_drive_journals.py::test_invalid_journal_path_is_rejected_before_repository_or_provider[/api/google-drive/evolution-journals/daily/2026-02-30/parts/1]
+tests/test_google_drive_journals.py::test_invalid_journal_path_is_rejected_before_repository_or_provider[/api/google-drive/evolution-journals/weekly/2026-W37/parts/0]
+tests/test_google_drive_journals.py::test_invalid_journal_path_is_rejected_before_repository_or_provider[/api/google-drive/evolution-journals/weekly/2026-W37/parts/01]
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\routes\google_drive.py:710: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    part = _validated_journal_path(period_type, period_key, journal_part)
+
+tests/test_google_drive_journals.py::test_foreign_lineage_is_not_read_or_fabricated
+tests/test_google_drive_journals.py::test_malformed_remote_v1_returns_sanitized_error_without_entries
+tests/test_google_drive_managed_routes.py::test_opaque_ids_and_cursors_are_bounded_before_google[/api/google-drive/files/%00bad?patient_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa]
+tests/test_google_drive_managed_routes.py::test_opaque_ids_and_cursors_are_bounded_before_google[/api/google-drive/files?patient_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa&page_token=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\routes\google_drive.py:498: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    return await handler(*args, **kwargs)
+
+tests/test_google_drive_managed_routes.py::test_create_rejects_export_over_one_mib_before_drive_write[1048577]
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\routes\google_drive.py:1412: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    content = _validated_content(body.content)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============== 967 passed, 168 skipped, 5487 warnings in 18.04s ===============

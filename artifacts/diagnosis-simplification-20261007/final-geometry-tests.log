@@ -1,0 +1,77 @@
+$ vitest run src/components/patients/PatientDiagnosis.test.tsx src/components/patients/PatientOdontogram.test.tsx
+The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+
+ RUN  v2.1.8 C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend
+
+(node:33312) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/postcss.config.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/components/patients/PatientDiagnosis.test.tsx > starts with current reads and keeps owned evidence/history when catalog fails
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/patients/PatientOdontogram.test.tsx (8 tests) 980ms
+   ✓ keeps quadrant selection and the draft across the chart target-width boundary 304ms
+stderr | src/components/patients/PatientDiagnosis.test.tsx > keeps a saved-record edit on its dentition and clears only after guarded discard
+Warning: An update to PatientDiagnosisWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientDiagnosisWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientDiagnosis.tsx:118:3)
+    at PatientDiagnosis (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientDiagnosis.tsx:89:3)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to PatientDiagnosisWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientDiagnosisWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientDiagnosis.tsx:118:3)
+    at PatientDiagnosis (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientDiagnosis.tsx:89:3)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+ ✓ src/components/patients/PatientDiagnosis.test.tsx (42 tests) 13259ms
+   ✓ starts with current reads and keeps owned evidence/history when catalog fails 465ms
+   ✓ undo retains correction identity/reason across response loss and never resolves or deletes 300ms
+   ✓ resolve is a draft until save, cancel preserves record and immutable fields cannot change 339ms
+   ✓ deep target outside page selects dentition; revision conflict compares fields without generic rebase 444ms
+   ✓ disjoint-field conflict requires a local decision and adopts untouched current surfaces 447ms
+   ✓ same-field conflict requires explicit field choices and never force-writes 411ms
+   ✓ same-field surface conflict can adopt current surfaces explicitly 317ms
+   ✓ second 409 refreshes comparison and retains unsaved content without forcing a write 705ms
+   ✓ failed current read blocks renewed edit and retains the draft 427ms
+   ✓ terminal current blocks edit/rebasing and offers read/discard only 361ms
+   ✓ resolve requires renewed confirmation after conflict and uses latest revision 524ms
+   ✓ keeps a saved-record edit on its dentition and clears only after guarded discard 458ms
+   ✓ shows one pending condition spinner, including continue guard=true 325ms
+   ✓ correction requires reason and reviewed confirmation; cancel never writes 444ms
+   ✓ keeps historical correction replacement entirely inside its modal with one command owner 338ms
+   ✓ freezes reviewed correction and optional replacement=false for identical uncertain retry 449ms
+   ✓ freezes reviewed correction and optional replacement=true for identical uncertain retry 694ms
+   ✓ retains correction draft after 404 and requires renewed source review after conflict with resolution 569ms
+   ✓ confirmed correction with failed GET retries reads only and retains exact receipt 428ms
+   ✓ a persisted correction link retains exact target on failed owned read and retries GET only 313ms
+   ✓ late correction response cannot repaint another patient 378ms
+   ✓ failed current read blocks renewed correction, retains reason and terminal source blocks new attempt 497ms
+   ✓ keeps chart context after create and focuses exact record after edit and resolve 490ms
+
+ Test Files  2 passed (2)
+      Tests  50 passed (50)
+   Start at  14:53:11
+   Duration  16.17s (transform 547ms, setup 511ms, collect 968ms, tests 14.24s, environment 1.24s, prepare 229ms)
+

@@ -1,0 +1,2866 @@
+$ vitest run
+The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+
+ RUN  v2.1.8 C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend
+
+(node:27908) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/postcss.config.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/__tests__/driveApi.test.ts (13 tests) 16ms
+ ✓ src/hooks/clinicalRuntime.test.ts (7 tests) 8ms
+stderr | src/hooks/useConversations.test.ts > useConversations > rename > should optimistically update conversation title
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\@testing-library\react\dist\pure.js:328:5)
+
+stderr | src/hooks/useConversations.test.ts > useConversations > rename > should revert on API failure and return error
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\@testing-library\react\dist\pure.js:328:5)
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\@testing-library\react\dist\pure.js:328:5)
+
+ ✓ src/hooks/useStreamingResponse.test.ts (7 tests) 71ms
+stderr | src/lib/exportMarkdown.test.ts > formatCitation > should fall back when video_url has no v param
+[exportMarkdown] Skipping timestamp link — invalid video_url: "https://www.youtube.com/"
+
+ ✓ src/lib/exportMarkdown.test.ts (27 tests) 24ms
+stderr | src/__tests__/VideoExplorer.test.tsx > VideoExplorer > handleIngest > shows validation error when fields are empty
+Warning: An update to VideoExplorer inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at VideoExplorer (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\VideoExplorer.tsx:173:26)
+Warning: An update to VideoExplorer inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at VideoExplorer (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\VideoExplorer.tsx:173:26)
+Warning: An update to VideoExplorer inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at VideoExplorer (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\VideoExplorer.tsx:173:26)
+Warning: An update to VideoExplorer inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at VideoExplorer (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\VideoExplorer.tsx:173:26)
+Warning: An update to VideoExplorer inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at VideoExplorer (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\VideoExplorer.tsx:173:26)
+Warning: An update to VideoExplorer inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at VideoExplorer (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\VideoExplorer.tsx:173:26)
+
+ ✓ src/hooks/useVoiceDictation.test.ts (11 tests) 401ms
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > rehydrates a running turn and stops it through the explicit endpoint
+clinical.cancellation.finished {
+  thread_id: 'thread-1',
+  turn_id: 'turn-running',
+  outcome: 'cancelled',
+  attempt_count: 1,
+  latency_ms: 1,
+  failure_class: null
+}
+
+stderr | src/hooks/useConversations.test.ts > useConversations > empty conversation filtering > includes a conversation after its first message is sent
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\@testing-library\react\dist\pure.js:328:5)
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\@testing-library\react\dist\pure.js:328:5)
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\@testing-library\react\dist\pure.js:328:5)
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\@testing-library\react\dist\pure.js:328:5)
+
+stderr | src/__tests__/VideoExplorer.test.tsx > VideoExplorer > handleIngest > shows error message when ingest fails
+[VideoExplorer] Failed to add video: Error: Server error: Invalid URL format
+    at C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\__tests__\VideoExplorer.test.tsx:250:9
+    at file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at processTimers (node:internal/timers:541:7)
+    at runSuite (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+
+stderr | src/__tests__/VideoExplorer.test.tsx > VideoExplorer > handleIngest > clears error when dialog is reopened
+[VideoExplorer] Failed to add video: Error: Some error
+    at C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\__tests__\VideoExplorer.test.tsx:301:58
+    at file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+
+stderr | src/__tests__/VideoExplorer.test.tsx > VideoExplorer > video list rendering > displays error state with retry button
+[VideoExplorer] Failed to load videos: Error: Network failure
+    at C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\__tests__\VideoExplorer.test.tsx:353:56
+    at file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at processTimers (node:internal/timers:541:7)
+    at runSuite (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///C:/Users/nenri/OneDrive/Desktop/proyectos/pry-ai-evaluator/ai-tutor/app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+
+stderr | src/components/AppShellTransitionGuard.test.tsx > AppShell transition guard > does not capture clean same-origin navigation
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/AppShellTransitionGuard.test.tsx (12 tests) 274ms
+stderr | src/components/AppShellTransitionGuard.test.tsx
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at Timeout._onTimeout (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\jsdom\lib\jsdom\living\nodes\HTMLHyperlinkElementUtils-impl.js:81:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7) undefined
+
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > retries Stop when cancellation arrives before the server claims the turn
+clinical.cancellation.finished {
+  thread_id: 'thread-1',
+  turn_id: 'turn-running',
+  outcome: 'cancelled',
+  attempt_count: 2,
+  latency_ms: 261,
+  failure_class: null
+}
+
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > suppresses duplicate Stop requests for the same active turn
+clinical.cancellation.finished {
+  thread_id: 'thread-1',
+  turn_id: 'turn-running',
+  outcome: 'cancelled',
+  attempt_count: 1,
+  latency_ms: 1,
+  failure_class: null
+}
+
+ ✓ src/hooks/useConversations.test.ts (14 tests) 1037ms
+stderr | src/pages/Patients.test.tsx > Patients birth-date dialog > sorts last_name_asc with ascending ID ties and missing evolution last
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/lib/drivePicker.test.ts (14 tests) 1289ms
+stderr | src/components/patients/PatientNotes.test.tsx > blocks browser history and cancels or resumes only explicitly
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+
+stderr | src/components/clinical-assistant/ClinicalEvolutionArtifact.test.tsx > ClinicalEvolutionArtifact > copies the composed evolution and confirms success only after the clipboard resolves
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/AppShell.test.tsx (14 tests) 724ms
+stderr | src/pages/NewEvolution.test.tsx > NewEvolution generation states > distinguishes unavailable history from empty history and retries without losing the note
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+
+stderr | src/__tests__/authBootstrapMode.test.tsx > Google mode login page > renders only the official GIS button container, no local controls
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/components/patients/PatientNotes.test.tsx > keeps UUID/frozen body after response loss and writes only through Guardar
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/__tests__/authBootstrapMode.test.tsx (8 tests) 815ms
+stderr | src/components/clinical-assistant/ClinicalThreadList.test.tsx > reveals creation recovery after a failure from the collapsed rail
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/__tests__/DriveFileBrowser.test.tsx (10 tests) 1002ms
+ ✓ src/components/clinical-assistant/ClinicalEvolutionArtifact.test.tsx (13 tests) 958ms
+stderr | src/components/Sidebar.test.tsx > Sidebar handleNewChat > guard logic for empty conversations > should reuse existing empty conversation instead of creating a duplicate
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/patients/PatientNotes.test.tsx (7 tests) 1229ms
+   ✓ blocks browser history and cancels or resumes only explicitly 508ms
+stderr | src/__tests__/ChatArea-refreshConversationsRef.test.tsx > ChatArea refreshConversationsRef > should call refreshConversationsRef after successful message send
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/pages/NewEvolution.test.tsx (8 tests) 1456ms
+   ✓ NewEvolution generation states > distinguishes unavailable history from empty history and retries without losing the note 349ms
+   ✓ NewEvolution generation states > uses Chilean date and 24-hour time before generating a draft 321ms
+ ✓ src/components/clinical-assistant/ClinicalThreadList.test.tsx (8 tests) 1006ms
+ ✓ src/components/clinical/EvolutionReviewArtifact.test.tsx (20 tests) 1686ms
+   ✓ EvolutionReviewArtifact > navigates long content to unique semantic headings without hiding fields 321ms
+   ✓ EvolutionReviewArtifact > applies a valid date only on confirmation and restores focus on cancel 301ms
+stderr | src/pages/PatientDetail.test.tsx > PatientDetail evolution workspace > keeps exact evolution detail inside the clinical ficha through tabs and history
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/components/patients/PatientDiagnosis.test.tsx > starts with current reads and keeps owned evidence/history when catalog fails
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/__tests__/driveBootstrap.test.tsx > useAuth drive bootstrap > runs the drive bootstrap after Google login
+Warning: An update to AuthProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at AuthProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useAuth.tsx:224:25)
+
+stderr | src/components/clinical-assistant/ClinicalTranscript.test.tsx > shows one note across persisted retries and only the latest recovery action
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stdout | src/components/clinical-assistant/ClinicalTranscript.test.tsx > ClinicalTranscript > returns focus and the heading into view when returning to edit
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'pending'
+}
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'draft'
+}
+
+stdout | src/components/clinical-assistant/ClinicalTranscript.test.tsx > ClinicalTranscript > suppresses completed internal activity when a draft is ready
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'draft'
+}
+
+stdout | src/components/clinical-assistant/ClinicalTranscript.test.tsx > ClinicalTranscript > keeps assistant prose beside one clinical artifact without terminal progress
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'draft'
+}
+
+stdout | src/components/clinical-assistant/ClinicalTranscript.test.tsx > ClinicalTranscript > keeps saving feedback, Drive state, and terminal success in one artifact
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'draft'
+}
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'pending'
+}
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'approved'
+}
+
+stdout | src/components/clinical-assistant/ClinicalTranscript.test.tsx > ClinicalTranscript > keeps one stable artifact through lifecycle, hydration, navigation, and back-to-edit
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'draft'
+}
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'pending'
+}
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'pending'
+}
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'approved'
+}
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'approved'
+}
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'draft'
+}
+
+stdout | src/components/clinical-assistant/ClinicalTranscript.test.tsx > ClinicalTranscript > does not invent Drive fields when no export state is present
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'approved'
+}
+
+stdout | src/components/clinical-assistant/ClinicalTranscript.test.tsx > ClinicalTranscript > keeps native approval dialog inside the stable artifact
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'pending'
+}
+
+ ✓ src/components/clinical-assistant/ClinicalTranscript.test.tsx (16 tests) 739ms
+stdout | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > resumes the exact artifact in an embedded region without another main
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'draft-resume',
+  item_type: 'clinical_draft',
+  status: 'draft'
+}
+
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > hydrates persisted completion after unexpected stream failure
+clinical.reconciliation.finished {
+  thread_id: 'thread-1',
+  turn_id: '99b67d3e-4302-45cd-9536-9dd69d5e5b7e',
+  outcome: 'completed',
+  attempt_count: 1,
+  latency_ms: 1,
+  failure_class: 'transport'
+}
+
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > shows a persisted failed turn with its note and retry action
+clinical.stream.closed {
+  thread_id: 'thread-1',
+  turn_id: '9d254f4b-59e9-4a29-b664-06ffd230ea2b'
+}
+clinical.reconciliation.started {
+  thread_id: 'thread-1',
+  turn_id: '9d254f4b-59e9-4a29-b664-06ffd230ea2b'
+}
+clinical.reconciliation.merged {
+  thread_id: 'thread-1',
+  turn_id: '9d254f4b-59e9-4a29-b664-06ffd230ea2b',
+  item_count: 1
+}
+
+ ✓ src/components/Sidebar.test.tsx (20 tests) 1507ms
+   ✓ Sidebar handleNewChat > guard logic for empty conversations > should reuse existing empty conversation instead of creating a duplicate 306ms
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > redacts 12.345.6785 optimistically and accepts server sanitization without hydration
+clinical.sse.received {
+  event: 'turn.started',
+  thread_id: 'thread-1',
+  turn_id: '0dc6fe6f-edf7-4f06-b912-47ed0c9b2592'
+}
+clinical.sse.decoded {
+  event: 'turn.started',
+  thread_id: 'thread-1',
+  turn_id: '0dc6fe6f-edf7-4f06-b912-47ed0c9b2592',
+  item_id: 'user:0dc6fe6f-edf7-4f06-b912-47ed0c9b2592',
+  item_type: 'user_message',
+  sequence: 1,
+  status: 'completed'
+}
+clinical.reducer.applied {
+  thread_id: 'thread-1',
+  turn_id: '0dc6fe6f-edf7-4f06-b912-47ed0c9b2592',
+  item_id: 'user:0dc6fe6f-edf7-4f06-b912-47ed0c9b2592',
+  item_type: 'user_message',
+  sequence: 1
+}
+clinical.stream.closed {
+  thread_id: 'thread-1',
+  turn_id: '0dc6fe6f-edf7-4f06-b912-47ed0c9b2592'
+}
+clinical.reconciliation.started {
+  thread_id: 'thread-1',
+  turn_id: '0dc6fe6f-edf7-4f06-b912-47ed0c9b2592'
+}
+
+stderr | src/__tests__/ChatArea-refreshConversationsRef.test.tsx > ChatArea refreshConversationsRef > should NOT call refreshConversationsRef when send fails
+Warning: An update to ChatArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ChatArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\ChatArea.tsx:270:3)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+[ChatArea] Failed to send message: HTTP 500
+Warning: An update to ChatArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ChatArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\ChatArea.tsx:270:3)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to ChatArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ChatArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\ChatArea.tsx:270:3)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to ChatArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ChatArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\ChatArea.tsx:270:3)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+ ✓ src/components/patients/PatientOdontogram.test.tsx (8 tests) 2609ms
+   ✓ keeps quadrant selection and the draft across the chart target-width boundary 728ms
+   ✓ pages anatomical quadrants with named controls and keeps the draft piece across switches 484ms
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > redacts 12.345.678 5 optimistically and accepts server sanitization without hydration
+clinical.sse.received {
+  event: 'turn.started',
+  thread_id: 'thread-1',
+  turn_id: 'dd08eb7d-a4b2-4d7a-814d-b2291403a9d1'
+}
+clinical.sse.decoded {
+  event: 'turn.started',
+  thread_id: 'thread-1',
+  turn_id: 'dd08eb7d-a4b2-4d7a-814d-b2291403a9d1',
+  item_id: 'user:dd08eb7d-a4b2-4d7a-814d-b2291403a9d1',
+  item_type: 'user_message',
+  sequence: 1,
+  status: 'completed'
+}
+clinical.reducer.applied {
+  thread_id: 'thread-1',
+  turn_id: 'dd08eb7d-a4b2-4d7a-814d-b2291403a9d1',
+  item_id: 'user:dd08eb7d-a4b2-4d7a-814d-b2291403a9d1',
+  item_type: 'user_message',
+  sequence: 1
+}
+clinical.stream.closed {
+  thread_id: 'thread-1',
+  turn_id: 'dd08eb7d-a4b2-4d7a-814d-b2291403a9d1'
+}
+clinical.reconciliation.started {
+  thread_id: 'thread-1',
+  turn_id: 'dd08eb7d-a4b2-4d7a-814d-b2291403a9d1'
+}
+
+ ✓ src/__tests__/VideoExplorer.test.tsx (23 tests) 3329ms
+   ✓ VideoExplorer > search / filter > filters video list by title after debounce 305ms
+   ✓ VideoExplorer > search / filter > restores all videos when search is cleared 602ms
+   ✓ VideoExplorer > search / filter > shows "no match" empty state and echoes the query 308ms
+   ✓ VideoExplorer > search / filter > shows "X of Y videos" filtered count in header when search is active 333ms
+   ✓ VideoExplorer > search / filter > matches against channel_title and description in addition to title 633ms
+   ✓ VideoExplorer > search / filter > resets search state when panel closes and reopens 316ms
+stderr | src/__tests__/ChatArea-refreshConversationsRef.test.tsx > ChatArea refreshConversationsRef > should NOT call refreshConversationsRef when send fails
+Warning: An update to ChatArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ChatArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\ChatArea.tsx:270:3)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to ChatInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\ChatInput.tsx:25:5
+    at div
+    at div
+    at div
+    at ChatArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\ChatArea.tsx:270:3)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+stderr | src/__tests__/driveBootstrap.test.tsx > ready-without-drive banner > shows the denial copy and Conectar Drive action, then starts the handoff on click
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > redacts 12 345 678 - 5 optimistically and accepts server sanitization without hydration
+clinical.sse.received {
+  event: 'turn.started',
+  thread_id: 'thread-1',
+  turn_id: '04ef036d-b1a5-437c-b90f-d80ac84e8f23'
+}
+clinical.sse.decoded {
+  event: 'turn.started',
+  thread_id: 'thread-1',
+  turn_id: '04ef036d-b1a5-437c-b90f-d80ac84e8f23',
+  item_id: 'user:04ef036d-b1a5-437c-b90f-d80ac84e8f23',
+  item_type: 'user_message',
+  sequence: 1,
+  status: 'completed'
+}
+clinical.reducer.applied {
+  thread_id: 'thread-1',
+  turn_id: '04ef036d-b1a5-437c-b90f-d80ac84e8f23',
+  item_id: 'user:04ef036d-b1a5-437c-b90f-d80ac84e8f23',
+  item_type: 'user_message',
+  sequence: 1
+}
+clinical.stream.closed {
+  thread_id: 'thread-1',
+  turn_id: '04ef036d-b1a5-437c-b90f-d80ac84e8f23'
+}
+clinical.reconciliation.started {
+  thread_id: 'thread-1',
+  turn_id: '04ef036d-b1a5-437c-b90f-d80ac84e8f23'
+}
+
+stderr | src/__tests__/ChatArea-refreshConversationsRef.test.tsx > ChatArea refreshConversationsRef > should handle undefined refreshConversationsRef gracefully
+Warning: An update to ChatArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ChatArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\ChatArea.tsx:270:3)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+stdout | src/hooks/useClinicalAssistant.test.ts > clinical redaction and artifact ordering > redacts 123456785 optimistically and accepts server sanitization without hydration
+clinical.sse.received {
+  event: 'turn.started',
+  thread_id: 'thread-1',
+  turn_id: '54ed7bb6-2315-41b2-80df-724ef20b69a4'
+}
+clinical.sse.decoded {
+  event: 'turn.started',
+  thread_id: 'thread-1',
+  turn_id: '54ed7bb6-2315-41b2-80df-724ef20b69a4',
+  item_id: 'user:54ed7bb6-2315-41b2-80df-724ef20b69a4',
+  item_type: 'user_message',
+  sequence: 1,
+  status: 'completed'
+}
+clinical.reducer.applied {
+  thread_id: 'thread-1',
+  turn_id: '54ed7bb6-2315-41b2-80df-724ef20b69a4',
+  item_id: 'user:54ed7bb6-2315-41b2-80df-724ef20b69a4',
+  item_type: 'user_message',
+  sequence: 1
+}
+clinical.stream.closed {
+  thread_id: 'thread-1',
+  turn_id: '54ed7bb6-2315-41b2-80df-724ef20b69a4'
+}
+clinical.reconciliation.started {
+  thread_id: 'thread-1',
+  turn_id: '54ed7bb6-2315-41b2-80df-724ef20b69a4'
+}
+
+stderr | src/__tests__/ChatArea-refreshConversationsRef.test.tsx > ChatArea refreshConversationsRef > should handle acquireConversation error gracefully
+[ChatArea] Failed to create conversation: Server error
+
+ ✓ src/__tests__/ChatArea-refreshConversationsRef.test.tsx (12 tests) 1472ms
+   ✓ ChatArea refreshConversationsRef > should call refreshConversationsRef after successful message send 309ms
+ ✓ src/__tests__/driveBootstrap.test.tsx (16 tests) 1961ms
+   ✓ ready-without-drive banner > shows the denial copy and Conectar Drive action, then starts the handoff on click 323ms
+stderr | src/components/patients/PatientDiagnosis.treatments.test.tsx > applies existing bracket once, retains exact uncertain command and logically undoes
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/clinical-assistant/ClinicalComposer.test.tsx (7 tests) 478ms
+stderr | src/pages/ClinicalAssistant.drive.test.tsx > task 1.4: direct/reloaded pending entry acquires zero threads (mount 1)
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > prefills Preparar evolución without sending or overwriting work
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > prefills Consultar evoluciones without sending or overwriting work
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > keeps the fourth draft when three messages are already queued
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > preserves composer text but blocks submission while approval is pending
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > shows the active patient in the header and changes it there
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > offers state-specific empty actions and uses the header for Drive
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > keeps agent Stop outside the voice controls
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > keeps the next message draft when Stop is pressed
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > keeps queued messages with their original patient after a patient change
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > sends Drive context separately from the instruction
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+stderr | src/components/clinical-assistant/ClinicalAssistantArea.test.tsx > ClinicalAssistantArea queue > removes a Drive attachment without clearing the typed consultation
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+
+ ✓ src/components/clinical-assistant/ClinicalAssistantArea.test.tsx (15 tests) 1775ms
+   ✓ ClinicalAssistantArea queue > preserves text, attachments and queue order when editing conflicts 530ms
+stderr | src/pages/PatientDetail.test.tsx > PatientDetail evolution workspace > task 1.4: absent or cleared contact hides icons and Información says No registrado
+Warning: An update to PatientNotes inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientNotes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientNotes.tsx:26:3)
+    at div
+    at div
+    at div
+    at main
+    at PatientDetail (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\PatientDetail.tsx:56:70)
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to PatientNotes inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientNotes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientNotes.tsx:26:3)
+    at div
+    at div
+    at div
+    at main
+    at PatientDetail (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\PatientDetail.tsx:56:70)
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > returns to Documents after choosing or cancelling the patient picker opened from Drive
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stderr | src/components/drive/DriveWorkspace.test.tsx > document preview and edit > renders remote TXT literally without Markdown reconstruction
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+
+stderr | src/pages/PatientDetail.test.tsx > PatientDetail evolution workspace > task 1.4: saved contact clearing refreshes header and Información
+Warning: An update to PatientNotes inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientNotes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientNotes.tsx:26:3)
+    at div
+    at div
+    at div
+    at main
+    at PatientDetail (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\PatientDetail.tsx:56:70)
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to PatientNotes inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientNotes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientNotes.tsx:26:3)
+    at div
+    at div
+    at div
+    at main
+    at PatientDetail (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\PatientDetail.tsx:56:70)
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+ ✓ src/components/drive/DriveJournalPanel.test.tsx (6 tests) 824ms
+   ✓ DriveJournalPanel > suppresses Parte 1 for one-part periods and reveals rollover parts as one group 427ms
+stderr | src/components/drive/DriveWorkspace.sections.test.tsx > Drive Picker intents > clears a Picker error when changing Drive sections
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+Warning: An update to DriveJournalPanel inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveJournalPanel (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveJournalPanel.tsx:88:3)
+    at div
+    at div
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+
+stderr | src/components/drive/DriveWorkspace.test.tsx > document preview and edit > preserves local content on conflict with Cancel or View current version only
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+
+ ✓ src/components/ChatInput.test.tsx (15 tests) 513ms
+stderr | src/components/drive/DriveWorkspace.test.tsx > document preview and edit > preserves local content on unknown writes without automatic retry
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+
+stderr | src/components/drive/DriveWorkspace.test.tsx > document preview and edit > returns to the list from an open document
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+
+ ✓ src/components/drive/DriveWorkspace.sections.test.tsx (21 tests) 2927ms
+   ✓ Drive section boundaries > rejects an older initial list after a newer search has succeeded 554ms
+ ✓ src/lib/driveDocument.test.ts (20 tests) 17ms
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > does not stop a clinical turn when Drive is closed and reopened
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stderr | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > does not stop a clinical turn when Drive is closed and reopened
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+    at div
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+    at div
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to DriveWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DriveWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.tsx:52:3)
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > keeps a local Drive draft while hidden and still guards patient changes
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stderr | src/components/drive/DriveWorkspace.test.tsx > accessibility > opens the document in a labelled accessible dialog on mobile that closes with Escape
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+    at ControlledWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:582:47)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+    at ControlledWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:582:47)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+    at ControlledWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:582:47)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+    at ControlledWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:582:47)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+    at ControlledWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:582:47)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+    at ControlledWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:582:47)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+    at ControlledWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:582:47)
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:58:10)
+    at ControlledWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\drive\DriveWorkspace.test.tsx:582:47)
+
+ ✓ src/components/drive/DriveWorkspace.test.tsx (32 tests) 5590ms
+ ✓ src/components/CitationModal.test.tsx (22 tests) 1032ms
+   ✓ CitationModal > contains focus and restores the citation trigger on close 378ms
+ ✓ src/components/clinical-assistant/ClinicalPatientPicker.test.tsx (11 tests) 659ms
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > places the single active-patient selector in the workspace header
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stderr | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > places the single active-patient selector in the workspace header
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+    at div
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > changes the hook-owned patient through the header selector
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+    at div
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+stderr | src/components/clinical-assistant/ApprovalRequestItem.test.tsx > ApprovalRequestItem > returns to editing without declining the action
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/clinical-assistant/ApprovalRequestItem.test.tsx (8 tests) 385ms
+stderr | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > changes the hook-owned patient through the header selector
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+    at div
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > starts closed and exposes one header launcher instead of a sidebar utility
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stderr | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > starts closed and exposes one header launcher instead of a sidebar utility
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+    at div
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+    at div
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > returns focus to the header launcher after closing Drive
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+ ✓ src/components/PatientFormModal.test.tsx (7 tests) 1273ms
+   ✓ PatientFormModal > shows one pending spinner and restores the action after failure 426ms
+ ✓ src/__tests__/patientDentalEvolutions.contract.test.tsx (6 tests) 50ms
+stderr | src/components/clinical-assistant/ClinicalPendingWork.test.tsx > groups clinical work separately from Drive failures and identifies exact saved evolutions
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > passes the active patient to the Drive workspace and loads its files
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > uses the current clinical thread patient when Drive stays open
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+ ✓ src/components/clinical-assistant/ClinicalPendingWork.test.tsx (6 tests) 597ms
+stdout | src/hooks/useClinicalAssistant.test.ts > useClinicalAssistant active patient persistence > keeps a streamed switch until persisted, then trusts the server resolution
+clinical.sse.received {
+  event: 'patient.switch_required',
+  thread_id: 'thread-1',
+  turn_id: '803ae6df-05b4-4e9d-8175-e59a22b65a91'
+}
+clinical.sse.decoded {
+  event: 'patient.switch_required',
+  thread_id: 'thread-1',
+  turn_id: '803ae6df-05b4-4e9d-8175-e59a22b65a91',
+  item_id: 'switch-1',
+  item_type: 'patient.switch_required',
+  sequence: 1,
+  status: 'pending'
+}
+clinical.reducer.applied {
+  thread_id: 'thread-1',
+  turn_id: '803ae6df-05b4-4e9d-8175-e59a22b65a91',
+  item_id: 'switch-1',
+  item_type: 'patient.switch_required',
+  sequence: 1
+}
+clinical.stream.closed {
+  thread_id: 'thread-1',
+  turn_id: '803ae6df-05b4-4e9d-8175-e59a22b65a91'
+}
+clinical.reconciliation.started {
+  thread_id: 'thread-1',
+  turn_id: '803ae6df-05b4-4e9d-8175-e59a22b65a91'
+}
+clinical.reconciliation.merged {
+  thread_id: 'thread-1',
+  turn_id: '803ae6df-05b4-4e9d-8175-e59a22b65a91',
+  item_count: 1
+}
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > opens a local Markdown draft from an assistant message without any write
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+ ✓ src/hooks/useClinicalAssistant.test.ts (36 tests) 6778ms
+   ✓ clinical redaction and artifact ordering > retries Stop when cancellation arrives before the server claims the turn 361ms
+   ✓ clinical redaction and artifact ordering > reconciles a completed artifact after reconnecting 2090ms
+   ✓ clinical export status reconciliation > discards preparation after navigation: {"stage":"save","fails":false,"returnToOrigin":false} 304ms
+   ✓ clinical export status reconciliation > discards preparation after navigation: {"stage":"save","fails":true,"returnToOrigin":false} 309ms
+   ✓ clinical export status reconciliation > discards preparation after navigation: {"stage":"approval","fails":false,"returnToOrigin":true} 425ms
+   ✓ clinical export status reconciliation > discards preparation after navigation: {"stage":"approval","fails":true,"returnToOrigin":true} 362ms
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > serializes a structured draft with visible labels only, no empty sections or review flags
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+ ✓ src/components/clinical-assistant/ClinicalTurnProgress.test.tsx (4 tests) 216ms
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > inserts the complete document into the composer without submitting
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stderr | src/__tests__/Login-Signup-branding.test.tsx > Login page > renders branding header with logo, title, and tagline
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/__tests__/Login-Signup-branding.test.tsx (7 tests) 405ms
+ ✓ src/components/patients/DentalClinicalNotes.test.tsx (3 tests) 945ms
+   ✓ offers free text without templates and saves optional binding only on Guardar 374ms
+   ✓ reviews a deletion conflict explicitly and replays a lost deletion response exactly 384ms
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > disables every transfer action without an active patient
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > suspends patient change while dirty with Guardar/Descartar/Cancelar
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+stderr | src/__tests__/driveWorkspaceShell.test.tsx > AppShell workspace accessory > renders the workspace accessory beside the Assistant content without a backdrop
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/__tests__/driveWorkspaceShell.test.tsx (7 tests) 592ms
+ ✓ src/hooks/useChatAutoFollow.test.ts (3 tests) 50ms
+stderr | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > suspends patient change while dirty with Guardar/Descartar/Cancelar
+Warning: An update to ClinicalAssistantArea inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ClinicalAssistantArea (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\clinical-assistant\ClinicalAssistantArea.tsx:32:3)
+    at div
+    at div
+    at div
+    at st (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:31503)
+    at div
+    at rt (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-resizable-panels\dist\react-resizable-panels.cjs:1:26250)
+    at div
+    at div
+    at div
+    at TransitionGuardBoundary (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:96:36)
+    at AppShell (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\AppShell.tsx:35:3)
+    at ClinicalAssistantContent (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\ClinicalAssistant.tsx:44:46)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at ClinicalAssistant
+    at RenderedRoute (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:539:7)
+    at Routes (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1273:7)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > keeps editor content and patient unchanged when the change is cancelled
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+ ✓ src/lib/rut.test.ts (19 tests) 18ms
+ ✓ src/lib/apiTransport.test.ts (12 tests) 34ms
+stderr | src/components/ClinicalRuntimeProvider.test.tsx > preserves unsent composer memory and detaches transport without cancelling server work
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/hooks/useDentalClinicalNotes.test.ts (4 tests) 180ms
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > requests browser-native unload confirmation only while the editor is dirty
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+ ✓ src/__tests__/adminApi.test.ts (6 tests) 15ms
+ ✓ src/components/ClinicalRuntimeProvider.test.tsx (1 test) 314ms
+   ✓ preserves unsent composer memory and detaches transport without cancelling server work 312ms
+stderr | src/components/patients/PatientActivity.test.tsx > keeps revision events distinct, deduplicates page overlap and uses exact resource links
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/components/patients/PatientOverview.test.tsx > PatientOverview clinical hierarchy > keeps API totals beside exact clinical actions and separates failed Drive copies
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stdout | src/pages/ClinicalAssistant.drive.test.tsx > Clinical Assistant Drive transfer > carries the exact artifact journal target through the page into the reader
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'd1',
+  item_type: 'clinical_draft',
+  status: 'completed'
+}
+
+ ✓ src/pages/ClinicalAssistant.drive.test.tsx (19 tests) 5285ms
+   ✓ task 1.4: direct/reloaded pending entry acquires zero threads (mount 1) 361ms
+   ✓ returns to Documents after choosing or cancelling the patient picker opened from Drive 584ms
+   ✓ Clinical Assistant Drive transfer > does not stop a clinical turn when Drive is closed and reopened 463ms
+   ✓ Clinical Assistant Drive transfer > keeps a local Drive draft while hidden and still guards patient changes 676ms
+   ✓ Clinical Assistant Drive transfer > returns focus to the header launcher after closing Drive 344ms
+   ✓ Clinical Assistant Drive transfer > suspends patient change while dirty with Guardar/Descartar/Cancelar 458ms
+   ✓ Clinical Assistant Drive transfer > keeps editor content and patient unchanged when the change is cancelled 339ms
+ ✓ src/components/patients/PatientOverview.test.tsx (2 tests) 398ms
+ ✓ src/components/patients/PatientActivity.test.tsx (4 tests) 673ms
+   ✓ keeps revision events distinct, deduplicates page overlap and uses exact resource links 406ms
+ ✓ src/hooks/useAdminVideos.test.ts (6 tests) 291ms
+ ✓ src/components/drive/DriveSources.test.tsx (3 tests) 795ms
+   ✓ opens editable sources from Picker without importing or binding a patient 432ms
+ ✓ src/hooks/useMessages.test.ts (2 tests) 118ms
+stderr | src/pages/Patients.test.tsx > Patients birth-date dialog > blocks duplicate submits while the create request is pending
+Warning: An update to MemoryRouter inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to PatientFormModal inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientFormModal (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\PatientFormModal.tsx:47:3)
+    at main
+    at Patients (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\pages\Patients.tsx:29:42)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+ ✓ src/pages/Patients.test.tsx (22 tests) 8450ms
+   ✓ Patients birth-date dialog > sorts last_name_asc with ascending ID ties and missing evolution last 471ms
+   ✓ Patients birth-date dialog > sorts last_name_desc with ascending ID ties and missing evolution last 340ms
+   ✓ Patients birth-date dialog > sorts first_name_asc with ascending ID ties and missing evolution last 305ms
+   ✓ Patients birth-date dialog > sorts first_name_desc with ascending ID ties and missing evolution last 314ms
+   ✓ Patients birth-date dialog > sorts last_evolution_asc with ascending ID ties and missing evolution last 353ms
+   ✓ Patients birth-date dialog > ignores a stale response during debounce and clears query at session unmount 687ms
+   ✓ Patients birth-date dialog > restores private query on return, refetches, and follows safe back/forward state 1219ms
+   ✓ Patients birth-date dialog > keeps stale links usable on failure and retries without losing query 750ms
+   ✓ Patients birth-date dialog > filters and sorts complete results with safe URL state and no visible RUT 356ms
+   ✓ Patients birth-date dialog > preserves dialog values while a list refresh is pending 816ms
+   ✓ Patients birth-date dialog > shows derived age without RUT in patient rows 354ms
+   ✓ Patients birth-date dialog > distinguishes a search with no results and can clear it 622ms
+stderr | src/hooks/useContextualAssistant.test.tsx > closes the panel when patient or evolution context changes
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/hooks/useContextualAssistant.test.tsx (2 tests) 51ms
+ ✓ src/lib/odontogramPresentation.test.ts (3 tests) 12ms
+ ✓ src/components/sidebar/WorkspaceThreadList.test.tsx (6 tests) 487ms
+ ✓ src/hooks/useAutosizeTextarea.test.tsx (4 tests) 239ms
+stdout | src/components/clinical-assistant/ClinicalDraftItem.test.tsx > does not allow editing while its save approval is pending
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'pending'
+}
+
+stdout | src/components/clinical-assistant/ClinicalDraftItem.test.tsx > shows all clinical fields and keeps the source note collapsed
+clinical.artifact.rendered {
+  turn_id: 'turn-1',
+  item_id: 'artifact-1',
+  item_type: 'clinical_draft',
+  status: 'draft'
+}
+
+ ✓ src/components/clinical-assistant/ClinicalDraftItem.test.tsx (2 tests) 320ms
+ ✓ src/components/voice/VoiceWaveform.test.tsx (1 test) 64ms
+ ✓ src/__tests__/drivePrimitiveAllowlist.test.ts (1 test) 9ms
+ ✓ src/components/voice/VoiceDictationStatus.test.tsx (3 tests) 266ms
+ ✓ src/lib/clinicalDate.test.ts (5 tests) 10ms
+ ✓ src/__tests__/authApi.test.ts (2 tests) 8ms
+ ✓ src/components/patterns/ClinicalDateField.test.tsx (3 tests) 913ms
+   ✓ ClinicalDateField > moves from January 31 to February 29 with Page Down, then selects it 475ms
+stderr | src/pages/AdminVideos.test.tsx > admin library recovery > distinguishes load failure from empty library and recovers
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/lib/driveJournals.test.ts (2 tests) 47ms
+ ✓ src/pages/AdminVideos.test.tsx (2 tests) 421ms
+   ✓ admin library recovery > distinguishes load failure from empty library and recovers 329ms
+ ✓ src/components/ConfirmDialog.test.tsx (3 tests) 243ms
+ ✓ src/lib/driveJournalApi.test.ts (5 tests) 16ms
+ ✓ src/lib/treatmentApi.test.ts (2 tests) 17ms
+ ✓ src/lib/sse.test.ts (3 tests) 19ms
+ ✓ src/pages/PatientDetail.test.tsx (29 tests) 10234ms
+   ✓ PatientDetail evolution workspace > keeps exact evolution detail inside the clinical ficha through tabs and history 691ms
+   ✓ PatientDetail evolution workspace > preserves a dirty patient form through pending, failed and successful assistant refresh 342ms
+   ✓ PatientDetail evolution workspace > task 1.4: saved contact clearing refreshes header and Información 321ms
+   ✓ PatientDetail evolution workspace > keeps RUT masked and confirms dirty-form close 341ms
+   ✓ PatientDetail URL continuity (S6) > writes canonical tab/clinical URL from a bare ficha and restores diagnosis on reload 475ms
+   ✓ PatientDetail URL continuity (S6) > applies deterministic defaults for unknown enums and never fetches a malformed condition UUID 319ms
+   ✓ PatientDetail URL continuity (S6) > fetches the focused historical condition UUID only inside diagnosis 424ms
+   ✓ PatientDetail URL continuity (S6) > publishes a UI history UUID, restores its historical filter/history on reload and clears it on close 1266ms
+   ✓ PatientDetail URL continuity (S6) > guards a UI history transition and keeps both URL and draft when canceled 1093ms
+   ✓ PatientDetail URL continuity (S6) > subview switches write the canonical URL and Evoluciones drops the condition focus 646ms
+   ✓ PatientDetail URL continuity (S6) > canceled dirty navigation restores the prior URL and accepted discard navigates without writing 1868ms
+ ✓ src/components/Message.test.tsx (4 tests) 109ms
+ ✓ src/__tests__/VideoExplorer-admin-gate.test.tsx (1 test) 100ms
+ ✓ src/lib/clinicalPendingApi.test.ts (1 test) 19ms
+stderr | src/pages/Login.google.test.tsx > Login with Google > keeps Google as the configured sign-in method inside the clinical layout
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/components/clinical-assistant/EvolutionListResult.test.tsx > EvolutionListResult > distinguishes same-day evolutions and preserves their exact record links
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/clinical-assistant/EvolutionListResult.test.tsx (1 test) 180ms
+ ✓ src/pages/Login.google.test.tsx (1 test) 219ms
+ ✓ src/hooks/useConversationViewportCache.test.ts (1 test) 29ms
+ ✓ src/components/patients/PatientClinicalPlanHistory.test.tsx (1 test) 175ms
+ ✓ src/components/patients/DentalPresentation.test.tsx (1 test) 303ms
+   ✓ renders eight scaled profiles, both arches and independently linked note highlights 300ms
+ ✓ src/components/AppErrorBoundary.test.tsx (1 test) 191ms
+ ✓ src/components/PatientIdentity.test.tsx (2 tests) 143ms
+ ✓ src/components/drive/drivePresentation.test.ts (2 tests) 36ms
+ ✓ src/lib/composerSelection.test.ts (2 tests) 5ms
+ ✓ src/components/clinical/evolutionFields.test.ts (1 test) 7ms
+ ✓ src/components/patterns/EmptyState.test.tsx (2 tests) 168ms
+ ✓ src/lib/age.test.ts (2 tests) 3ms
+ ✓ src/components/ToastProvider.test.tsx (1 test) 352ms
+   ✓ keeps stacked messages readable and removes a dismissed toast after its exit 350ms
+ ✓ src/components/patients/PatientDiagnosis.treatments.test.tsx (11 tests) 12373ms
+   ✓ opens an exact authorized procedure link and retries its read without a write 1230ms
+   ✓ applies existing bracket once, retains exact uncertain command and logically undoes 1808ms
+   ✓ distinguishes crown variants and enables anatomical scopes 754ms
+   ✓ selects a chart range, confirms bridge roles once and preserves shared record identity 1728ms
+   ✓ whole-arch picker writes no FDI, retries exact command and renders separate arch context 952ms
+   ✓ free selection rejects mixed arches, guards dentition change and cancels without writes 1610ms
+   ✓ inspection exposes saved procedure; edit preserves local draft on conflict and requires explicit reconciliation 1173ms
+   ✓ surface procedure confirms selected codes without creating a finding 925ms
+   ✓ dirty treatment editor guards close and discards only after explicit choice 1334ms
+   ✓ later-page failure keeps procedure evidence and labels counts incomplete until read retry 484ms
+   ✓ navigation cannot save an unreviewed correction as a normal edit 372ms
+ ✓ src/components/MarkdownRenderer.test.tsx (1 test) 737ms
+   ✓ preserves code text when the deferred highlighter finishes loading 736ms
+stderr | src/components/patients/PatientDiagnosis.test.tsx > keeps a saved-record edit on its dentition and clears only after guarded discard
+Warning: An update to PatientDiagnosisWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientDiagnosisWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientDiagnosis.tsx:118:3)
+    at PatientDiagnosis (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientDiagnosis.tsx:89:3)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+Warning: An update to PatientDiagnosisWorkspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at PatientDiagnosisWorkspace (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientDiagnosis.tsx:118:3)
+    at PatientDiagnosis (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\components\patients\PatientDiagnosis.tsx:89:3)
+    at TransitionGuardProvider (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\src\hooks\useTransitionGuard.tsx:14:36)
+    at Router (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1207:17)
+    at MemoryRouter (C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\frontend\node_modules\react-router\dist\umd\react-router.development.js:1101:7)
+
+ ✓ src/components/patients/PatientDiagnosis.test.tsx (42 tests) 24214ms
+   ✓ starts with current reads and keeps owned evidence/history when catalog fails 1216ms
+   ✓ opens an exact error target in its historical filter and guards returning to current 847ms
+   ✓ tooth-first inspection opens anchored context without drafts, writes or lower-form focus 823ms
+   ✓ whole-tooth activation applies once, clears tool and offers logical undo 850ms
+   ✓ lateral surface selection confirms exactly once without extra save 810ms
+   ✓ occlusal surface activation applies exact surface without selector 629ms
+   ✓ undo retains correction identity/reason across response loss and never resolves or deletes 1108ms
+   ✓ surface cancellation and tool Escape clear intent without writing 671ms
+   ✓ uncertain direct application freezes UUID and blocks fresh activation until identical retry 802ms
+   ✓ resolve is a draft until save, cancel preserves record and immutable fields cannot change 1233ms
+   ✓ deep target outside page selects dentition; revision conflict compares fields without generic rebase 1675ms
+   ✓ disjoint-field conflict requires a local decision and adopts untouched current surfaces 1283ms
+   ✓ same-field conflict requires explicit field choices and never force-writes 572ms
+   ✓ same-field surface conflict can adopt current surfaces explicitly 496ms
+   ✓ second 409 refreshes comparison and retains unsaved content without forcing a write 538ms
+   ✓ failed current read blocks renewed edit and retains the draft 479ms
+   ✓ terminal current blocks edit/rebasing and offers read/discard only 429ms
+   ✓ resolve requires renewed confirmation after conflict and uses latest revision 385ms
+   ✓ keeps a saved-record edit on its dentition and clears only after guarded discard 533ms
+   ✓ shows one pending condition spinner, including continue guard=false 429ms
+   ✓ shows one pending condition spinner, including continue guard=true 315ms
+   ✓ correction requires reason and reviewed confirmation; cancel never writes 408ms
+   ✓ keeps historical correction replacement entirely inside its modal with one command owner 357ms
+   ✓ freezes reviewed correction and optional replacement=false for identical uncertain retry 435ms
+   ✓ freezes reviewed correction and optional replacement=true for identical uncertain retry 712ms
+   ✓ retains correction draft after 404 and requires renewed source review after conflict with resolution 856ms
+   ✓ confirmed correction with failed GET retries reads only and retains exact receipt 639ms
+   ✓ a persisted correction link retains exact target on failed owned read and retries GET only 457ms
+   ✓ late correction response cannot repaint another patient 543ms
+   ✓ failed current read blocks renewed correction, retains reason and terminal source blocks new attempt 743ms
+   ✓ tool selection keeps chart context; surface selector cancels without writes 337ms
+   ✓ navigates populated categories without writing or discarding tool intent 375ms
+   ✓ keeps chart context after create and focuses exact record after edit and resolve 884ms
+   ✓ chart hover and focus never rebind a saved-record edit or write 452ms
+
+ Test Files  90 passed (90)
+      Tests  780 passed (780)
+   Start at  14:51:31
+   Duration  31.22s (transform 20.84s, setup 79.58s, collect 70.04s, tests 118.03s, environment 191.56s, prepare 29.06s)
+
