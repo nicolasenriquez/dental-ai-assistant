@@ -18,7 +18,6 @@ import {
   type ToothSurface,
   type UpdatePatientCondition,
   correctPatientCondition,
-  createPatientCondition,
   getConditionCatalog,
   getPatientCondition,
   getPatientConditions,
@@ -65,7 +64,7 @@ import { fdiTeeth, toothFamily } from './toothGeometry';
 
 interface ConditionDraft extends CreatePatientCondition {
   correction?: { source: PatientCondition; reason: string; replacement: boolean };
-  expectedRevision?: number;
+  expectedRevision: number;
   status: 'active' | 'resolved';
   baseline: string;
   base?: { surfaces: string[]; note: string };
@@ -85,7 +84,6 @@ interface PatientDiagnosisProps {
 }
 interface ConditionAttempt {
   id: string;
-  create?: CreatePatientCondition;
   update?: UpdatePatientCondition;
   correction?: CorrectPatientCondition;
 }
@@ -209,7 +207,6 @@ function PatientDiagnosisWorkspace({
   const [conflictPending, setConflictPending] = useState(false);
   const [conflictChoices, setConflictChoices] = useState<ConflictChoices>({});
   const [resolveConfirmed, setResolveConfirmed] = useState(false);
-  const [duplicate, setDuplicate] = useState<PatientCondition | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [pendingNotes, setPendingNotes] = useState(true);
@@ -234,8 +231,6 @@ function PatientDiagnosisWorkspace({
   const routeCancel = useRef<(() => void) | null>(null);
   const initiatingRef = useRef<HTMLElement | null>(null);
   const toothSelectRef = useRef<HTMLSelectElement>(null);
-  const pieceButtonRef = useRef<HTMLButtonElement>(null);
-  const firstSurfaceRef = useRef<HTMLInputElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const recordRefs = useRef(new Map<string, HTMLElement>());
@@ -468,7 +463,6 @@ function PatientDiagnosisWorkspace({
   }, [focused]);
   useEffect(() => {
     if (draft?.correction) reasonRef.current?.focus();
-    else if (draft && !draft.tooth_fdi) pieceButtonRef.current?.focus();
   }, [draft?.id]);
   const onRouteBlocked = useCallback((proceed: () => void, cancel: () => void): void => {
     routeCancel.current = cancel;
@@ -512,7 +506,6 @@ function PatientDiagnosisWorkspace({
     setConflictPending(false);
     setConflictChoices({});
     setResolveConfirmed(false);
-    setDuplicate(null);
     setReview(false);
     setRecoveryBlocked(false);
     initiatingRef.current?.focus();
@@ -532,7 +525,6 @@ function PatientDiagnosisWorkspace({
       dental.selectTool(null);
       setAttempt(null);
       setConflict(null);
-      setDuplicate(null);
       setConflictPending(false);
       setSaveError(null);
       setDentition(record.dentition);
@@ -559,6 +551,7 @@ function PatientDiagnosisWorkspace({
         id: crypto.randomUUID(),
         note: record.note ?? '',
         status: 'active',
+        expectedRevision: record.revision,
         baseline: '',
         correction: { source: record, reason: '', replacement: false },
       });
@@ -587,9 +580,10 @@ function PatientDiagnosisWorkspace({
     }
   };
   const chooseTool = (code: string): void => {
+    if (draft || treatmentEdit || locked || dental.busy || dental.attempt) return;
     const variant = dental.treatmentCatalog?.variants.find((v) => v.id === code);
     if (variant) {
-      if (!variant.enabled || draft || treatmentEdit || dental.busy || dental.attempt) return;
+      if (!variant.enabled) return;
       transition(() => {
         initiatingRef.current = document.activeElement as HTMLElement;
         setInspection(null);
@@ -598,29 +592,15 @@ function PatientDiagnosisWorkspace({
       });
       return;
     }
-    if (locked || immutable || (draft?.correction && !draft.correction.replacement)) return;
     const tool = resolveCondition(catalog, code);
-    if (!tool.supported || !tool.allowed_dentitions.includes(draft?.dentition ?? dentition)) return;
-    if (!draft) {
-      if (dental.busy || dental.attempt) return;
-      transition(() => {
-        setInspection(null);
-        dental.selectTool(dental.activeTool === code ? null : code);
-      });
-      return;
-    }
-    const compatible = !!tool?.surface_codes.length;
-    if (!compatible && draft.surfaces.length)
-      setAnnouncement('Superficies retiradas: esta condición no admite superficies.');
-    setDraft({ ...draft, condition_code: code, surfaces: compatible ? draft.surfaces : [] });
+    if (!tool.supported || !tool.allowed_dentitions.includes(dentition)) return;
+    transition(() => {
+      setInspection(null);
+      dental.selectTool(dental.activeTool === code ? null : code);
+    });
   };
   const chooseTooth = (tooth: number, anchor?: HTMLElement, surface?: ToothSurface): void => {
-    if (!tooth || dental.busy || dental.attempt) return;
-    if (locked || immutable || (draft?.correction && !draft.correction.replacement)) return;
-    if (draft) {
-      setDraft({ ...draft, tooth_fdi: tooth });
-      return;
-    }
+    if (!tooth || draft || treatmentEdit || locked || dental.busy || dental.attempt) return;
     if (!dental.activeTool) {
       const trigger = anchor ?? toothSelectRef.current;
       if (trigger) setInspection({ tooth, anchor: trigger });
@@ -785,33 +765,27 @@ function PatientDiagnosisWorkspace({
     };
     const frozen = attempt ?? {
       id: draft.id,
-      ...(draft.expectedRevision === undefined
-        ? { create: normalized }
-        : {
-            update: {
-              expected_revision: conflictSource ? conflictSource.revision : draft.expectedRevision,
-              surfaces: surfaces
-                .filter((item) => normalized.surfaces.includes(item.code))
-                .map((item) => item.code),
-              note: normalized.note?.trim() || null,
-              ...(draft.status === 'resolved' && (!conflictSource || resolveConfirmed)
-                ? { status: 'resolved' as const }
-                : {}),
-            },
-          }),
+      update: {
+        expected_revision: conflictSource ? conflictSource.revision : draft.expectedRevision,
+        surfaces: surfaces
+          .filter((item) => normalized.surfaces.includes(item.code))
+          .map((item) => item.code),
+        note: normalized.note?.trim() || null,
+        ...(draft.status === 'resolved' && (!conflictSource || resolveConfirmed)
+          ? { status: 'resolved' as const }
+          : {}),
+      },
     };
     setAttempt(frozen);
     setSaveError(null);
     setSaving(true);
     savingRef.current = true;
     try {
-      const saved = frozen.create
-        ? await createPatientCondition(patientId, frozen.create)
-        : await updatePatientCondition(
-            patientId,
-            frozen.id,
-            frozen.update as UpdatePatientCondition,
-          );
+      const saved = await updatePatientCondition(
+        patientId,
+        frozen.id,
+        frozen.update as UpdatePatientCondition,
+      );
       if (!alive.current) return false;
       setRecords((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
       setFocused(saved);
@@ -834,14 +808,8 @@ function PatientDiagnosisWorkspace({
         (error.status === 409 || error.status === 422 || error.status === 404)
       ) {
         setAttempt(null);
-        const detail = (error.body as { detail?: { code?: string; existing?: PatientCondition } })
-          ?.detail;
-        if (error.status === 409 && detail?.code === 'active_condition_exists') {
-          setDuplicate(detail.existing ?? null);
-          setSaveError(
-            'Ya existe esta condición activa. Abre el registro existente o cambia las superficies.',
-          );
-        } else if (error.status === 409 && detail?.code === 'idempotency_conflict') {
+        const detail = (error.body as { detail?: { code?: string } })?.detail;
+        if (error.status === 409 && detail?.code === 'idempotency_conflict') {
           setConflictPending(true);
           setSaveError(
             'Este intento ya tiene otro contenido guardado. Descarta el intento y actualiza la lista.',
@@ -1230,7 +1198,8 @@ function PatientDiagnosisWorkspace({
                 locked ||
                 immutable ||
                 !!surfaceSelection ||
-                !!(draft?.correction && !draft.correction.replacement)
+                !!draft ||
+                !!treatmentEdit
               }
             />
             <label className="block text-sm" htmlFor="chart-tooth">
@@ -1240,13 +1209,9 @@ function PatientDiagnosisWorkspace({
               id="chart-tooth"
               ref={toothSelectRef}
               className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
-              value={draft?.tooth_fdi || ''}
+              value=""
               disabled={
-                dental.busy ||
-                !!dental.attempt ||
-                locked ||
-                immutable ||
-                !!(draft?.correction && !draft.correction.replacement)
+                dental.busy || !!dental.attempt || locked || immutable || !!draft || !!treatmentEdit
               }
               onChange={(event) => chooseTooth(Number(event.target.value))}
             >
@@ -1284,7 +1249,7 @@ function PatientDiagnosisWorkspace({
                       tool.surface_codes.length ? `${patientId}-${tool.code}-surfaces` : undefined
                     }
                     variant="clinicalSecondary"
-                    aria-pressed={(draft?.condition_code ?? dental.activeTool) === tool.code}
+                    aria-pressed={dental.activeTool === tool.code}
                     className="dental-tool-card relative !min-h-[72px] flex w-full flex-col items-center justify-center gap-1 rounded-lg !border-2 !px-1.5 !py-[7px] text-center aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:font-semibold aria-pressed:text-foreground"
                     disabled={
                       locked ||
@@ -1292,8 +1257,9 @@ function PatientDiagnosisWorkspace({
                       !!dental.attempt ||
                       immutable ||
                       !tool.supported ||
-                      !tool.allowed_dentitions.includes(draft?.dentition ?? dentition) ||
-                      !!(draft?.correction && !draft.correction.replacement)
+                      !tool.allowed_dentitions.includes(dentition) ||
+                      !!draft ||
+                      !!treatmentEdit
                     }
                     onClick={() => chooseTool(tool.code)}
                   >
@@ -1317,11 +1283,6 @@ function PatientDiagnosisWorkspace({
                         id={`${patientId}-${tool.code}-surfaces`}
                         aria-label="Admite superficies"
                       />
-                    )}
-                    {!tool.supported && (
-                      <span className="block text-xs">
-                        Requiere selección de varias piezas o arcada (próxima etapa)
-                      </span>
                     )}
                     {tool.symbolUnavailable && (
                       <span className="sr-only">Símbolo no disponible</span>
@@ -1392,9 +1353,7 @@ function PatientDiagnosisWorkspace({
                     ? 'Corregir registro'
                     : draft.status === 'resolved'
                       ? 'Resolver condición'
-                      : draft.expectedRevision
-                        ? 'Editar condición'
-                        : 'Nueva condición'}
+                      : 'Editar condición'}
                 </h3>
                 {draft.correction && (
                   <>
@@ -1461,6 +1420,59 @@ function PatientDiagnosisWorkspace({
                           <option value="permanent">Permanente</option>
                           <option value="primary">Temporal</option>
                         </select>
+                        <label htmlFor="replacement-tooth" className="block text-sm">
+                          Pieza FDI del reemplazo
+                        </label>
+                        <select
+                          id="replacement-tooth"
+                          disabled={locked}
+                          value={draft.tooth_fdi || ''}
+                          className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
+                          onChange={(event) =>
+                            setDraft({ ...draft, tooth_fdi: Number(event.target.value) })
+                          }
+                        >
+                          <option value="">Selecciona una pieza</option>
+                          {fdiTeeth(draft.dentition).map((tooth) => (
+                            <option key={tooth} value={tooth}>
+                              Pieza {tooth}
+                            </option>
+                          ))}
+                        </select>
+                        <label htmlFor="replacement-condition" className="block text-sm">
+                          Condición del reemplazo
+                        </label>
+                        <select
+                          id="replacement-condition"
+                          disabled={locked}
+                          value={draft.condition_code}
+                          className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
+                          onChange={(event) => {
+                            const tool = resolveCondition(catalog, event.target.value);
+                            setDraft({
+                              ...draft,
+                              condition_code: tool.code,
+                              surfaces: draft.surfaces.filter((code) =>
+                                tool.surface_codes.includes(code),
+                              ),
+                            });
+                          }}
+                        >
+                          <option value="">Selecciona condición</option>
+                          {catalog?.conditions.map((entry) => (
+                            <option
+                              key={entry.code}
+                              value={entry.code}
+                              disabled={
+                                !resolveCondition(catalog, entry.code).allowed_dentitions.includes(
+                                  draft.dentition,
+                                )
+                              }
+                            >
+                              {entry.label_es}
+                            </option>
+                          ))}
+                        </select>
                       </>
                     )}
                   </>
@@ -1491,17 +1503,6 @@ function PatientDiagnosisWorkspace({
                       {labels[draft.condition_code] ?? 'Selecciona condición'} ·{' '}
                       {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
                     </p>
-                    <Button
-                      type="button"
-                      ref={pieceButtonRef}
-                      variant="clinicalSecondary"
-                      disabled={
-                        locked || immutable || !!(draft.correction && !draft.correction.replacement)
-                      }
-                      onClick={() => toothSelectRef.current?.focus()}
-                    >
-                      {draft.tooth_fdi > 0 ? 'Cambiar pieza' : 'Elegir pieza'}
-                    </Button>
                     {selectedTool?.supported &&
                       (selectedTool.surface_codes.length ? (
                         <fieldset disabled={locked || draft.status === 'resolved'}>
@@ -1514,7 +1515,6 @@ function PatientDiagnosisWorkspace({
                               >
                                 <input
                                   type="checkbox"
-                                  ref={item.code === 'M' ? firstSurfaceRef : undefined}
                                   checked={draft.surfaces.includes(item.code)}
                                   onChange={(event) =>
                                     setDraft({
@@ -1554,22 +1554,6 @@ function PatientDiagnosisWorkspace({
                   <p role="alert" className="text-error">
                     {saveError}
                   </p>
-                )}
-                {duplicate && (
-                  <Button
-                    type="button"
-                    variant="clinicalSecondary"
-                    onClick={() =>
-                      transition(() => {
-                        reset();
-                        setFocused(duplicate);
-                        setDentition(duplicate.dentition);
-                        publishFocus(duplicate.id);
-                      })
-                    }
-                  >
-                    Abrir condición existente
-                  </Button>
                 )}
                 {conflictPending && (
                   <div className="space-y-2">
@@ -1760,8 +1744,7 @@ function PatientDiagnosisWorkspace({
               </form>
             </DentalConditionModal>
           )}
-          <div className="min-w-0 space-y-4 [@container(min-width:1064px)]:col-start-1">
-            {' '}
+          <div className="min-w-0 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-semibold">Condiciones por pieza</h3>
               <label className="text-sm">

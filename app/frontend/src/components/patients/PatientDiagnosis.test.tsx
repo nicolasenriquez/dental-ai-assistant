@@ -496,7 +496,7 @@ it('keeps a saved-record edit on its dentition and clears only after guarded dis
   fireEvent.click(screen.getByRole('button', { name: 'Cancelar condición' }));
   await screen.findByRole('dialog', { name: 'Condición sin guardar' });
   fireEvent.click(screen.getByRole('button', { name: 'Seguir editando' }));
-  expect(screen.getByLabelText('Seleccionar pieza FDI')).toHaveValue('36');
+  expect(screen.getByRole('img', { name: 'Pieza seleccionada 36' })).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Cancelar condición' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Descartar condición' }));
   expect(screen.queryByLabelText('Nota de condición')).toBeNull();
@@ -530,7 +530,8 @@ it.each([false, true])(
     expect(document.querySelectorAll('.animate-spin')).toHaveLength(1);
     await act(async () => rejectSave(new TypeError('lost')));
     expect(document.querySelector('.animate-spin')).toBeNull();
-    expect(screen.getByLabelText('Seleccionar pieza FDI')).toHaveValue('36');
+    if (guard) fireEvent.click(screen.getByRole('button', { name: 'Seguir editando' }));
+    expect(screen.getByRole('img', { name: 'Pieza seleccionada 36' })).toBeVisible();
   },
 );
 
@@ -553,6 +554,44 @@ it('correction requires reason and reviewed confirmation; cancel never writes', 
   expect(mocks.correct).not.toHaveBeenCalled();
 });
 
+it('keeps historical correction replacement entirely inside its modal with one command owner', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Corregir registro' }));
+  const modal = screen.getByRole('dialog', { name: 'Corregir registro' });
+  fireEvent.change(within(modal).getByLabelText('Motivo de corrección'), {
+    target: { value: 'Pieza y concepto equivocados' },
+  });
+  fireEvent.click(within(modal).getByRole('checkbox', { name: 'Crear registro de reemplazo' }));
+  fireEvent.change(within(modal).getByLabelText('Pieza FDI del reemplazo'), {
+    target: { value: '26' },
+  });
+  fireEvent.change(within(modal).getByLabelText('Condición del reemplazo'), {
+    target: { value: 'pulpitis' },
+  });
+  expect(within(modal).queryByRole('button', { name: 'Cambiar pieza' })).toBeNull();
+  expect(mocks.create).not.toHaveBeenCalled();
+  expect(mocks.edit).not.toHaveBeenCalled();
+  expect(mocks.correct).not.toHaveBeenCalled();
+  mocks.correct.mockResolvedValue({ condition_id: record.id });
+  fireEvent.click(within(modal).getByRole('button', { name: 'Revisar corrección' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Guardar corrección' }));
+  await waitFor(() => expect(mocks.correct).toHaveBeenCalledTimes(1));
+  expect(mocks.correct.mock.calls[0]).toEqual([
+    'p',
+    record.id,
+    expect.objectContaining({
+      expected_revision: record.revision,
+      replacement: expect.objectContaining({
+        tooth_fdi: 26,
+        condition_code: 'pulpitis',
+        surfaces: [],
+      }),
+    }),
+  ]);
+  expect(mocks.create).not.toHaveBeenCalled();
+  expect(mocks.edit).not.toHaveBeenCalled();
+});
+
 it.each([false, true])(
   'freezes reviewed correction and optional replacement=%s for identical uncertain retry',
   async (replacement) => {
@@ -563,7 +602,9 @@ it.each([false, true])(
     });
     if (replacement) {
       fireEvent.click(screen.getByRole('checkbox', { name: 'Crear registro de reemplazo' }));
-      fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '26' } });
+      fireEvent.change(screen.getByLabelText('Pieza FDI del reemplazo'), {
+        target: { value: '26' },
+      });
     }
     mocks.correct.mockRejectedValueOnce(new TypeError('lost'));
     fireEvent.click(screen.getByRole('button', { name: 'Revisar corrección' }));
@@ -967,7 +1008,7 @@ it('chart hover and focus never rebind a saved-record edit or write', async () =
   fireEvent.focus(chartTooth);
   fireEvent.mouseLeave(chartTooth);
   fireEvent.blur(chartTooth);
-  expect(screen.getByLabelText('Seleccionar pieza FDI')).toHaveValue('36');
+  expect(screen.getByRole('img', { name: 'Pieza seleccionada 36' })).toBeVisible();
   expect(screen.getByLabelText('Nota de condición')).toHaveValue('Nota de 36');
   expect(mocks.create).not.toHaveBeenCalled();
   expect(mocks.edit).not.toHaveBeenCalled();

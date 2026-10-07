@@ -20,16 +20,6 @@ export function toothFamily(tooth: number): 'incisor' | 'canine' | 'premolar' | 
         ? 'molar'
         : 'premolar';
 }
-// Patient-domain drawings authored for this chart; no source SVG or clinical inference.
-export const toothProfiles = {
-  incisor: 'M9 6 Q21 2 33 6 L31 31 Q26 42 24 80 Q21 96 18 80 L12 34 Z',
-  canine: 'M8 13 L21 3 L34 13 L31 34 Q27 45 24 86 Q21 98 18 84 L11 36 Z',
-  premolar:
-    'M5 10 Q10 2 21 8 Q32 2 37 10 L34 34 Q29 48 29 82 Q26 94 23 78 L21 47 L18 81 Q14 96 12 81 L8 35 Z',
-  molar:
-    'M3 12 Q8 3 15 9 Q21 3 27 9 Q35 3 39 12 L36 35 L33 84 Q29 98 26 78 L22 51 L18 83 Q13 97 10 81 L6 36 Z',
-};
-
 // Eight independently drawn permanent positions. Primary molars map to positions 6/7.
 // Anchors belong to each silhouette; clinical symbols never infer a persisted finding.
 export const anatomicalProfiles = [
