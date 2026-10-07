@@ -1,5 +1,15 @@
 # Evidence and finding disposition
 
+## S1 execution recheck, 2026-10-06
+
+Requested `/prime-codebase` followed by `/execute openspec\changes\harden-odontogram-human-workflow slice1` at clean commit `deb8878`. OpenSpec reported all29 tasks complete, including S1's `0.1 -> 1.1 -> 2.1 -> 3.1`. Existing implementation was reconciled with the correction schema, route, application service and recorded proof; no runtime changes were needed.
+
+- The S1 focused recipe from the original evidence below ran unchanged with `WORKSPACE_LIVE_TEST_DSN` pointing to an owned disposable pgvector PostgreSQL16 container, `odontogram-s1-recheck-20261006`, bound only to loopback port5549. The empty database migrated to0024. All53 current HTTP/cursor/Activity/live cases passed with zero skips, including correction receipts, ownership, three rollback stages, five race modes and the legacy migration regression.
+- Backend `uv run ruff check .`, `uv run ruff format --check .` and `uv run mypy .` passed (214 Python files). Frontend `bun run tsc --noEmit`, `bun x biome check src` and `bun run test` passed (222 files checked by Biome;751 tests across84 files).
+- `uv run pytest tests -xvs` reproduced the previously recorded failure in `test_clinical_catalog_build.py::test_bundled_workspace_reproduces_reviewed_catalog`: generated LF bytes differ from checked-out CRLF bytes. The run stopped with239 passed,41 skipped and1 failed. Full backend health is not claimed.
+- `openspec validate harden-odontogram-human-workflow --strict` passed. This recheck covers S1's API/DB checkpoint, not new browser evidence.
+- Direct SQL after the focused tests confirmed head0024 and zero fixture patients, conditions and revisions. The migration regression passed its database teardown. The owned container and anonymous volume were removed with `docker rm --force --volumes`; shared services were preserved.
+
 ## Integrated verification and closeout, 2026-10-06
 
 Executed `3.7 -> 3.8 -> 4.1 -> 4.2 -> 4.3` after all six slices completed.
