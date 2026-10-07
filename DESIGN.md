@@ -169,6 +169,10 @@ chart symbols and record context. These roles do not replace action, focus, navi
 colors. Endodontic palette violet remains distinct from its blue anatomical fill role. Labels and
 symbols carry clinical meaning alongside color.
 
+Dental anatomy has separate root, crown, pulp and outline tokens. Saved clinical marks resolve
+their own layer role rather than inheriting the selected-tool color. Clinical illustrations and
+their motion stay scoped to the dental workspace; reduced motion retains immediate state feedback.
+
 **The Signal-Only Accent Rule.** Let neutral surfaces carry the screen. Use clear blue to identify action, focus, selection, and the active route—not as a decorative fill.
 
 **The Status-Has-Text Rule.** Pair every status color with a symbol or plain status text. Never make color the only carrier of success, warning, or failure.
