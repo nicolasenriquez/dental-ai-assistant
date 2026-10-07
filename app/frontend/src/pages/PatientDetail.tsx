@@ -14,6 +14,7 @@ import { PatientFormModal, type PatientFormValues } from '../components/PatientF
 import { PatientWorkspace, type PatientWorkspaceDetailError } from '../components/PatientWorkspace';
 import { ContextualAssistant } from '../components/clinical-assistant/ContextualAssistant';
 import { PatientActivity } from '../components/patients/PatientActivity';
+import { PatientClinicalPlans } from '../components/patients/PatientClinicalPlans';
 import { PatientDiagnosis } from '../components/patients/PatientDiagnosis';
 import { PatientHeaderDisclosure } from '../components/patients/PatientHeaderDisclosure';
 import { PatientInformation } from '../components/patients/PatientInformation';
@@ -150,7 +151,9 @@ export function PatientDetail() {
     setClinicalSection(
       evolutionId || location.state?.preserveHistory || clinical === 'evolutions'
         ? 'evolutions'
-        : 'diagnosis',
+        : clinical === 'planning' || clinical === 'plans'
+          ? clinical
+          : 'diagnosis',
     );
   }, [patientId, evolutionId, location.search, location.state]);
 
@@ -430,6 +433,29 @@ export function PatientDetail() {
                       >
                         Evoluciones
                       </Button>
+                      {(['planning', 'plans'] as const).map((mode) => (
+                        <Button
+                          key={mode}
+                          variant="clinicalSecondary"
+                          aria-pressed={clinicalSection === mode}
+                          className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
+                          onClick={() => {
+                            const change = (): void => {
+                              const next = new URLSearchParams(location.search);
+                              next.set('tab', 'clinical');
+                              next.set('clinical', mode);
+                              next.delete('condition');
+                              navigate(`/patients/${patientId}?${next.toString()}`, {
+                                replace: true,
+                              });
+                            };
+                            if (guard) guard.guardTransition(change);
+                            else change();
+                          }}
+                        >
+                          {mode === 'planning' ? 'Planificación' : 'Planes'}
+                        </Button>
+                      ))}
                     </div>
                     {clinicalSection === 'diagnosis' ? (
                       <PatientDiagnosis
@@ -440,6 +466,12 @@ export function PatientDetail() {
                         focusedConditionId={
                           new URLSearchParams(location.search).get('condition') ?? undefined
                         }
+                      />
+                    ) : clinicalSection === 'planning' || clinicalSection === 'plans' ? (
+                      <PatientClinicalPlans
+                        key={`${patient.id}-${clinicalSection}`}
+                        patientId={patient.id}
+                        mode={clinicalSection}
                       />
                     ) : (
                       <PatientWorkspace

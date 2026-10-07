@@ -202,6 +202,7 @@ from backend.routes import (  # noqa: E402
     patient_activity,
     patient_conditions,
     patient_notes,
+    patient_treatment_plans,
     patient_treatments,
     patients,
     transcriptions,
@@ -220,6 +221,7 @@ app.include_router(messages.router, prefix="/api", dependencies=_auth_required)
 # validated before authentication (important for deterministic 422 boundaries).
 app.include_router(patient_conditions.router, prefix="/api")
 app.include_router(patient_treatments.router, prefix="/api")
+app.include_router(patient_treatment_plans.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
 app.include_router(patient_notes.router, prefix="/api")
 app.include_router(patient_activity.router, prefix="/api")

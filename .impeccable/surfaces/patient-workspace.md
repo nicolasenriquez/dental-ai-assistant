@@ -90,3 +90,13 @@ their own container width rather than the browser viewport.
 Patient identity must stay visible. Context conflict names both patients or explains
 a patient-less conversation's history; it never offers to reassign historical work.
 Loading, query failure and empty work are distinct states. No invented metrics.
+
+Planificación and Planes use patient-local draft lists and ordered procedure/session detail.
+Plan creation, metadata/session edits and atomic planned-procedure additions use explicit actions.
+Planned records remain separate from observed diagnosis reads. Dirty authoring offers save,
+discard or remain; uncertain commands preserve operation identity and freeze their fields.
+Conflict review retains local text beside the latest saved plan, including read-only states.
+Clinical lifecycle actions require their own confirmation. Acceptance records a clinician-entered
+event; closure requires a Spanish reason. Closed/completed/archived plans are read-only, with
+reactivation or archival exposed only in their applicable state. Actor labels disclose stored
+account IDs through the existing patient actor control. No commercial or agenda actions appear.

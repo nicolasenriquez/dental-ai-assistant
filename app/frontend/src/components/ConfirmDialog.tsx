@@ -5,6 +5,8 @@ export interface ConfirmDialogProps {
   description: string;
   confirmLabel: string;
   cancelLabel: string;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
   tone?: 'default' | 'danger';
   busy?: boolean;
   error?: string | null;
@@ -17,6 +19,8 @@ export function ConfirmDialog({
   description,
   confirmLabel,
   cancelLabel,
+  secondaryLabel,
+  onSecondary,
   tone = 'default',
   busy = false,
   error = null,
@@ -89,6 +93,16 @@ export function ConfirmDialog({
           >
             {cancelLabel}
           </button>
+          {secondaryLabel && onSecondary && (
+            <button
+              type="button"
+              className="sidebar-dialog-cancel"
+              disabled={busy}
+              onClick={onSecondary}
+            >
+              {secondaryLabel}
+            </button>
+          )}
           <button
             type="button"
             className={

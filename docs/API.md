@@ -216,6 +216,63 @@ orders by descending time/UUID. Reads include logical errors for history access;
 current/error states locally. Later-page failure is reported as incomplete with a read-only retry.
 Application rollback retains additive migration0025 tables and their clinical evidence.
 
+### Clinical plan authoring and lifecycle
+
+All routes below require the authenticated patient owner. Migration0026 adds plan aggregates,
+ordered items/sessions and append-only plan revisions. Application rollback retains these tables.
+
+| Endpoint under `/api/patients/{p}/clinical-plans` | Behavior |
+| --- | --- |
+| `GET /`, `POST /` | Paged plan list or create a draft |
+| `GET /{plan}`, `PATCH /{plan}` | Aggregate snapshot or edit metadata |
+| `GET /{plan}/revisions` | Paged before/after history, actor/time and reason |
+| `POST /{plan}/items` | Atomically add planned treatment, members, item and initial sessions |
+| `PATCH /{plan}/items/{item}` | Edit pending item's procedure note |
+| `POST /{plan}/reorder` | Supply every item UUID exactly once in `item_ids` |
+| `POST /{plan}/items/{item}/stages` | Add a pending session with a stable UUID |
+| `PATCH /{plan}/items/{item}/stages/{stage}` | Edit pending session label/note |
+| `POST /{plan}/confirm`, `/accept`, `/reopen`, `/close`, `/reactivate`, `/archive` | Explicit clinical lifecycle commands |
+
+Collection routes use the base path without a trailing slash. Lists return
+`items,total,next_cursor`; default limit20, range1..100. Plan cursor binds owner/patient/state;
+history cursor also binds the plan. Both use descending time/UUID ordering.
+
+Create body contains stable UUID `id`, UUID `operation_id`, `expected_revision:0`, optional
+`title` (max200), `diagnosis` and `internal_notes` (max2000 each). Other writes require UUID
+`operation_id` and the owning plan's positive `expected_revision`, including item/session writes.
+Server derives lifecycle state, revisions, timestamps and actors; client-supplied extra fields fail422.
+
+Item creation contains stable item `id`, `treatment` with the catalog/anatomy fields from the
+existing-procedure contract, and optional `stages:[{label,note}]`. Initial stages default to one
+`Sesión 1`; supplied lists contain1..100 sessions, labels1..200 and optional notes up to1000.
+The treatment becomes `planned_in_clinic`/`planned`. Diagnosis treatment lists exclude planned
+records; plan detail retains their variants, members/roles, arch and sessions. Completed sessions
+cannot be edited. Closed/completed/archived plans reject authoring with409.
+
+Lifecycle edges:
+
+- `confirm`: draft→pending, requiring eligible planned work and valid sessions.
+- `accept`: pending→active, optional `note` up to2000; records clinician/time and manual acceptance.
+- `reopen`: pending→draft.
+- `close`: draft/pending/active→closed, required `reason` from `rejected_by_patient`, `expired`,
+  `cancelled_by_clinic`, `patient_abandoned`, `other`; optional `note` up to2000.
+- `reactivate`: closed→draft. Current closure/confirmation/acceptance metadata clears; history
+  retains prior events and sessions.
+- `archive`: completed→archived. Completed plans cannot reopen to draft.
+
+Every command locks the aggregate and atomically commits clinical changes, its revision and a
+durable receipt `{operation_id,resource_id,revision,changed_resources,committed}`. Identical retry
+returns the original snapshot before validating current revision. Changed operation payload and
+stale revision return409; stale/illegal-state errors include only the latest owned plan snapshot.
+Foreign plan/item/session resources return404. Create/item/session insertion returns201 on first
+commit and200 on exact replay; other commands return200.
+
+The patient UI preserves local drafts for explicit conflict review and exact uncertain retry.
+Dirty authoring offers Guardar y continuar, Descartar y continuar or Permanecer. Navigation never
+authorizes a clinical lifecycle action. Lifecycle confirmations explain the state change and retain
+actor/time/reason evidence. These commands create no budgets, appointments, payments, consent
+signatures or outgoing messages. Stage execution and its automatic completion are a later slice.
+
 ### Bounded lists and Activity
 
 Notes, conditions, revisions and Activity return `{items,next_cursor,total}`.

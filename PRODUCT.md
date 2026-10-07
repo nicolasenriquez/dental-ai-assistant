@@ -53,6 +53,12 @@ autonomous scribe tools and from generic chat assistants.
    replacement links and revision history. Bridges and splints use same-arch range/free selection
    and explicit confirmation as one procedure; bridge members retain pillar/pontic roles.
    Whole-arch appliances use an upper/lower picker without individual FDI members.
+- Clinical plans: Planificación and Planes create/resume patient-owned drafts with ordered
+  procedures and pending sessions. Confirmar moves a nonempty draft to pending; Registrar
+  aceptación records a clinical event and activates it. Pending plans can reopen; draft/pending/
+  active plans close with a reason; closed plans reactivate with history intact. Completed plans
+  archive to read-only. Planned procedures remain separate from observed diagnosis records.
+  Session execution belongs to the next implementation slice.
 - Activity: persisted approved evolution saves and note/condition revisions, filtered by category
   with exact resource links. Counts and dates come from storage; unavailable authors stay unknown.
 - Pending Work projects approvals, recoverable drafts and failed Drive exports;

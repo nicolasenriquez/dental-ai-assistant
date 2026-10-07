@@ -1292,3 +1292,189 @@ export function getPatientTreatmentRevisions(
   if (cursor) query.set('cursor', cursor);
   return request(`/patients/${patientId}/dental-treatments/${id}/revisions?${query}`);
 }
+
+export type ClinicalPlanState =
+  | 'draft'
+  | 'pending'
+  | 'active'
+  | 'completed'
+  | 'closed'
+  | 'archived';
+export interface ClinicalPlanStage {
+  id: string;
+  label: string;
+  note: string | null;
+  sequence: number;
+  status: 'pending' | 'completed' | 'cancelled';
+  completed_at: string | null;
+  completed_by: string | null;
+}
+export interface ClinicalPlanItem {
+  id: string;
+  treatment_id: string;
+  sequence: number;
+  status: ClinicalPlanStage['status'];
+  treatment: PatientTreatment;
+  stages: ClinicalPlanStage[];
+}
+export interface ClinicalPlan {
+  id: string;
+  patient_id: string;
+  title: string | null;
+  diagnosis: string | null;
+  internal_notes: string | null;
+  state: ClinicalPlanState;
+  revision: number;
+  items: ClinicalPlanItem[];
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  updated_by: string;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  acceptance_note: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  closure_reason: string | null;
+  closure_note: string | null;
+}
+export interface PlanReceipt extends Omit<TreatmentReceipt, 'committed'> {
+  committed: ClinicalPlan;
+}
+export interface PlanRevision extends Omit<TreatmentRevision, 'before' | 'after' | 'action'> {
+  before: ClinicalPlan | null;
+  after: ClinicalPlan;
+  action: string;
+}
+export interface PlanCommand {
+  operation_id: string;
+  expected_revision: number;
+}
+export interface PlanMetadata {
+  title?: string | null;
+  diagnosis?: string | null;
+  internal_notes?: string | null;
+}
+export interface AddPlanItem extends PlanCommand {
+  id: string;
+  treatment: TreatmentInput;
+  stages: { label: string; note?: string | null }[];
+}
+export function getClinicalPlans(
+  patientId: string,
+  options: { cursor?: string; state?: ClinicalPlanState } = {},
+): Promise<TreatmentPage<ClinicalPlan>> {
+  const query = new URLSearchParams({ limit: '20' });
+  if (options.cursor) query.set('cursor', options.cursor);
+  if (options.state) query.set('state', options.state);
+  return request(`/patients/${patientId}/clinical-plans?${query}`);
+}
+export function getClinicalPlan(patientId: string, id: string): Promise<ClinicalPlan> {
+  return request(`/patients/${patientId}/clinical-plans/${id}`);
+}
+export function createClinicalPlan(
+  patientId: string,
+  body: PlanCommand & PlanMetadata & { id: string },
+): Promise<PlanReceipt> {
+  return request(`/patients/${patientId}/clinical-plans`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+export function editClinicalPlan(
+  patientId: string,
+  id: string,
+  body: PlanCommand & PlanMetadata,
+): Promise<PlanReceipt> {
+  return request(`/patients/${patientId}/clinical-plans/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+export function addClinicalPlanItem(
+  patientId: string,
+  id: string,
+  body: AddPlanItem,
+): Promise<PlanReceipt> {
+  return request(`/patients/${patientId}/clinical-plans/${id}/items`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+export function editClinicalPlanItem(
+  patientId: string,
+  id: string,
+  itemId: string,
+  body: PlanCommand & { note: string | null },
+): Promise<PlanReceipt> {
+  return request(`/patients/${patientId}/clinical-plans/${id}/items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+export function reorderClinicalPlan(
+  patientId: string,
+  id: string,
+  body: PlanCommand & { item_ids: string[] },
+): Promise<PlanReceipt> {
+  return request(`/patients/${patientId}/clinical-plans/${id}/reorder`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+export function addClinicalPlanStage(
+  patientId: string,
+  id: string,
+  itemId: string,
+  body: PlanCommand & { id: string; label: string; note?: string | null },
+): Promise<PlanReceipt> {
+  return request(`/patients/${patientId}/clinical-plans/${id}/items/${itemId}/stages`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+export function editClinicalPlanStage(
+  patientId: string,
+  id: string,
+  itemId: string,
+  stageId: string,
+  body: PlanCommand & { label?: string; note?: string | null },
+): Promise<PlanReceipt> {
+  return request(`/patients/${patientId}/clinical-plans/${id}/items/${itemId}/stages/${stageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+export function getClinicalPlanRevisions(
+  patientId: string,
+  id: string,
+  cursor?: string,
+): Promise<TreatmentPage<PlanRevision>> {
+  const query = new URLSearchParams({ limit: '20' });
+  if (cursor) query.set('cursor', cursor);
+  return request(`/patients/${patientId}/clinical-plans/${id}/revisions?${query}`);
+}
+
+export type PlanAction = 'confirm' | 'accept' | 'reopen' | 'close' | 'reactivate' | 'archive';
+export type PlanClosureReason =
+  | 'rejected_by_patient'
+  | 'expired'
+  | 'cancelled_by_clinic'
+  | 'patient_abandoned'
+  | 'other';
+export type PlanLifecycleCommand =
+  | { action: 'close'; body: PlanCommand & { reason: PlanClosureReason; note?: string | null } }
+  | { action: 'accept'; body: PlanCommand & { note?: string | null } }
+  | { action: 'confirm' | 'reopen' | 'reactivate' | 'archive'; body: PlanCommand };
+export function transitionClinicalPlan(
+  patientId: string,
+  id: string,
+  command: PlanLifecycleCommand,
+): Promise<PlanReceipt> {
+  return request(`/patients/${patientId}/clinical-plans/${id}/${command.action}`, {
+    method: 'POST',
+    body: JSON.stringify(command.body),
+  });
+}

@@ -55,6 +55,7 @@ async def _insert(
     patient: UUID,
     value: dict[str, Any],
     supersedes: UUID | None = None,
+    planned: bool = False,
 ) -> dict[str, Any]:
     variant = VARIANTS[value["variant_id"]]
     identifier = UUID(value["id"])
@@ -62,7 +63,7 @@ async def _insert(
         """
         INSERT INTO patient_dental_treatments
         (id,owner_user_id,patient_id,variant_id,catalog_version,label_es,clinical_type,category_key,scope,dentition,provenance,state,note,created_by_user_id,updated_by_user_id,supersedes_id,arch)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'observed_existing','existing',$11,$2,$2,$12,$13)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$14,$15,$11,$2,$2,$12,$13)
         ON CONFLICT DO NOTHING RETURNING id
     """,
         identifier,
@@ -78,6 +79,8 @@ async def _insert(
         value.get("note"),
         supersedes,
         value.get("arch"),
+        "planned_in_clinic" if planned else "observed_existing",
+        "planned" if planned else "existing",
     )
     if inserted is None:
         # A UUID belonging to another owner/patient is unavailable, never a disclosed collision.
@@ -238,13 +241,13 @@ async def list_treatments(
     async with get_pg_pool().acquire() as conn, conn.transaction(isolation="repeatable_read"):
         await _parent(conn, owner, patient)
         total = await conn.fetchval(
-            "SELECT count(*) FROM patient_dental_treatments WHERE owner_user_id=$1 AND patient_id=$2 AND ($3::text IS NULL OR dentition=$3)",
+            "SELECT count(*) FROM patient_dental_treatments WHERE owner_user_id=$1 AND patient_id=$2 AND state!='planned' AND ($3::text IS NULL OR dentition=$3)",
             owner,
             patient,
             dentition,
         )
         rows = await conn.fetch(
-            """SELECT id FROM patient_dental_treatments WHERE owner_user_id=$1 AND patient_id=$2 AND ($3::text IS NULL OR dentition=$3)
+            """SELECT id FROM patient_dental_treatments WHERE owner_user_id=$1 AND patient_id=$2 AND state!='planned' AND ($3::text IS NULL OR dentition=$3)
             AND ($4::timestamptz IS NULL OR (created_at,id)<($4,$5::uuid)) ORDER BY created_at DESC,id DESC LIMIT $6""",
             owner,
             patient,

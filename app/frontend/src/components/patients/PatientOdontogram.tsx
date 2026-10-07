@@ -119,7 +119,7 @@ export function PatientOdontogram({
         ? 'sin condiciones guardadas'
         : 'condiciones no confirmadas';
     return procedures.length
-      ? `${text}; ${procedures.map((r) => `${r.label_es}, ${r.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}`).join('; ')}`
+      ? `${text}; ${procedures.map((r) => `${r.label_es}, ${r.state === 'entered_in_error' ? 'Registrado por error' : r.state === 'planned' ? 'Planificado' : 'Existente'}`).join('; ')}`
       : text;
   };
   const describe = (tooth: number): string => `Pieza ${tooth}: ${describeRecords(tooth)}`;
