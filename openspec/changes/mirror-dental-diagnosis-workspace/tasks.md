@@ -28,8 +28,9 @@
 - [x] 1.5 Add transition proofs for confirm/accept/reopen/close/reactivate/archive, illegal states, missing reason and foreign-plan denial.
   Traceability: P2,P4,P5; authenticated HTTP boundary, no commercial side effects.
   Notes: 2026-10-06 added real-Postgres HTTP matrix for36 state/action edges, empty confirmation, acceptance actor/time, expired closure, history-preserving reactivation, exact replay and foreign commands. Fail-first lifecycle run returned405 instead of409 at absent confirm endpoint. Completed state is explicitly seeded for archival proof, not claimed as staged execution.
-- [ ] 1.6 Add real-Postgres staged-execution proofs: concurrent closure, replayed completion, partial/all cancellation, source automatic plan completion and linked correction evidence without invented lifecycle transitions.
+- [x] 1.6 Add real-Postgres staged-execution proofs: concurrent closure, replayed completion, partial/all cancellation, source automatic plan completion and linked correction evidence without invented lifecycle transitions.
   Traceability: P3,P5,T4,T5; next-pending shortcut and optional clinical-note atomic rollback/replay; design.md lock order and command receipts. Default stubbed pytest alone cannot prove these invariants.
+  Notes: 2026-10-07 added isolated PostgreSQL HTTP proofs for staged completion/partial and all cancellation, atomic optional note, receipt replay, linked reasoned correction, retained execution and concurrent close/execute. Fail-first execution_partial run returned405 instead of200 at the absent completion endpoint against fresh migrations0001–0026. Final proof follows in3.6.
 - [ ] 1.7 Add rendered palette/legend/grouping/accessibility regressions and browser preview assertions across desktop/narrow/reduced-motion states.
   Traceability: W2,W4,W5,W7,W10; visual-parity-contract.md icon/role-color/hit-test matrix; odontogramPresentation.test.ts, PatientOdontogram.test.tsx, drivePrimitiveAllowlist.test.ts; no screenshots treated as persistence proof.
 - [ ] 1.8 Add patient-route/activity integrated browser contracts using isolated synthetic fixtures, including dirty mode/patient switching and observed-versus-planned separation.
@@ -75,8 +76,9 @@
 
 ### Staged execution and recovery
 
-- [ ] 2.6 Implement active-plan stage completion/cancellation, source session evidence/completed-total progress, automatic plan completion, next-pending-session item shortcut with clear label, atomic optional treatment-owned execution note and history-preserving linked correction transactions; durable command replay and plan/treatment locks; history UI preserves completed evidence.
+- [x] 2.6 Implement active-plan stage completion/cancellation, source session evidence/completed-total progress, automatic plan completion, next-pending-session item shortcut with clear label, atomic optional treatment-owned execution note and history-preserving linked correction transactions; durable command replay and plan/treatment locks; history UI preserves completed evidence.
   Traceability: P3,P5,T4,T5; Slice6. Demo: complete/cancel stages, replay lost-response command once, recover two-client conflict and reactivate a closed plan with historical execution retained; completed plans do not reopen to draft.
+  Notes: 2026-10-07 added migration0027 for cancellation metadata and treatment-owned execution notes/revisions, active-only session commands, automatic truthful item/plan completion and plan-first linked corrections with retained stages. Plan hook freezes selected session/revisions/text for replay; Spanish execution/correction confirmations, actor/time, session/item totals and historical evidence shipped.33 real-Postgres plan/treatment proofs and15 rendered/transport/dialog proofs passed; tsc/ruff passed. Browser and broad checks follow in3.6.
 
 ### Dental presentation and context
 
@@ -115,8 +117,9 @@
 - [x] 3.5 Verify every allowed/denied lifecycle edge, acceptance metadata and absence of commercial integrations.
   Traceability: Slice5; P2,P4,P5.
   Notes: 2026-10-07 final real-Postgres plan/treatment suite22 passed; lifecycle matrix covers36 state/action edges, missing reasons, owner denial, actor/time, exact receipts, concurrent close/edit and rollback. Full frontend777 passed; tsc/Biome/ruff/format/mypy passed. Final isolated Docker setup+Slices1–5 six browser proofs passed, including acceptance response loss, closed read-only reload, narrow keyboard reactivation, retained history and save-before-navigation. Backend remainder978 passed/134 skipped with only the known catalog CRLF/LF test deselected; unrestricted run still fails there. See slice5-evidence.md; release3.9 remains unchecked.
-- [ ] 3.6 Verify execution, partial/all cancellation, correction/reopen history, concurrent closure and exact receipt replay through real PostgreSQL and browser.
+- [x] 3.6 Verify execution, partial/all cancellation, correction/reopen history, concurrent closure and exact receipt replay through real PostgreSQL and browser.
   Traceability: Slice6; P3,P5,T4,T5.
+  Notes: 2026-10-07 isolated PostgreSQL plan/treatment33 passed, including concurrent close/execute and correction/execute, same-command replay, note/history rollback, denied states/owners, cancellation denominator and immutable corrected/replacement evidence. Focused frontend15 and full Vitest781 passed; tsc/Biome/ruff/format/mypy passed. Final Docker setup+Slices1–6 eight browser proofs passed, with two Slice6 journeys covering atomic note response loss, two-client recovery, partial/all cancellation, correction/reload and390px keyboard/reduced-motion reactivation. Backend remainder989 passed/134 skipped with known catalog CRLF/LF test deselected; unrestricted run still fails there. See slice6-evidence.md; release3.9 remains unchecked.
 - [ ] 3.7 Capture desktop and390px narrow UI, 200% zoom, keyboard, reduced motion and all visual-family snapshots; inspect labels/counts and primitive allowlist.
   Traceability: Slice7; W2,W4,W5,W7,W10,T1; visual-parity-contract.md acceptance matrix.
 - [ ] 3.8 Run isolated synthetic end-to-end clinical journey with fresh page reload, two sessions and dirty navigation; record truthful persisted IDs/revisions and safe activity/deep-link results.
