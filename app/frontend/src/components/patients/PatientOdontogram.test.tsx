@@ -122,7 +122,7 @@ it('keeps multiple active/resolved marks and mesial orientation, with text equiv
   fireEvent.focus(tooth);
   expect(select).not.toHaveBeenCalled();
   fireEvent.click(tooth);
-  expect(select).toHaveBeenCalledWith(36);
+  expect(select).toHaveBeenCalledWith(36, expect.any(HTMLElement));
   expect(container.querySelectorAll('[data-arch-tooth="36"] [data-condition-id]')).toHaveLength(2);
   expect(container.querySelector('[data-arch-tooth="36"] [data-surface="M"]')).toHaveAttribute(
     'data-position',
@@ -233,7 +233,7 @@ it('pages anatomical quadrants with named controls and keeps the draft piece acr
       .getAllByRole('button')
       .find((node) => node.textContent === 'Pieza 36') as HTMLElement,
   );
-  expect(select).toHaveBeenCalledWith(36);
+  expect(select).toHaveBeenCalledWith(36, expect.any(HTMLElement));
 });
 
 it('shows the selected quadrant first, keeps it after dentition change, and names all primary quadrants', () => {

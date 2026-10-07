@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { UNSAFE_DataRouterContext } from 'react-router-dom';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
+import { useDentalWorkspace } from '../../hooks/useDentalWorkspace';
 import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import {
   ApiError,
@@ -40,12 +41,14 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import { ConditionSymbol } from './ConditionSymbol';
+import { DentalConditionModal } from './DentalConditionModal';
 import { PatientActorLabel } from './PatientActorLabel';
 import { PatientConditionHistory } from './PatientConditionHistory';
 import { PatientNoteNavigationGuard } from './PatientNoteNavigationGuard';
 import { PatientOdontogram } from './PatientOdontogram';
 import { ToothDrawing } from './ToothDrawing';
-import { fdiTeeth } from './toothGeometry';
+import { ToothInspectionPopover } from './ToothInspectionPopover';
+import { fdiTeeth, toothFamily } from './toothGeometry';
 
 interface ConditionDraft extends CreatePatientCondition {
   correction?: { source: PatientCondition; reason: string; replacement: boolean };
@@ -143,6 +146,11 @@ function PatientDiagnosisWorkspace({
   const [focused, setFocused] = useState<PatientCondition | null>(null);
   const [focusError, setFocusError] = useState<string | null>(null);
   const [draft, setDraft] = useState<ConditionDraft | null>(null);
+  const [inspection, setInspection] = useState<{ tooth: number; anchor: HTMLElement } | null>(null);
+  const [surfaceSelection, setSurfaceSelection] = useState<{
+    tooth: number;
+    codes: ToothSurface[];
+  } | null>(null);
   const [attempt, setAttempt] = useState<ConditionAttempt | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -184,7 +192,7 @@ function PatientDiagnosisWorkspace({
     value: draft?.note ?? '',
     maxHeight: Math.floor(window.innerHeight / 3),
   });
-  const dirty =
+  const recordDirty =
     !!draft &&
     (!!draft.correction || values(draft) !== draft.baseline || attempt !== null || conflictPending);
   const conflictFieldChoiceNeeded =
@@ -304,6 +312,19 @@ function PatientDiagnosisWorkspace({
       sequence.current++;
     };
   }, [load]);
+  const dental = useDentalWorkspace(patientId, (saved) => {
+    if (saved) {
+      setRecords((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      setAnnouncement(
+        `Condición guardada: pieza ${saved.tooth_fdi}, ${labels[saved.condition_code]}.`,
+      );
+    }
+    void load();
+  });
+  const dirty = recordDirty || !!surfaceSelection || !!dental.attempt;
+  useEffect(() => {
+    if (!dental.activeTool) setSurfaceSelection(null);
+  }, [dental.activeTool]);
   useEffect(() => {
     void loadFocused();
     return () => {
@@ -322,7 +343,7 @@ function PatientDiagnosisWorkspace({
     setPending(() => proceed);
   }, []);
   useEffect(() => {
-    if (!dirty && !saving) return;
+    if (!dirty && !saving && !dental.busy) return;
     const beforeUnload = (event: BeforeUnloadEvent): void => {
       event.preventDefault();
       event.returnValue = '';
@@ -336,13 +357,15 @@ function PatientDiagnosisWorkspace({
       window.removeEventListener('beforeunload', beforeUnload);
       remove?.();
     };
-  }, [dirty, saving, guard]);
+  }, [dirty, saving, dental.busy, guard]);
   const transition = (continuation: () => void): void => {
     if (guard) guard.guardTransition(continuation);
-    else if (dirty || saving) setPending(() => continuation);
+    else if (dirty || saving || dental.busy) setPending(() => continuation);
     else continuation();
   };
   const reset = (): void => {
+    dental.selectTool(null);
+    setInspection(null);
     setHighlightedTooth(0);
     setDraft(null);
     setAttempt(null);
@@ -363,9 +386,12 @@ function PatientDiagnosisWorkspace({
     });
   };
   const start = (record: PatientCondition, resolve = false): void => {
+    if (dental.busy || dental.attempt) return;
     const trigger = document.activeElement as HTMLElement;
     transition(() => {
-      initiatingRef.current = trigger;
+      initiatingRef.current = inspection?.anchor ?? trigger;
+      setInspection(null);
+      dental.selectTool(null);
       setAttempt(null);
       setConflict(null);
       setDuplicate(null);
@@ -384,6 +410,7 @@ function PatientDiagnosisWorkspace({
     });
   };
   const startCorrection = (record: PatientCondition): void => {
+    if (dental.busy || dental.attempt) return;
     const trigger = document.activeElement as HTMLElement;
     transition(() => {
       reset();
@@ -426,17 +453,9 @@ function PatientDiagnosisWorkspace({
     const tool = resolveCondition(catalog, code);
     if (!tool.supported || !tool.allowed_dentitions.includes(draft?.dentition ?? dentition)) return;
     if (!draft) {
-      initiatingRef.current = document.activeElement as HTMLElement;
-      const next = {
-        id: crypto.randomUUID(),
-        dentition,
-        tooth_fdi: 0,
-        condition_code: code,
-        surfaces: [],
-        note: '',
-        status: 'active' as const,
-      };
-      setDraft({ ...next, baseline: '' });
+      if (dental.busy || dental.attempt) return;
+      setInspection(null);
+      dental.selectTool(dental.activeTool === code ? null : code);
       return;
     }
     const compatible = !!tool?.surface_codes.length;
@@ -444,26 +463,33 @@ function PatientDiagnosisWorkspace({
       setAnnouncement('Superficies retiradas: esta condición no admite superficies.');
     setDraft({ ...draft, condition_code: code, surfaces: compatible ? draft.surfaces : [] });
   };
-  const chooseTooth = (tooth: number): void => {
+  const chooseTooth = (tooth: number, anchor?: HTMLElement, surface?: ToothSurface): void => {
+    if (!tooth || dental.busy || dental.attempt) return;
     if (locked || immutable || (draft?.correction && !draft.correction.replacement)) return;
-    const tool = draft ? resolveCondition(catalog, draft.condition_code) : null;
-    if (draft) setDraft({ ...draft, tooth_fdi: tooth });
-    else {
-      initiatingRef.current = document.activeElement as HTMLElement;
-      setDraft({
-        id: crypto.randomUUID(),
-        dentition,
-        tooth_fdi: tooth,
-        condition_code: '',
-        surfaces: [],
-        note: '',
-        status: 'active',
-        baseline: '',
-      });
+    if (draft) {
+      setDraft({ ...draft, tooth_fdi: tooth });
+      return;
     }
-    window.requestAnimationFrame(() => {
-      if (tool?.supported && tool.surface_codes.length) firstSurfaceRef.current?.focus();
-      else noteRef.current?.focus();
+    if (!dental.activeTool) {
+      const trigger = anchor ?? toothSelectRef.current;
+      if (trigger) setInspection({ tooth, anchor: trigger });
+      return;
+    }
+    const tool = resolveCondition(catalog, dental.activeTool);
+    if (!tool.supported || !tool.allowed_dentitions.includes(dentition)) return;
+    setInspection(null);
+    if (tool.surface_codes.length && !surface) {
+      initiatingRef.current = anchor ?? toothSelectRef.current;
+      setSurfaceSelection({ tooth, codes: [] });
+      return;
+    }
+    if (surface && !tool.surface_codes.includes(surface)) return;
+    void dental.apply({
+      dentition,
+      tooth_fdi: tooth,
+      condition_code: dental.activeTool,
+      surfaces: surface ? [surface] : [],
+      note: null,
     });
   };
   const save = async (reviewed = false): Promise<boolean> => {
@@ -698,6 +724,8 @@ function PatientDiagnosisWorkspace({
   const discard = (): void => {
     const continuation = pending;
     reset();
+    dental.discard();
+    setSurfaceSelection(null);
     setPending(null);
     guard?.cancelTransition();
     void load();
@@ -715,37 +743,32 @@ function PatientDiagnosisWorkspace({
   return (
     <section
       aria-label="Diagnóstico manual"
+      onKeyDown={(event) => {
+        if (
+          event.key === 'Escape' &&
+          !draft &&
+          !surfaceSelection &&
+          !dental.busy &&
+          !dental.attempt
+        ) {
+          dental.selectTool(null);
+          setInspection(null);
+        }
+      }}
       className="space-y-5 [container-type:inline-size] [&_button]:min-h-[44px]"
     >
       {dataRouter && (
-        <PatientNoteNavigationGuard dirty={dirty || saving} onBlocked={onRouteBlocked} />
+        <PatientNoteNavigationGuard
+          dirty={dirty || saving || dental.busy}
+          onBlocked={onRouteBlocked}
+        />
       )}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Diagnóstico manual</h2>
           <p className="text-sm text-muted">
-            Selecciona y revisa. Solo Guardar registra una condición.
+            Sin herramienta, consulta la pieza. Con una herramienta, actívala para registrar.
           </p>
-        </div>
-        <div className="flex gap-2" aria-label="Dentición">
-          {(['permanent', 'primary'] as const).map((mode) => (
-            <Button
-              key={mode}
-              variant="clinicalSecondary"
-              aria-pressed={dentition === mode}
-              className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
-              disabled={saving || draft?.expectedRevision !== undefined}
-              onClick={() => {
-                if (mode === dentition) return;
-                transition(() => {
-                  reset();
-                  setDentition(mode);
-                });
-              }}
-            >
-              {mode === 'permanent' ? 'Permanente' : 'Temporal'}
-            </Button>
-          ))}
         </div>
       </header>
       <p role="status" className="sr-only">
@@ -844,20 +867,108 @@ function PatientDiagnosisWorkspace({
           </Button>
         </div>
       )}
-      {/* ponytail: reserve 744px for the chart, 20px gap and 300px inspector. */}
-      <div className="grid items-start gap-5 [@container(min-width:1064px)]:grid-cols-[minmax(0,1fr)_300px]">
+      {dental.activeTool && (
+        <p className="text-sm">
+          Herramienta: {labels[dental.activeTool]}. Activa una pieza o superficie.{' '}
+          <Button
+            variant="clinicalSecondary"
+            disabled={dental.busy || !!dental.attempt}
+            onClick={() => dental.selectTool(null)}
+          >
+            Cancelar herramienta
+          </Button>
+        </p>
+      )}
+      {dental.applied && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded border border-border p-3"
+        >
+          Guardada en ficha: pieza {dental.applied.tooth_fdi} ·{' '}
+          {labels[dental.applied.condition_code]}
+          <Button
+            variant="clinicalSecondary"
+            disabled={dental.busy || !!dental.attempt}
+            onClick={() => void dental.undo()}
+          >
+            Deshacer
+          </Button>
+        </div>
+      )}
+      {dental.busy && <p role="status">Guardando…</p>}
+      {dental.error && (
+        <div role="alert" className="space-y-2">
+          <p>{dental.error}</p>
+          {dental.attempt && (
+            <>
+              <Button variant="clinical" disabled={dental.busy} onClick={() => void dental.retry()}>
+                Reintentar operación
+              </Button>
+              <Button variant="clinicalSecondary" disabled={dental.busy} onClick={dental.discard}>
+                Descartar intento
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      <div className="space-y-4">
         <div className="min-w-0 space-y-4">
           <PatientOdontogram
+            controls={
+              <div className="flex gap-2" aria-label="Dentición">
+                {(['permanent', 'primary'] as const).map((mode) => (
+                  <Button
+                    key={mode}
+                    variant="clinicalSecondary"
+                    aria-pressed={dentition === mode}
+                    disabled={
+                      saving ||
+                      dental.busy ||
+                      !!dental.attempt ||
+                      draft?.expectedRevision !== undefined
+                    }
+                    onClick={() => {
+                      if (mode !== dentition)
+                        transition(() => {
+                          reset();
+                          dental.selectTool(null);
+                          setDentition(mode);
+                        });
+                    }}
+                  >
+                    {mode === 'permanent' ? 'Permanente' : 'Temporal'}
+                  </Button>
+                ))}
+              </div>
+            }
             complete={!loading && !readError}
             dentition={dentition}
             conditions={visible}
             labels={labels}
             catalog={catalog}
-            selectedTooth={draft?.tooth_fdi ?? focused?.tooth_fdi ?? 0}
+            selectedTooth={
+              surfaceSelection?.tooth ??
+              inspection?.tooth ??
+              draft?.tooth_fdi ??
+              focused?.tooth_fdi ??
+              0
+            }
             highlightedTooth={highlightedTooth}
             onSelect={chooseTooth}
+            surfaceCodes={
+              dental.activeTool
+                ? (resolveCondition(catalog, dental.activeTool).surface_codes as ToothSurface[])
+                : []
+            }
             onHighlight={setHighlightedTooth}
-            disabled={locked || immutable || !!(draft?.correction && !draft.correction.replacement)}
+            disabled={
+              dental.busy ||
+              !!dental.attempt ||
+              locked ||
+              immutable ||
+              !!surfaceSelection ||
+              !!(draft?.correction && !draft.correction.replacement)
+            }
           />
           <label className="block text-sm" htmlFor="chart-tooth">
             Seleccionar pieza FDI
@@ -867,7 +978,13 @@ function PatientDiagnosisWorkspace({
             ref={toothSelectRef}
             className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
             value={draft?.tooth_fdi || ''}
-            disabled={locked || immutable || !!(draft?.correction && !draft.correction.replacement)}
+            disabled={
+              dental.busy ||
+              !!dental.attempt ||
+              locked ||
+              immutable ||
+              !!(draft?.correction && !draft.correction.replacement)
+            }
             onChange={(event) => chooseTooth(Number(event.target.value))}
           >
             <option value="">Selecciona una pieza</option>
@@ -900,10 +1017,12 @@ function PatientDiagnosisWorkspace({
                 <Button
                   key={tool.code}
                   variant="clinicalSecondary"
-                  aria-pressed={draft?.condition_code === tool.code}
+                  aria-pressed={(draft?.condition_code ?? dental.activeTool) === tool.code}
                   className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
                   disabled={
                     locked ||
+                    dental.busy ||
+                    !!dental.attempt ||
                     immutable ||
                     !tool.allowed_dentitions.includes(draft?.dentition ?? dentition) ||
                     !!(draft?.correction && !draft.correction.replacement)
@@ -918,11 +1037,21 @@ function PatientDiagnosisWorkspace({
             </div>
           </div>
         </div>
-        <aside
-          aria-label="Editor de condición"
-          className="min-w-0 [@container(min-width:1064px)]:col-start-2 [@container(min-width:1064px)]:row-start-1 [@container(min-width:1064px)]:row-span-2"
-        >
-          {draft && (
+        {draft && (
+          <DentalConditionModal
+            returnFocus={initiatingRef.current}
+            label={
+              draft.correction
+                ? 'Corregir registro'
+                : draft.status === 'resolved'
+                  ? 'Resolver condición'
+                  : 'Editar condición'
+            }
+            suspended={!!pending || review}
+            onClose={() => {
+              if (!saving) transition(reset);
+            }}
+          >
             <form
               className="space-y-3 rounded border border-border bg-surface p-4"
               onSubmit={(event) => {
@@ -932,6 +1061,7 @@ function PatientDiagnosisWorkspace({
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                   event.preventDefault();
+                  event.stopPropagation();
                   transition(reset);
                 }
               }}
@@ -1300,16 +1430,8 @@ function PatientDiagnosisWorkspace({
                 </Button>
               </div>
             </form>
-          )}
-          {!draft && (
-            <div className="rounded border border-border bg-surface p-4">
-              <h3 className="font-semibold">Registrar condición</h3>
-              <p className="mt-2 text-sm text-muted">
-                Elige una condición y una pieza. Revisa las superficies y confirma Guardar.
-              </p>
-            </div>
-          )}
-        </aside>
+          </DentalConditionModal>
+        )}
         <div className="min-w-0 space-y-4 [@container(min-width:1064px)]:col-start-1">
           {' '}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1514,6 +1636,203 @@ function PatientDiagnosisWorkspace({
           </ol>
         </div>
       </div>
+      {inspection && !draft && !surfaceSelection && (
+        <ToothInspectionPopover
+          tooth={inspection.tooth}
+          anchor={inspection.anchor}
+          onClose={() => setInspection(null)}
+        >
+          <p className="mt-2 text-sm text-muted">Registros existentes</p>
+          <p className="text-sm">
+            {
+              { incisor: 'Incisivo', canine: 'Canino', premolar: 'Premolar', molar: 'Molar' }[
+                toothFamily(inspection.tooth)
+              ]
+            }{' '}
+            · {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
+          </p>
+          {loading || readError ? <p>Lectura incompleta. Reintenta las condiciones.</p> : null}
+          {!loading &&
+            !readError &&
+            !all.some(
+              (item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition,
+            ) && <p className="text-sm">Sin condiciones guardadas</p>}
+          {all
+            .filter((item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition)
+            .map((record) => (
+              <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
+                <p className="flex items-center gap-2">
+                  <ConditionSymbol code={resolveCondition(catalog, record.condition_code).symbol} />
+                  {labels[record.condition_code]} · {conditionStatus(record.status)}
+                </p>
+                <p>{surfaceDescription(catalog, record.condition_code, record.surfaces)}</p>
+                <div className="flex flex-wrap gap-2">
+                  {record.status === 'active' && (
+                    <Button
+                      variant="clinicalSecondary"
+                      disabled={!resolveCondition(catalog, record.condition_code).supported}
+                      onClick={() => start(record)}
+                    >
+                      Editar
+                    </Button>
+                  )}
+                  <Button
+                    variant="clinicalSecondary"
+                    onClick={() => {
+                      setInspection(null);
+                      setHistoryId(record.id);
+                      setFocused(record);
+                      publishFocus(record.id);
+                    }}
+                  >
+                    Historial
+                  </Button>
+                </div>
+              </div>
+            ))}
+          <Button
+            variant="clinicalSecondary"
+            onClick={() => {
+              setInspection(null);
+              document
+                .querySelector<HTMLElement>('[aria-label="Condiciones disponibles"] button')
+                ?.focus({ preventScroll: true });
+            }}
+          >
+            Registrar
+          </Button>
+          <Button
+            variant="clinicalSecondary"
+            onClick={() => {
+              const anchor = inspection.anchor;
+              setInspection(null);
+              anchor.focus({ preventScroll: true });
+            }}
+          >
+            Cerrar pieza
+          </Button>
+        </ToothInspectionPopover>
+      )}
+      {surfaceSelection && dental.activeTool && (
+        <DentalConditionModal
+          returnFocus={initiatingRef.current}
+          label="Seleccionar superficies"
+          suspended={!!pending}
+          onClose={() => {
+            if (!dental.busy && !dental.attempt) {
+              setSurfaceSelection(null);
+              dental.selectTool(null);
+            }
+          }}
+        >
+          <h3 className="font-semibold">Seleccionar superficies</h3>
+          <p>
+            Pieza {surfaceSelection.tooth} · {labels[dental.activeTool]}
+          </p>
+          <svg
+            role="img"
+            aria-label={`Superficies de pieza ${surfaceSelection.tooth}`}
+            viewBox="0 0 42 42"
+            className="mx-auto h-40 w-40 text-muted"
+          >
+            <ToothDrawing tooth={surfaceSelection.tooth} surfaces={surfaceSelection.codes} />
+          </svg>
+          <svg
+            role="img"
+            aria-label={`Vista oclusal de pieza ${surfaceSelection.tooth}`}
+            viewBox="0 94 42 28"
+            className="mx-auto h-24 w-40 text-muted"
+          >
+            <ToothDrawing tooth={surfaceSelection.tooth} surfaces={surfaceSelection.codes} />
+          </svg>
+          <fieldset disabled={dental.busy || !!dental.attempt}>
+            <legend>Superficies</legend>
+            <div className="flex flex-wrap gap-2">
+              {surfaces
+                .filter((item) =>
+                  resolveCondition(catalog, dental.activeTool ?? '').surface_codes.includes(
+                    item.code,
+                  ),
+                )
+                .map((item) => (
+                  <label
+                    key={item.code}
+                    className="flex min-h-11 items-center gap-2 rounded border border-border p-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={surfaceSelection.codes.includes(item.code)}
+                      onChange={(event) =>
+                        setSurfaceSelection({
+                          ...surfaceSelection,
+                          codes: event.target.checked
+                            ? [...surfaceSelection.codes, item.code]
+                            : surfaceSelection.codes.filter((code) => code !== item.code),
+                        })
+                      }
+                    />
+                    {item.label} ({item.code})
+                  </label>
+                ))}
+            </div>
+          </fieldset>
+          {dental.error && <p role="alert">{dental.error}</p>}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              variant="clinicalSecondary"
+              disabled={dental.busy || !!dental.attempt}
+              onClick={() => {
+                setSurfaceSelection(null);
+                dental.selectTool(null);
+              }}
+            >
+              Cancelar superficies
+            </Button>
+            <Button
+              variant="clinical"
+              disabled={dental.busy || !!dental.attempt || !surfaceSelection.codes.length}
+              onClick={async () => {
+                if (!dental.activeTool) return;
+                const saved = await dental.apply({
+                  dentition,
+                  tooth_fdi: surfaceSelection.tooth,
+                  condition_code: dental.activeTool,
+                  surfaces: surfaces
+                    .filter((item) => surfaceSelection.codes.includes(item.code))
+                    .map((item) => item.code),
+                  note: null,
+                });
+                if (saved) setSurfaceSelection(null);
+              }}
+            >
+              Confirmar
+            </Button>
+            {dental.attempt && (
+              <Button
+                variant="clinicalSecondary"
+                disabled={dental.busy}
+                onClick={() => {
+                  dental.discard();
+                  setSurfaceSelection(null);
+                }}
+              >
+                Descartar intento
+              </Button>
+            )}
+            {dental.attempt && (
+              <Button
+                variant="clinical"
+                disabled={dental.busy}
+                onClick={async () => {
+                  if (await dental.retry()) setSurfaceSelection(null);
+                }}
+              >
+                Reintentar operación
+              </Button>
+            )}
+          </div>
+        </DentalConditionModal>
+      )}
       {review && draft?.correction && (
         <AlertDialog open onOpenChange={setReview}>
           <AlertDialogContent className="max-h-[calc(100dvh-32px)] overflow-y-auto break-words [&>*]:shrink-0 [&_button]:min-h-[44px]">
@@ -1581,7 +1900,9 @@ function PatientDiagnosisWorkspace({
               <AlertDialogDescription>
                 {attempt?.correction
                   ? 'La corrección pudo guardarse. Descartar no la deshace; el reintento conserva el mismo contenido.'
-                  : 'Guarda, descarta los cambios o sigue editando.'}
+                  : dental.attempt
+                    ? 'La operación pudo guardarse. Reintenta con el mismo contenido o descarta el intento sin borrar su historial.'
+                    : 'Guarda, descarta los cambios o sigue editando.'}
               </AlertDialogDescription>
             </AlertDialogHeader>
             {saveError && (
@@ -1591,7 +1912,7 @@ function PatientDiagnosisWorkspace({
             )}
             <AlertDialogFooter>
               <AlertDialogCancel
-                disabled={saving}
+                disabled={saving || dental.busy}
                 onClick={() => {
                   routeCancel.current?.();
                   routeCancel.current = null;
@@ -1601,7 +1922,11 @@ function PatientDiagnosisWorkspace({
               >
                 Seguir editando
               </AlertDialogCancel>
-              <Button variant="clinicalSecondary" disabled={saving} onClick={discard}>
+              <Button
+                variant="clinicalSecondary"
+                disabled={saving || dental.busy}
+                onClick={discard}
+              >
                 Descartar condición
               </Button>
               <Button
@@ -1610,12 +1935,23 @@ function PatientDiagnosisWorkspace({
                 className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
                 disabled={
                   saving ||
+                  dental.busy ||
                   !!draft?.correction ||
                   conflictBlocked ||
-                  !draft?.tooth_fdi ||
-                  !draft?.condition_code
+                  (!dental.attempt && (!draft?.tooth_fdi || !draft?.condition_code))
                 }
-                onClick={() => void save()}
+                onClick={async () => {
+                  if (!dental.attempt) {
+                    void save();
+                    return;
+                  }
+                  if (await dental.retry()) {
+                    const continuation = pending;
+                    setPending(null);
+                    guard?.cancelTransition();
+                    if (continuation) window.requestAnimationFrame(continuation);
+                  }
+                }}
               >
                 {saving && <Spinner />}
                 {saving ? 'Guardando…' : 'Guardar y continuar'}

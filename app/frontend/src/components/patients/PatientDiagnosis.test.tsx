@@ -82,6 +82,7 @@ function mount(items = [record], focusedConditionId?: string, configure?: () => 
     conditions: [
       { code: 'caries', label_es: 'Caries', surface_codes: ['M', 'D', 'O', 'V', 'L'] },
       { code: 'missing', label_es: 'Ausente', surface_codes: [] },
+      { code: 'pulpitis', label_es: 'Pulpitis', surface_codes: [] },
     ],
   });
   mocks.exact.mockResolvedValue(record);
@@ -95,26 +96,124 @@ function mount(items = [record], focusedConditionId?: string, configure?: () => 
     </MemoryRouter>,
   );
 }
-it('selection is a draft, tool change preserves tooth/note and incompatible surfaces clear; uncertain retry freezes UUID', async () => {
+it('tooth-first inspection opens anchored context without drafts, writes or lower-form focus', async () => {
+  mount();
+  await screen.findByRole('button', { name: 'Caries' });
+  const tooth = screen.getByRole('button', { name: /^Pieza 36:/ });
+  act(() => tooth.focus());
+  fireEvent.click(tooth);
+  const context = await screen.findByRole('dialog', { name: 'Pieza 36' });
+  expect(context).toHaveTextContent('Caries');
+  expect(screen.queryByLabelText('Nota de condición')).toBeNull();
+  expect(screen.queryByText('Nueva condición')).toBeNull();
+  expect(mocks.create).not.toHaveBeenCalled();
+  expect(mocks.edit).not.toHaveBeenCalled();
+  fireEvent.keyDown(context, { key: 'Escape' });
+  expect(tooth).toHaveFocus();
+});
+
+it('whole-tooth activation applies once, clears tool and offers logical undo', async () => {
+  mount([], undefined, () => {
+    mocks.create.mockResolvedValue({
+      ...record,
+      condition_code: 'pulpitis',
+      tooth_fdi: 16,
+      surfaces: [],
+    });
+  });
+  fireEvent.click(await screen.findByRole('button', { name: 'Pulpitis' }));
+  expect(screen.queryByLabelText('Nota de condición')).toBeNull();
+  const tooth = screen.getByRole('button', { name: /^Pieza 16:/ });
+  fireEvent.click(tooth);
+  fireEvent.click(tooth);
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
+  expect(mocks.create).toHaveBeenCalledWith(
+    'p',
+    expect.objectContaining({
+      tooth_fdi: 16,
+      condition_code: 'pulpitis',
+      surfaces: [],
+      note: null,
+    }),
+  );
+  expect(await screen.findByRole('button', { name: 'Deshacer' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Pulpitis' })).toHaveAttribute('aria-pressed', 'false');
+});
+
+it('lateral surface selection confirms exactly once without extra save', async () => {
+  mount([], undefined, () =>
+    mocks.create.mockResolvedValue({ ...record, tooth_fdi: 16, surfaces: ['M', 'O'] }),
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 16:/ }));
+  const modal = await screen.findByRole('dialog', { name: 'Seleccionar superficies' });
+  expect(mocks.create).not.toHaveBeenCalled();
+  fireEvent.click(within(modal).getByRole('checkbox', { name: 'Mesial (M)' }));
+  fireEvent.click(within(modal).getByRole('checkbox', { name: 'Oclusal (O)' }));
+  fireEvent.click(within(modal).getByRole('button', { name: 'Confirmar' }));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
+  expect(mocks.create.mock.calls[0][1]).toMatchObject({ tooth_fdi: 16, surfaces: ['M', 'O'] });
+  expect(screen.queryByRole('button', { name: 'Guardar condición' })).toBeNull();
+});
+
+it('occlusal surface activation applies exact surface without selector', async () => {
+  mount([], undefined, () => mocks.create.mockResolvedValue({ ...record, tooth_fdi: 16 }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Pieza 16 · Mesial (M)' }));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
+  expect(mocks.create.mock.calls[0][1]).toMatchObject({
+    tooth_fdi: 16,
+    surfaces: ['M'],
+    note: null,
+  });
+  expect(screen.queryByRole('dialog', { name: 'Seleccionar superficies' })).toBeNull();
+});
+
+it('undo retains correction identity/reason across response loss and never resolves or deletes', async () => {
+  mount([], undefined, () => {
+    mocks.create.mockResolvedValue({ ...record, condition_code: 'pulpitis', surfaces: [] });
+    mocks.correct
+      .mockRejectedValueOnce(new TypeError('lost'))
+      .mockResolvedValueOnce({ condition_id: record.id });
+  });
+  fireEvent.click(await screen.findByRole('button', { name: 'Pulpitis' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 36:/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Deshacer' }));
+  await screen.findByRole('button', { name: 'Reintentar operación' });
+  const command = mocks.correct.mock.calls[0][2];
+  expect(command).toEqual({
+    operation_id: expect.any(String),
+    expected_revision: 1,
+    reason: 'Deshacer registro',
+    replacement: null,
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar operación' }));
+  await waitFor(() => expect(mocks.correct).toHaveBeenCalledTimes(2));
+  expect(mocks.correct.mock.calls[1][2]).toEqual(command);
+  expect(mocks.edit).not.toHaveBeenCalled();
+});
+
+it('surface cancellation and tool Escape clear intent without writing', async () => {
   mount([]);
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
-  expect(screen.getByText('Borrador sin guardar')).toBeVisible();
-  fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
-  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Nueva' } });
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Mesial (M)' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Ausente' }));
-  expect(screen.getByLabelText('Seleccionar pieza FDI')).toHaveValue('36');
-  expect(screen.getByLabelText('Nota de condición')).toHaveValue('Nueva');
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 16:/ }));
+  const modal = screen.getByRole('dialog', { name: 'Seleccionar superficies' });
+  fireEvent.keyDown(modal, { key: 'Escape' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Caries' })).toHaveAttribute('aria-pressed', 'false');
   expect(mocks.create).not.toHaveBeenCalled();
+});
+it('uncertain direct application freezes UUID and blocks fresh activation until identical retry', async () => {
+  mount([]);
   mocks.create
     .mockRejectedValueOnce(new TypeError('lost'))
     .mockResolvedValueOnce({ ...record, condition_code: 'missing', surfaces: [] });
-  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
-  await screen.findByRole('button', { name: 'Reintentar guardado' });
-  expect(screen.queryByText('Borrador sin guardar')).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Nota de condición')).toBeDisabled();
+  fireEvent.click(await screen.findByRole('button', { name: 'Ausente' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 36:/ }));
+  await screen.findByRole('button', { name: 'Reintentar operación' });
+  expect(screen.getByRole('button', { name: /^Pieza 16:/ })).toBeDisabled();
   const body = mocks.create.mock.calls[0][1];
-  fireEvent.click(screen.getByRole('button', { name: 'Reintentar guardado' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar operación' }));
   await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
   expect(mocks.create.mock.calls[1][1]).toEqual(body);
 });
@@ -377,36 +476,32 @@ it('renders synthetic supported entries and unknown saved codes through the shar
   expect(edit[1]).toBeDisabled();
 });
 
-it('keeps a draft on the selected dentition, confirms a change and clears only after discard', async () => {
-  mount([]);
-  fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
-  fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
+it('keeps a saved-record edit on its dentition and clears only after guarded discard', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
   fireEvent.click(screen.getByRole('button', { name: 'Permanente' }));
-  expect(screen.queryByRole('dialog')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Temporal' }));
+  expect(screen.queryByRole('dialog', { name: 'Condición sin guardar' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar condición' }));
   await screen.findByRole('dialog', { name: 'Condición sin guardar' });
   fireEvent.click(screen.getByRole('button', { name: 'Seguir editando' }));
   expect(screen.getByLabelText('Seleccionar pieza FDI')).toHaveValue('36');
-  fireEvent.click(screen.getByRole('button', { name: 'Temporal' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar condición' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Descartar condición' }));
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Temporal' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    ),
-  );
   expect(screen.queryByLabelText('Nota de condición')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Temporal' }));
+  expect(screen.getByRole('button', { name: 'Temporal' })).toHaveAttribute('aria-pressed', 'true');
   expect(mocks.create).not.toHaveBeenCalled();
 });
 
 it.each([false, true])(
   'shows one pending condition spinner, including continue guard=%s',
   async (guard) => {
-    mount([]);
-    fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
-    fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+    fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
     let rejectSave!: (error: Error) => void;
-    mocks.create.mockImplementation(
+    mocks.edit.mockImplementation(
       () =>
         new Promise((_, reject) => {
           rejectSave = reject;
@@ -745,17 +840,15 @@ it('failed current read blocks renewed correction, retains reason and terminal s
   expect(mocks.correct).toHaveBeenCalledTimes(1);
 });
 
-it('offers one visible FDI context with Cambiar pieza, compact whole-tooth text and optional-empty wording', async () => {
+it('tool selection keeps chart context; surface selector cancels without writes', async () => {
   mount([]);
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
   expect(screen.queryByLabelText('Pieza FDI')).toBeNull();
-  expect(screen.getByRole('button', { name: 'Elegir pieza' })).toBeEnabled();
+  expect(screen.queryByRole('button', { name: 'Elegir pieza' })).toBeNull();
   fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
-  expect(screen.getByRole('button', { name: 'Cambiar pieza' })).toBeEnabled();
+  expect(screen.queryByRole('button', { name: 'Cambiar pieza' })).toBeNull();
   expect(screen.getByText(/Pieza 36 · Caries/)).toBeVisible();
-  expect(screen.getByText('Sin superficies especificadas')).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Ausente' }));
-  expect(screen.getByText('Pieza completa, sin superficies')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar superficies' }));
   expect(screen.queryByRole('checkbox', { name: 'Mesial (M)' })).toBeNull();
   expect(screen.queryByRole('checkbox', { name: 'Oclusal (O)' })).toBeNull();
   expect(mocks.create).not.toHaveBeenCalled();
@@ -769,7 +862,7 @@ it('renders a plain diagnosis heading for one category and never renders empty f
   expect(screen.queryByRole('button', { name: 'Cirugía' })).toBeNull();
 });
 
-it('navigates populated categories without writing or discarding the draft', async () => {
+it('navigates populated categories without writing or discarding tool intent', async () => {
   mount([], undefined, () => {
     mocks.catalog.mockResolvedValue({
       version: 1,
@@ -796,29 +889,28 @@ it('navigates populated categories without writing or discarding the draft', asy
     });
   });
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
-  fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
-  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Keep' } });
   const categories = within(screen.getByRole('group', { name: 'Categorías' }));
   fireEvent.click(categories.getByRole('button', { name: 'Restauradora' }));
   expect(screen.getByRole('button', { name: /Hallazgo de prueba/ })).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Caries' })).toBeNull();
-  expect(screen.getByLabelText('Seleccionar pieza FDI')).toHaveValue('36');
-  expect(screen.getByLabelText('Nota de condición')).toHaveValue('Keep');
-  expect(screen.getByText('Borrador sin guardar')).toBeVisible();
+  expect(screen.queryByLabelText('Nota de condición')).toBeNull();
   expect(mocks.create).not.toHaveBeenCalled();
   fireEvent.click(categories.getByRole('button', { name: 'Diagnóstico' }));
   expect(screen.getByRole('button', { name: 'Caries' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-it('focuses the exact saved record after create, edit and resolve without reselecting the piece', async () => {
+it('keeps chart context after create and focuses exact record after edit and resolve', async () => {
   mount([]);
-  mocks.create.mockResolvedValue({ ...record, id: 'new', tooth_fdi: 16 });
+  mocks.create.mockImplementation(async () => {
+    const saved = { ...record, id: 'new', tooth_fdi: 16 };
+    mocks.list.mockResolvedValue({ items: [saved], total: 1, next_cursor: null });
+    return saved;
+  });
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
   fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '16' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
-  await waitFor(() =>
-    expect(screen.getByRole('article', { name: 'Pieza 16 · Caries · Activa' })).toHaveFocus(),
-  );
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Mesial (M)' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
+  await screen.findByRole('article', { name: 'Pieza 16 · Caries · Activa' });
   expect(screen.queryByLabelText('Nota de condición')).toBeNull();
   mocks.edit.mockResolvedValue({
     ...record,
@@ -848,10 +940,9 @@ it('focuses the exact saved record after create, edit and resolve without resele
   expect(screen.getByLabelText('Estado')).toHaveValue('resolved');
 });
 
-it('chart hover and focus never rebind a populated draft or write', async () => {
-  mount([]);
-  fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
-  fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
+it('chart hover and focus never rebind a saved-record edit or write', async () => {
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
   fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Nota de 36' } });
   const chartTooth = screen.getByRole('button', { name: /Pieza 11: sin condiciones guardadas/ });
   fireEvent.mouseEnter(chartTooth);

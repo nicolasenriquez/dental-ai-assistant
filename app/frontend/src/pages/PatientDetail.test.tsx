@@ -701,11 +701,15 @@ describe('PatientDetail URL continuity (S6)', () => {
 
   it('canceled dirty navigation restores the prior URL and accepted discard navigates without writing', async () => {
     const create = vi.spyOn(api, 'createPatientCondition');
+    vi.mocked(api.getPatientConditions).mockResolvedValue({
+      items: [conditionRecord],
+      total: 1,
+      next_cursor: null,
+    });
     renderS6('/patients/patient-1');
     await screen.findByRole('heading', { name: 'Ana Perez' });
     fireEvent.click(screen.getByRole('tab', { name: 'Clínica' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
-    fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
     fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Borrador' } });
     fireEvent.click(screen.getByRole('button', { name: 'Evoluciones' }));
     expect(await screen.findByRole('dialog', { name: 'Condición sin guardar' })).toBeVisible();

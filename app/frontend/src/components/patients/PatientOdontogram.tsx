@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import type { ConditionCatalog, Dentition, PatientCondition } from '../../lib/api';
+import { type MouseEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import type { ConditionCatalog, Dentition, PatientCondition, ToothSurface } from '../../lib/api';
 import { resolveCondition, surfaceDescription } from '../../lib/odontogramPresentation';
 import { ConditionSymbol } from './ConditionSymbol';
 import { ToothDrawing } from './ToothDrawing';
@@ -13,13 +13,15 @@ const quadrantLabels = [
 ];
 
 interface OdontogramProps {
+  controls?: ReactNode;
   dentition: Dentition;
   conditions: PatientCondition[];
   labels: Record<string, string>;
   catalog?: ConditionCatalog | null;
   selectedTooth: number;
   highlightedTooth: number;
-  onSelect: (tooth: number) => void;
+  onSelect: (tooth: number, anchor?: HTMLElement, surface?: ToothSurface) => void;
+  surfaceCodes?: ToothSurface[];
   onHighlight: (tooth: number) => void;
   disabled?: boolean;
   complete?: boolean;
@@ -30,6 +32,7 @@ function quadrantOf(tooth: number, dentition: Dentition): number {
   return quadrants.includes(candidate) ? candidate : quadrants[0];
 }
 export function PatientOdontogram({
+  controls,
   dentition,
   conditions,
   labels,
@@ -37,12 +40,34 @@ export function PatientOdontogram({
   selectedTooth,
   highlightedTooth,
   onSelect,
+  surfaceCodes = [],
   onHighlight,
   disabled = false,
   complete = true,
 }: OdontogramProps): JSX.Element {
   const titleId = useId();
   const sectionRef = useRef<HTMLElement>(null);
+  const chartRef = useRef<SVGSVGElement>(null);
+  const activateTooth = (event: MouseEvent<HTMLButtonElement>, tooth: number): void => {
+    // The transparent lateral target also covers the drawn occlusal view. Resolve the
+    // actual anatomical path under a pointer; keyboard surfaces have named 44px controls.
+    if (event.detail && surfaceCodes.length) {
+      const paths = chartRef.current?.querySelectorAll<SVGGeometryElement>(
+        `[data-arch-tooth="${tooth}"] [data-surface]`,
+      );
+      for (const path of paths ?? []) {
+        const code = path.getAttribute('data-surface') as ToothSurface;
+        const matrix = path.getScreenCTM();
+        if (!matrix || !surfaceCodes.includes(code)) continue;
+        const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+        if (path.isPointInFill(point)) {
+          onSelect(tooth, event.currentTarget, code);
+          return;
+        }
+      }
+    }
+    onSelect(tooth, event.currentTarget);
+  };
   const [narrow, setNarrow] = useState(false);
   const [quadrant, setQuadrant] = useState(() => quadrantOf(selectedTooth, dentition));
   useEffect(() => {
@@ -84,8 +109,10 @@ export function PatientOdontogram({
         <h3 className="font-semibold">Odontograma FDI</h3>
         <p className="text-xs text-muted">Derecha del paciente ← · → Izquierda</p>
       </header>
+      {controls && <div className="mb-3">{controls}</div>}
       <div className="relative mx-auto max-w-[900px] rounded border border-border bg-surface p-2">
         <svg
+          ref={chartRef}
           role="img"
           aria-labelledby={titleId}
           viewBox="0 0 760 365"
@@ -216,7 +243,7 @@ export function PatientOdontogram({
               onMouseLeave={() => onHighlight(0)}
               onFocus={() => onHighlight(tooth)}
               onBlur={() => onHighlight(0)}
-              onClick={() => onSelect(tooth)}
+              onClick={(event) => activateTooth(event, tooth)}
             />
           ))}
         </div>
@@ -260,12 +287,67 @@ export function PatientOdontogram({
                   onMouseLeave={() => onHighlight(0)}
                   onFocus={() => onHighlight(tooth)}
                   onBlur={() => onHighlight(0)}
-                  onClick={() => onSelect(tooth)}
+                  onClick={(event) => onSelect(tooth, event.currentTarget)}
                 >
                   Pieza {tooth}
                 </button>
               ))}
           </div>
+        </div>
+      )}
+      {surfaceCodes.length > 0 && (
+        <div
+          aria-label="Vista oclusal"
+          className="mt-3 flex gap-3 overflow-x-auto rounded border border-border p-2"
+        >
+          {teeth.map((tooth) => (
+            <div
+              key={tooth}
+              className="shrink-0"
+              role="group"
+              aria-label={`Superficies de pieza ${tooth}`}
+            >
+              <p className="text-center text-sm">{tooth}</p>
+              <div className="grid h-36 w-36 grid-cols-3 grid-rows-3 rounded-full border border-border bg-surface">
+                {surfaceCodes.map((code) => {
+                  const position = surfacePosition(code, tooth);
+                  const cell =
+                    position === 'V'
+                      ? 'col-start-2 row-start-1'
+                      : position === 'L'
+                        ? 'col-start-2 row-start-3'
+                        : position === 'M'
+                          ? 'col-start-1 row-start-2'
+                          : position === 'D'
+                            ? 'col-start-3 row-start-2'
+                            : 'col-start-2 row-start-2';
+                  const label = {
+                    M: 'Mesial',
+                    D: 'Distal',
+                    O: 'Oclusal',
+                    V: 'Vestibular',
+                    L: 'Lingual',
+                  }[code];
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      aria-label={`Pieza ${tooth} · ${label} (${code})`}
+                      disabled={disabled}
+                      className={`min-h-11 min-w-11 rounded border border-border text-sm hover:bg-surface-raised focus-visible:ring-2 focus-visible:ring-primary ${cell}`}
+                      onMouseEnter={() => onHighlight(tooth)}
+                      onMouseLeave={() => onHighlight(0)}
+                      onFocus={() => onHighlight(tooth)}
+                      onBlur={() => onHighlight(0)}
+                      onClick={(event) => onSelect(tooth, event.currentTarget, code)}
+                    >
+                      {code}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
       <p className="mt-2 text-xs text-muted">

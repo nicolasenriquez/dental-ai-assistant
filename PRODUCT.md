@@ -42,9 +42,11 @@ autonomous scribe tools and from generic chat assistants.
   Identity has masked RUT, birth date and optional phone/email, with deliberate header disclosure.
 - Patient workspace: Resumen, Información, Clínica and Actividad. Summary prioritizes clinical
   approval/draft recovery and separates Drive status. New evolution remains primary.
-- Manual notes and tooth conditions: explicit Guardar, optimistic conflicts, retry-safe writes
-  and revision history. The anatomical permanent/primary chart and accessible list represent
-  the same saved conditions. Selection, hover and draft edits never write.
+- Manual notes and saved tooth-condition edits require explicit Guardar. Without a tool, tooth
+  activation only inspects saved records. With an active tool, whole-tooth or occlusal-surface
+  activation records a condition; lateral surface selection records on Confirmar. Tool selection
+  and hover never write. Retry-safe commands, revision conflicts and history remain available;
+  Deshacer marks the new record entered in error without deleting its history.
 - Activity: persisted approved evolution saves and note/condition revisions, filtered by category
   with exact resource links. Counts and dates come from storage; unavailable authors stay unknown.
 - Pending Work projects approvals, recoverable drafts and failed Drive exports;
@@ -74,8 +76,9 @@ Do not fabricate testimonials, pricing, certifications, or clinical outcome clai
 
 ## Product Principles
 
-1. Human decides, AI drafts. Evolutions require explicit approval; manual notes and conditions
-   require explicit Guardar. Navigation and selection never persist clinical changes.
+1. Human decides, AI drafts. Evolutions require explicit approval; manual notes and saved-condition
+   edits require Guardar. Active-tool chart activation or surface confirmation explicitly records
+   a manual condition. Navigation, inspection, tool selection and hover never persist changes.
 2. Patient privacy is structural — identifiers are masked before prompts and in shared surfaces.
 3. The clinical task outranks decoration — scanability, consistency, and task completion first.
 4. Recovery over dead ends — user work survives failures, and every error names the next step.
