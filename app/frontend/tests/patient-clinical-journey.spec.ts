@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { type Page, expect, test } from '@playwright/test';
+
+const evidencePrefix = process.env.E2E_EVIDENCE_PREFIX ?? 'slice8';
 
 function syntheticRut(): string {
   const body = String(20000000 + Math.floor(Math.random() * 60000000));
@@ -62,7 +64,7 @@ test('mirror slice8 diagnosis to selected plan, two sessions, history and guarde
   await expect(planChart.locator('[data-arch-tooth="16"] text').filter({ hasText: /^P$/ })).toHaveCount(1);
   await expect(planChart.getByRole('button', { name: /^Pieza 17:/ })).not.toHaveAccessibleName(/Bracket/);
   await planChart.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: path.resolve(__dirname, '../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/slice8-selected-plan-1440.png') });
+   await page.screenshot({ path: path.resolve(__dirname, `../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/${evidencePrefix}-selected-plan-1440.png`) });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Continuidad sintética', exact: true })).toBeVisible();
   expect(new URL(page.url()).searchParams.get('plan')).toBe(planId);
@@ -116,7 +118,7 @@ test('mirror slice8 diagnosis to selected plan, two sessions, history and guarde
   await expect.poll(() => page.locator('.sidebar-container').evaluate((node) => node.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
   await page.getByText(/Revisión 6 · Completar sesión/).scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: path.resolve(__dirname, '../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/slice8-history-390.png') });
+   await page.screenshot({ path: path.resolve(__dirname, `../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/${evidencePrefix}-history-390.png`) });
   await page.goto(plannedTreatmentEvent.href);
   await expect(page.getByRole('heading', { name: 'Continuidad sintética', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.activeElement?.textContent)).toContain('Bracket individual');
@@ -160,6 +162,97 @@ test('mirror slice8 diagnosis to selected plan, two sessions, history and guarde
   expect(persisted.items[0].stages.map((stage: { status: string }) => stage.status)).toEqual(['completed', 'completed']);
   expect(persisted.items[0].treatment.state).toBe('performed');
   const evidence = JSON.stringify({ patientId, secondId, findingId: finding.id, observedId: observed.id, planId, unusedId, persisted, activity }, null, 2);
-  await writeFile(path.resolve(__dirname, '../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/slice8-persisted.json'), evidence);
+   await writeFile(path.resolve(__dirname, `../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/${evidencePrefix}-persisted.json`), evidence);
   await test.info().attach('slice8-persisted', { body: evidence, contentType: 'application/json' });
+});
+
+test('mirror slice10 preserves pre-mirror identities and one note composer across rail and Sheet', async ({ page }) => {
+  test.skip(process.env.E2E_BASE_URL !== 'http://localhost:8018' || !process.env.E2E_LEGACY_FIXTURE, 'Owned disposable legacy fixture only');
+  const legacy = JSON.parse(await readFile(process.env.E2E_LEGACY_FIXTURE!, 'utf8')) as {
+    patientId: string; findingId: string; originalId: string; replacementId: string; generalNoteId: string;
+    snapshots: Record<string, unknown>;
+  };
+  expect((await page.request.post('/api/auth/login', { data: { email: 'slice10-owner@example.com', password: 'Synthetic-proof-10!' } })).status()).toBe(200);
+  for (const [endpoint, snapshot] of Object.entries(legacy.snapshots)) {
+    const response = await page.request.get(endpoint);
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toEqual(snapshot);
+  }
+  const base = `/api/patients/${legacy.patientId}`;
+  const diagnosis = `/patients/${legacy.patientId}?tab=clinical&clinical=diagnosis`;
+  const linkedBody = `Contexto dental ${randomUUID().slice(0, 8)}`;
+  expect((await page.request.post(`${base}/clinical-notes`, { data: {
+    id: randomUUID(), operation_id: randomUUID(), expected_revision: 0,
+    note_type: 'diagnosis', entity_kind: 'patient', entity_id: legacy.patientId,
+    body: linkedBody, tooth_fdi: 18, dentition: 'permanent',
+  } })).status()).toBe(201);
+  await page.goto(`${diagnosis}&condition=${legacy.originalId}`);
+  await expect(page.getByRole('button', { name: 'Temporal', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Motivo de corrección: Corrección anterior al mirror', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Ver reemplazo vinculado', exact: true }).first().click();
+  await expect(page).toHaveURL(new RegExp(`condition=${legacy.replacementId}`));
+  await expect(page.getByRole('article', { name: /Pieza 52.*Caries.*Activa/ }).first()).toBeVisible();
+  await page.goto(`${diagnosis}&condition=${legacy.findingId}`);
+  await expect(page.getByRole('article', { name: /Pieza 16.*Fractura.*Activa/ })).toContainText('Revisión 2');
+  await expect(page.getByRole('article', { name: /Pieza 16.*Fractura.*Activa/ }).getByText(/M, O/).first()).toBeVisible();
+  await page.goto(`/patients/${legacy.patientId}?tab=info&note=${legacy.generalNoteId}`);
+  await expect(page.getByText('Nota general conservada', { exact: true }).first()).toBeVisible();
+  await page.goto(diagnosis);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const general = page.getByRole('article', { name: 'Nota Administrativa', exact: true });
+  await expect(general).toContainText('Nota general conservada');
+  const writes: string[] = [];
+  page.on('request', request => {
+    if (request.url().includes(base) && ['POST', 'PATCH', 'DELETE'].includes(request.method())) writes.push(request.url());
+  });
+  const draftBody = `Borrador único ${randomUUID().slice(0, 8)}`;
+  await page.getByLabel('Texto de nota clínica').fill(draftBody);
+  const tooth16 = page.getByRole('button', { name: /^Pieza 16:/ });
+  await tooth16.hover();
+  await page.getByRole('checkbox', { name: 'Asociar al diente 16' }).uncheck();
+  await general.hover();
+  await expect(page.getByRole('checkbox', { name: 'Asociar al diente 16' })).not.toBeChecked();
+  await page.getByRole('article', { name: 'Nota Diagnóstico', exact: true }).filter({ hasText: linkedBody }).hover();
+  await expect(page.locator('[data-linked-highlight="18"]')).toHaveCount(1);
+  await expect(page.getByRole('checkbox', { name: 'Asociar al diente 16' })).not.toBeChecked();
+  await tooth16.hover();
+  await expect(page.getByRole('checkbox', { name: 'Asociar al diente 16' })).not.toBeChecked();
+  await page.getByRole('button', { name: /^Pieza 17:/ }).hover();
+  await expect(page.getByRole('checkbox', { name: 'Asociar al diente 17' })).toBeChecked();
+  await page.getByRole('article', { name: /Pieza 16.*Fractura.*Activa/ }).hover();
+  await expect(page.locator('[data-linked-highlight="16"]')).toHaveCount(1);
+  await expect(page.getByRole('checkbox', { name: 'Asociar al diente 17' })).toBeChecked();
+  await tooth16.click();
+  await expect(page.getByRole('dialog', { name: 'Pieza 16', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  expect(writes).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const closeNavigation = page.getByRole('button', { name: 'Cerrar navegación', exact: true });
+  if (await closeNavigation.isVisible()) await closeNavigation.click();
+  await page.getByRole('button', { name: 'Notas', exact: true }).click();
+  await expect(page.getByLabel('Texto de nota clínica')).toHaveCount(1);
+  await expect(page.getByLabel('Texto de nota clínica')).toHaveValue(draftBody);
+  await expect(page.getByRole('checkbox', { name: 'Asociar al diente 16' })).toBeChecked();
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Añadir nota', exact: true })).toBeVisible();
+  expect(writes.filter(url => url.endsWith('/clinical-notes'))).toHaveLength(1);
+  const notes = await (await page.request.get(`${base}/clinical-notes`)).json();
+  const saved = notes.items.find((item: { body: string }) => item.body === draftBody);
+  expect(saved.tooth_fdi).toBe(16);
+  await page.reload();
+  await page.getByRole('button', { name: 'Notas', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'Nota Diagnóstico', exact: true }).filter({ hasText: draftBody })).toContainText(draftBody);
+  await page.screenshot({ path: path.resolve(__dirname, '../../../openspec/changes/mirror-dental-diagnosis-workspace/evidence/slice10-preserved-notes-390.png') });
+  await test.info().attach('slice10-note', { body: JSON.stringify(saved), contentType: 'application/json' });
+});
+
+test('mirror slice10 rollback serves unchanged legacy HTTP snapshots', async ({ page }) => {
+  test.skip(process.env.E2E_BASE_URL !== 'http://localhost:8020' || !process.env.E2E_LEGACY_FIXTURE, 'Owned pre-mirror application rollback only');
+  const legacy = JSON.parse(await readFile(process.env.E2E_LEGACY_FIXTURE!, 'utf8')) as { snapshots: Record<string, unknown> };
+  expect((await page.request.post('/api/auth/login', { data: { email: 'slice10-owner@example.com', password: 'Synthetic-proof-10!' } })).status()).toBe(200);
+  for (const [endpoint, snapshot] of Object.entries(legacy.snapshots)) {
+    const response = await page.request.get(endpoint);
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toEqual(snapshot);
+  }
 });
