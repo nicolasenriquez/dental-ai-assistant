@@ -16,8 +16,9 @@
 - [x] 1.1 Add rendered PatientDiagnosis regression: no-tool tooth activation opens a contextual popover without writes; active-tool whole/occlusal click applies directly; lateral surface activation confirms through its compact modal. No unknown-condition draft or lower-form focus.
   Traceability: W1,W3; prior art PatientDiagnosis.test.tsx, PatientOdontogram.test.tsx and PatientDetail.test.tsx. First failing external behavior crosses the existing UI seam.
   Notes: 2026-10-06 fail-first run of four new rendered PatientDiagnosis cases failed on missing tooth popover, tool-created textarea, missing surface modal and missing occlusal activation. Command: bun run test src/components/patients/PatientDiagnosis.test.tsx -t "tooth-first|whole-tooth activation|lateral surface selection|occlusal surface activation".
-- [ ] 1.2 Add catalog/HTTP therapeutic proofs for unique Spanish variants, complete registry metadata, observed bracket save, owner denial, idempotency and stale-revision recovery.
+- [x] 1.2 Add catalog/HTTP therapeutic proofs for unique Spanish variants, complete registry metadata, observed bracket save, owner denial, idempotency and stale-revision recovery.
   Traceability: T1,T3,T4,T5; prior art app/backend/tests/test_patient_conditions_contract.py and test_patient_activity.py; frontend typed-client boundary tests.
+  Notes: 2026-10-06 added test_patient_treatments.py catalog/auth and opt-in real-Postgres HTTP journey for bracket/reload/owner/replay/stale edit/correction, plus treatmentApi.test.ts frozen transport/conflict proofs. Fail-first catalog request returned422 (route absent); both client proofs failed on missing exports. Persistence proofs require migrated isolated DB; completion evidence follows in3.2.
 - [ ] 1.3 Add scope proofs for atomic bridge with roles, valid FDI/dentition, supported surface codes without inferred veneer/pediatric restrictions and whole-arch appliance with no FDI.
   Traceability: T2,W3,W4; PatientOdontogram.test.tsx anatomy prior art; HTTP and opt-out real-Postgres fixtures for failed transaction rollback.
 - [ ] 1.4 Add HTTP and rendered Planificación proofs for draft create/resume, atomic planned item+stage and reload-preserved ordering.
@@ -47,8 +48,9 @@
 
 ### Variant-aware observed procedures
 
-- [ ] 2.2 Ship the fixed catalog registry and single-tooth existing-treatment path end to end: additive treatment/member/revision/receipt tables, owner-scoped repo/service/routes, typed client, Spanish category cards and direct-apply command/receipt plus saved-record edit modal. Use the next unused Alembic revision; initially disable unsupported multi/arch scopes with explanation until2.3.
+- [x] 2.2 Ship the fixed catalog registry and single-tooth existing-treatment path end to end: additive treatment/member/revision/receipt tables, owner-scoped repo/service/routes, typed client, Spanish category cards and direct-apply command/receipt plus saved-record edit modal. Use the next unused Alembic revision; initially disable unsupported multi/arch scopes with explanation until2.3.
   Traceability: T1,T3,T4,T5,W2,W3,W8; architecture-cleanup.md registry/transport Seams; Slice2. Demo: save/reload an existing bracket and distinguish two crown variants; corrections retain original evidence.
+  Notes: 2026-10-06 added registry63+12/eight categories, migration0025, owner-scoped commands with durable snapshot receipts/locks, append-only history and atomic reasoned replacement. Existing typed transport/useDentalWorkspace owns application/retry/undo and reads; diagnosis shares categories/FDI list/chart/inspector with procedures and a guarded edit/history/correction modal. Multi/arch cards disabled with explanation. Real-Postgres proofs5 passed before added auth/payload proof; rendered/client48 passed and full Vitest764 passed; tsc/ruff/mypy passed. Browser and final evidence follow in3.2.
 
 ### Anatomical scopes
 
@@ -95,8 +97,9 @@
 - [x] 3.1 Run the focused finding/inspection regressions and browser no-write/no-focus-jump replay; preserve incumbent condition history/correction tests.
   Traceability: Slice1; W1,W3,W5.
   Notes: 2026-10-06 focused UI78 passed; full frontend757 passed; incumbent condition HTTP contract4 passed. Isolated Docker localhost:8001 Playwright setup+journey2 passed, including unchanged scroll/no writes on tooth-first inspection, direct Pulpitis, logical undo with two revisions, actual chart-path Caries M with lost-response replay and one revision, lateral M/O confirmation, edit/reload,390px inspector and Temporal. See slice1-evidence.md for commands and evidence limits.
-- [ ] 3.2 Prove catalog coverage and existing-treatment save/reload, ownership, duplicate/replay and conflict recovery at HTTP plus real DB where transactional.
+- [x] 3.2 Prove catalog coverage and existing-treatment save/reload, ownership, duplicate/replay and conflict recovery at HTTP plus real DB where transactional.
   Traceability: Slice2; T1,T3–T5,W2.
+  Notes: 2026-10-06 seven catalog/HTTP/real-Postgres proofs passed, including concurrent replay/edit, transaction rollback, linked correction, variant snapshots and bound paging. Full frontend766 passed; tsc/Biome/ruff/format/mypy passed. Final isolated Docker Playwright setup+Slice1+Slice2 journeys3 passed with bracket commit-response loss/reload/stale recovery/correction, eight categories and390px inspector. Fresh DB migration0001→0025 passed. Unrestricted backend suite hit unchanged clinical catalog CRLF/LF comparison; remaining run958 passed/138 skipped/one deselected at that run. See slice2-evidence.md; gate3.9 remains unchecked.
 - [ ] 3.3 Verify multi/arch valid and invalid fixtures, canonical surfaces/roles and atomic rollback through real DB and chart UI.
   Traceability: Slice3; T2,W3,W4.
 - [ ] 3.4 Verify draft-plan create/resume/order/stage changes and reload through HTTP and browser.
