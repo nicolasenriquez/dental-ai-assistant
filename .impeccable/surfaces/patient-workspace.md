@@ -47,6 +47,21 @@ and 44px FDI selector. Hover/focus highlight is independent of the draft; active
 resolved conditions have symbols and text. All pages must load before a chart is
 called complete; partial failure preserves confirmed records with retry.
 
+The palette is an illustrated eight-category registry with independently authored
+lateral/occlusal profiles and variant motifs; cards use a 104px minimum grid, 72px
+minimum height, 2px borders and 6px support dots, and the legend has five base groups
+with explicit Existente/Planificado labels. A tool preview runs about 1s and never
+writes; planned chart overlays render at 0.7 opacity with a P marker and appear only
+for the selected plan. Reduced motion suppresses preview rings and pulses but keeps
+state text. The editable dental-note composer is shared by diagnosis, observed
+procedures and plans: independently authored Spanish templates append their body
+only, tooth binding highlights linked members without replacing the candidate,
+280-character and longer bodies grow the field, and body-only edits, logical deletes
+and per-note history survive reload. One draft/feed survives the 320/384px rail and
+the floating Sheet and guards dirty patient/mode changes; uncertain commands freeze
+their exact payload for identical retry, and conflicts retain local text beside the
+latest saved note.
+
 Corregir registro is separate from Resolver condición. Active or resolved originals
 open a guarded draft with a required reason and optional catalog-based replacement.
 The confirmation names the masked patient, original evidence and error annotation;
@@ -69,9 +84,10 @@ Diagnosis defaults to Actuales while the API default stays all; Resueltas and
 Registradas por error remain explicit historical filters with text/legend status.
 Correction history shows the reason, actor and accessible original/replacement
 links. The ficha commits canonical query state on every view change —
-`tab=clinical&clinical=diagnosis|evolutions` plus a focused condition UUID only
-inside diagnosis; reload restores it, unknown enums default deterministically, and
-clinical text/name/RUT never enter the URL.
+`tab=clinical&clinical=diagnosis|evolutions|planning|plans` plus a focused
+condition/treatment/plan/dental-note UUID only inside its owning section; reload
+restores it, unknown enums default deterministically, and clinical text/name/RUT
+never enter the URL.
 
 B1 separates Resumen clínico (last approved evolution and saved count), clinical
 pending work (approval and recoverable drafts with their respective exact links),
@@ -108,3 +124,8 @@ completion appears only when every item is completed. Unconfirmed execution/corr
 navigation with discard/remain and survives conflict review. Linked corrections preserve sessions and
 plan state; closed reactivation retains partial performed evidence. Narrow controls wrap, and the
 same confirmation remains keyboard-operable with reduced motion.
+
+The selected plan renders a chart overlay without becoming a diagnosis record, and exact authorized
+`plan`, `treatment`, `dental_note` and `history` query links open the owning patient resource after
+reload. An unavailable or foreign plan link shows named not-found recovery and never opens a
+substitute plan. Diagnosis reads exclude future planned work and keep observed records separate.
