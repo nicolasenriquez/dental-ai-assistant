@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { UNSAFE_DataRouterContext } from 'react-router-dom';
 import { useDentalClinicalNotes } from '../../hooks/useDentalClinicalNotes';
 import {
   planActionLabels,
@@ -6,7 +7,7 @@ import {
   usePatientClinicalPlan,
 } from '../../hooks/usePatientClinicalPlan';
 import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
-import type { ClinicalPlanStage } from '../../lib/api';
+import type { ClinicalPlanStage, Dentition } from '../../lib/api';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { Button } from '../ui/Button';
 import { ClinicalPlanCorrection } from './ClinicalPlanCorrection';
@@ -16,22 +17,48 @@ import { ClinicalPlanLifecycle, closureLabels } from './ClinicalPlanLifecycle';
 import { ClinicalPlanStageEditor } from './ClinicalPlanStageEditor';
 import { DentalClinicalNotes } from './DentalClinicalNotes';
 import { PatientActorLabel } from './PatientActorLabel';
+import { PatientNoteNavigationGuard } from './PatientNoteNavigationGuard';
+import { PatientOdontogram } from './PatientOdontogram';
 
 interface PatientClinicalPlansProps {
   patientId: string;
   mode?: 'planning' | 'plans';
+  focusedPlanId?: string;
+  focusedTreatmentId?: string;
+  showHistory?: boolean;
+  onPlanFocus?: (id?: string) => void;
 }
 export function PatientClinicalPlans({
   patientId,
   mode = 'planning',
+  focusedPlanId,
+  focusedTreatmentId,
+  showHistory = false,
+  onPlanFocus,
 }: PatientClinicalPlansProps): JSX.Element {
-  const workspace = usePatientClinicalPlan(patientId);
+  const workspace = usePatientClinicalPlan(patientId, focusedPlanId);
+  const [dentition, setDentition] = useState<Dentition>('permanent');
+  const [selectedTooth, setSelectedTooth] = useState(0);
+  const [highlightedTooth, setHighlightedTooth] = useState(0);
+  const treatmentTarget = useRef<HTMLLIElement | null>(null);
+  useEffect(() => {
+    if (focusedTreatmentId && workspace.plan) treatmentTarget.current?.focus();
+  }, [focusedTreatmentId, workspace.plan]);
+  const publishedPlan = useRef<string>();
+  const loadedHistory = useRef<string>();
+  useEffect(() => {
+    if (!showHistory || !workspace.plan || loadedHistory.current === workspace.plan.id) return;
+    loadedHistory.current = workspace.plan.id;
+    void workspace.loadHistory();
+  }, [showHistory, workspace]);
   const clinicalNotes = useDentalClinicalNotes(patientId, {
     note_type: 'treatment_plan',
     entity_kind: 'plan',
     entity_id: workspace.plan?.id ?? patientId,
   });
   const guard = useOptionalTransitionGuard();
+  const dataRouter = useContext(UNSAFE_DataRouterContext);
+  const routeCancel = useRef<(() => void) | null>(null);
   const [title, setTitle] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
@@ -44,6 +71,10 @@ export function PatientClinicalPlans({
     stage?: ClinicalPlanStage;
   } | null>(null);
   const [leave, setLeave] = useState<(() => void) | null>(null);
+  const onRouteBlocked = useCallback((proceed: () => void, cancel: () => void): void => {
+    routeCancel.current = cancel;
+    setLeave(() => proceed);
+  }, []);
   const [navigationError, setNavigationError] = useState<string | null>(null);
   const draftFormRef = useRef<HTMLFormElement>(null);
   const savedContinuation = useRef<(() => void) | null>(null);
@@ -57,6 +88,17 @@ export function PatientClinicalPlans({
     busy: workspace.busy || clinicalNotes.busy,
     uncertain: workspace.uncertain,
   };
+  const navigationBlocked =
+    current.current.dirty || current.current.busy || current.current.uncertain;
+  useEffect(() => {
+    if (!workspace.plan) {
+      publishedPlan.current = undefined;
+      return;
+    }
+    if (navigationBlocked || publishedPlan.current === workspace.plan.id) return;
+    publishedPlan.current = workspace.plan.id;
+    onPlanFocus?.(workspace.plan.id);
+  }, [workspace.plan, onPlanFocus, navigationBlocked]);
   useEffect(() => {
     if (!workspace.commits) return;
     setDirty(false);
@@ -71,7 +113,7 @@ export function PatientClinicalPlans({
       const continuation = savedContinuation.current;
       savedContinuation.current = null;
       setLeave(null);
-      continuation();
+      window.requestAnimationFrame(continuation);
     }
   }, [workspace.commits]);
   useEffect(() => {
@@ -184,6 +226,9 @@ export function PatientClinicalPlans({
       className="space-y-5 text-foreground"
       aria-busy={workspace.busy}
     >
+      {dataRouter && (
+        <PatientNoteNavigationGuard dirty={navigationBlocked} onBlocked={onRouteBlocked} />
+      )}
       {workspace.error && (
         <div role="alert" className="space-y-2 text-error">
           <p>{workspace.error}</p>
@@ -206,7 +251,12 @@ export function PatientClinicalPlans({
                 </Button>
               </>
             ) : (
-              <Button variant="clinicalSecondary" onClick={() => void workspace.load()}>
+              <Button
+                variant="clinicalSecondary"
+                onClick={() =>
+                  void (focusedPlanId ? workspace.open(focusedPlanId) : workspace.load())
+                }
+              >
                 Reintentar carga
               </Button>
             )}
@@ -220,7 +270,12 @@ export function PatientClinicalPlans({
           <p className="text-sm text-muted">
             Los procedimientos futuros pertenecen a un plan; no son observaciones existentes.
           </p>
-          {metadataForm}
+          {!focusedPlanId && metadataForm}
+          {focusedPlanId && (
+            <Button variant="clinicalSecondary" onClick={() => onPlanFocus?.()}>
+              Volver a planes
+            </Button>
+          )}
           <h3 className="font-semibold">Planes guardados</h3>
           {!workspace.loading && !workspace.error && !workspace.plans.length && (
             <p>No hay planes clínicos</p>
@@ -258,6 +313,9 @@ export function PatientClinicalPlans({
             onClick={() =>
               transition(() => {
                 workspace.back();
+                publishedPlan.current = undefined;
+                loadedHistory.current = undefined;
+                onPlanFocus?.();
                 setDirty(false);
                 setStageEditor(null);
                 setEditingMetadata(false);
@@ -289,6 +347,68 @@ export function PatientClinicalPlans({
             <p className="whitespace-pre-wrap">{plan.diagnosis}</p>
             <p className="whitespace-pre-wrap text-sm text-muted">{plan.internal_notes}</p>
           </header>
+          {workspace.catalog && (
+            <section aria-label="Odontograma del plan seleccionado" className="space-y-3">
+              <p className="text-sm text-muted">
+                Solo procedimientos de este plan. P indica trabajo planificado; las sesiones
+                realizadas se conservan en el historial.
+              </p>
+              <PatientOdontogram
+                dentition={dentition}
+                conditions={[]}
+                treatments={plan.items
+                  .map((item) => item.treatment)
+                  .filter(
+                    (treatment) =>
+                      treatment.dentition === dentition &&
+                      (treatment.state === 'planned' || treatment.state === 'performed'),
+                  )}
+                treatmentCatalog={workspace.catalog}
+                labels={{}}
+                selectedTooth={selectedTooth}
+                highlightedTooth={highlightedTooth}
+                onHighlight={setHighlightedTooth}
+                onSelect={setSelectedTooth}
+                controls={
+                  <div className="flex flex-wrap gap-2">
+                    {(['permanent', 'primary'] as const).map((value) => (
+                      <Button
+                        key={value}
+                        variant="clinicalSecondary"
+                        aria-pressed={dentition === value}
+                        onClick={() => {
+                          setDentition(value);
+                          setSelectedTooth(0);
+                        }}
+                      >
+                        {value === 'permanent' ? 'Permanente' : 'Temporal'}
+                      </Button>
+                    ))}
+                  </div>
+                }
+              />
+              {selectedTooth > 0 && (
+                <ul aria-label={`Procedimientos del plan en pieza ${selectedTooth}`}>
+                  {plan.items
+                    .filter(
+                      (item) =>
+                        item.treatment.dentition === dentition &&
+                        item.treatment.teeth.some((member) => member.tooth_fdi === selectedTooth),
+                    )
+                    .map((item) => (
+                      <li key={item.id}>
+                        {item.treatment.label_es} ·{' '}
+                        {item.treatment.state === 'performed'
+                          ? 'Realizado'
+                          : item.treatment.state === 'planned'
+                            ? 'Planificado'
+                            : 'Histórico'}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </section>
+          )}
           {!workspace.editable && <p>Plan de solo lectura. Su historial se conserva.</p>}
           <ClinicalPlanLifecycle
             key={`lifecycle-${plan.id}-${workspace.commits}`}
@@ -318,7 +438,12 @@ export function PatientClinicalPlans({
           {editingMetadata && metadataForm}
           <ol className="space-y-4">
             {plan.items.map((item, index) => (
-              <li key={item.id} className="border-t border-border pt-4">
+              <li
+                key={item.id}
+                tabIndex={focusedTreatmentId === item.treatment_id ? -1 : undefined}
+                ref={focusedTreatmentId === item.treatment_id ? treatmentTarget : undefined}
+                className="border-t border-border pt-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-semibold">
                     {index + 1}. {item.treatment.label_es}
@@ -553,12 +678,15 @@ export function PatientClinicalPlans({
             else draftFormRef.current?.requestSubmit();
           }}
           onCancel={() => {
+            routeCancel.current?.();
+            routeCancel.current = null;
             savedContinuation.current = null;
             setNavigationError(null);
             setLeave(null);
             guard?.cancelTransition();
           }}
           onConfirm={() => {
+            routeCancel.current = null;
             savedContinuation.current = null;
             setNavigationError(null);
             const continuation = leave;
@@ -568,7 +696,7 @@ export function PatientClinicalPlans({
             setLifecycleDirty(false);
             setExecutionDirty(false);
             setLeave(null);
-            continuation();
+            window.requestAnimationFrame(continuation);
           }}
         />
       )}

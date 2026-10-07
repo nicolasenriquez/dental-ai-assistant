@@ -22,6 +22,7 @@ import {
   getConditionCatalog,
   getPatientCondition,
   getPatientConditions,
+  getPatientTreatment,
   updatePatientCondition,
 } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
@@ -51,8 +52,10 @@ import { DentalConditionModal } from './DentalConditionModal';
 import { DentalLegend } from './DentalLegend';
 import { PatientActorLabel } from './PatientActorLabel';
 import { PatientConditionHistory } from './PatientConditionHistory';
+import { PatientDentalNoteDetail } from './PatientDentalNoteDetail';
 import { PatientNoteNavigationGuard } from './PatientNoteNavigationGuard';
 import { PatientOdontogram } from './PatientOdontogram';
+import { PatientPlanContinuation } from './PatientPlanContinuation';
 import { ToothDrawing } from './ToothDrawing';
 import { ToothInspectionPopover } from './ToothInspectionPopover';
 import { TreatmentRecordModal } from './TreatmentRecordModal';
@@ -76,6 +79,9 @@ interface PatientDiagnosisProps {
   focusedConditionId?: string;
   patient?: Patient;
   onConditionFocus?: (conditionId?: string) => void;
+  focusedTreatmentId?: string;
+  focusedDentalNoteId?: string;
+  onPlanContinue?: (planId?: string) => void;
 }
 interface ConditionAttempt {
   id: string;
@@ -122,6 +128,9 @@ export function PatientDiagnosis({
   focusedConditionId,
   patient,
   onConditionFocus,
+  focusedTreatmentId,
+  focusedDentalNoteId,
+  onPlanContinue,
 }: PatientDiagnosisProps): JSX.Element {
   return (
     <PatientDiagnosisWorkspace
@@ -130,6 +139,9 @@ export function PatientDiagnosis({
       focusedConditionId={focusedConditionId}
       patient={patient}
       onConditionFocus={onConditionFocus}
+      focusedTreatmentId={focusedTreatmentId}
+      focusedDentalNoteId={focusedDentalNoteId}
+      onPlanContinue={onPlanContinue}
     />
   );
 }
@@ -139,6 +151,9 @@ function PatientDiagnosisWorkspace({
   focusedConditionId,
   patient,
   onConditionFocus,
+  focusedTreatmentId,
+  focusedDentalNoteId,
+  onPlanContinue,
 }: PatientDiagnosisProps): JSX.Element {
   const guard = useOptionalTransitionGuard();
   const dataRouter = useContext(UNSAFE_DataRouterContext);
@@ -174,6 +189,8 @@ function PatientDiagnosisWorkspace({
   );
   const [focused, setFocused] = useState<PatientCondition | null>(null);
   const [focusError, setFocusError] = useState<string | null>(null);
+  const [treatmentFocusError, setTreatmentFocusError] = useState(false);
+  const [treatmentReadAttempt, setTreatmentReadAttempt] = useState(0);
   const [draft, setDraft] = useState<ConditionDraft | null>(null);
   const [treatmentEdit, setTreatmentEdit] = useState<PatientTreatment | null>(null);
   const [treatmentDirty, setTreatmentDirty] = useState(false);
@@ -369,7 +386,9 @@ function PatientDiagnosisWorkspace({
         ? r.state === 'entered_in_error'
         : status === 'resolved'
           ? false
-          : status === 'all' || r.state === 'existing' || r.state === 'performed'),
+          : status === 'all'
+            ? r.state === 'existing' || r.state === 'performed' || r.state === 'entered_in_error'
+            : r.state === 'existing' || r.state === 'performed'),
   );
   const localDirty =
     recordDirty ||
@@ -414,6 +433,24 @@ function PatientDiagnosisWorkspace({
       void dental.inspectHistory(record.id);
     });
   };
+  useEffect(() => {
+    setTreatmentFocusError(false);
+    if (!focusedTreatmentId) return;
+    let active = true;
+    void getPatientTreatment(patientId, focusedTreatmentId)
+      .then((record) => {
+        if (!active) return;
+        setDentition(record.dentition);
+        setTreatmentEdit(record);
+        void dental.inspectHistory(record.id);
+      })
+      .catch(() => {
+        if (active) setTreatmentFocusError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [patientId, focusedTreatmentId, treatmentReadAttempt]);
   useEffect(() => {
     if (!dental.activeTool) {
       setSurfaceSelection(null);
@@ -911,6 +948,9 @@ function PatientDiagnosisWorkspace({
         <p role="status" className="sr-only">
           {announcement}
         </p>
+        {focusedDentalNoteId && (
+          <PatientDentalNoteDetail patientId={patientId} noteId={focusedDentalNoteId} />
+        )}
         {receipt && (
           <div className="space-y-2 rounded border border-border p-3">
             <p>Corrección guardada.</p>
@@ -1001,6 +1041,17 @@ function PatientDiagnosisWorkspace({
             <p>{focusError}</p>
             <Button variant="clinicalSecondary" onClick={() => void loadFocused()}>
               Reintentar condición
+            </Button>
+          </div>
+        )}
+        {treatmentFocusError && (
+          <div role="alert" className="space-y-2 text-error">
+            <p>Procedimiento no disponible para este paciente.</p>
+            <Button
+              variant="clinicalSecondary"
+              onClick={() => setTreatmentReadAttempt((value) => value + 1)}
+            >
+              Reintentar procedimiento
             </Button>
           </div>
         )}
@@ -2369,6 +2420,9 @@ function PatientDiagnosisWorkspace({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        )}
+        {onPlanContinue && (
+          <PatientPlanContinuation patientId={patientId} onContinue={onPlanContinue} />
         )}
       </section>
       {notesWidth >= 960 ? (

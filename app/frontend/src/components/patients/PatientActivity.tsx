@@ -16,9 +16,26 @@ const filters = [
   { kind: 'evolutions', label: 'Evoluciones' },
   { kind: 'notes', label: 'Notas' },
   { kind: 'diagnoses', label: 'Diagnósticos' },
+  { kind: 'treatments', label: 'Procedimientos' },
+  { kind: 'plans', label: 'Planes' },
+  { kind: 'clinical_notes', label: 'Notas clínicas' },
 ] as const;
-const icons = { evolutions: FileText, notes: NotebookPen, diagnoses: Stethoscope };
-const labels = { evolutions: 'Evolución', notes: 'Nota', diagnoses: 'Diagnóstico' };
+const icons = {
+  evolutions: FileText,
+  notes: NotebookPen,
+  diagnoses: Stethoscope,
+  treatments: Stethoscope,
+  plans: FileText,
+  clinical_notes: NotebookPen,
+};
+const labels = {
+  evolutions: 'Evolución',
+  notes: 'Nota',
+  diagnoses: 'Diagnóstico',
+  treatments: 'Procedimiento',
+  plans: 'Plan clínico',
+  clinical_notes: 'Nota clínica',
+};
 
 export function PatientActivity({ patientId }: { patientId: string }) {
   const [kind, setKind] = useState<PatientActivityFilter>('all');
@@ -32,7 +49,7 @@ export function PatientActivity({ patientId }: { patientId: string }) {
     <section aria-label="Actividad del paciente" className="space-y-5">
       <h2 className="text-lg font-semibold">Actividad del paciente</h2>
       <p className="text-sm text-muted">
-        Evoluciones aprobadas y cambios guardados en notas y diagnósticos.
+        Evoluciones aprobadas y cambios guardados en diagnósticos, procedimientos, planes y notas.
       </p>
       <div
         className="patient-activity-filters flex flex-wrap gap-2"

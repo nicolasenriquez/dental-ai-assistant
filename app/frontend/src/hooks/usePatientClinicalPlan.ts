@@ -95,7 +95,10 @@ interface PatientClinicalPlanWorkspace {
   back: () => void;
 }
 
-export function usePatientClinicalPlan(patientId: string): PatientClinicalPlanWorkspace {
+export function usePatientClinicalPlan(
+  patientId: string,
+  focusedPlanId?: string,
+): PatientClinicalPlanWorkspace {
   const [plans, setPlans] = useState<ClinicalPlan[]>([]);
   const [plan, setPlan] = useState<ClinicalPlan | null>(null);
   const [catalog, setCatalog] = useState<TreatmentCatalog | null>(null);
@@ -111,9 +114,10 @@ export function usePatientClinicalPlan(patientId: string): PatientClinicalPlanWo
   const pending = useRef<(() => Promise<PlanReceipt>) | null>(null);
   const inFlight = useRef(false);
   const generation = useRef(0);
+  const listGeneration = useRef(0);
   const load = useCallback(
     async (next?: string): Promise<void> => {
-      const request = ++generation.current;
+      const request = ++listGeneration.current;
       setLoading(true);
       setError(null);
       try {
@@ -121,15 +125,16 @@ export function usePatientClinicalPlan(patientId: string): PatientClinicalPlanWo
           getClinicalPlans(patientId, { cursor: next }),
           getTreatmentCatalog(),
         ]);
-        if (generation.current !== request) return;
+        if (listGeneration.current !== request) return;
         setPlans((previous) => (next ? [...previous, ...page.items] : page.items));
         setCursor(page.next_cursor);
         setTotal(page.total);
         setCatalog(registry);
       } catch {
-        if (generation.current === request) setError('No pudimos cargar los planes. Reintenta.');
+        if (listGeneration.current === request)
+          setError('No pudimos cargar los planes. Reintenta.');
       } finally {
-        if (generation.current === request) setLoading(false);
+        if (listGeneration.current === request) setLoading(false);
       }
     },
     [patientId],
@@ -138,25 +143,45 @@ export function usePatientClinicalPlan(patientId: string): PatientClinicalPlanWo
     void load();
     return () => {
       generation.current++;
+      listGeneration.current++;
     };
   }, [load]);
-  const open = async (id: string): Promise<void> => {
-    const request = ++generation.current;
-    setLoading(true);
-    setError(null);
-    try {
-      const snapshot = await getClinicalPlan(patientId, id);
-      if (generation.current === request) {
-        setPlan(snapshot);
-        setHistory(null);
+  const open = useCallback(
+    async (id: string): Promise<void> => {
+      const request = ++generation.current;
+      setLoading(true);
+      setError(null);
+      setPlan(null);
+      setHistory(null);
+      setHistoryCursor(null);
+      try {
+        const snapshot = await getClinicalPlan(patientId, id);
+        if (generation.current === request) {
+          setPlan(snapshot);
+          setHistory(null);
+        }
+      } catch {
+        if (generation.current === request)
+          setError('Plan no disponible. Vuelve a cargar los planes.');
+      } finally {
+        if (generation.current === request) setLoading(false);
       }
-    } catch {
-      if (generation.current === request)
-        setError('Plan no disponible. Vuelve a cargar los planes.');
-    } finally {
-      if (generation.current === request) setLoading(false);
+    },
+    [patientId],
+  );
+  const selectedId = useRef<string | undefined>();
+  useEffect(() => {
+    if (selectedId.current === focusedPlanId) return;
+    const previous = selectedId.current;
+    selectedId.current = focusedPlanId;
+    if (focusedPlanId && plan?.id !== focusedPlanId) void open(focusedPlanId);
+    else if (previous && !focusedPlanId) {
+      generation.current++;
+      setPlan(null);
+      setHistory(null);
+      setHistoryCursor(null);
     }
-  };
+  }, [focusedPlanId, open, plan?.id]);
   const run = async (operation?: () => Promise<PlanReceipt>): Promise<boolean> => {
     if (inFlight.current || (operation && pending.current)) return false;
     if (operation) pending.current = operation;

@@ -177,6 +177,10 @@ export function PatientDetail() {
     if (target !== 'clinical') {
       next.delete('clinical');
       next.delete('condition');
+      next.delete('treatment');
+      next.delete('dental_note');
+      next.delete('plan');
+      next.delete('history');
     } else if (!next.has('clinical')) {
       next.set('clinical', clinicalSection === 'evolutions' ? 'evolutions' : 'diagnosis');
     }
@@ -189,6 +193,26 @@ export function PatientDetail() {
     if (next.toString() !== new URLSearchParams(location.search).toString()) {
       navigate(`${location.pathname}?${next.toString()}`, { replace: true });
     }
+  };
+  const publishPlanFocus = (id?: string): void => {
+    const next = new URLSearchParams(location.search);
+    if (id) next.set('plan', id);
+    else {
+      next.delete('plan');
+      next.delete('history');
+    }
+    if (next.toString() !== new URLSearchParams(location.search).toString()) {
+      navigate(`${location.pathname}?${next.toString()}`, { replace: true });
+    }
+  };
+  const continuePlan = (id?: string): void => {
+    const change = (): void => {
+      const next = new URLSearchParams({ tab: 'clinical', clinical: 'planning' });
+      if (id) next.set('plan', id);
+      navigate(`/patients/${patientId}?${next.toString()}`, { replace: true });
+    };
+    if (guard) guard.guardTransition(change);
+    else change();
   };
 
   return (
@@ -401,6 +425,11 @@ export function PatientDetail() {
                             const next = new URLSearchParams(location.search);
                             next.set('tab', 'clinical');
                             next.set('clinical', 'diagnosis');
+                            if (clinicalSection !== 'diagnosis') {
+                              next.delete('treatment');
+                              next.delete('dental_note');
+                              next.delete('history');
+                            }
                             navigate(`${location.pathname}?${next.toString()}`, {
                               replace: true,
                             });
@@ -423,6 +452,10 @@ export function PatientDetail() {
                             next.set('tab', 'clinical');
                             next.set('clinical', 'evolutions');
                             next.delete('condition');
+                            next.delete('treatment');
+                            next.delete('dental_note');
+                            next.delete('plan');
+                            next.delete('history');
                             navigate(`${location.pathname}?${next.toString()}`, {
                               replace: true,
                             });
@@ -445,6 +478,8 @@ export function PatientDetail() {
                               next.set('tab', 'clinical');
                               next.set('clinical', mode);
                               next.delete('condition');
+                              next.delete('treatment');
+                              next.delete('dental_note');
                               navigate(`/patients/${patientId}?${next.toString()}`, {
                                 replace: true,
                               });
@@ -463,6 +498,13 @@ export function PatientDetail() {
                         patientId={patient.id}
                         patient={patient}
                         onConditionFocus={publishConditionFocus}
+                        onPlanContinue={continuePlan}
+                        focusedTreatmentId={
+                          new URLSearchParams(location.search).get('treatment') ?? undefined
+                        }
+                        focusedDentalNoteId={
+                          new URLSearchParams(location.search).get('dental_note') ?? undefined
+                        }
                         focusedConditionId={
                           new URLSearchParams(location.search).get('condition') ?? undefined
                         }
@@ -472,6 +514,14 @@ export function PatientDetail() {
                         key={`${patient.id}-${clinicalSection}`}
                         patientId={patient.id}
                         mode={clinicalSection}
+                        focusedPlanId={
+                          new URLSearchParams(location.search).get('plan') ?? undefined
+                        }
+                        showHistory={new URLSearchParams(location.search).get('history') === '1'}
+                        focusedTreatmentId={
+                          new URLSearchParams(location.search).get('treatment') ?? undefined
+                        }
+                        onPlanFocus={publishPlanFocus}
                       />
                     ) : (
                       <PatientWorkspace

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   edit: vi.fn(),
   correct: vi.fn(),
   history: vi.fn(),
+  read: vi.fn(),
 }));
 vi.mock('../../lib/api', async () => ({
   ...(await vi.importActual('../../lib/api')),
@@ -26,6 +27,7 @@ vi.mock('../../lib/api', async () => ({
   updatePatientTreatment: mocks.edit,
   correctPatientTreatment: mocks.correct,
   getPatientTreatmentRevisions: mocks.history,
+  getPatientTreatment: mocks.read,
 }));
 
 const variants: TreatmentVariant[] = [
@@ -103,6 +105,18 @@ function mount(): void {
     </MemoryRouter>,
   );
 }
+
+it('opens an exact authorized procedure link and retries its read without a write', async () => {
+  mocks.read.mockRejectedValueOnce(new ApiError(404, 'Unavailable')).mockResolvedValueOnce(saved);
+  render(<PatientDiagnosis patientId="p" focusedTreatmentId={saved.id} />);
+  expect(await screen.findByText('Procedimiento no disponible para este paciente.')).toBeVisible();
+  expect(screen.queryByRole('dialog', { name: 'Editar procedimiento' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar procedimiento' }));
+  expect(await screen.findByRole('dialog', { name: 'Editar procedimiento' })).toBeVisible();
+  expect(mocks.read).toHaveBeenLastCalledWith('p', saved.id);
+  expect(mocks.create).not.toHaveBeenCalled();
+  expect(mocks.edit).not.toHaveBeenCalled();
+});
 
 it('applies existing bracket once, retains exact uncertain command and logically undoes', async () => {
   mocks.create

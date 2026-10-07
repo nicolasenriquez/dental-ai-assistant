@@ -94,6 +94,30 @@ describe('patient plan authoring', () => {
       findings: [],
     });
   });
+  it('opens the exact patient-owned query plan without creating another draft', async () => {
+    vi.mocked(api.getClinicalPlan).mockResolvedValue(executionFixture());
+    render(<PatientClinicalPlans patientId="patient" focusedPlanId="plan" />);
+    expect(await screen.findByRole('heading', { name: 'Plan guardado' })).toBeVisible();
+    expect(api.getClinicalPlan).toHaveBeenCalledWith('patient', 'plan');
+    expect(api.createClinicalPlan).not.toHaveBeenCalled();
+    expect(screen.getByRole('region', { name: 'Odontograma del plan seleccionado' })).toBeVisible();
+  });
+  it('shows unavailable query plan without offering an accidental replacement create', async () => {
+    vi.mocked(api.getClinicalPlan).mockRejectedValue(new api.ApiError(404, 'Not found'));
+    render(<PatientClinicalPlans patientId="patient" focusedPlanId="foreign" />);
+    expect(await screen.findByText(/Plan no disponible/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Crear borrador' })).not.toBeInTheDocument();
+    expect(api.createClinicalPlan).not.toHaveBeenCalled();
+  });
+  it('returns to the plan list when history clears the selected query', async () => {
+    vi.mocked(api.getClinicalPlan).mockResolvedValue(executionFixture());
+    const { rerender } = render(<PatientClinicalPlans patientId="patient" focusedPlanId="plan" />);
+    await screen.findByRole('heading', { name: 'Plan guardado' });
+    rerender(<PatientClinicalPlans patientId="patient" />);
+    expect(await screen.findByRole('heading', { name: 'Planificación' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Plan guardado' })).not.toBeInTheDocument();
+    expect(api.createClinicalPlan).not.toHaveBeenCalled();
+  });
   it('saves a dirty draft once before continuing to another saved plan', async () => {
     vi.mocked(api.getClinicalPlans).mockResolvedValue({
       items: [fixture],
@@ -166,7 +190,11 @@ describe('patient plan authoring', () => {
     fireEvent.change(await screen.findByRole('combobox', { name: 'Procedimiento' }), {
       target: { value: 'ORTO-BRACK' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /^Pieza 16:/ }));
+    fireEvent.click(
+      within(screen.getByRole('form', { name: 'Procedimiento planificado' })).getByRole('button', {
+        name: /^Pieza 16:/,
+      }),
+    );
     fireEvent.change(screen.getByRole('textbox', { name: 'Nota del procedimiento' }), {
       target: { value: 'Texto local pendiente' },
     });

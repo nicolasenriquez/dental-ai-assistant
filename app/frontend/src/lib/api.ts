@@ -421,13 +421,35 @@ export interface PatientActor {
   user_id: string;
   display_name: string | null;
 }
-export type PatientActivityKind = 'evolutions' | 'notes' | 'diagnoses';
+export type PatientActivityKind =
+  | 'evolutions'
+  | 'notes'
+  | 'diagnoses'
+  | 'treatments'
+  | 'plans'
+  | 'clinical_notes';
 export type PatientActivityFilter = 'all' | PatientActivityKind;
 export interface PatientActivityItem {
   event_id: string;
   resource_id: string;
   kind: PatientActivityKind;
-  action: 'created' | 'edited' | 'resolved' | 'corrected';
+  action:
+    | 'created'
+    | 'edited'
+    | 'resolved'
+    | 'corrected'
+    | 'deleted'
+    | 'create'
+    | 'edit'
+    | 'add_item'
+    | 'reorder'
+    | 'add_stage'
+    | 'edit_stage'
+    | 'edit_item'
+    | 'complete_stage'
+    | 'cancel_stage'
+    | 'correct_treatment'
+    | PlanAction;
   occurred_at: string;
   actor: PatientActor | null;
   title: string;
@@ -1561,6 +1583,28 @@ export function getDentalClinicalNotes(
   const query = new URLSearchParams({ limit: '20' });
   if (cursor) query.set('cursor', cursor);
   return request(`/patients/${patientId}/clinical-notes?${query}`);
+}
+
+export function getDentalClinicalNote(patientId: string, id: string): Promise<DentalClinicalNote> {
+  return request(`/patients/${patientId}/clinical-notes/${id}`);
+}
+
+export interface DentalNoteRevision {
+  id: string;
+  revision: number;
+  action: 'created' | 'edited' | 'deleted';
+  changed_at: string;
+  actor_user_id: string;
+}
+
+export function getDentalClinicalNoteRevisions(
+  patientId: string,
+  id: string,
+  cursor?: string,
+): Promise<TreatmentPage<DentalNoteRevision>> {
+  const query = new URLSearchParams({ limit: '20' });
+  if (cursor) query.set('cursor', cursor);
+  return request(`/patients/${patientId}/clinical-notes/${id}/revisions?${query}`);
 }
 export function createDentalClinicalNote(
   patientId: string,
