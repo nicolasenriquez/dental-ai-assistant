@@ -49,7 +49,8 @@ export function PatientOdontogram({
     const node = sectionRef.current;
     if (!node || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver((entries) => {
-      setNarrow((entries[0]?.contentRect.width ?? 0) < 720);
+      // ponytail: leave room for chart padding and sixteen 44px targets.
+      setNarrow((entries[0]?.contentRect.width ?? 0) < 744);
     });
     observer.observe(node);
     return () => observer.disconnect();
@@ -201,7 +202,7 @@ export function PatientOdontogram({
           })}
         </svg>
         <div
-          className={`absolute inset-x-2 inset-y-5 hidden gap-y-8 [@container(min-width:720px)]:grid ${dentition === 'permanent' ? 'grid-cols-[repeat(16,minmax(0,1fr))]' : 'grid-cols-[repeat(10,minmax(0,1fr))]'}`}
+          className={`absolute inset-x-2 inset-y-5 hidden gap-y-8 [@container(min-width:744px)]:grid ${dentition === 'permanent' ? 'grid-cols-[repeat(16,minmax(0,1fr))]' : 'grid-cols-[repeat(10,minmax(0,1fr))]'}`}
         >
           {teeth.map((tooth) => (
             <button

@@ -614,6 +614,60 @@ describe('PatientDetail URL continuity (S6)', () => {
     ).toBeVisible();
   });
 
+  it('publishes a UI history UUID, restores its historical filter/history on reload and clears it on close', async () => {
+    const historical = { ...conditionRecord, status: 'entered_in_error' as const };
+    vi.mocked(api.getPatientConditions).mockResolvedValue({
+      items: [historical],
+      total: 1,
+      next_cursor: null,
+    });
+    vi.mocked(api.getPatientCondition).mockResolvedValue(historical);
+    const revisions = vi
+      .spyOn(api, 'getPatientConditionRevisions')
+      .mockResolvedValue({ items: [], total: 0, next_cursor: null });
+    const view = renderS6('/patients/patient-1?tab=clinical&clinical=diagnosis&safe=kept');
+    await screen.findByRole('heading', { name: 'Diagnóstico manual' });
+    fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'entered_in_error' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Historial de condición' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent(`condition=${historical.id}`),
+    );
+    const url = screen.getByTestId('location').textContent ?? '';
+    expect(url).toContain('safe=kept');
+    expect(url).not.toContain(historical.note);
+    view.unmount();
+    revisions.mockClear();
+    renderS6(url);
+    expect(await screen.findByRole('article', { name: /Registrada por error/ })).toBeVisible();
+    expect(screen.getByLabelText('Estado')).toHaveValue('entered_in_error');
+    await waitFor(() =>
+      expect(revisions).toHaveBeenCalledWith('patient-1', historical.id, undefined, 50),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Historial de condición' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).not.toContain('condition='),
+    );
+  });
+
+  it('guards a UI history transition and keeps both URL and draft when canceled', async () => {
+    vi.mocked(api.getPatientConditions).mockResolvedValue({
+      items: [conditionRecord],
+      total: 1,
+      next_cursor: null,
+    });
+    const write = vi.spyOn(api, 'updatePatientCondition');
+    renderS6('/patients/patient-1?tab=clinical&clinical=diagnosis');
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
+    fireEvent.change(screen.getByLabelText('Nota de condición'), {
+      target: { value: 'Pendiente' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Historial de condición' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Seguir editando' }));
+    expect(screen.getByLabelText('Nota de condición')).toHaveValue('Pendiente');
+    expect(screen.getByTestId('location').textContent).not.toContain('condition=');
+    expect(write).not.toHaveBeenCalled();
+  });
+
   it('switching sections drops clinical params while preserving unrelated safe parameters', async () => {
     renderS6('/patients/patient-1?tab=info&note=n');
     await screen.findByRole('heading', { name: 'Ana Perez' });

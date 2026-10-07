@@ -149,7 +149,9 @@ it('deep target outside page selects dentition; revision conflict compares field
   await screen.findByText('Versión actual: 2');
   expect(screen.getByLabelText('Nota de condición')).toHaveValue('Local');
   expect(screen.queryByRole('button', { name: 'Rebasar mis cambios' })).toBeNull();
-  expect(screen.getByText(/Superficies — Tuyas: M · Actuales: M, O/)).toBeVisible();
+  expect(screen.getByText(/Superficies — Base: M · Tuyas: M · Actuales: M, O/)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Mantener mi nota' }));
   fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
   await waitFor(() =>
     expect(mocks.edit).toHaveBeenLastCalledWith(
@@ -160,7 +162,7 @@ it('deep target outside page selects dentition; revision conflict compares field
   );
 });
 
-it('disjoint-field conflict keeps local note and adopts current surfaces with latest revision', async () => {
+it('disjoint-field conflict requires a local decision and adopts untouched current surfaces', async () => {
   mount();
   fireEvent.click(await screen.findByRole('button', { name: 'Editar condición' }));
   fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Local' } });
@@ -170,6 +172,9 @@ it('disjoint-field conflict keeps local note and adopts current surfaces with la
   mocks.exact.mockResolvedValue({ ...record, note: 'Guardada', surfaces: ['M', 'O'], revision: 2 });
   fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
   await screen.findByText('Versión actual: 2');
+  expect(screen.getByText(/Nota — Base: Guardada · Tuya: Local · Actual: Guardada/)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Mantener mi nota' }));
   expect(screen.getByRole('button', { name: 'Guardar condición' })).toBeEnabled();
   fireEvent.click(screen.getByRole('button', { name: 'Guardar condición' }));
   await waitFor(() =>
@@ -843,12 +848,19 @@ it('focuses the exact saved record after create, edit and resolve without resele
   expect(screen.getByLabelText('Estado')).toHaveValue('resolved');
 });
 
-it('chart hover never mutates the draft piece or note', async () => {
+it('chart hover and focus never rebind a populated draft or write', async () => {
   mount([]);
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
+  fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
+  fireEvent.change(screen.getByLabelText('Nota de condición'), { target: { value: 'Nota de 36' } });
   const chartTooth = screen.getByRole('button', { name: /Pieza 11: sin condiciones guardadas/ });
   fireEvent.mouseEnter(chartTooth);
-  expect(screen.getByLabelText('Seleccionar pieza FDI')).toHaveValue('');
-  expect(screen.getByText(/Pieza sin seleccionar/)).toBeVisible();
+  fireEvent.focus(chartTooth);
+  fireEvent.mouseLeave(chartTooth);
+  fireEvent.blur(chartTooth);
+  expect(screen.getByLabelText('Seleccionar pieza FDI')).toHaveValue('36');
+  expect(screen.getByLabelText('Nota de condición')).toHaveValue('Nota de 36');
   expect(mocks.create).not.toHaveBeenCalled();
+  expect(mocks.edit).not.toHaveBeenCalled();
+  expect(mocks.correct).not.toHaveBeenCalled();
 });

@@ -40,8 +40,9 @@ resolve must be re-confirmed against the current active state, and a second 409
 repeats the comparison without losing the draft.
 
 Diagnosis puts the anatomical permanent/primary chart, tools and equivalent text
-list before saved records. At 960px available width, a 300px inspector sits beside
-the chart; otherwise it stacks. Narrow views have an enlarged selected-tooth editor
+list before saved records. At 1064px available width, a 300px inspector sits beside
+the chart with a 20px gap and at least 744px for its main column; otherwise it stacks.
+Below 744px chart width, quadrant controls preserve 44px tooth targets. Narrow views have an enlarged selected-tooth editor
 and 44px FDI selector. Hover/focus highlight is independent of the draft; active and
 resolved conditions have symbols and text. All pages must load before a chart is
 called complete; partial failure preserves confirmed records with retry.

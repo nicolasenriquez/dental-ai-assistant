@@ -179,6 +179,14 @@ export function PatientDetail() {
     }
     return next.toString();
   };
+  const publishConditionFocus = (conditionId?: string): void => {
+    const next = new URLSearchParams(location.search);
+    if (conditionId) next.set('condition', conditionId);
+    else next.delete('condition');
+    if (next.toString() !== new URLSearchParams(location.search).toString()) {
+      navigate(`${location.pathname}?${next.toString()}`, { replace: true });
+    }
+  };
 
   return (
     <main className="min-h-full bg-[var(--bg)] p-6 text-[var(--text-primary)] md:p-8">
@@ -428,6 +436,7 @@ export function PatientDetail() {
                         key={patient.id}
                         patientId={patient.id}
                         patient={patient}
+                        onConditionFocus={publishConditionFocus}
                         focusedConditionId={
                           new URLSearchParams(location.search).get('condition') ?? undefined
                         }

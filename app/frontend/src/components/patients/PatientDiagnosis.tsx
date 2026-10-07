@@ -58,6 +58,12 @@ interface ConflictChoices {
   surfaces?: 'local' | 'current';
   note?: 'local' | 'current';
 }
+interface PatientDiagnosisProps {
+  patientId: string;
+  focusedConditionId?: string;
+  patient?: Patient;
+  onConditionFocus?: (conditionId?: string) => void;
+}
 interface ConditionAttempt {
   id: string;
   create?: CreatePatientCondition;
@@ -102,13 +108,15 @@ export function PatientDiagnosis({
   patientId,
   focusedConditionId,
   patient,
-}: { patientId: string; focusedConditionId?: string; patient?: Patient }): JSX.Element {
+  onConditionFocus,
+}: PatientDiagnosisProps): JSX.Element {
   return (
     <PatientDiagnosisWorkspace
       key={patientId}
       patientId={patientId}
       focusedConditionId={focusedConditionId}
       patient={patient}
+      onConditionFocus={onConditionFocus}
     />
   );
 }
@@ -117,7 +125,8 @@ function PatientDiagnosisWorkspace({
   patientId,
   focusedConditionId,
   patient,
-}: { patientId: string; focusedConditionId?: string; patient?: Patient }): JSX.Element {
+  onConditionFocus,
+}: PatientDiagnosisProps): JSX.Element {
   const guard = useOptionalTransitionGuard();
   const dataRouter = useContext(UNSAFE_DataRouterContext);
   const [catalog, setCatalog] = useState<ConditionCatalog | null>(null);
@@ -181,11 +190,8 @@ function PatientDiagnosisWorkspace({
   const conflictFieldChoiceNeeded =
     conflictPending && draft && !draft.correction && conflict && draft.base
       ? {
-          surfaces:
-            conflictLocalChanged(draft, 'surfaces') &&
-            conflictCurrentChanged(draft, conflict, 'surfaces'),
-          note:
-            conflictLocalChanged(draft, 'note') && conflictCurrentChanged(draft, conflict, 'note'),
+          surfaces: conflictLocalChanged(draft, 'surfaces'),
+          note: conflictLocalChanged(draft, 'note'),
         }
       : null;
   const conflictBlocked =
@@ -280,6 +286,7 @@ function PatientDiagnosisWorkspace({
       const current = await getPatientCondition(patientId, focusedConditionId);
       if (request !== focusSequence.current) return;
       setFocused(current);
+      setHistoryId(current.id);
       setDentition(current.dentition);
       setStatus(current.status);
     } catch (error) {
@@ -349,6 +356,12 @@ function PatientDiagnosisWorkspace({
     setRecoveryBlocked(false);
     initiatingRef.current?.focus();
   };
+  const publishFocus = (conditionId?: string): void => {
+    // Let reset/save remove the router's dirty blocker before publishing confirmed context.
+    window.requestAnimationFrame(() => {
+      if (alive.current) onConditionFocus?.(conditionId);
+    });
+  };
   const start = (record: PatientCondition, resolve = false): void => {
     const trigger = document.activeElement as HTMLElement;
     transition(() => {
@@ -403,6 +416,7 @@ function PatientDiagnosisWorkspace({
       setDentition(current.dentition);
       setStatus(current.status);
       setHighlightedTooth(current.tooth_fdi);
+      publishFocus(current.id);
     } catch {
       if (alive.current && request === focusSequence.current) setResultReadError(true);
     }
@@ -632,6 +646,7 @@ function PatientDiagnosisWorkspace({
       setPending(null);
       guard?.cancelTransition();
       if (continuation) window.requestAnimationFrame(continuation);
+      else publishFocus(saved.id);
       return true;
     } catch (error) {
       if (!alive.current) return false;
@@ -829,7 +844,8 @@ function PatientDiagnosisWorkspace({
           </Button>
         </div>
       )}
-      <div className="grid items-start gap-5 [@container(min-width:960px)]:grid-cols-[minmax(0,1fr)_300px]">
+      {/* ponytail: reserve 744px for the chart, 20px gap and 300px inspector. */}
+      <div className="grid items-start gap-5 [@container(min-width:1064px)]:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-4">
           <PatientOdontogram
             complete={!loading && !readError}
@@ -904,7 +920,7 @@ function PatientDiagnosisWorkspace({
         </div>
         <aside
           aria-label="Editor de condición"
-          className="min-w-0 [@container(min-width:960px)]:col-start-2 [@container(min-width:960px)]:row-start-1 [@container(min-width:960px)]:row-span-2"
+          className="min-w-0 [@container(min-width:1064px)]:col-start-2 [@container(min-width:1064px)]:row-start-1 [@container(min-width:1064px)]:row-span-2"
         >
           {draft && (
             <form
@@ -1013,7 +1029,7 @@ function PatientDiagnosisWorkspace({
                       aria-label={`Pieza seleccionada ${draft.tooth_fdi}`}
                       role="img"
                       viewBox="0 0 42 122"
-                      className="mx-auto h-40 w-28 [@container(max-width:959px)]:h-24 text-muted"
+                      className="mx-auto h-40 w-28 [@container(max-width:1063px)]:h-24 text-muted"
                     >
                       <ToothDrawing tooth={draft.tooth_fdi} surfaces={draft.surfaces} />
                     </svg>
@@ -1074,7 +1090,7 @@ function PatientDiagnosisWorkspace({
                   <textarea
                     id="condition-note"
                     ref={noteRef}
-                    className="min-h-24 max-h-[33dvh] w-full rounded border border-border bg-surface p-3"
+                    className="min-h-[calc(4lh+1.5rem+2px)] max-h-[33dvh] w-full rounded border border-border bg-surface p-3 [field-sizing:content]"
                     maxLength={1000}
                     value={draft.note ?? ''}
                     disabled={locked || draft.status === 'resolved'}
@@ -1096,6 +1112,7 @@ function PatientDiagnosisWorkspace({
                       reset();
                       setFocused(duplicate);
                       setDentition(duplicate.dentition);
+                      publishFocus(duplicate.id);
                     })
                   }
                 >
@@ -1144,8 +1161,10 @@ function PatientDiagnosisWorkspace({
                         conflictCurrentChanged(draft, conflict, 'surfaces')) && (
                         <div className="space-y-1">
                           <p className="text-sm">
-                            Superficies — Tuyas: {draft.surfaces.join(', ') || 'Sin superficies'} ·
-                            Actuales: {conflict.surfaces.join(', ') || 'Sin superficies'}
+                            Superficies — Base:{' '}
+                            {draft.base.surfaces.join(', ') || 'Sin superficies'} · Tuyas:{' '}
+                            {draft.surfaces.join(', ') || 'Sin superficies'} · Actuales:{' '}
+                            {conflict.surfaces.join(', ') || 'Sin superficies'}
                           </p>
                           {conflictFieldChoiceNeeded?.surfaces && (
                             <div className="flex flex-wrap gap-2">
@@ -1177,8 +1196,8 @@ function PatientDiagnosisWorkspace({
                         conflictCurrentChanged(draft, conflict, 'note')) && (
                         <div className="space-y-1">
                           <p className="whitespace-pre-wrap break-words text-sm">
-                            Nota — Tuya: {draft.note || 'Sin nota'} · Actual:{' '}
-                            {conflict.note || 'Sin nota'}
+                            Nota — Base: {draft.base.note || 'Sin nota'} · Tuya:{' '}
+                            {draft.note || 'Sin nota'} · Actual: {conflict.note || 'Sin nota'}
                           </p>
                           {conflictFieldChoiceNeeded?.note && (
                             <div className="flex flex-wrap gap-2">
@@ -1223,6 +1242,7 @@ function PatientDiagnosisWorkspace({
                       onClick={() => {
                         reset();
                         setFocused(conflict);
+                        publishFocus(conflict.id);
                         void load();
                       }}
                     >
@@ -1290,7 +1310,7 @@ function PatientDiagnosisWorkspace({
             </div>
           )}
         </aside>
-        <div className="min-w-0 space-y-4 [@container(min-width:960px)]:col-start-1">
+        <div className="min-w-0 space-y-4 [@container(min-width:1064px)]:col-start-1">
           {' '}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-semibold">Condiciones por pieza</h3>
@@ -1465,10 +1485,15 @@ function PatientDiagnosisWorkspace({
                     )}
                     <Button
                       variant="clinicalSecondary"
-                      onClick={() => {
-                        setTargetRevisionId(undefined);
-                        setHistoryId(historyId === record.id ? null : record.id);
-                      }}
+                      onClick={() =>
+                        transition(() => {
+                          const next = historyId === record.id ? null : record.id;
+                          setTargetRevisionId(undefined);
+                          setHistoryId(next);
+                          setFocused(next ? record : null);
+                          publishFocus(next ?? undefined);
+                        })
+                      }
                     >
                       Historial de condición
                     </Button>

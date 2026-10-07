@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { PatientCondition } from '../../lib/api';
 import { normalizeConditionCatalog } from '../../lib/odontogramPresentation';
@@ -11,6 +11,44 @@ class NarrowResizeObserver {
   }
   disconnect(): void {}
 }
+
+it('keeps quadrant selection and the draft across the chart target-width boundary', () => {
+  let resize = (_width: number): void => {};
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: (entries: { contentRect: { width: number } }[]) => void) {
+        resize = (width) => callback([{ contentRect: { width } }]);
+      }
+      observe(): void {
+        resize(743);
+      }
+      disconnect(): void {}
+    },
+  );
+  const select = vi.fn();
+  render(
+    <PatientOdontogram
+      dentition="permanent"
+      conditions={[]}
+      labels={{}}
+      selectedTooth={36}
+      highlightedTooth={0}
+      onSelect={select}
+      onHighlight={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole('group', { name: 'Piezas del cuadrante 3' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Superior izquierda' }));
+  act(() => resize(744));
+  expect(screen.queryByRole('group', { name: 'Cuadrantes permanentes' })).toBeNull();
+  act(() => resize(743));
+  expect(screen.getByRole('group', { name: 'Piezas del cuadrante 2' })).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: /Pieza 36: sin condiciones guardadas/ }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  expect(select).not.toHaveBeenCalled();
+});
 afterEach(() => vi.unstubAllGlobals());
 
 const record: PatientCondition = {

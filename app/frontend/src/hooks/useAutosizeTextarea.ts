@@ -6,16 +6,12 @@ interface AutosizeOptions {
   maxHeight?: number;
 }
 
-function supportsFieldSizing(): boolean {
-  return typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content') === true;
-}
-
 export function useAutosizeTextarea({ ref, value, maxHeight = 144 }: AutosizeOptions): void {
   useLayoutEffect(() => {
     const textarea = ref.current;
     if (!textarea) return;
 
-    if (supportsFieldSizing()) {
+    if (getComputedStyle(textarea).getPropertyValue('field-sizing') === 'content') {
       textarea.style.removeProperty('height');
       textarea.style.overflowY = 'auto';
       return;
