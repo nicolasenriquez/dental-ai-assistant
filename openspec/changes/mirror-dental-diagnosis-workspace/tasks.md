@@ -22,10 +22,12 @@
 - [x] 1.3 Add scope proofs for atomic bridge with roles, valid FDI/dentition, supported surface codes without inferred veneer/pediatric restrictions and whole-arch appliance with no FDI.
   Traceability: T2,W3,W4; PatientOdontogram.test.tsx anatomy prior art; HTTP and opt-out real-Postgres fixtures for failed transaction rollback.
   Notes: 2026-10-06 added authenticated scope/role validation, real-Postgres multi/arch rollback/replay/read proofs and rendered range/role/arch/retry/shared-identity cases. Fail-first HTTP rejected valid bridge with max_length=1; two rendered cases failed on premature single-tooth bridge write and absent arch picker. Existing canonical veneer/pediatric surface proof retained; persistence verification follows in3.3.
-- [ ] 1.4 Add HTTP and rendered Planificación proofs for draft create/resume, atomic planned item+stage and reload-preserved ordering.
+- [x] 1.4 Add HTTP and rendered Planificación proofs for draft create/resume, atomic planned item+stage and reload-preserved ordering.
   Traceability: P1,P6,T3; incumbent condition contract and patient clinical route test seams.
-- [ ] 1.5 Add transition proofs for confirm/accept/reopen/close/reactivate/archive, illegal states, missing reason and foreign-plan denial.
+  Notes: 2026-10-06 fail-first HTTP returned404 instead of401 for absent plan endpoint; rendered authoring suite failed on absent PatientClinicalPlans. Added isolated real-Postgres aggregate/replay/order/stage/rollback/owner proof; persistence run follows in3.4.
+- [x] 1.5 Add transition proofs for confirm/accept/reopen/close/reactivate/archive, illegal states, missing reason and foreign-plan denial.
   Traceability: P2,P4,P5; authenticated HTTP boundary, no commercial side effects.
+  Notes: 2026-10-06 added real-Postgres HTTP matrix for36 state/action edges, empty confirmation, acceptance actor/time, expired closure, history-preserving reactivation, exact replay and foreign commands. Fail-first lifecycle run returned405 instead of409 at absent confirm endpoint. Completed state is explicitly seeded for archival proof, not claimed as staged execution.
 - [ ] 1.6 Add real-Postgres staged-execution proofs: concurrent closure, replayed completion, partial/all cancellation, source automatic plan completion and linked correction evidence without invented lifecycle transitions.
   Traceability: P3,P5,T4,T5; next-pending shortcut and optional clinical-note atomic rollback/replay; design.md lock order and command receipts. Default stubbed pytest alone cannot prove these invariants.
 - [ ] 1.7 Add rendered palette/legend/grouping/accessibility regressions and browser preview assertions across desktop/narrow/reduced-motion states.
@@ -61,13 +63,15 @@
 
 ### Draft clinical plans
 
-- [ ] 2.4 Add additive plan/item/stage/plan-revision storage and owner-scoped domain/HTTP/typed-client path; expose Planificación and draft list/detail, create/resume, add planned variants atomically, order items and edit draft stages with guarded dirty navigation.
+- [x] 2.4 Add additive plan/item/stage/plan-revision storage and owner-scoped domain/HTTP/typed-client path; expose Planificación and draft list/detail, create/resume, add planned variants atomically, order items and edit draft stages with guarded dirty navigation.
   Traceability: P1,P6,T3,W8; architecture-cleanup.md plan Module; Slice4. Demo: draft two-item plan with two-stage procedure survives reload; existing observations remain separate.
+  Notes: 2026-10-06 added0026 aggregate/member/session/history storage, injectable owner-scoped commands, durable receipts, typed clients, plan hook and patient-local authoring UI. Catalog anatomy reused for tooth/bridge/arch plans.12 real-Postgres plan+treatment proofs and40 focused rendered proofs passed; tsc/ruff/format/mypy passed. Browser draft authoring/order/session/replay/reload passed;3.4 records proof.
 
 ### Clinical lifecycle
 
-- [ ] 2.5 Implement revision-checked confirm/accept/reopen/close/reactivate/archive commands and Spanish confirmation UI with actor/time/reasons, recorded acceptance and explicit read-only states. No budget, agenda, payment or consent-signature side effects.
+- [x] 2.5 Implement revision-checked confirm/accept/reopen/close/reactivate/archive commands and Spanish confirmation UI with actor/time/reasons, recorded acceptance and explicit read-only states. No budget, agenda, payment or consent-signature side effects.
   Traceability: P2,P4,P5; Slice5. Demo: confirm, record acceptance, reopen a pending plan, close and reactivate the same plan with intact history.
+  Notes: 2026-10-06 implemented six revision-checked lifecycle commands, source closure reasons, server-derived actor/time, manual acceptance, read-only terminal states and history-preserving draft reopening/reactivation. Spanish domain confirmations and account disclosure reuse existing patient controls.22 focused real-Postgres plan/treatment proofs and11 focused rendered/transport/dialog proofs passed; tsc/Biome/ruff/format/mypy passed. Dirty draft navigation now supports explicit save/discard/remain; closed-plan conflict review retains local procedure text. Final browser and broad validation evidence follow in3.5.
 
 ### Staged execution and recovery
 
@@ -105,10 +109,12 @@
 - [x] 3.3 Verify multi/arch valid and invalid fixtures, canonical surfaces/roles and atomic rollback through real DB and chart UI.
   Traceability: Slice3; T2,W3,W4.
   Notes: 2026-10-06 treatment HTTP/real-Postgres10 passed, including invalid anatomy with zero rows/members/revisions/receipts, canonical member replay, whole-arch owner/read proof and injected aggregate rollback. Focused rendered/client61 and full Vitest769 passed; tsc/Biome/ruff/format/mypy passed. Fresh DB0001→0025 and final isolated Docker Playwright setup+Slice1+Slice2+Slice3 four passed, including shared bridge identity, lost-response arch retry/edit/history and keyboard/dirty primary splint at390px. Broader backend catalog line-ending failure and isolated-passing OAuth failure recorded in slice3-evidence.md; gate3.9 remains unchecked.
-- [ ] 3.4 Verify draft-plan create/resume/order/stage changes and reload through HTTP and browser.
+- [x] 3.4 Verify draft-plan create/resume/order/stage changes and reload through HTTP and browser.
   Traceability: Slice4; P1,P6.
-- [ ] 3.5 Verify every allowed/denied lifecycle edge, acceptance metadata and absence of commercial integrations.
+  Notes: 2026-10-06 isolated PostgreSQL migration0001→0026 passed; plan+treatment suite12 passed, focused rendered40 passed. Docker setup+Slice4 journey2 passed with one plan, two ordered procedures, bridge roles, two bracket sessions, revised label, exact lost-response retry, zero observed-procedure count and persisted reload. Evidence in slice4-evidence.md; final cross-slice validation follows Slice5.
+- [x] 3.5 Verify every allowed/denied lifecycle edge, acceptance metadata and absence of commercial integrations.
   Traceability: Slice5; P2,P4,P5.
+  Notes: 2026-10-07 final real-Postgres plan/treatment suite22 passed; lifecycle matrix covers36 state/action edges, missing reasons, owner denial, actor/time, exact receipts, concurrent close/edit and rollback. Full frontend777 passed; tsc/Biome/ruff/format/mypy passed. Final isolated Docker setup+Slices1–5 six browser proofs passed, including acceptance response loss, closed read-only reload, narrow keyboard reactivation, retained history and save-before-navigation. Backend remainder978 passed/134 skipped with only the known catalog CRLF/LF test deselected; unrestricted run still fails there. See slice5-evidence.md; release3.9 remains unchecked.
 - [ ] 3.6 Verify execution, partial/all cancellation, correction/reopen history, concurrent closure and exact receipt replay through real PostgreSQL and browser.
   Traceability: Slice6; P3,P5,T4,T5.
 - [ ] 3.7 Capture desktop and390px narrow UI, 200% zoom, keyboard, reduced motion and all visual-family snapshots; inspect labels/counts and primitive allowlist.
