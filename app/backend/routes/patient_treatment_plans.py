@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException, Response
 
 from backend.db import patient_clinical_plans_repo as repo
 from backend.patients import clinical_plan_service as service
@@ -47,11 +47,10 @@ async def plans(
 async def create(
     patient_id: UUID, body: CreatePlan, user: User, response: Response
 ) -> dict[str, Any]:
-    receipt, created = await _owned(
-        service.execute(UUID(str(user["id"])), patient_id, body.id, "create", body)
+    raise HTTPException(
+        status_code=410,
+        detail="La creación de planes clínicos ya no está disponible. El historial se conserva.",
     )
-    response.status_code = 201 if created else 200
-    return dict(receipt)
 
 
 @router.get("/{plan_id}")

@@ -6,7 +6,8 @@ from uuid import UUID, uuid4
 
 import asyncpg
 import pytest
-from httpx import ASGITransport, AsyncClient
+from fastapi.encoders import jsonable_encoder
+from httpx import ASGITransport, AsyncClient, Response
 
 from backend.auth.dependencies import get_current_user
 from backend.main import app
@@ -75,10 +76,23 @@ def command(revision: int, **fields):
     return {"operation_id": str(uuid4()), "expected_revision": revision, **fields}
 
 
+async def seed_historical_plan(patient: UUID, body: dict) -> Response:
+    """Seed pre-retirement evidence through the aggregate, never the retired HTTP entry."""
+    from backend.patients import clinical_plan_service
+    from backend.patients.clinical_plans import CreatePlan
+
+    owner = UUID(app.dependency_overrides[get_current_user]()["id"])
+    command_body = CreatePlan.model_validate(body)
+    receipt, created = await clinical_plan_service.execute(
+        owner, patient, command_body.id, "create", command_body
+    )
+    return Response(201 if created else 200, json=jsonable_encoder(receipt))
+
+
 async def active_plan(client: AsyncClient, patient: UUID, stages: int = 2):
     base = f"/api/patients/{patient}/clinical-plans"
     identifier = str(uuid4())
-    assert (await client.post(base, json=command(0, id=identifier))).status_code == 201
+    assert (await seed_historical_plan(patient, body=command(0, id=identifier))).status_code == 201
     path = f"{base}/{identifier}"
     response = await client.post(
         f"{path}/items",
@@ -417,10 +431,10 @@ async def test_draft_atomic_authoring_reload_replay_owner(plan_db, monkeypatch) 
         transport=ASGITransport(app=app), base_url="https://testserver"
     ) as client:
         create = command(0, id=identifier, title="Plan clínico")
-        response = await client.post(base, json=create)
+        response = await seed_historical_plan(patient, body=create)
         assert response.status_code == 201, response.text
         path = f"{base}/{identifier}"
-        assert (await client.post(base, json=create)).json() == response.json()
+        assert (await seed_historical_plan(patient, body=create)).json() == response.json()
         add = command(
             1,
             id=str(uuid4()),
@@ -506,7 +520,7 @@ async def test_concurrent_item_uuid_collision_has_no_orphan_procedure(plan_db) -
         transport=ASGITransport(app=app), base_url="https://testserver"
     ) as client:
         for plan in plans:
-            await client.post(base, json=command(0, id=plan))
+            await seed_historical_plan(patient, body=command(0, id=plan))
         responses = await asyncio.gather(
             *(
                 client.post(
@@ -550,7 +564,7 @@ async def test_plan_lifecycle_replay_reasons_and_owner(plan_db) -> None:
         transport=ASGITransport(app=app), base_url="https://testserver"
     ) as client:
         identifier = str(uuid4())
-        await client.post(base, json=command(0, id=identifier))
+        await seed_historical_plan(patient, body=command(0, id=identifier))
         path = f"{base}/{identifier}"
         assert (await client.post(f"{path}/confirm", json=command(1))).status_code == 409
         add = command(
@@ -625,7 +639,7 @@ async def test_every_lifecycle_edge_and_read_only_state(plan_db, state) -> None:
         for action, sources in allowed.items():
             identifier = uuid4()
             base = f"/api/patients/{patient}/clinical-plans"
-            await client.post(base, json=command(0, id=str(identifier)))
+            await seed_historical_plan(patient, body=command(0, id=str(identifier)))
             path = f"{base}/{identifier}"
             await client.post(
                 f"{path}/items",
@@ -667,7 +681,9 @@ async def test_plan_scope_paging_and_completed_session_immutability(plan_db) -> 
     ) as client:
         identifiers = [str(uuid4()), str(uuid4())]
         for identifier in identifiers:
-            assert (await client.post(base, json=command(0, id=identifier))).status_code == 201
+            assert (
+                await seed_historical_plan(patient, body=command(0, id=identifier))
+            ).status_code == 201
         page = (await client.get(base, params={"limit": 1})).json()
         assert page["total"] == 2 and page["next_cursor"]
         second = (await client.get(base, params={"limit": 1, "cursor": page["next_cursor"]})).json()
@@ -737,7 +753,7 @@ async def test_plan_concurrent_close_edit_and_atomic_transition_rollback(
         transport=ASGITransport(app=app), base_url="https://testserver"
     ) as client:
         identifier = str(uuid4())
-        await client.post(base, json=command(0, id=identifier))
+        await seed_historical_plan(patient, body=command(0, id=identifier))
         path = f"{base}/{identifier}"
         close = command(1, reason="cancelled_by_clinic")
         edit = command(1, title="Concurrent local edit")
