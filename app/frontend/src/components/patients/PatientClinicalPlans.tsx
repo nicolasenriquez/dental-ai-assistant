@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useDentalClinicalNotes } from '../../hooks/useDentalClinicalNotes';
 import {
   planActionLabels,
   planStateLabels,
@@ -13,6 +14,7 @@ import { ClinicalPlanExecution } from './ClinicalPlanExecution';
 import { ClinicalPlanItemComposer } from './ClinicalPlanItemComposer';
 import { ClinicalPlanLifecycle, closureLabels } from './ClinicalPlanLifecycle';
 import { ClinicalPlanStageEditor } from './ClinicalPlanStageEditor';
+import { DentalClinicalNotes } from './DentalClinicalNotes';
 import { PatientActorLabel } from './PatientActorLabel';
 
 interface PatientClinicalPlansProps {
@@ -24,6 +26,11 @@ export function PatientClinicalPlans({
   mode = 'planning',
 }: PatientClinicalPlansProps): JSX.Element {
   const workspace = usePatientClinicalPlan(patientId);
+  const clinicalNotes = useDentalClinicalNotes(patientId, {
+    note_type: 'treatment_plan',
+    entity_kind: 'plan',
+    entity_id: workspace.plan?.id ?? patientId,
+  });
   const guard = useOptionalTransitionGuard();
   const [title, setTitle] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
@@ -41,13 +48,13 @@ export function PatientClinicalPlans({
   const draftFormRef = useRef<HTMLFormElement>(null);
   const savedContinuation = useRef<(() => void) | null>(null);
   const current = useRef({
-    dirty: dirty || lifecycleDirty || executionDirty,
-    busy: workspace.busy,
+    dirty: dirty || lifecycleDirty || executionDirty || clinicalNotes.dirty,
+    busy: workspace.busy || clinicalNotes.busy,
     uncertain: workspace.uncertain,
   });
   current.current = {
-    dirty: dirty || lifecycleDirty || executionDirty,
-    busy: workspace.busy,
+    dirty: dirty || lifecycleDirty || executionDirty || clinicalNotes.dirty,
+    busy: workspace.busy || clinicalNotes.busy,
     uncertain: workspace.uncertain,
   };
   useEffect(() => {
@@ -87,7 +94,14 @@ export function PatientClinicalPlans({
     };
   }, [guard]);
   const transition = (continuation: () => void): void => {
-    if (dirty || lifecycleDirty || executionDirty || workspace.busy || workspace.uncertain)
+    if (
+      dirty ||
+      lifecycleDirty ||
+      executionDirty ||
+      clinicalNotes.dirty ||
+      workspace.busy ||
+      workspace.uncertain
+    )
       setLeave(() => continuation);
     else continuation();
   };
@@ -414,6 +428,7 @@ export function PatientClinicalPlans({
                 formRef={draftFormRef}
                 key={`composer-${plan.id}-${workspace.commits}`}
                 catalog={workspace.catalog}
+                treatments={plan.items.map((item) => item.treatment)}
                 busy={workspace.busy || workspace.uncertain || !workspace.editable}
                 onDirty={setDirty}
                 onSave={workspace.add}
@@ -493,20 +508,36 @@ export function PatientClinicalPlans({
           )}
         </>
       )}
+      {plan && <DentalClinicalNotes notes={clinicalNotes} hideSaveIndicator={!!leave} />}
       {leave && (
         <ConfirmDialog
           title="Cambios sin guardar"
           description="El borrador de este plan no se ha guardado. Guarda, descarta o permanece para revisarlo antes de cambiar de contexto."
           confirmLabel="Descartar y continuar"
           cancelLabel="Permanecer"
-          busy={workspace.busy}
+          busy={workspace.busy || clinicalNotes.busy}
           error={navigationError ?? workspace.error}
           secondaryLabel={
-            !lifecycleDirty && !executionDirty && (dirty || workspace.uncertain)
+            !lifecycleDirty &&
+            !executionDirty &&
+            (dirty || workspace.uncertain || clinicalNotes.dirty)
               ? 'Guardar y continuar'
               : undefined
           }
           onSecondary={() => {
+            if (clinicalNotes.dirty) {
+              void clinicalNotes.save().then((saved) => {
+                if (saved) {
+                  const continuation = leave;
+                  setLeave(null);
+                  guard?.cancelTransition();
+                  if (dirty || lifecycleDirty || executionDirty || workspace.uncertain)
+                    setLeave(() => continuation);
+                  else window.requestAnimationFrame(continuation);
+                }
+              });
+              return;
+            }
             setNavigationError(null);
             if (
               !workspace.uncertain &&
@@ -532,6 +563,7 @@ export function PatientClinicalPlans({
             setNavigationError(null);
             const continuation = leave;
             workspace.discard();
+            clinicalNotes.cancel();
             setDirty(false);
             setLifecycleDirty(false);
             setExecutionDirty(false);

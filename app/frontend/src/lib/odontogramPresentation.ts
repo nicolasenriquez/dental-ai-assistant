@@ -34,6 +34,24 @@ export interface ResolvedCondition extends ConditionCatalogEntry {
   symbolUnavailable: boolean;
 }
 
+const findingRoles: Record<string, string> = {
+  pulpitis: 'finding',
+  caries: 'finding',
+  incipient_caries: 'incipient',
+  pigmentation: 'pigmentation',
+  fracture: 'fracture',
+  missing: 'metal',
+  periapical_lt_2mm: 'finding',
+  periapical_2_4mm: 'extraction',
+  periapical_gt_4mm: 'periapical-large',
+  rotated: 'endodontics',
+  displaced: 'crown',
+  unerupted: 'unerupted',
+};
+export function findingPaletteRole(code: string): string {
+  return findingRoles[code] ?? 'neutral';
+}
+
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Catálogo inválido');

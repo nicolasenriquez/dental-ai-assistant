@@ -1512,3 +1512,82 @@ export function transitionClinicalPlan(
     body: JSON.stringify(command.body),
   });
 }
+
+export interface DentalNoteContext {
+  note_type: 'diagnosis' | 'treatment' | 'treatment_plan';
+  entity_kind: 'patient' | 'treatment' | 'plan';
+  entity_id: string;
+}
+export interface DentalClinicalNote {
+  id: string;
+  note_type: DentalNoteContext['note_type'] | 'administrative';
+  entity_kind: DentalNoteContext['entity_kind'];
+  entity_id: string;
+  entity_label: string | null;
+  tooth_fdi: number | null;
+  dentition: Dentition | null;
+  linked_teeth: number[];
+  body: string;
+  revision: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+export interface DentalNoteTemplate {
+  id: string;
+  category: string;
+  label: string;
+  body: string;
+}
+export interface CreateDentalNote extends DentalNoteContext {
+  id: string;
+  operation_id: string;
+  expected_revision: 0;
+  body: string;
+  dentition?: Dentition;
+  tooth_fdi?: number;
+}
+export interface DentalNoteReceipt extends Omit<TreatmentReceipt, 'committed'> {
+  committed: DentalClinicalNote;
+}
+export function getDentalNoteTemplates(category: string): Promise<{ items: DentalNoteTemplate[] }> {
+  return request(`/patients/clinical-note-templates?${new URLSearchParams({ category })}`);
+}
+export function getDentalClinicalNotes(
+  patientId: string,
+  cursor?: string,
+): Promise<TreatmentPage<DentalClinicalNote>> {
+  const query = new URLSearchParams({ limit: '20' });
+  if (cursor) query.set('cursor', cursor);
+  return request(`/patients/${patientId}/clinical-notes?${query}`);
+}
+export function createDentalClinicalNote(
+  patientId: string,
+  body: CreateDentalNote,
+): Promise<DentalNoteReceipt> {
+  return request(`/patients/${patientId}/clinical-notes`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+export function editDentalClinicalNote(
+  patientId: string,
+  id: string,
+  body: PlanCommand & { body: string },
+): Promise<DentalNoteReceipt> {
+  return request(`/patients/${patientId}/clinical-notes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+export function deleteDentalClinicalNote(
+  patientId: string,
+  id: string,
+  body: PlanCommand,
+): Promise<DentalNoteReceipt> {
+  return request(`/patients/${patientId}/clinical-notes/${id}/delete`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}

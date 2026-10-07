@@ -9,9 +9,17 @@ import type {
 } from '../../lib/api';
 import { resolveCondition, surfaceDescription } from '../../lib/odontogramPresentation';
 import { ConditionSymbol } from './ConditionSymbol';
+import { ToothClinicalLayers } from './ToothClinicalLayers';
 import { ToothDrawing } from './ToothDrawing';
 import { TreatmentSymbol } from './TreatmentSymbol';
-import { fdiQuadrants, fdiTeeth, surfacePosition, surfaceShapes } from './toothGeometry';
+import {
+  fdiQuadrants,
+  fdiTeeth,
+  surfacePosition,
+  surfaceShapes,
+  toothAnatomy,
+  toothDrawingTransforms,
+} from './toothGeometry';
 
 const quadrantLabels = [
   'Superior derecha',
@@ -31,6 +39,8 @@ interface OdontogramProps {
   selectedTooth: number;
   selectedTeeth?: number[];
   highlightedTooth: number;
+  highlightedTeeth?: number[];
+  previewTool?: string | null;
   onSelect: (tooth: number, anchor?: HTMLElement, surface?: ToothSurface) => void;
   surfaceCodes?: ToothSurface[];
   onHighlight: (tooth: number) => void;
@@ -53,6 +63,8 @@ export function PatientOdontogram({
   selectedTooth,
   selectedTeeth = [],
   highlightedTooth,
+  highlightedTeeth = [],
+  previewTool,
   onSelect,
   surfaceCodes = [],
   onHighlight,
@@ -99,7 +111,11 @@ export function PatientOdontogram({
   }, [selectedTooth, dentition]);
   const teeth = fdiTeeth(dentition);
   const half = teeth.length / 2;
-  const step = 720 / half;
+  const widths = teeth.map((tooth) => Math.max(44, 55 * toothAnatomy(tooth).scale));
+  const offsets = widths.map((_, index) =>
+    widths.slice(index < half ? 0 : half, index).reduce((sum, width) => sum + width, 0),
+  );
+  const viewWidth = widths.slice(0, half).reduce((sum, width) => sum + width, 40);
   const labelFor = (code: string): string => labels[code] ?? resolveCondition(catalog, code).label;
   const describeRecords = (tooth: number): string => {
     const records = conditions.filter(
@@ -130,196 +146,254 @@ export function PatientOdontogram({
         <p className="text-xs text-muted">Derecha del paciente ← · → Izquierda</p>
       </header>
       {controls && <div className="mb-3">{controls}</div>}
-      <div className="relative mx-auto max-w-[900px] rounded border border-border bg-surface p-2">
-        <svg
-          ref={chartRef}
-          role="img"
-          aria-labelledby={titleId}
-          viewBox="0 0 760 365"
-          className="block w-full text-muted"
+      <div className="overflow-x-auto" aria-label="Arcadas dentales desplazables">
+        <div
+          className="relative mx-auto max-w-[900px] rounded border border-border bg-surface p-2"
+          style={{ minWidth: viewWidth + 16 }}
         >
-          <title id={titleId}>
-            Odontograma {dentition === 'permanent' ? 'permanente' : 'temporal'}. Vista frontal.
-            Consulta la lista para tipo, superficies y estado de cada condición.
-          </title>
-          <path
-            d="M380 8v340"
-            stroke="currentColor"
-            strokeDasharray="4 6"
-            className="text-border"
-          />
-          <text x="12" y="17" className="fill-muted" fontSize="11">
-            Superior
-          </text>
-          <text x="12" y="358" className="fill-muted" fontSize="11">
-            Inferior
-          </text>
-          {treatments
-            .filter((r) => r.state !== 'entered_in_error' && r.scope === 'multi_tooth')
-            .map((record) => {
-              const positions = record.teeth
-                .map((member) => teeth.indexOf(member.tooth_fdi))
-                .filter((index) => index >= 0)
-                .sort((a, b) => a - b);
+          <svg
+            ref={chartRef}
+            role="img"
+            aria-labelledby={titleId}
+            viewBox={`0 0 ${viewWidth} 450`}
+            className="block w-full text-muted"
+          >
+            <title id={titleId}>
+              Odontograma {dentition === 'permanent' ? 'permanente' : 'temporal'}. Vista frontal.
+              Consulta la lista para tipo, superficies y estado de cada condición.
+            </title>
+            <path
+              d={`M${viewWidth / 2} 8v420`}
+              stroke="currentColor"
+              strokeDasharray="4 6"
+              className="text-border"
+            />
+            <text x="12" y="17" className="fill-muted" fontSize="11">
+              Superior
+            </text>
+            <text x="12" y="444" className="fill-muted" fontSize="11">
+              Inferior
+            </text>
+            {treatments
+              .filter((r) => r.state !== 'entered_in_error' && r.scope === 'multi_tooth')
+              .map((record) => {
+                const positions = record.teeth
+                  .map((member) => teeth.indexOf(member.tooth_fdi))
+                  .filter((index) => index >= 0)
+                  .sort((a, b) => a - b);
+                return (
+                  <g
+                    key={record.id}
+                    data-treatment-connector={record.id}
+                    className="stroke-primary"
+                    fill="none"
+                    strokeWidth="2"
+                  >
+                    <title>
+                      {record.label_es}:{' '}
+                      {record.teeth
+                        .map(
+                          (m) =>
+                            `${m.tooth_fdi} ${m.role === 'pillar' ? 'Pilar' : m.role === 'pontic' ? 'Póntico' : ''}`,
+                        )
+                        .join(', ')}
+                    </title>
+                    {positions.slice(1).map((index, k) => (
+                      <path
+                        key={index}
+                        d={`M${20 + offsets[positions[k]] + widths[positions[k]] / 2} ${index < half ? 154 : 273} H${20 + offsets[index] + widths[index] / 2}`}
+                      />
+                    ))}
+                  </g>
+                );
+              })}
+            {teeth.map((tooth, index) => {
+              const upper = index < half;
+              const step = widths[index];
+              const x = 20 + offsets[index] + (step - 42) / 2;
+              const rows = conditions.filter(
+                (item) => item.dentition === dentition && item.tooth_fdi === tooth,
+              );
+              const procedures = treatments.filter(
+                (r) =>
+                  r.dentition === dentition &&
+                  r.state !== 'entered_in_error' &&
+                  r.state !== 'cancelled' &&
+                  r.teeth.some((m) => m.tooth_fdi === tooth),
+              );
+              const replacement = procedures.some((r) =>
+                [
+                  'implant',
+                  'bridge',
+                  'crown',
+                  'crown_on_implant',
+                  'provisional_crown_on_implant',
+                ].includes(r.clinical_type),
+              );
+              const absent =
+                rows.some((r) => r.status === 'active' && r.condition_code === 'missing') ||
+                procedures.some((r) => r.clinical_type === 'extraction' && r.state !== 'planned');
+              const hideRoot = procedures.some(
+                (r) =>
+                  r.clinical_type.includes('implant') ||
+                  r.teeth.some((m) => m.tooth_fdi === tooth && m.role === 'pontic'),
+              );
+              const anatomy = toothAnatomy(tooth);
+              const transforms = toothDrawingTransforms(tooth, upper ? 'upper' : 'lower');
               return (
                 <g
-                  key={record.id}
-                  data-treatment-connector={record.id}
-                  className="stroke-primary"
-                  fill="none"
-                  strokeWidth="2"
+                  key={tooth}
+                  data-arch-tooth={tooth}
+                  transform={`translate(${x} ${upper ? 22 : 280})`}
                 >
-                  <title>
-                    {record.label_es}:{' '}
-                    {record.teeth
-                      .map(
-                        (m) =>
-                          `${m.tooth_fdi} ${m.role === 'pillar' ? 'Pilar' : m.role === 'pontic' ? 'Póntico' : ''}`,
-                      )
-                      .join(', ')}
-                  </title>
-                  {positions.slice(1).map((index, k) => (
-                    <path
-                      key={index}
-                      d={`M${41 + (positions[k] % half) * step} ${index < half ? 154 : 201} H${41 + (index % half) * step}`}
+                  <title>{describe(tooth)}</title>
+                  {(selectedTooth === tooth || selectedTeeth.includes(tooth)) && (
+                    <rect
+                      data-draft-tooth={tooth}
+                      x="-1"
+                      y={upper ? -2 : -46}
+                      width={step - 2}
+                      height={upper ? 142 : 160}
+                      rx="5"
+                      fill="none"
+                      className="stroke-primary dental-selection-ring"
+                      strokeWidth="2.5"
                     />
+                  )}
+                  {(highlightedTooth === tooth || highlightedTeeth.includes(tooth)) && (
+                    <rect
+                      x="1"
+                      y={upper ? 0 : -44}
+                      width={step - 6}
+                      height={upper ? 140 : 156}
+                      rx="4"
+                      fill="none"
+                      data-linked-highlight={tooth}
+                      className="stroke-warning dental-linked-highlight"
+                    />
+                  )}
+                  <g
+                    data-anatomical-scale={anatomy.scale}
+                    className={highlightedTooth === tooth ? 'dental-tooth-hover' : undefined}
+                  >
+                    <ToothDrawing
+                      tooth={tooth}
+                      surfaces={[]}
+                      hideRoot={hideRoot}
+                      attenuated={absent && !replacement}
+                      orientation={upper ? 'upper' : 'lower'}
+                    />
+                    <ToothClinicalLayers
+                      tooth={tooth}
+                      upper={upper}
+                      conditions={rows}
+                      treatments={treatments.filter(
+                        (r) =>
+                          r.dentition === dentition && r.teeth.some((m) => m.tooth_fdi === tooth),
+                      )}
+                      catalog={treatmentCatalog}
+                      preview={highlightedTooth === tooth ? previewTool : null}
+                    />
+                    {rows
+                      .filter((item) => item.status === 'resolved')
+                      .flatMap((item) =>
+                        item.surfaces.map((surface) => (
+                          <path
+                            key={`${item.id}:${surface}`}
+                            data-resolved-surface={surface}
+                            d={surfaceShapes[surfacePosition(surface, tooth)]}
+                            transform={transforms.occlusal}
+                            fill="none"
+                            className="stroke-muted"
+                            strokeWidth="1.2"
+                            strokeDasharray="2 2"
+                          />
+                        )),
+                      )}
+                  </g>
+                  {procedures.some((record) => record.state === 'planned') && (
+                    <text
+                      x="34"
+                      y={upper ? 95 : -8}
+                      className="fill-danger"
+                      fontSize="11"
+                      data-planned-marker
+                    >
+                      P
+                    </text>
+                  )}
+                  <text
+                    x="21"
+                    y={upper ? 190 : -30}
+                    textAnchor="middle"
+                    fontSize="12"
+                    className="fill-foreground"
+                  >
+                    {tooth}
+                  </text>
+                  {rows.map((item, k) => (
+                    <g
+                      key={item.id}
+                      data-condition-id={item.id}
+                      strokeDasharray={item.status === 'resolved' ? '3 2' : undefined}
+                      transform={`translate(${(k % 3) * 13} ${122 + Math.floor(k / 3) * 13}) scale(.55)`}
+                      className={item.status === 'active' ? 'text-primary' : 'text-muted'}
+                    >
+                      <ConditionSymbol
+                        code={resolveCondition(catalog, item.condition_code).symbol}
+                        resolved={item.status === 'resolved'}
+                        error={item.status === 'entered_in_error'}
+                      />
+                    </g>
                   ))}
+                  {treatments
+                    .filter(
+                      (r) =>
+                        r.dentition === dentition &&
+                        r.state !== 'entered_in_error' &&
+                        r.teeth.some((m) => m.tooth_fdi === tooth),
+                    )
+                    .map((record, k) => {
+                      const variant = treatmentCatalog?.variants.find(
+                        (v) => v.id === record.variant_id,
+                      );
+                      return variant ? (
+                        <g
+                          key={record.id}
+                          data-treatment-id={record.id}
+                          transform={`translate(${(k % 3) * 13} ${104 + Math.floor(k / 3) * 13}) scale(.55)`}
+                        >
+                          <TreatmentSymbol variant={variant} />
+                        </g>
+                      ) : null;
+                    })}
                 </g>
               );
             })}
-          {teeth.map((tooth, index) => {
-            const upper = index < half;
-            const x = 20 + (index % half) * step;
-            const rows = conditions.filter(
-              (item) => item.dentition === dentition && item.tooth_fdi === tooth,
-            );
-            const activeSurfaces = Array.from(
-              new Set(
-                rows.filter((item) => item.status === 'active').flatMap((item) => item.surfaces),
-              ),
-            );
-            return (
-              <g
+          </svg>
+          <div className="absolute inset-2">
+            {teeth.map((tooth, index) => (
+              <button
                 key={tooth}
-                data-arch-tooth={tooth}
-                transform={`translate(${x} ${upper ? 22 : 208})`}
-              >
-                <title>{describe(tooth)}</title>
-                {(selectedTooth === tooth || selectedTeeth.includes(tooth)) && (
-                  <rect
-                    data-draft-tooth={tooth}
-                    x="-1"
-                    y="-2"
-                    width={step - 2}
-                    height="142"
-                    rx="5"
-                    fill="none"
-                    className="stroke-primary"
-                    strokeWidth="2"
-                  />
-                )}
-                {highlightedTooth === tooth && (
-                  <rect
-                    x="1"
-                    y="0"
-                    width={step - 6}
-                    height="137"
-                    rx="4"
-                    fill="none"
-                    className="stroke-muted"
-                    strokeDasharray="2 3"
-                  />
-                )}
-                <g>
-                  <ToothDrawing
-                    tooth={tooth}
-                    surfaces={activeSurfaces}
-                    orientation={upper ? 'upper' : 'lower'}
-                  />
-                  {rows
-                    .filter((item) => item.status === 'resolved')
-                    .flatMap((item) =>
-                      item.surfaces.map((surface) => (
-                        <path
-                          key={`${item.id}:${surface}`}
-                          data-resolved-surface={surface}
-                          d={surfaceShapes[surfacePosition(surface, tooth)]}
-                          transform={upper ? undefined : 'translate(0 -122)'}
-                          fill="none"
-                          className="stroke-muted"
-                          strokeWidth="1.2"
-                          strokeDasharray="2 2"
-                        />
-                      )),
-                    )}
-                </g>
-                <text
-                  x="21"
-                  y={upper ? 144 : -29}
-                  textAnchor="middle"
-                  fontSize="12"
-                  className="fill-foreground"
-                >
-                  {tooth}
-                </text>
-                {rows.map((item, k) => (
-                  <g
-                    key={item.id}
-                    data-condition-id={item.id}
-                    strokeDasharray={item.status === 'resolved' ? '3 2' : undefined}
-                    transform={`translate(${(k % 3) * 13} ${122 + Math.floor(k / 3) * 13}) scale(.55)`}
-                    className={item.status === 'active' ? 'text-primary' : 'text-muted'}
-                  >
-                    <ConditionSymbol
-                      code={resolveCondition(catalog, item.condition_code).symbol}
-                      resolved={item.status === 'resolved'}
-                      error={item.status === 'entered_in_error'}
-                    />
-                  </g>
-                ))}
-                {treatments
-                  .filter(
-                    (r) =>
-                      r.dentition === dentition &&
-                      r.state !== 'entered_in_error' &&
-                      r.teeth.some((m) => m.tooth_fdi === tooth),
-                  )
-                  .map((record, k) => {
-                    const variant = treatmentCatalog?.variants.find(
-                      (v) => v.id === record.variant_id,
-                    );
-                    return variant ? (
-                      <g
-                        key={record.id}
-                        data-treatment-id={record.id}
-                        transform={`translate(${(k % 3) * 13} ${104 + Math.floor(k / 3) * 13}) scale(.55)`}
-                      >
-                        <TreatmentSymbol variant={variant} />
-                      </g>
-                    ) : null;
-                  })}
-              </g>
-            );
-          })}
-        </svg>
-        <div
-          className={`absolute inset-x-2 inset-y-5 hidden gap-y-8 [@container(min-width:744px)]:grid ${dentition === 'permanent' ? 'grid-cols-[repeat(16,minmax(0,1fr))]' : 'grid-cols-[repeat(10,minmax(0,1fr))]'}`}
-        >
-          {teeth.map((tooth) => (
-            <button
-              key={tooth}
-              type="button"
-              aria-label={describe(tooth)}
-              aria-pressed={selectedTooth === tooth || selectedTeeth.includes(tooth)}
-              disabled={disabled}
-              className="min-h-[44px] min-w-0 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-              onMouseEnter={() => onHighlight(tooth)}
-              onMouseLeave={() => onHighlight(0)}
-              onFocus={() => onHighlight(tooth)}
-              onBlur={() => onHighlight(0)}
-              onClick={(event) => activateTooth(event, tooth)}
-            />
-          ))}
+                type="button"
+                aria-label={describe(tooth)}
+                aria-pressed={selectedTooth === tooth || selectedTeeth.includes(tooth)}
+                disabled={disabled}
+                className="absolute min-h-[44px] min-w-[44px] rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                style={{
+                  left: `${((20 + offsets[index]) / viewWidth) * 100}%`,
+                  width: `${(widths[index] / viewWidth) * 100}%`,
+                  top: index < half ? '4%' : '50%',
+                  height: '45%',
+                }}
+                onMouseEnter={() => onHighlight(tooth)}
+                onMouseLeave={() => onHighlight(0)}
+                onFocus={() => onHighlight(tooth)}
+                onBlur={() => onHighlight(0)}
+                onClick={(event) => activateTooth(event, tooth)}
+              />
+            ))}
+          </div>
         </div>
       </div>
       {treatments.some((r) => r.arch) && (

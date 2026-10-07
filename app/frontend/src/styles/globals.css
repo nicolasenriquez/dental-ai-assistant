@@ -43,6 +43,121 @@
   --dental-endodontics: #a78bfa;
   --dental-post: #a855f7;
   --dental-retainer: #2dd4bf;
+  --dental-finding: #f87171;
+  --dental-incipient: #fb923c;
+  --dental-pigmentation: #d97706;
+  --dental-fracture: #ec4899;
+  --dental-periapical-large: #dc2626;
+  --dental-unerupted: #d1d5db;
+  --dental-anatomy-root: #334155;
+  --dental-anatomy-crown: #64748b;
+  --dental-anatomy-pulp: #475569;
+  --dental-anatomy-outline: #cbd5e1;
+}
+
+.dental-finding {
+  color: var(--dental-finding);
+}
+.dental-incipient {
+  color: var(--dental-incipient);
+}
+.dental-pigmentation {
+  color: var(--dental-pigmentation);
+}
+.dental-fracture {
+  color: var(--dental-fracture);
+}
+.dental-periapical-large {
+  color: var(--dental-periapical-large);
+}
+.dental-unerupted {
+  color: var(--dental-unerupted);
+}
+.dental-anatomy-root {
+  fill: var(--dental-anatomy-root);
+  stroke: var(--dental-anatomy-outline);
+}
+.dental-anatomy-crown {
+  fill: var(--dental-anatomy-crown);
+  stroke: var(--dental-anatomy-outline);
+}
+.dental-anatomy-pulp {
+  fill: var(--dental-anatomy-pulp);
+  stroke: var(--dental-anatomy-outline);
+}
+.dental-pulp-fill {
+  transition: fill 200ms ease;
+}
+.dental-preview {
+  color: var(--accent);
+  opacity: 0.5;
+  animation: dental-preview-pulse 1s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+.dental-tool-card {
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform
+    150ms ease;
+}
+.dental-tool-card:hover {
+  transform: translateY(-2px);
+}
+.dental-tooth-hover {
+  translate: 0 -1px;
+  transition: translate 150ms ease, fill 150ms ease, stroke 150ms ease;
+}
+.dental-tool-card[aria-pressed="true"] {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.dental-selection-ring {
+  animation: dental-ring-pulse 1.5s ease-in-out infinite;
+}
+.dental-linked-highlight {
+  animation: dental-highlight-pulse 1s ease-in-out infinite;
+}
+@keyframes dental-ring-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+@keyframes dental-highlight-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px var(--warning));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px var(--warning));
+  }
+}
+@keyframes dental-preview-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dental-preview,
+  .dental-selection-ring,
+  .dental-linked-highlight {
+    animation: none;
+  }
+  .dental-tool-card,
+  .dental-pulp-fill {
+    transition: none;
+  }
+  .dental-tool-card:hover {
+    transform: none;
+  }
+  .dental-tooth-hover {
+    translate: none;
+    transition: none;
+  }
 }
 
 .dental-restoration {

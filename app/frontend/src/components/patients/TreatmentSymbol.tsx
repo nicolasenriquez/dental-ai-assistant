@@ -41,9 +41,19 @@ export function TreatmentSymbol({
         />
       ) : crown ? (
         <>
-          <path d="M5 5h14l-2 6H7Z" />
+          <path
+            d="M5 5h14l-2 6H7Z"
+            strokeDasharray={key.startsWith('provisional') ? '2 2' : undefined}
+            fill="currentColor"
+            fillOpacity={key.startsWith('provisional') ? '.12' : '.3'}
+          />
           <path d="m8 6 2 3m2-3 2 3m2-3 1 2" />
           {key.includes('implant') && <path d="M12 12v8m-3-6h6m-5 3h4" />}
+        </>
+      ) : key === 'bridge_maryland' ? (
+        <>
+          <path d="M9 7h6v8H9Z M9 8 3 5v7l6 1 M15 8l6-3v7l-6 1" />
+          <path d="M10 9h4" />
         </>
       ) : bridge ? (
         <>
@@ -67,6 +77,13 @@ export function TreatmentSymbol({
         <path d="m5 3 14 18M19 3 5 21" strokeWidth="2" />
       ) : key === 'post' ? (
         <path d="M10 5h4v5l-2 10-2-10Z" />
+      ) : key === 'splint_occlusal' ? (
+        <>
+          <path d="M3 15Q3 4 12 4t9 11L18 18Q12 10 6 18Z" />
+          <circle cx="7" cy="11" r="1" />
+          <circle cx="12" cy="8" r="1" />
+          <circle cx="17" cy="11" r="1" />
+        </>
       ) : key === 'retainer' || key.startsWith('splint') ? (
         <path d="M3 9q9 6 18 0M5 8v4m5-3v4m4-4v4m5-5v4" />
       ) : key === 'attachment' ? (

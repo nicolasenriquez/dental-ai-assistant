@@ -153,6 +153,7 @@ def patch_pg_pool(monkeypatch):
     from backend.db import (
         clinical_assistant_repo,
         clinical_pending_work_repo,
+        patient_clinical_notes_repo,
         patient_clinical_plans_repo,
         patient_notes_repo,
     )
@@ -172,6 +173,7 @@ def patch_pg_pool(monkeypatch):
     monkeypatch.setattr(clinical_pending_work_repo, "get_pg_pool", getter)
     monkeypatch.setattr(patient_notes_repo, "get_pg_pool", getter)
     monkeypatch.setattr(patient_clinical_plans_repo, "get_pg_pool", getter)
+    monkeypatch.setattr(patient_clinical_notes_repo, "get_pg_pool", getter)
     monkeypatch.setattr(clinical_assistant_repo, "get_pg_pool", getter)
     monkeypatch.setattr(auth_route, "get_pg_pool", getter)
     monkeypatch.setattr(repo_mod, "get_pg_pool", getter)

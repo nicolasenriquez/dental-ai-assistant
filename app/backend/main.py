@@ -200,6 +200,7 @@ from backend.routes import (  # noqa: E402
     ingest,
     messages,
     patient_activity,
+    patient_clinical_notes,
     patient_conditions,
     patient_notes,
     patient_treatment_plans,
@@ -222,6 +223,7 @@ app.include_router(messages.router, prefix="/api", dependencies=_auth_required)
 app.include_router(patient_conditions.router, prefix="/api")
 app.include_router(patient_treatments.router, prefix="/api")
 app.include_router(patient_treatment_plans.router, prefix="/api")
+app.include_router(patient_clinical_notes.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
 app.include_router(patient_notes.router, prefix="/api")
 app.include_router(patient_activity.router, prefix="/api")
@@ -262,6 +264,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
         or request.url.path.startswith("/api/clinical-threads/")
         or request.url.path.startswith("/api/clinical-actions/")
         or request.url.path.startswith("/api/google-drive/")
+        or (request.url.path.startswith("/api/patients/") and "/clinical-notes" in request.url.path)
         or (
             request.url.path.startswith("/api/patients/")
             and request.url.path.endswith("/evolutions")

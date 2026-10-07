@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { UNSAFE_DataRouterContext } from 'react-router-dom';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
+import { useDentalClinicalNotes } from '../../hooks/useDentalClinicalNotes';
 import { useDentalWorkspace } from '../../hooks/useDentalWorkspace';
 import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import {
@@ -9,6 +10,7 @@ import {
   type ConditionCorrectionReceipt,
   type CorrectPatientCondition,
   type CreatePatientCondition,
+  type DentalNoteContext,
   type Dentition,
   type Patient,
   type PatientCondition,
@@ -42,8 +44,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { ConditionSymbol } from './ConditionSymbol';
+import { DentalClinicalNotes } from './DentalClinicalNotes';
 import { DentalConditionModal } from './DentalConditionModal';
+import { DentalLegend } from './DentalLegend';
 import { PatientActorLabel } from './PatientActorLabel';
 import { PatientConditionHistory } from './PatientConditionHistory';
 import { PatientNoteNavigationGuard } from './PatientNoteNavigationGuard';
@@ -144,7 +149,26 @@ function PatientDiagnosisWorkspace({
   const [loading, setLoading] = useState(true);
   const [readError, setReadError] = useState(false);
   const [dentition, setDentition] = useState<Dentition>('permanent');
+  const [noteContext, setNoteContext] = useState<DentalNoteContext>({
+    note_type: 'diagnosis',
+    entity_kind: 'patient',
+    entity_id: patientId,
+  });
+  const notes = useDentalClinicalNotes(patientId, noteContext);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const [notesWidth, setNotesWidth] = useState(0);
+  const [notesSheet, setNotesSheet] = useState(false);
+  useEffect(() => {
+    const element = layoutRef.current;
+    if (!element) return;
+    const update = (): void => setNotesWidth(element.getBoundingClientRect().width);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const [highlightedTooth, setHighlightedTooth] = useState(0);
+  const [noteHighlightedTeeth, setNoteHighlightedTeeth] = useState<number[]>([]);
   const [status, setStatus] = useState<'all' | 'active' | 'resolved' | 'entered_in_error'>(
     'active',
   );
@@ -171,6 +195,7 @@ function PatientDiagnosisWorkspace({
   const [duplicate, setDuplicate] = useState<PatientCondition | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
+  const [pendingNotes, setPendingNotes] = useState(true);
   const [category, setCategory] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [review, setReview] = useState(false);
@@ -346,12 +371,23 @@ function PatientDiagnosisWorkspace({
           ? false
           : status === 'all' || r.state === 'existing' || r.state === 'performed'),
   );
-  const dirty =
+  const localDirty =
     recordDirty ||
     treatmentDirty ||
     !!surfaceSelection ||
     !!dental.attempt ||
     dental.selectedTeeth.length > 0;
+  const dirty = localDirty || notes.dirty;
+  const seenNoteCommits = useRef(0);
+  useEffect(() => {
+    if (notes.commits === seenNoteCommits.current) return;
+    seenNoteCommits.current = notes.commits;
+    if (!pending || !pendingNotes || localDirty || saving || dental.busy) return;
+    const continuation = pending;
+    setPending(null);
+    guard?.cancelTransition();
+    window.requestAnimationFrame(continuation);
+  }, [notes.commits, pending, pendingNotes, localDirty, saving, dental.busy, guard]);
   const applyChart = (tooth: number, codes: ToothSurface[]): Promise<boolean> => {
     if (!dental.activeTool) return Promise.resolve(false);
     return activeVariant
@@ -399,6 +435,7 @@ function PatientDiagnosisWorkspace({
   }, [draft?.id]);
   const onRouteBlocked = useCallback((proceed: () => void, cancel: () => void): void => {
     routeCancel.current = cancel;
+    setPendingNotes(true);
     setPending(() => proceed);
   }, []);
   useEffect(() => {
@@ -409,6 +446,7 @@ function PatientDiagnosisWorkspace({
     };
     window.addEventListener('beforeunload', beforeUnload);
     const remove = guard?.registerBlocker((continuation) => {
+      setPendingNotes(true);
       setPending(() => continuation);
       return true;
     });
@@ -417,10 +455,11 @@ function PatientDiagnosisWorkspace({
       remove?.();
     };
   }, [dirty, saving, dental.busy, guard]);
-  const transition = (continuation: () => void): void => {
-    if (guard) guard.guardTransition(continuation);
-    else if (dirty || saving || dental.busy) setPending(() => continuation);
-    else continuation();
+  const transition = (continuation: () => void, protectNotes = false): void => {
+    if (localDirty || saving || dental.busy || (protectNotes && notes.dirty)) {
+      setPendingNotes(protectNotes);
+      setPending(() => continuation);
+    } else continuation();
   };
   const reset = (): void => {
     setTreatmentEdit(null);
@@ -799,6 +838,7 @@ function PatientDiagnosisWorkspace({
     }
   };
   const discard = (): void => {
+    if (pendingNotes) notes.cancel();
     const continuation = pending;
     reset();
     dental.discard();
@@ -818,942 +858,1103 @@ function PatientDiagnosisWorkspace({
         a.id.localeCompare(b.id),
     );
   return (
-    <section
-      aria-label="Diagnóstico manual"
-      onKeyDown={(event) => {
-        if (
-          event.key === 'Escape' &&
-          !draft &&
-          !surfaceSelection &&
-          !dental.busy &&
-          !dental.attempt
-        ) {
-          dental.selectTool(null);
-          setInspection(null);
-        }
-      }}
-      className="space-y-5 [container-type:inline-size] [&_button]:min-h-[44px]"
-    >
-      {dataRouter && (
-        <PatientNoteNavigationGuard
-          dirty={dirty || saving || dental.busy}
-          onBlocked={onRouteBlocked}
-        />
-      )}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Diagnóstico manual</h2>
-          <p className="text-sm text-muted">
-            Sin herramienta, consulta la pieza. Con una herramienta, actívala para registrar.
-          </p>
-        </div>
-      </header>
-      <p role="status" className="sr-only">
-        {announcement}
-      </p>
-      {receipt && (
-        <div className="space-y-2 rounded border border-border p-3">
-          <p>Corrección guardada.</p>
-          <p className="text-sm">
-            El original y sus revisiones se conservan. Consulta el resultado exacto del guardado.
-          </p>
-          <Button
-            variant="clinicalSecondary"
-            onClick={() =>
-              transition(
-                () => void activateResult(receipt.condition_id, receipt.correction_revision_id),
-              )
-            }
-          >
-            Ver revisión original corregida
-          </Button>
-          {receipt.replacement_condition_id && (
+    <div ref={layoutRef} className="flex min-w-0 items-start gap-4">
+      <section
+        aria-label="Diagnóstico manual"
+        onKeyDown={(event) => {
+          if (
+            event.key === 'Escape' &&
+            !draft &&
+            !surfaceSelection &&
+            !dental.busy &&
+            !dental.attempt
+          ) {
+            dental.selectTool(null);
+            setInspection(null);
+          }
+        }}
+        className="min-w-0 flex-1 space-y-5 [container-type:inline-size] [&_button]:min-h-[44px]"
+      >
+        {dataRouter && (
+          <PatientNoteNavigationGuard
+            dirty={dirty || saving || dental.busy}
+            onBlocked={onRouteBlocked}
+          />
+        )}
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Diagnóstico manual</h2>
+            <p className="text-sm text-muted">
+              Sin herramienta, consulta la pieza. Con una herramienta, actívala para registrar.
+            </p>
+          </div>
+          {noteContext.note_type !== 'diagnosis' && (
+            <Button
+              variant="clinicalSecondary"
+              onClick={() =>
+                transition(() => {
+                  notes.cancel();
+                  setNoteContext({
+                    note_type: 'diagnosis',
+                    entity_kind: 'patient',
+                    entity_id: patientId,
+                  });
+                  notes.setOpen(true);
+                  setNotesSheet(true);
+                }, true)
+              }
+            >
+              Nota de diagnóstico
+            </Button>
+          )}
+        </header>
+        <p role="status" className="sr-only">
+          {announcement}
+        </p>
+        {receipt && (
+          <div className="space-y-2 rounded border border-border p-3">
+            <p>Corrección guardada.</p>
+            <p className="text-sm">
+              El original y sus revisiones se conservan. Consulta el resultado exacto del guardado.
+            </p>
             <Button
               variant="clinicalSecondary"
               onClick={() =>
                 transition(
-                  () =>
-                    void activateResult(
-                      receipt.replacement_condition_id,
-                      receipt.replacement_revision_id,
-                    ),
+                  () => void activateResult(receipt.condition_id, receipt.correction_revision_id),
                 )
               }
             >
-              Ver revisión del reemplazo
+              Ver revisión original corregida
             </Button>
-          )}
-          {resultReadError && (
-            <p role="alert">
-              Corrección guardada; no pudimos actualizar el resultado. Reintenta su lectura con los
-              enlaces, sin volver a guardar.
-            </p>
-          )}
-          {readError && (
-            <p>
-              Corrección guardada; la lista está desactualizada. Reintentar condiciones solo repite
-              la lectura.
-            </p>
-          )}
-        </div>
-      )}
-      {resultReadError && !receipt && (
-        <div role="alert">
-          <p>No pudimos cargar el registro vinculado. Conservamos la revisión solicitada.</p>
-          <Button
-            variant="clinicalSecondary"
-            onClick={() =>
-              void activateResult(
-                resultTarget.current?.conditionId,
-                resultTarget.current?.revisionId,
-              )
-            }
-          >
-            Reintentar registro vinculado
-          </Button>
-        </div>
-      )}
-      {loading && <p role="status">Cargando condiciones…</p>}
-      {catalogError && (
-        <div role="alert">
-          <p>
-            No pudimos cargar el catálogo. Los registros y su historial siguen disponibles; no se
-            puede revisar la aplicabilidad de nuevos datos.
-          </p>
-          <Button variant="clinicalSecondary" onClick={() => void loadCatalog()}>
-            Reintentar catálogo
-          </Button>
-        </div>
-      )}
-      {readError && (
-        <div role="alert">
-          <p>
-            No pudimos completar la lectura de condiciones. Los datos mostrados pueden estar
-            incompletos.
-          </p>
-          <Button variant="clinicalSecondary" onClick={() => void load()}>
-            Reintentar condiciones
-          </Button>
-        </div>
-      )}
-      {focusError && (
-        <div role="alert">
-          <p>{focusError}</p>
-          <Button variant="clinicalSecondary" onClick={() => void loadFocused()}>
-            Reintentar condición
-          </Button>
-        </div>
-      )}
-      {dental.activeTool && (
-        <p className="text-sm">
-          Herramienta: {toolLabel(dental.activeTool)}. Activa una pieza o superficie.{' '}
-          <Button
-            variant="clinicalSecondary"
-            disabled={dental.busy || !!dental.attempt}
-            onClick={() => transition(() => dental.selectTool(null))}
-          >
-            Cancelar herramienta
-          </Button>
-        </p>
-      )}
-      {activeVariant?.scope === 'multi_tooth' && (
-        <div className="space-y-2" aria-label="Selección de varias piezas">
-          <div className="flex flex-wrap gap-2">
-            {(['range', 'free'] as const).map((mode) => (
+            {receipt.replacement_condition_id && (
               <Button
-                key={mode}
                 variant="clinicalSecondary"
-                aria-pressed={dental.selectionMode === mode}
-                disabled={dental.busy || !!dental.attempt}
-                onClick={() => transition(() => dental.setSelectionMode(mode))}
+                onClick={() =>
+                  transition(
+                    () =>
+                      void activateResult(
+                        receipt.replacement_condition_id,
+                        receipt.replacement_revision_id,
+                      ),
+                  )
+                }
               >
-                {mode === 'range' ? 'Selección por rango' : 'Selección libre'}
+                Ver revisión del reemplazo
               </Button>
-            ))}
+            )}
+            {resultReadError && (
+              <p role="alert">
+                Corrección guardada; no pudimos actualizar el resultado. Reintenta su lectura con
+                los enlaces, sin volver a guardar.
+              </p>
+            )}
+            {readError && (
+              <p>
+                Corrección guardada; la lista está desactualizada. Reintentar condiciones solo
+                repite la lectura.
+              </p>
+            )}
           </div>
+        )}
+        {resultReadError && !receipt && (
+          <div role="alert">
+            <p>No pudimos cargar el registro vinculado. Conservamos la revisión solicitada.</p>
+            <Button
+              variant="clinicalSecondary"
+              onClick={() =>
+                void activateResult(
+                  resultTarget.current?.conditionId,
+                  resultTarget.current?.revisionId,
+                )
+              }
+            >
+              Reintentar registro vinculado
+            </Button>
+          </div>
+        )}
+        {loading && <p role="status">Cargando condiciones…</p>}
+        {catalogError && (
+          <div role="alert">
+            <p>
+              No pudimos cargar el catálogo. Los registros y su historial siguen disponibles; no se
+              puede revisar la aplicabilidad de nuevos datos.
+            </p>
+            <Button variant="clinicalSecondary" onClick={() => void loadCatalog()}>
+              Reintentar catálogo
+            </Button>
+          </div>
+        )}
+        {readError && (
+          <div role="alert">
+            <p>
+              No pudimos completar la lectura de condiciones. Los datos mostrados pueden estar
+              incompletos.
+            </p>
+            <Button variant="clinicalSecondary" onClick={() => void load()}>
+              Reintentar condiciones
+            </Button>
+          </div>
+        )}
+        {focusError && (
+          <div role="alert">
+            <p>{focusError}</p>
+            <Button variant="clinicalSecondary" onClick={() => void loadFocused()}>
+              Reintentar condición
+            </Button>
+          </div>
+        )}
+        {dental.activeTool && (
           <p className="text-sm">
-            {dental.selectionMode === 'range'
-              ? 'Activa la primera y última pieza del rango.'
-              : 'Activa cada pieza para añadirla o retirarla.'}{' '}
-            Misma arcada. Seleccionadas: {dental.selectedTeeth.join(', ') || 'ninguna'}.
+            Herramienta: {toolLabel(dental.activeTool)}. Activa una pieza o superficie.{' '}
+            <Button
+              variant="clinicalSecondary"
+              disabled={dental.busy || !!dental.attempt}
+              onClick={() => transition(() => dental.selectTool(null))}
+            >
+              Cancelar herramienta
+            </Button>
           </p>
-          <Button
-            variant="clinical"
-            disabled={dental.selectedTeeth.length < 2 || dental.busy || !!dental.attempt}
-            onClick={() => setScopeReview(true)}
-          >
-            Revisar selección
-          </Button>
-        </div>
-      )}
-      {dental.applied && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center gap-2 rounded border border-border p-3"
-        >
-          Guardada en ficha: pieza {dental.applied.tooth_fdi} ·{' '}
-          {labels[dental.applied.condition_code]}
-          <Button
-            variant="clinicalSecondary"
-            disabled={dental.busy || !!dental.attempt}
-            onClick={() => void dental.undo()}
-          >
-            Deshacer
-          </Button>
-        </div>
-      )}
-      {dental.busy && <p role="status">Guardando…</p>}
-      {dental.appliedTreatment && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center gap-2 rounded border border-border p-3"
-        >
-          Guardada en ficha: {treatmentAnatomy(dental.appliedTreatment).toLowerCase()} ·{' '}
-          {dental.appliedTreatment.label_es}
-          <Button
-            variant="clinicalSecondary"
-            disabled={dental.busy || !!dental.attempt}
-            onClick={() => void dental.undo()}
-          >
-            Deshacer
-          </Button>
-        </div>
-      )}
-      {dental.treatmentLoading && <p role="status">Cargando procedimientos…</p>}
-      {dental.treatmentReadError && (
-        <div role="alert">
-          <p>
-            Lectura de procedimientos incompleta. Los registros mostrados no son un total completo.
-          </p>
-          <Button variant="clinicalSecondary" onClick={() => void dental.refreshTreatments()}>
-            Reintentar procedimientos
-          </Button>
-        </div>
-      )}
-      {dental.treatmentCatalogError && (
-        <p role="alert">
-          Catálogo terapéutico no disponible. Los hallazgos conservan su catálogo.
-          <Button variant="clinicalSecondary" onClick={() => void dental.refreshCatalog()}>
-            Reintentar catálogo terapéutico
-          </Button>
-        </p>
-      )}
-      {dental.error && (
-        <div role="alert" className="space-y-2">
-          <p>{dental.error}</p>
-          {dental.attempt && (
-            <>
-              <Button variant="clinical" disabled={dental.busy} onClick={() => void dental.retry()}>
-                Reintentar operación
-              </Button>
-              <Button variant="clinicalSecondary" disabled={dental.busy} onClick={dental.discard}>
-                Descartar intento
-              </Button>
-            </>
-          )}
-        </div>
-      )}
-      <div className="space-y-4">
-        <div className="min-w-0 space-y-4">
-          <PatientOdontogram
-            controls={
-              <div className="flex gap-2" aria-label="Dentición">
-                {(['permanent', 'primary'] as const).map((mode) => (
-                  <Button
-                    key={mode}
-                    variant="clinicalSecondary"
-                    aria-pressed={dentition === mode}
-                    disabled={
-                      saving ||
-                      dental.busy ||
-                      !!dental.attempt ||
-                      draft?.expectedRevision !== undefined
-                    }
-                    onClick={() => {
-                      if (mode !== dentition)
-                        transition(() => {
-                          reset();
-                          dental.selectTool(null);
-                          setDentition(mode);
-                        });
-                    }}
-                  >
-                    {mode === 'permanent' ? 'Permanente' : 'Temporal'}
-                  </Button>
-                ))}
-              </div>
-            }
-            complete={!loading && !readError}
-            dentition={dentition}
-            conditions={visible}
-            treatments={currentTreatments}
-            treatmentCatalog={dental.treatmentCatalog}
-            labels={labels}
-            catalog={catalog}
-            selectedTooth={
-              surfaceSelection?.tooth ??
-              inspection?.tooth ??
-              draft?.tooth_fdi ??
-              focused?.tooth_fdi ??
-              0
-            }
-            selectedTeeth={dental.selectedTeeth}
-            highlightedTooth={highlightedTooth}
-            onSelect={chooseTooth}
-            surfaceCodes={dental.activeTool ? (activeSurfaceCodes as ToothSurface[]) : []}
-            onHighlight={setHighlightedTooth}
-            disabled={
-              dental.busy ||
-              !!dental.attempt ||
-              locked ||
-              immutable ||
-              !!surfaceSelection ||
-              !!(draft?.correction && !draft.correction.replacement)
-            }
-          />
-          <label className="block text-sm" htmlFor="chart-tooth">
-            Seleccionar pieza FDI
-          </label>
-          <select
-            id="chart-tooth"
-            ref={toothSelectRef}
-            className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
-            value={draft?.tooth_fdi || ''}
-            disabled={
-              dental.busy ||
-              !!dental.attempt ||
-              locked ||
-              immutable ||
-              !!(draft?.correction && !draft.correction.replacement)
-            }
-            onChange={(event) => chooseTooth(Number(event.target.value))}
-          >
-            <option value="">Selecciona una pieza</option>
-            {fdiTeeth(dentition).map((tooth) => (
-              <option key={tooth} value={tooth}>
-                Pieza {tooth}
-              </option>
-            ))}
-          </select>
-          <div aria-label="Condiciones disponibles" className="space-y-2">
-            {groups.length > 1 ? (
-              <div role="group" aria-label="Categorías" className="flex flex-wrap gap-2">
-                {groups.map((group) => (
-                  <Button
-                    key={group.key}
-                    variant="clinicalSecondary"
-                    aria-pressed={activeGroup?.key === group.key}
-                    className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
-                    onClick={() => setCategory(group.key)}
-                  >
-                    {group.label}
-                  </Button>
-                ))}
-              </div>
-            ) : groups.length === 1 ? (
-              <h4 className="font-medium">{groups[0].label}</h4>
-            ) : null}
+        )}
+        {activeVariant?.scope === 'multi_tooth' && (
+          <div className="space-y-2" aria-label="Selección de varias piezas">
             <div className="flex flex-wrap gap-2">
-              {activeGroup?.entries.map((tool) => (
+              {(['range', 'free'] as const).map((mode) => (
                 <Button
-                  key={tool.code}
-                  aria-label={tool.label_es}
+                  key={mode}
                   variant="clinicalSecondary"
-                  aria-pressed={(draft?.condition_code ?? dental.activeTool) === tool.code}
-                  className="relative min-h-[72px] w-40 flex-col text-center aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
-                  disabled={
-                    locked ||
-                    dental.busy ||
-                    !!dental.attempt ||
-                    immutable ||
-                    !tool.supported ||
-                    !tool.allowed_dentitions.includes(draft?.dentition ?? dentition) ||
-                    !!(draft?.correction && !draft.correction.replacement)
-                  }
-                  onClick={() => chooseTool(tool.code)}
+                  aria-pressed={dental.selectionMode === mode}
+                  disabled={dental.busy || !!dental.attempt}
+                  onClick={() => transition(() => dental.setSelectionMode(mode))}
                 >
-                  {dental.treatmentCatalog?.variants.some((v) => v.id === tool.code) ? (
-                    <TreatmentSymbol
-                      variant={
-                        dental.treatmentCatalog.variants.find((v) => v.id === tool.code) ?? {
-                          icon_key: tool.symbol,
-                          palette_role: 'restoration',
-                        }
-                      }
-                    />
-                  ) : (
-                    <ConditionSymbol code={tool.symbol} />
-                  )}
-                  {tool.label_es}
-                  {tool.surface_codes.length > 0 && (
-                    <span
-                      className="dental-sealant absolute right-1 top-1"
-                      title="Admite superficies"
-                      aria-label="Admite superficies"
-                    >
-                      •
-                    </span>
-                  )}
-                  {!tool.supported && (
-                    <span className="block text-xs">
-                      Requiere selección de varias piezas o arcada (próxima etapa)
-                    </span>
-                  )}
-                  {tool.symbolUnavailable && <span className="sr-only">Símbolo no disponible</span>}
+                  {mode === 'range' ? 'Selección por rango' : 'Selección libre'}
                 </Button>
               ))}
             </div>
-          </div>
-        </div>
-        {treatmentEdit && (
-          <TreatmentRecordModal
-            record={treatmentEdit}
-            dental={dental}
-            returnFocus={initiatingRef.current}
-            suspended={!!pending}
-            onDirty={setTreatmentDirty}
-            onSaveAvailable={setTreatmentSaveAvailable}
-            saveRef={treatmentSaveRef}
-            onClose={() =>
-              transition(() => {
-                setTreatmentEdit(null);
-                setTreatmentDirty(false);
-                dental.discard();
-              })
-            }
-            onSaved={() => {
-              setTreatmentEdit(null);
-              setTreatmentDirty(false);
-              if (pending) {
-                setPending(null);
-                guard?.cancelTransition();
-                window.requestAnimationFrame(pending);
-              }
-            }}
-          />
-        )}
-        {draft && (
-          <DentalConditionModal
-            returnFocus={initiatingRef.current}
-            label={
-              draft.correction
-                ? 'Corregir registro'
-                : draft.status === 'resolved'
-                  ? 'Resolver condición'
-                  : 'Editar condición'
-            }
-            suspended={!!pending || review}
-            onClose={() => {
-              if (!saving) transition(reset);
-            }}
-          >
-            <form
-              className="space-y-3 rounded border border-border bg-surface p-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void save();
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  transition(reset);
-                }
-              }}
-            >
-              <h3 className="font-semibold">
-                {draft.correction
-                  ? 'Corregir registro'
-                  : draft.status === 'resolved'
-                    ? 'Resolver condición'
-                    : draft.expectedRevision
-                      ? 'Editar condición'
-                      : 'Nueva condición'}
-              </h3>
-              {draft.correction && (
-                <>
-                  <p>
-                    Original: pieza {draft.correction.source.tooth_fdi} ·{' '}
-                    {labels[draft.correction.source.condition_code] ??
-                      draft.correction.source.condition_code}{' '}
-                    · {conditionStatus(draft.correction.source.status)} · Revisión{' '}
-                    {draft.correction.source.revision}
-                  </p>
-                  <p>
-                    Se marcará como registrado por error, no como resuelto. Su historial se
-                    conserva.
-                  </p>
-                  <label className="block text-sm" htmlFor="correction-reason">
-                    Motivo de corrección
-                  </label>
-                  <textarea
-                    id="correction-reason"
-                    ref={reasonRef}
-                    className="min-h-24 w-full rounded border border-border bg-surface p-3 text-base"
-                    maxLength={1000}
-                    disabled={locked}
-                    value={draft.correction.reason}
-                    onChange={(event) => {
-                      if (!draft.correction) return;
-                      setDraft({
-                        ...draft,
-                        correction: { ...draft.correction, reason: event.target.value },
-                      });
-                    }}
-                  />
-                  <label className="flex min-h-[44px] items-center gap-2">
-                    <input
-                      type="checkbox"
-                      disabled={locked}
-                      checked={draft.correction.replacement}
-                      onChange={(event) => {
-                        if (!draft.correction) return;
-                        setDraft({
-                          ...draft,
-                          correction: { ...draft.correction, replacement: event.target.checked },
-                        });
-                      }}
-                    />
-                    Crear registro de reemplazo
-                  </label>
-                  {draft.correction.replacement && (
-                    <>
-                      <label htmlFor="replacement-dentition" className="block text-sm">
-                        Dentición del reemplazo
-                      </label>
-                      <select
-                        id="replacement-dentition"
-                        disabled={locked}
-                        value={draft.dentition}
-                        className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
-                        onChange={(event) => {
-                          const mode = event.target.value as Dentition;
-                          setDentition(mode);
-                          setDraft({ ...draft, dentition: mode, tooth_fdi: 0 });
-                        }}
-                      >
-                        <option value="permanent">Permanente</option>
-                        <option value="primary">Temporal</option>
-                      </select>
-                    </>
-                  )}
-                </>
-              )}
-              {(!draft.correction || draft.correction.replacement) && (
-                <>
-                  {dirty && !saving && !attempt && (
-                    <p className="text-sm text-muted">Borrador sin guardar</p>
-                  )}
-                  {draft.status === 'resolved' && (
-                    <p>
-                      Al guardar se marcará como resuelta. El registro y su historial se conservan.
-                    </p>
-                  )}
-                  {draft.tooth_fdi > 0 && (
-                    <svg
-                      aria-label={`Pieza seleccionada ${draft.tooth_fdi}`}
-                      role="img"
-                      viewBox="0 0 42 122"
-                      className="mx-auto h-40 w-28 [@container(max-width:1063px)]:h-24 text-muted"
-                    >
-                      <ToothDrawing tooth={draft.tooth_fdi} surfaces={draft.surfaces} />
-                    </svg>
-                  )}
-                  <p className="text-sm">
-                    Pieza {draft.tooth_fdi || 'sin seleccionar'} ·{' '}
-                    {labels[draft.condition_code] ?? 'Selecciona condición'} ·{' '}
-                    {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
-                  </p>
-                  <Button
-                    type="button"
-                    ref={pieceButtonRef}
-                    variant="clinicalSecondary"
-                    disabled={
-                      locked || immutable || !!(draft.correction && !draft.correction.replacement)
-                    }
-                    onClick={() => toothSelectRef.current?.focus()}
-                  >
-                    {draft.tooth_fdi > 0 ? 'Cambiar pieza' : 'Elegir pieza'}
-                  </Button>
-                  {selectedTool?.supported &&
-                    (selectedTool.surface_codes.length ? (
-                      <fieldset disabled={locked || draft.status === 'resolved'}>
-                        <legend className="text-sm font-medium">Superficies</legend>
-                        <div className="flex flex-wrap gap-2">
-                          {surfaces.map((item) => (
-                            <label
-                              key={item.code}
-                              className="flex min-h-[44px] items-center gap-2 rounded border border-border px-3"
-                            >
-                              <input
-                                type="checkbox"
-                                ref={item.code === 'M' ? firstSurfaceRef : undefined}
-                                checked={draft.surfaces.includes(item.code)}
-                                onChange={(event) =>
-                                  setDraft({
-                                    ...draft,
-                                    surfaces: event.target.checked
-                                      ? [...draft.surfaces, item.code]
-                                      : draft.surfaces.filter((code) => code !== item.code),
-                                  })
-                                }
-                              />
-                              {item.label} ({item.code})
-                            </label>
-                          ))}
-                        </div>
-                        {draft.surfaces.length === 0 && (
-                          <p className="text-xs text-muted">Sin superficies especificadas</p>
-                        )}
-                      </fieldset>
-                    ) : (
-                      <p className="text-sm">Pieza completa, sin superficies</p>
-                    ))}
-                  <label className="block text-sm" htmlFor="condition-note">
-                    Nota de condición
-                  </label>
-                  <textarea
-                    id="condition-note"
-                    ref={noteRef}
-                    className="min-h-[calc(4lh+1.5rem+2px)] max-h-[33dvh] w-full rounded border border-border bg-surface p-3 [field-sizing:content]"
-                    maxLength={1000}
-                    value={draft.note ?? ''}
-                    disabled={locked || draft.status === 'resolved'}
-                    onChange={(event) => setDraft({ ...draft, note: event.target.value })}
-                  />
-                </>
-              )}
-              {saveError && (
-                <p role="alert" className="text-error">
-                  {saveError}
-                </p>
-              )}
-              {duplicate && (
-                <Button
-                  type="button"
-                  variant="clinicalSecondary"
-                  onClick={() =>
-                    transition(() => {
-                      reset();
-                      setFocused(duplicate);
-                      setDentition(duplicate.dentition);
-                      publishFocus(duplicate.id);
-                    })
-                  }
-                >
-                  Abrir condición existente
-                </Button>
-              )}
-              {conflictPending && (
-                <div className="space-y-2">
-                  <p>
-                    {conflict
-                      ? `Versión actual: ${conflict.revision}`
-                      : 'Versión actual no disponible'}
-                  </p>
-                  {conflict && <p>Estado actual: {conditionStatus(conflict.status)}</p>}
-                  <Button
-                    type="button"
-                    variant="clinicalSecondary"
-                    onClick={() => {
-                      setConflict(null);
-                      setConflictChoices({});
-                      setResolveConfirmed(false);
-                      void getPatientCondition(patientId, draft.correction?.source.id ?? draft.id)
-                        .then((current) => {
-                          if (alive.current) setConflict(current);
-                        })
-                        .catch(() =>
-                          setSaveError('No pudimos cargar la versión actual. Reintenta.'),
-                        );
-                    }}
-                  >
-                    Cargar versión actual
-                  </Button>
-                  {conflict && draft.base && !draft.correction && conflict.status === 'active' && (
-                    <>
-                      {draft.status === 'resolved' && (
-                        <label className="flex min-h-[44px] items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={resolveConfirmed}
-                            onChange={(event) => setResolveConfirmed(event.target.checked)}
-                          />
-                          Confirmar resolución sobre la versión actual
-                        </label>
-                      )}
-                      {(conflictLocalChanged(draft, 'surfaces') ||
-                        conflictCurrentChanged(draft, conflict, 'surfaces')) && (
-                        <div className="space-y-1">
-                          <p className="text-sm">
-                            Superficies — Base:{' '}
-                            {draft.base.surfaces.join(', ') || 'Sin superficies'} · Tuyas:{' '}
-                            {draft.surfaces.join(', ') || 'Sin superficies'} · Actuales:{' '}
-                            {conflict.surfaces.join(', ') || 'Sin superficies'}
-                          </p>
-                          {conflictFieldChoiceNeeded?.surfaces && (
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                variant="clinicalSecondary"
-                                aria-pressed={conflictChoices.surfaces === 'local'}
-                                onClick={() =>
-                                  setConflictChoices({ ...conflictChoices, surfaces: 'local' })
-                                }
-                              >
-                                Mantener mis superficies
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="clinicalSecondary"
-                                aria-pressed={conflictChoices.surfaces === 'current'}
-                                onClick={() =>
-                                  setConflictChoices({ ...conflictChoices, surfaces: 'current' })
-                                }
-                              >
-                                Usar superficies actuales
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {(conflictLocalChanged(draft, 'note') ||
-                        conflictCurrentChanged(draft, conflict, 'note')) && (
-                        <div className="space-y-1">
-                          <p className="whitespace-pre-wrap break-words text-sm">
-                            Nota — Base: {draft.base.note || 'Sin nota'} · Tuya:{' '}
-                            {draft.note || 'Sin nota'} · Actual: {conflict.note || 'Sin nota'}
-                          </p>
-                          {conflictFieldChoiceNeeded?.note && (
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                variant="clinicalSecondary"
-                                aria-pressed={conflictChoices.note === 'local'}
-                                onClick={() =>
-                                  setConflictChoices({ ...conflictChoices, note: 'local' })
-                                }
-                              >
-                                Mantener mi nota
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="clinicalSecondary"
-                                aria-pressed={conflictChoices.note === 'current'}
-                                onClick={() =>
-                                  setConflictChoices({ ...conflictChoices, note: 'current' })
-                                }
-                              >
-                                Usar nota actual
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {conflict && !draft.correction && conflict.status !== 'active' && (
-                    <p>
-                      Este registro ya está{' '}
-                      {conflict.status === 'resolved' ? 'resuelto' : 'registrado por error'} en la
-                      versión actual. No puede editarse; consulta su historial o descarta el
-                      borrador.
-                    </p>
-                  )}
-                  {conflict && !draft.correction && (
-                    <Button
-                      type="button"
-                      variant="clinicalSecondary"
-                      onClick={() => {
-                        reset();
-                        setFocused(conflict);
-                        publishFocus(conflict.id);
-                        void load();
-                      }}
-                    >
-                      Usar versión actual
-                    </Button>
-                  )}
-                  {draft.correction && conflict?.status === 'entered_in_error' && (
-                    <p>
-                      El original ya está registrado por error. Consulta su historial o descarta el
-                      borrador; no puede corregirse de nuevo.
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="clinicalSecondary"
-                  disabled={saving}
-                  onClick={() => transition(reset)}
-                >
-                  Cancelar condición
-                </Button>
-                <Button
-                  type="submit"
-                  variant="clinical"
-                  aria-busy={saving}
-                  className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
-                  disabled={
-                    saving ||
-                    (draft.correction
-                      ? !attempt &&
-                        (!correctionValid ||
-                          (conflictPending &&
-                            (!conflict || conflict.status === 'entered_in_error')))
-                      : !attempt &&
-                        (conflictBlocked ||
-                          !draft.tooth_fdi ||
-                          !draft.condition_code ||
-                          (draft.status !== 'resolved' && !applicable)))
-                  }
-                >
-                  {saving && !pending && <Spinner />}
-                  {saving
-                    ? 'Guardando…'
-                    : draft.correction
-                      ? attempt
-                        ? 'Reintentar corrección'
-                        : conflictPending
-                          ? 'Revisar nueva corrección'
-                          : 'Revisar corrección'
-                      : attempt
-                        ? 'Reintentar guardado'
-                        : 'Guardar condición'}
-                </Button>
-              </div>
-            </form>
-          </DentalConditionModal>
-        )}
-        <div className="min-w-0 space-y-4 [@container(min-width:1064px)]:col-start-1">
-          {' '}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-semibold">Condiciones por pieza</h3>
-            <label className="text-sm">
-              Estado{' '}
-              <select
-                className="min-h-[44px] rounded border border-border bg-surface px-2"
-                value={status}
-                onChange={(event) => {
-                  const next = event.target.value as typeof status;
-                  transition(() => {
-                    reset();
-                    setStatus(next);
-                  });
-                }}
-              >
-                <option value="all">Todas</option>
-                <option value="active">Actuales</option>
-                <option value="resolved">Resueltas</option>
-                <option value="entered_in_error">Registradas por error</option>
-              </select>
-            </label>
-          </div>
-          {!loading &&
-            !readError &&
-            !dental.treatmentLoading &&
-            !dental.treatmentReadError &&
-            visible.length === 0 &&
-            currentTreatments.length === 0 && (
-              <p className="text-muted">
-                {status === 'active'
-                  ? 'Sin registros actuales'
-                  : 'Sin condiciones en esta dentición y estado.'}
-              </p>
-            )}
-          {visible.length + currentTreatments.length > 0 && (
-            <p className="text-sm text-muted">
-              {loading || readError || dental.treatmentLoading || dental.treatmentReadError
-                ? 'Lectura incompleta · '
-                : ''}
-              {visible.length + currentTreatments.length} registros en{' '}
-              {
-                new Set([
-                  ...visible.map((r) => r.tooth_fdi),
-                  ...currentTreatments.flatMap((r) => r.teeth.map((m) => m.tooth_fdi)),
-                ]).size
-              }{' '}
-              piezas
-              {currentTreatments.some((r) => r.arch) &&
-                ` · ${new Set(currentTreatments.filter((r) => r.arch).map((r) => r.arch)).size} arcadas`}
-              {loading || readError || dental.treatmentLoading || dental.treatmentReadError
-                ? '; no es un total completo'
-                : ''}
+            <p className="text-sm">
+              {dental.selectionMode === 'range'
+                ? 'Activa la primera y última pieza del rango.'
+                : 'Activa cada pieza para añadirla o retirarla.'}{' '}
+              Misma arcada. Seleccionadas: {dental.selectedTeeth.join(', ') || 'ninguna'}.
             </p>
-          )}
-          <details className="text-sm">
-            <summary className="min-h-[44px] cursor-pointer">Leyenda de conceptos</summary>
-            <ul>
-              {groups
-                .flatMap((group) => group.entries)
-                .map((entry) => (
-                  <li key={entry.code} className="flex items-center gap-2">
-                    {dental.treatmentCatalog?.variants.find((v) => v.id === entry.code) ? (
+            <Button
+              variant="clinical"
+              disabled={dental.selectedTeeth.length < 2 || dental.busy || !!dental.attempt}
+              onClick={() => setScopeReview(true)}
+            >
+              Revisar selección
+            </Button>
+          </div>
+        )}
+        {dental.applied && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 rounded border border-border p-3"
+          >
+            Guardada en ficha: pieza {dental.applied.tooth_fdi} ·{' '}
+            {labels[dental.applied.condition_code]}
+            <Button
+              variant="clinicalSecondary"
+              disabled={dental.busy || !!dental.attempt}
+              onClick={() => void dental.undo()}
+            >
+              Deshacer
+            </Button>
+          </div>
+        )}
+        {dental.busy && <p role="status">Guardando…</p>}
+        {dental.appliedTreatment && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 rounded border border-border p-3"
+          >
+            Guardada en ficha: {treatmentAnatomy(dental.appliedTreatment).toLowerCase()} ·{' '}
+            {dental.appliedTreatment.label_es}
+            <Button
+              variant="clinicalSecondary"
+              disabled={dental.busy || !!dental.attempt}
+              onClick={() => void dental.undo()}
+            >
+              Deshacer
+            </Button>
+          </div>
+        )}
+        {dental.treatmentLoading && <p role="status">Cargando procedimientos…</p>}
+        {dental.treatmentReadError && (
+          <div role="alert">
+            <p>
+              Lectura de procedimientos incompleta. Los registros mostrados no son un total
+              completo.
+            </p>
+            <Button variant="clinicalSecondary" onClick={() => void dental.refreshTreatments()}>
+              Reintentar procedimientos
+            </Button>
+          </div>
+        )}
+        {dental.treatmentCatalogError && (
+          <p role="alert">
+            Catálogo terapéutico no disponible. Los hallazgos conservan su catálogo.
+            <Button variant="clinicalSecondary" onClick={() => void dental.refreshCatalog()}>
+              Reintentar catálogo terapéutico
+            </Button>
+          </p>
+        )}
+        {dental.error && (
+          <div role="alert" className="space-y-2">
+            <p>{dental.error}</p>
+            {dental.attempt && (
+              <>
+                <Button
+                  variant="clinical"
+                  disabled={dental.busy}
+                  onClick={() => void dental.retry()}
+                >
+                  Reintentar operación
+                </Button>
+                <Button variant="clinicalSecondary" disabled={dental.busy} onClick={dental.discard}>
+                  Descartar intento
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+        <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
+            <PatientOdontogram
+              controls={
+                <div className="flex gap-2" aria-label="Dentición">
+                  {(['permanent', 'primary'] as const).map((mode) => (
+                    <Button
+                      key={mode}
+                      variant="clinicalSecondary"
+                      aria-pressed={dentition === mode}
+                      disabled={
+                        saving ||
+                        dental.busy ||
+                        !!dental.attempt ||
+                        draft?.expectedRevision !== undefined
+                      }
+                      onClick={() => {
+                        if (mode !== dentition)
+                          transition(() => {
+                            reset();
+                            dental.selectTool(null);
+                            setDentition(mode);
+                            notes.clearCandidate();
+                          });
+                      }}
+                    >
+                      {mode === 'permanent' ? 'Permanente' : 'Temporal'}
+                    </Button>
+                  ))}
+                </div>
+              }
+              complete={!loading && !readError}
+              dentition={dentition}
+              conditions={visible}
+              treatments={currentTreatments}
+              treatmentCatalog={dental.treatmentCatalog}
+              labels={labels}
+              catalog={catalog}
+              selectedTooth={
+                surfaceSelection?.tooth ??
+                inspection?.tooth ??
+                draft?.tooth_fdi ??
+                focused?.tooth_fdi ??
+                0
+              }
+              selectedTeeth={dental.selectedTeeth}
+              highlightedTooth={highlightedTooth}
+              highlightedTeeth={noteHighlightedTeeth}
+              previewTool={dental.activeTool}
+              onSelect={chooseTooth}
+              surfaceCodes={dental.activeTool ? (activeSurfaceCodes as ToothSurface[]) : []}
+              onHighlight={(tooth) => {
+                setHighlightedTooth(tooth);
+                notes.candidateFromChart(tooth, dentition);
+              }}
+              disabled={
+                dental.busy ||
+                !!dental.attempt ||
+                locked ||
+                immutable ||
+                !!surfaceSelection ||
+                !!(draft?.correction && !draft.correction.replacement)
+              }
+            />
+            <label className="block text-sm" htmlFor="chart-tooth">
+              Seleccionar pieza FDI
+            </label>
+            <select
+              id="chart-tooth"
+              ref={toothSelectRef}
+              className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
+              value={draft?.tooth_fdi || ''}
+              disabled={
+                dental.busy ||
+                !!dental.attempt ||
+                locked ||
+                immutable ||
+                !!(draft?.correction && !draft.correction.replacement)
+              }
+              onChange={(event) => chooseTooth(Number(event.target.value))}
+            >
+              <option value="">Selecciona una pieza</option>
+              {fdiTeeth(dentition).map((tooth) => (
+                <option key={tooth} value={tooth}>
+                  Pieza {tooth}
+                </option>
+              ))}
+            </select>
+            <div aria-label="Condiciones disponibles" className="space-y-2">
+              {groups.length > 1 ? (
+                <div role="group" aria-label="Categorías" className="flex flex-wrap gap-2">
+                  {groups.map((group) => (
+                    <Button
+                      key={group.key}
+                      variant="clinicalSecondary"
+                      aria-pressed={activeGroup?.key === group.key}
+                      className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
+                      onClick={() => setCategory(group.key)}
+                    >
+                      {group.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : groups.length === 1 ? (
+                <h4 className="font-medium">{groups[0].label}</h4>
+              ) : null}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1.5">
+                {activeGroup?.entries.map((tool) => (
+                  <Button
+                    key={tool.code}
+                    aria-label={tool.label_es}
+                    aria-describedby={
+                      tool.surface_codes.length ? `${patientId}-${tool.code}-surfaces` : undefined
+                    }
+                    variant="clinicalSecondary"
+                    aria-pressed={(draft?.condition_code ?? dental.activeTool) === tool.code}
+                    className="dental-tool-card relative !min-h-[72px] flex w-full flex-col items-center justify-center gap-1 rounded-lg !border-2 !px-1.5 !py-[7px] text-center aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:font-semibold aria-pressed:text-foreground"
+                    disabled={
+                      locked ||
+                      dental.busy ||
+                      !!dental.attempt ||
+                      immutable ||
+                      !tool.supported ||
+                      !tool.allowed_dentitions.includes(draft?.dentition ?? dentition) ||
+                      !!(draft?.correction && !draft.correction.replacement)
+                    }
+                    onClick={() => chooseTool(tool.code)}
+                  >
+                    {dental.treatmentCatalog?.variants.some((v) => v.id === tool.code) ? (
                       <TreatmentSymbol
                         variant={
-                          dental.treatmentCatalog.variants.find((v) => v.id === entry.code) ?? {
-                            icon_key: entry.symbol,
+                          dental.treatmentCatalog.variants.find((v) => v.id === tool.code) ?? {
+                            icon_key: tool.symbol,
                             palette_role: 'restoration',
                           }
                         }
                       />
                     ) : (
-                      <ConditionSymbol code={entry.symbol} />
+                      <ConditionSymbol code={tool.symbol} />
                     )}
-                    {entry.label}
-                    {entry.symbolUnavailable && ' · Símbolo no disponible'}
-                  </li>
+                    {tool.label_es}
+                    {tool.surface_codes.length > 0 && (
+                      <span
+                        className="dental-sealant absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-current"
+                        title="Admite superficies"
+                        id={`${patientId}-${tool.code}-surfaces`}
+                        aria-label="Admite superficies"
+                      />
+                    )}
+                    {!tool.supported && (
+                      <span className="block text-xs">
+                        Requiere selección de varias piezas o arcada (próxima etapa)
+                      </span>
+                    )}
+                    {tool.symbolUnavailable && (
+                      <span className="sr-only">Símbolo no disponible</span>
+                    )}
+                  </Button>
                 ))}
-            </ul>
-          </details>
-          <ol className="divide-y divide-border">
-            {[...visible, ...currentTreatments]
-              .sort(
-                (a, b) =>
-                  ('condition_code' in a
-                    ? a.tooth_fdi
-                    : (a.teeth[0]?.tooth_fdi ?? (a.arch === 'upper' ? 100 : 101))) -
-                  ('condition_code' in b
-                    ? b.tooth_fdi
-                    : (b.teeth[0]?.tooth_fdi ?? (b.arch === 'upper' ? 100 : 101))),
-              )
-              .map((record) => (
-                <li key={record.id}>
-                  {'condition_code' in record ? (
-                    <>
-                      <article
-                        tabIndex={-1}
-                        onMouseEnter={() => setHighlightedTooth(record.tooth_fdi)}
-                        onMouseLeave={() => setHighlightedTooth(0)}
-                        onFocus={() => setHighlightedTooth(record.tooth_fdi)}
-                        onBlur={() => setHighlightedTooth(0)}
-                        ref={(node) => {
-                          if (node) recordRefs.current.set(record.id, node);
-                          else recordRefs.current.delete(record.id);
+              </div>
+            </div>
+          </div>
+          {treatmentEdit && (
+            <TreatmentRecordModal
+              record={treatmentEdit}
+              dental={dental}
+              returnFocus={initiatingRef.current}
+              suspended={!!pending}
+              onDirty={setTreatmentDirty}
+              onSaveAvailable={setTreatmentSaveAvailable}
+              saveRef={treatmentSaveRef}
+              onClose={() =>
+                transition(() => {
+                  setTreatmentEdit(null);
+                  setTreatmentDirty(false);
+                  dental.discard();
+                })
+              }
+              onSaved={() => {
+                setTreatmentEdit(null);
+                setTreatmentDirty(false);
+                if (pending) {
+                  setPending(null);
+                  guard?.cancelTransition();
+                  window.requestAnimationFrame(pending);
+                }
+              }}
+            />
+          )}
+          {draft && (
+            <DentalConditionModal
+              returnFocus={initiatingRef.current}
+              label={
+                draft.correction
+                  ? 'Corregir registro'
+                  : draft.status === 'resolved'
+                    ? 'Resolver condición'
+                    : 'Editar condición'
+              }
+              suspended={!!pending || review}
+              onClose={() => {
+                if (!saving) transition(reset);
+              }}
+            >
+              <form
+                className="space-y-3 rounded border border-border bg-surface p-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void save();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    transition(reset);
+                  }
+                }}
+              >
+                <h3 className="font-semibold">
+                  {draft.correction
+                    ? 'Corregir registro'
+                    : draft.status === 'resolved'
+                      ? 'Resolver condición'
+                      : draft.expectedRevision
+                        ? 'Editar condición'
+                        : 'Nueva condición'}
+                </h3>
+                {draft.correction && (
+                  <>
+                    <p>
+                      Original: pieza {draft.correction.source.tooth_fdi} ·{' '}
+                      {labels[draft.correction.source.condition_code] ??
+                        draft.correction.source.condition_code}{' '}
+                      · {conditionStatus(draft.correction.source.status)} · Revisión{' '}
+                      {draft.correction.source.revision}
+                    </p>
+                    <p>
+                      Se marcará como registrado por error, no como resuelto. Su historial se
+                      conserva.
+                    </p>
+                    <label className="block text-sm" htmlFor="correction-reason">
+                      Motivo de corrección
+                    </label>
+                    <textarea
+                      id="correction-reason"
+                      ref={reasonRef}
+                      className="min-h-24 w-full rounded border border-border bg-surface p-3 text-base"
+                      maxLength={1000}
+                      disabled={locked}
+                      value={draft.correction.reason}
+                      onChange={(event) => {
+                        if (!draft.correction) return;
+                        setDraft({
+                          ...draft,
+                          correction: { ...draft.correction, reason: event.target.value },
+                        });
+                      }}
+                    />
+                    <label className="flex min-h-[44px] items-center gap-2">
+                      <input
+                        type="checkbox"
+                        disabled={locked}
+                        checked={draft.correction.replacement}
+                        onChange={(event) => {
+                          if (!draft.correction) return;
+                          setDraft({
+                            ...draft,
+                            correction: { ...draft.correction, replacement: event.target.checked },
+                          });
                         }}
-                        aria-label={`Pieza ${record.tooth_fdi} · ${labels[record.condition_code] ?? record.condition_code} · ${conditionStatus(record.status)}`}
-                        className={`space-y-3 rounded py-4 focus-visible:ring-2 focus-visible:ring-primary ${highlightedTooth === record.tooth_fdi ? 'bg-surface' : ''}`}
+                      />
+                      Crear registro de reemplazo
+                    </label>
+                    {draft.correction.replacement && (
+                      <>
+                        <label htmlFor="replacement-dentition" className="block text-sm">
+                          Dentición del reemplazo
+                        </label>
+                        <select
+                          id="replacement-dentition"
+                          disabled={locked}
+                          value={draft.dentition}
+                          className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
+                          onChange={(event) => {
+                            const mode = event.target.value as Dentition;
+                            setDentition(mode);
+                            setDraft({ ...draft, dentition: mode, tooth_fdi: 0 });
+                          }}
+                        >
+                          <option value="permanent">Permanente</option>
+                          <option value="primary">Temporal</option>
+                        </select>
+                      </>
+                    )}
+                  </>
+                )}
+                {(!draft.correction || draft.correction.replacement) && (
+                  <>
+                    {dirty && !saving && !attempt && (
+                      <p className="text-sm text-muted">Borrador sin guardar</p>
+                    )}
+                    {draft.status === 'resolved' && (
+                      <p>
+                        Al guardar se marcará como resuelta. El registro y su historial se
+                        conservan.
+                      </p>
+                    )}
+                    {draft.tooth_fdi > 0 && (
+                      <svg
+                        aria-label={`Pieza seleccionada ${draft.tooth_fdi}`}
+                        role="img"
+                        viewBox="0 0 42 122"
+                        className="mx-auto h-40 w-28 [@container(max-width:1063px)]:h-24 text-muted"
                       >
-                        <h4 className="flex items-center gap-2 font-medium">
-                          <ConditionSymbol
-                            code={resolveCondition(catalog, record.condition_code).symbol}
-                            resolved={record.status === 'resolved'}
-                            error={record.status === 'entered_in_error'}
+                        <ToothDrawing tooth={draft.tooth_fdi} surfaces={draft.surfaces} />
+                      </svg>
+                    )}
+                    <p className="text-sm">
+                      Pieza {draft.tooth_fdi || 'sin seleccionar'} ·{' '}
+                      {labels[draft.condition_code] ?? 'Selecciona condición'} ·{' '}
+                      {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
+                    </p>
+                    <Button
+                      type="button"
+                      ref={pieceButtonRef}
+                      variant="clinicalSecondary"
+                      disabled={
+                        locked || immutable || !!(draft.correction && !draft.correction.replacement)
+                      }
+                      onClick={() => toothSelectRef.current?.focus()}
+                    >
+                      {draft.tooth_fdi > 0 ? 'Cambiar pieza' : 'Elegir pieza'}
+                    </Button>
+                    {selectedTool?.supported &&
+                      (selectedTool.surface_codes.length ? (
+                        <fieldset disabled={locked || draft.status === 'resolved'}>
+                          <legend className="text-sm font-medium">Superficies</legend>
+                          <div className="flex flex-wrap gap-2">
+                            {surfaces.map((item) => (
+                              <label
+                                key={item.code}
+                                className="flex min-h-[44px] items-center gap-2 rounded border border-border px-3"
+                              >
+                                <input
+                                  type="checkbox"
+                                  ref={item.code === 'M' ? firstSurfaceRef : undefined}
+                                  checked={draft.surfaces.includes(item.code)}
+                                  onChange={(event) =>
+                                    setDraft({
+                                      ...draft,
+                                      surfaces: event.target.checked
+                                        ? [...draft.surfaces, item.code]
+                                        : draft.surfaces.filter((code) => code !== item.code),
+                                    })
+                                  }
+                                />
+                                {item.label} ({item.code})
+                              </label>
+                            ))}
+                          </div>
+                          {draft.surfaces.length === 0 && (
+                            <p className="text-xs text-muted">Sin superficies especificadas</p>
+                          )}
+                        </fieldset>
+                      ) : (
+                        <p className="text-sm">Pieza completa, sin superficies</p>
+                      ))}
+                    <label className="block text-sm" htmlFor="condition-note">
+                      Nota de condición
+                    </label>
+                    <textarea
+                      id="condition-note"
+                      ref={noteRef}
+                      className="min-h-[calc(4lh+1.5rem+2px)] max-h-[33dvh] w-full rounded border border-border bg-surface p-3 [field-sizing:content]"
+                      maxLength={1000}
+                      value={draft.note ?? ''}
+                      disabled={locked || draft.status === 'resolved'}
+                      onChange={(event) => setDraft({ ...draft, note: event.target.value })}
+                    />
+                  </>
+                )}
+                {saveError && (
+                  <p role="alert" className="text-error">
+                    {saveError}
+                  </p>
+                )}
+                {duplicate && (
+                  <Button
+                    type="button"
+                    variant="clinicalSecondary"
+                    onClick={() =>
+                      transition(() => {
+                        reset();
+                        setFocused(duplicate);
+                        setDentition(duplicate.dentition);
+                        publishFocus(duplicate.id);
+                      })
+                    }
+                  >
+                    Abrir condición existente
+                  </Button>
+                )}
+                {conflictPending && (
+                  <div className="space-y-2">
+                    <p>
+                      {conflict
+                        ? `Versión actual: ${conflict.revision}`
+                        : 'Versión actual no disponible'}
+                    </p>
+                    {conflict && <p>Estado actual: {conditionStatus(conflict.status)}</p>}
+                    <Button
+                      type="button"
+                      variant="clinicalSecondary"
+                      onClick={() => {
+                        setConflict(null);
+                        setConflictChoices({});
+                        setResolveConfirmed(false);
+                        void getPatientCondition(patientId, draft.correction?.source.id ?? draft.id)
+                          .then((current) => {
+                            if (alive.current) setConflict(current);
+                          })
+                          .catch(() =>
+                            setSaveError('No pudimos cargar la versión actual. Reintenta.'),
+                          );
+                      }}
+                    >
+                      Cargar versión actual
+                    </Button>
+                    {conflict &&
+                      draft.base &&
+                      !draft.correction &&
+                      conflict.status === 'active' && (
+                        <>
+                          {draft.status === 'resolved' && (
+                            <label className="flex min-h-[44px] items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={resolveConfirmed}
+                                onChange={(event) => setResolveConfirmed(event.target.checked)}
+                              />
+                              Confirmar resolución sobre la versión actual
+                            </label>
+                          )}
+                          {(conflictLocalChanged(draft, 'surfaces') ||
+                            conflictCurrentChanged(draft, conflict, 'surfaces')) && (
+                            <div className="space-y-1">
+                              <p className="text-sm">
+                                Superficies — Base:{' '}
+                                {draft.base.surfaces.join(', ') || 'Sin superficies'} · Tuyas:{' '}
+                                {draft.surfaces.join(', ') || 'Sin superficies'} · Actuales:{' '}
+                                {conflict.surfaces.join(', ') || 'Sin superficies'}
+                              </p>
+                              {conflictFieldChoiceNeeded?.surfaces && (
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="clinicalSecondary"
+                                    aria-pressed={conflictChoices.surfaces === 'local'}
+                                    onClick={() =>
+                                      setConflictChoices({ ...conflictChoices, surfaces: 'local' })
+                                    }
+                                  >
+                                    Mantener mis superficies
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="clinicalSecondary"
+                                    aria-pressed={conflictChoices.surfaces === 'current'}
+                                    onClick={() =>
+                                      setConflictChoices({
+                                        ...conflictChoices,
+                                        surfaces: 'current',
+                                      })
+                                    }
+                                  >
+                                    Usar superficies actuales
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {(conflictLocalChanged(draft, 'note') ||
+                            conflictCurrentChanged(draft, conflict, 'note')) && (
+                            <div className="space-y-1">
+                              <p className="whitespace-pre-wrap break-words text-sm">
+                                Nota — Base: {draft.base.note || 'Sin nota'} · Tuya:{' '}
+                                {draft.note || 'Sin nota'} · Actual: {conflict.note || 'Sin nota'}
+                              </p>
+                              {conflictFieldChoiceNeeded?.note && (
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="clinicalSecondary"
+                                    aria-pressed={conflictChoices.note === 'local'}
+                                    onClick={() =>
+                                      setConflictChoices({ ...conflictChoices, note: 'local' })
+                                    }
+                                  >
+                                    Mantener mi nota
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="clinicalSecondary"
+                                    aria-pressed={conflictChoices.note === 'current'}
+                                    onClick={() =>
+                                      setConflictChoices({ ...conflictChoices, note: 'current' })
+                                    }
+                                  >
+                                    Usar nota actual
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    {conflict && !draft.correction && conflict.status !== 'active' && (
+                      <p>
+                        Este registro ya está{' '}
+                        {conflict.status === 'resolved' ? 'resuelto' : 'registrado por error'} en la
+                        versión actual. No puede editarse; consulta su historial o descarta el
+                        borrador.
+                      </p>
+                    )}
+                    {conflict && !draft.correction && (
+                      <Button
+                        type="button"
+                        variant="clinicalSecondary"
+                        onClick={() => {
+                          reset();
+                          setFocused(conflict);
+                          publishFocus(conflict.id);
+                          void load();
+                        }}
+                      >
+                        Usar versión actual
+                      </Button>
+                    )}
+                    {draft.correction && conflict?.status === 'entered_in_error' && (
+                      <p>
+                        El original ya está registrado por error. Consulta su historial o descarta
+                        el borrador; no puede corregirse de nuevo.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="clinicalSecondary"
+                    disabled={saving}
+                    onClick={() => transition(reset)}
+                  >
+                    Cancelar condición
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="clinical"
+                    aria-busy={saving}
+                    className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
+                    disabled={
+                      saving ||
+                      (draft.correction
+                        ? !attempt &&
+                          (!correctionValid ||
+                            (conflictPending &&
+                              (!conflict || conflict.status === 'entered_in_error')))
+                        : !attempt &&
+                          (conflictBlocked ||
+                            !draft.tooth_fdi ||
+                            !draft.condition_code ||
+                            (draft.status !== 'resolved' && !applicable)))
+                    }
+                  >
+                    {saving && !pending && <Spinner />}
+                    {saving
+                      ? 'Guardando…'
+                      : draft.correction
+                        ? attempt
+                          ? 'Reintentar corrección'
+                          : conflictPending
+                            ? 'Revisar nueva corrección'
+                            : 'Revisar corrección'
+                        : attempt
+                          ? 'Reintentar guardado'
+                          : 'Guardar condición'}
+                  </Button>
+                </div>
+              </form>
+            </DentalConditionModal>
+          )}
+          <div className="min-w-0 space-y-4 [@container(min-width:1064px)]:col-start-1">
+            {' '}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-semibold">Condiciones por pieza</h3>
+              <label className="text-sm">
+                Estado{' '}
+                <select
+                  className="min-h-[44px] rounded border border-border bg-surface px-2"
+                  value={status}
+                  onChange={(event) => {
+                    const next = event.target.value as typeof status;
+                    transition(() => {
+                      reset();
+                      setStatus(next);
+                    });
+                  }}
+                >
+                  <option value="all">Todas</option>
+                  <option value="active">Actuales</option>
+                  <option value="resolved">Resueltas</option>
+                  <option value="entered_in_error">Registradas por error</option>
+                </select>
+              </label>
+            </div>
+            {!loading &&
+              !readError &&
+              !dental.treatmentLoading &&
+              !dental.treatmentReadError &&
+              visible.length === 0 &&
+              currentTreatments.length === 0 && (
+                <p className="text-muted">
+                  {status === 'active'
+                    ? 'Sin registros actuales'
+                    : 'Sin condiciones en esta dentición y estado.'}
+                </p>
+              )}
+            {visible.length + currentTreatments.length > 0 && (
+              <p className="text-sm text-muted">
+                {loading || readError || dental.treatmentLoading || dental.treatmentReadError
+                  ? 'Lectura incompleta · '
+                  : ''}
+                {visible.length + currentTreatments.length} registros en{' '}
+                {
+                  new Set([
+                    ...visible.map((r) => r.tooth_fdi),
+                    ...currentTreatments.flatMap((r) => r.teeth.map((m) => m.tooth_fdi)),
+                  ]).size
+                }{' '}
+                piezas
+                {currentTreatments.some((r) => r.arch) &&
+                  ` · ${new Set(currentTreatments.filter((r) => r.arch).map((r) => r.arch)).size} arcadas`}
+                {loading || readError || dental.treatmentLoading || dental.treatmentReadError
+                  ? '; no es un total completo'
+                  : ''}
+              </p>
+            )}
+            <DentalLegend catalog={catalog} treatments={dental.treatmentCatalog} />
+            <ol className="divide-y divide-border">
+              {[...visible, ...currentTreatments]
+                .sort(
+                  (a, b) =>
+                    ('condition_code' in a
+                      ? a.tooth_fdi
+                      : (a.teeth[0]?.tooth_fdi ?? (a.arch === 'upper' ? 100 : 101))) -
+                    ('condition_code' in b
+                      ? b.tooth_fdi
+                      : (b.teeth[0]?.tooth_fdi ?? (b.arch === 'upper' ? 100 : 101))),
+                )
+                .map((record, index, ordered) => (
+                  <li key={record.id}>
+                    {(index === 0 || recordGroup(record) !== recordGroup(ordered[index - 1])) && (
+                      <h4 className="pt-4 font-semibold">{recordGroup(record)}</h4>
+                    )}
+                    {'condition_code' in record ? (
+                      <>
+                        <article
+                          tabIndex={-1}
+                          onMouseEnter={() => setHighlightedTooth(record.tooth_fdi)}
+                          onMouseLeave={() => setHighlightedTooth(0)}
+                          onFocus={() => setHighlightedTooth(record.tooth_fdi)}
+                          onBlur={() => setHighlightedTooth(0)}
+                          ref={(node) => {
+                            if (node) recordRefs.current.set(record.id, node);
+                            else recordRefs.current.delete(record.id);
+                          }}
+                          aria-label={`Pieza ${record.tooth_fdi} · ${labels[record.condition_code] ?? record.condition_code} · ${conditionStatus(record.status)}`}
+                          className={`space-y-3 rounded py-4 focus-visible:ring-2 focus-visible:ring-primary ${highlightedTooth === record.tooth_fdi ? 'bg-surface' : ''}`}
+                        >
+                          <h4 className="flex items-center gap-2 font-medium">
+                            <ConditionSymbol
+                              code={resolveCondition(catalog, record.condition_code).symbol}
+                              resolved={record.status === 'resolved'}
+                              error={record.status === 'entered_in_error'}
+                            />
+                            Pieza {record.tooth_fdi} ·{' '}
+                            {labels[record.condition_code] ?? record.condition_code}
+                          </h4>
+                          <p className="text-sm">
+                            {conditionStatus(record.status)} ·{' '}
+                            {surfaceDescription(catalog, record.condition_code, record.surfaces)}
+                          </p>
+                          {resolveCondition(catalog, record.condition_code).symbolUnavailable && (
+                            <p className="text-sm text-muted">Símbolo no disponible</p>
+                          )}
+                          {record.note && (
+                            <p className="whitespace-pre-wrap break-words text-sm">{record.note}</p>
+                          )}
+                          <p className="text-xs text-muted">
+                            {formatClinicalDateShort(record.updated_at)}{' '}
+                            {formatClinicalTime(record.updated_at)} · Revisión {record.revision}
+                          </p>
+                          <PatientActorLabel
+                            actor={record.updated_by}
+                            actors={visible.map((item) => item.updated_by)}
                           />
-                          Pieza {record.tooth_fdi} ·{' '}
-                          {labels[record.condition_code] ?? record.condition_code}
+                          <div className="flex flex-wrap gap-2">
+                            {record.correction && (
+                              <>
+                                <p className="w-full whitespace-pre-wrap break-words">
+                                  Motivo de corrección: {record.correction.reason}
+                                </p>
+                                <Button
+                                  variant="clinicalSecondary"
+                                  onClick={() =>
+                                    transition(
+                                      () =>
+                                        void activateResult(
+                                          record.id,
+                                          record.correction?.correction_revision_id,
+                                        ),
+                                    )
+                                  }
+                                >
+                                  Ver corrección exacta
+                                </Button>
+                                {record.correction.replacement_condition_id && (
+                                  <Button
+                                    variant="clinicalSecondary"
+                                    onClick={() =>
+                                      transition(
+                                        () =>
+                                          void activateResult(
+                                            record.correction?.replacement_condition_id,
+                                            record.correction?.replacement_revision_id,
+                                          ),
+                                      )
+                                    }
+                                  >
+                                    Ver reemplazo vinculado
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                            {record.supersedes_condition_id && (
+                              <Button
+                                variant="clinicalSecondary"
+                                onClick={() =>
+                                  transition(
+                                    () => void activateResult(record.supersedes_condition_id),
+                                  )
+                                }
+                              >
+                                Ver registro original
+                              </Button>
+                            )}
+                            {record.status !== 'entered_in_error' && (
+                              <Button
+                                variant="clinicalSecondary"
+                                disabled={saving}
+                                onClick={() => startCorrection(record)}
+                              >
+                                Corregir registro
+                              </Button>
+                            )}
+                            {record.status === 'active' && (
+                              <>
+                                <Button
+                                  variant="clinicalSecondary"
+                                  disabled={
+                                    saving ||
+                                    !resolveCondition(catalog, record.condition_code).supported
+                                  }
+                                  onClick={() => start(record)}
+                                >
+                                  Editar condición
+                                </Button>
+                                <Button
+                                  variant="clinicalSecondary"
+                                  disabled={saving}
+                                  onClick={() => start(record, true)}
+                                >
+                                  Resolver condición
+                                </Button>
+                              </>
+                            )}
+                            <Button
+                              variant="clinicalSecondary"
+                              onClick={() =>
+                                transition(() => {
+                                  const next = historyId === record.id ? null : record.id;
+                                  setTargetRevisionId(undefined);
+                                  setHistoryId(next);
+                                  setFocused(next ? record : null);
+                                  publishFocus(next ?? undefined);
+                                })
+                              }
+                            >
+                              Historial de condición
+                            </Button>
+                          </div>
+                          {historyId === record.id && (
+                            <PatientConditionHistory
+                              key={`${record.id}:${record.revision}`}
+                              patientId={patientId}
+                              conditionId={record.id}
+                              labels={labels}
+                              catalog={catalog}
+                              targetRevisionId={targetRevisionId}
+                            />
+                          )}
+                        </article>
+                      </>
+                    ) : (
+                      <article
+                        className="space-y-2 py-4"
+                        aria-label={`${treatmentAnatomy(record)} · ${record.label_es} · ${record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}`}
+                        onMouseEnter={() =>
+                          setNoteHighlightedTeeth(record.teeth.map((member) => member.tooth_fdi))
+                        }
+                        onMouseLeave={() => setNoteHighlightedTeeth([])}
+                        onFocus={() =>
+                          setNoteHighlightedTeeth(record.teeth.map((member) => member.tooth_fdi))
+                        }
+                        onBlur={() => setNoteHighlightedTeeth([])}
+                      >
+                        <h4 className="font-medium">
+                          {treatmentAnatomy(record)} · {record.label_es}
                         </h4>
-                        <p className="text-sm">
-                          {conditionStatus(record.status)} ·{' '}
-                          {surfaceDescription(catalog, record.condition_code, record.surfaces)}
+                        <p>
+                          {record.state === 'entered_in_error'
+                            ? 'Registrado por error'
+                            : 'Existente'}{' '}
+                          · {treatmentMembers(record)}
                         </p>
-                        {resolveCondition(catalog, record.condition_code).symbolUnavailable && (
-                          <p className="text-sm text-muted">Símbolo no disponible</p>
-                        )}
                         {record.note && (
-                          <p className="whitespace-pre-wrap break-words text-sm">{record.note}</p>
+                          <p className="whitespace-pre-wrap break-words">{record.note}</p>
                         )}
                         <p className="text-xs text-muted">
                           {formatClinicalDateShort(record.updated_at)}{' '}
@@ -1761,517 +1962,452 @@ function PatientDiagnosisWorkspace({
                         </p>
                         <PatientActorLabel
                           actor={record.updated_by}
-                          actors={visible.map((item) => item.updated_by)}
+                          actors={currentTreatments.map((r) => r.updated_by)}
                         />
-                        <div className="flex flex-wrap gap-2">
-                          {record.correction && (
-                            <>
-                              <p className="w-full whitespace-pre-wrap break-words">
-                                Motivo de corrección: {record.correction.reason}
-                              </p>
-                              <Button
-                                variant="clinicalSecondary"
-                                onClick={() =>
-                                  transition(
-                                    () =>
-                                      void activateResult(
-                                        record.id,
-                                        record.correction?.correction_revision_id,
-                                      ),
-                                  )
-                                }
-                              >
-                                Ver corrección exacta
-                              </Button>
-                              {record.correction.replacement_condition_id && (
-                                <Button
-                                  variant="clinicalSecondary"
-                                  onClick={() =>
-                                    transition(
-                                      () =>
-                                        void activateResult(
-                                          record.correction?.replacement_condition_id,
-                                          record.correction?.replacement_revision_id,
-                                        ),
-                                    )
-                                  }
-                                >
-                                  Ver reemplazo vinculado
-                                </Button>
-                              )}
-                            </>
-                          )}
-                          {record.supersedes_condition_id && (
-                            <Button
-                              variant="clinicalSecondary"
-                              onClick={() =>
-                                transition(
-                                  () => void activateResult(record.supersedes_condition_id),
-                                )
-                              }
-                            >
-                              Ver registro original
-                            </Button>
-                          )}
-                          {record.status !== 'entered_in_error' && (
-                            <Button
-                              variant="clinicalSecondary"
-                              disabled={saving}
-                              onClick={() => startCorrection(record)}
-                            >
-                              Corregir registro
-                            </Button>
-                          )}
-                          {record.status === 'active' && (
-                            <>
-                              <Button
-                                variant="clinicalSecondary"
-                                disabled={
-                                  saving ||
-                                  !resolveCondition(catalog, record.condition_code).supported
-                                }
-                                onClick={() => start(record)}
-                              >
-                                Editar condición
-                              </Button>
-                              <Button
-                                variant="clinicalSecondary"
-                                disabled={saving}
-                                onClick={() => start(record, true)}
-                              >
-                                Resolver condición
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            variant="clinicalSecondary"
-                            onClick={() =>
-                              transition(() => {
-                                const next = historyId === record.id ? null : record.id;
-                                setTargetRevisionId(undefined);
-                                setHistoryId(next);
-                                setFocused(next ? record : null);
-                                publishFocus(next ?? undefined);
-                              })
-                            }
-                          >
-                            Historial de condición
-                          </Button>
-                        </div>
-                        {historyId === record.id && (
-                          <PatientConditionHistory
-                            key={`${record.id}:${record.revision}`}
-                            patientId={patientId}
-                            conditionId={record.id}
-                            labels={labels}
-                            catalog={catalog}
-                            targetRevisionId={targetRevisionId}
-                          />
-                        )}
+                        <Button variant="clinicalSecondary" onClick={() => openTreatment(record)}>
+                          Editar / Historial de procedimiento
+                        </Button>
+                        <Button
+                          variant="clinicalSecondary"
+                          onClick={() =>
+                            transition(() => {
+                              notes.cancel();
+                              setNoteContext({
+                                note_type: 'treatment',
+                                entity_kind: 'treatment',
+                                entity_id: record.id,
+                              });
+                              notes.setOpen(true);
+                              setNotesSheet(true);
+                            }, true)
+                          }
+                        >
+                          Nota del tratamiento
+                        </Button>
                       </article>
-                    </>
-                  ) : (
-                    <article
-                      className="space-y-2 py-4"
-                      aria-label={`${treatmentAnatomy(record)} · ${record.label_es} · ${record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}`}
-                      onMouseEnter={() => setHighlightedTooth(record.teeth[0]?.tooth_fdi ?? 0)}
-                      onMouseLeave={() => setHighlightedTooth(0)}
-                      onFocus={() => setHighlightedTooth(record.teeth[0]?.tooth_fdi ?? 0)}
-                      onBlur={() => setHighlightedTooth(0)}
-                    >
-                      <h4 className="font-medium">
-                        {treatmentAnatomy(record)} · {record.label_es}
-                      </h4>
-                      <p>
-                        {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}{' '}
-                        · {treatmentMembers(record)}
-                      </p>
-                      {record.note && (
-                        <p className="whitespace-pre-wrap break-words">{record.note}</p>
-                      )}
-                      <p className="text-xs text-muted">
-                        {formatClinicalDateShort(record.updated_at)}{' '}
-                        {formatClinicalTime(record.updated_at)} · Revisión {record.revision}
-                      </p>
-                      <PatientActorLabel
-                        actor={record.updated_by}
-                        actors={currentTreatments.map((r) => r.updated_by)}
-                      />
-                      <Button variant="clinicalSecondary" onClick={() => openTreatment(record)}>
-                        Editar / Historial de procedimiento
-                      </Button>
-                    </article>
-                  )}
-                </li>
-              ))}
-          </ol>
+                    )}
+                  </li>
+                ))}
+            </ol>
+          </div>
         </div>
-      </div>
-      {inspection &&
-        !draft &&
-        !surfaceSelection &&
-        !scopeReview &&
-        activeVariant?.scope !== 'global_arch' && (
-          <ToothInspectionPopover
-            tooth={inspection.tooth}
-            anchor={inspection.anchor}
-            onClose={() => setInspection(null)}
-          >
-            <p className="mt-2 text-sm text-muted">Registros existentes</p>
-            <p className="text-sm">
-              {
-                { incisor: 'Incisivo', canine: 'Canino', premolar: 'Premolar', molar: 'Molar' }[
-                  toothFamily(inspection.tooth)
-                ]
-              }{' '}
-              · {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
-            </p>
-            {loading || readError ? <p>Lectura incompleta. Reintenta las condiciones.</p> : null}
-            {!loading &&
-              !readError &&
-              !all.some(
-                (item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition,
-              ) && <p className="text-sm">Sin condiciones guardadas</p>}
-            {all
-              .filter((item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition)
-              .map((record) => (
-                <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
-                  <p className="flex items-center gap-2">
-                    <ConditionSymbol
-                      code={resolveCondition(catalog, record.condition_code).symbol}
-                    />
-                    {labels[record.condition_code]} · {conditionStatus(record.status)}
-                  </p>
-                  <p>{surfaceDescription(catalog, record.condition_code, record.surfaces)}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {record.status === 'active' && (
+        {inspection &&
+          !notes.deleting &&
+          !(notesWidth < 960 && notesSheet) &&
+          !draft &&
+          !surfaceSelection &&
+          !scopeReview &&
+          activeVariant?.scope !== 'global_arch' && (
+            <ToothInspectionPopover
+              tooth={inspection.tooth}
+              anchor={inspection.anchor}
+              onClose={() => setInspection(null)}
+            >
+              <p className="mt-2 text-sm text-muted">Registros existentes</p>
+              <p className="text-sm">
+                {
+                  { incisor: 'Incisivo', canine: 'Canino', premolar: 'Premolar', molar: 'Molar' }[
+                    toothFamily(inspection.tooth)
+                  ]
+                }{' '}
+                · {dentition === 'permanent' ? 'Permanente' : 'Temporal'}
+              </p>
+              {loading || readError ? <p>Lectura incompleta. Reintenta las condiciones.</p> : null}
+              {!loading &&
+                !readError &&
+                !all.some(
+                  (item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition,
+                ) && <p className="text-sm">Sin condiciones guardadas</p>}
+              {all
+                .filter(
+                  (item) => item.tooth_fdi === inspection.tooth && item.dentition === dentition,
+                )
+                .map((record) => (
+                  <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
+                    <p className="flex items-center gap-2">
+                      <ConditionSymbol
+                        code={resolveCondition(catalog, record.condition_code).symbol}
+                      />
+                      {labels[record.condition_code]} · {conditionStatus(record.status)}
+                    </p>
+                    <p>{surfaceDescription(catalog, record.condition_code, record.surfaces)}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {record.status === 'active' && (
+                        <Button
+                          variant="clinicalSecondary"
+                          disabled={!resolveCondition(catalog, record.condition_code).supported}
+                          onClick={() => start(record)}
+                        >
+                          Editar
+                        </Button>
+                      )}
                       <Button
                         variant="clinicalSecondary"
-                        disabled={!resolveCondition(catalog, record.condition_code).supported}
-                        onClick={() => start(record)}
+                        onClick={() => {
+                          setInspection(null);
+                          setHistoryId(record.id);
+                          setFocused(record);
+                          publishFocus(record.id);
+                        }}
                       >
-                        Editar
+                        Historial
                       </Button>
-                    )}
-                    <Button
-                      variant="clinicalSecondary"
-                      onClick={() => {
-                        setInspection(null);
-                        setHistoryId(record.id);
-                        setFocused(record);
-                        publishFocus(record.id);
-                      }}
-                    >
-                      Historial
+                    </div>
+                  </div>
+                ))}
+              {currentTreatments
+                .filter((r) => r.teeth.some((m) => m.tooth_fdi === inspection.tooth))
+                .map((record) => (
+                  <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
+                    <p>
+                      {record.label_es} ·{' '}
+                      {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}
+                    </p>
+                    <p>
+                      {record.teeth
+                        .find((m) => m.tooth_fdi === inspection.tooth)
+                        ?.surfaces.join(', ') || 'Pieza completa'}
+                    </p>
+                    <Button variant="clinicalSecondary" onClick={() => openTreatment(record)}>
+                      Editar / Historial
                     </Button>
                   </div>
-                </div>
-              ))}
-            {currentTreatments
-              .filter((r) => r.teeth.some((m) => m.tooth_fdi === inspection.tooth))
-              .map((record) => (
-                <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
-                  <p>
-                    {record.label_es} ·{' '}
-                    {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}
-                  </p>
-                  <p>
-                    {record.teeth
-                      .find((m) => m.tooth_fdi === inspection.tooth)
-                      ?.surfaces.join(', ') || 'Pieza completa'}
-                  </p>
-                  <Button variant="clinicalSecondary" onClick={() => openTreatment(record)}>
-                    Editar / Historial
-                  </Button>
-                </div>
-              ))}
-            <Button
-              variant="clinicalSecondary"
-              onClick={() => {
-                setInspection(null);
-                document
-                  .querySelector<HTMLElement>('[aria-label="Condiciones disponibles"] button')
-                  ?.focus({ preventScroll: true });
-              }}
-            >
-              Registrar
-            </Button>
-            <Button
-              variant="clinicalSecondary"
-              onClick={() => {
-                const anchor = inspection.anchor;
-                setInspection(null);
-                anchor.focus({ preventScroll: true });
-              }}
-            >
-              Cerrar pieza
-            </Button>
-          </ToothInspectionPopover>
-        )}
-      {activeVariant && (scopeReview || activeVariant.scope === 'global_arch') && (
-        <TreatmentScopeModal
-          key={activeVariant.id}
-          variant={activeVariant}
-          dentition={dentition}
-          dental={dental}
-          returnFocus={initiatingRef.current}
-          suspended={!!pending}
-          onClose={() => {
-            transition(() => {
-              setScopeReview(false);
-              dental.discard();
-            });
-          }}
-        />
-      )}
-      {surfaceSelection && dental.activeTool && (
-        <DentalConditionModal
-          returnFocus={initiatingRef.current}
-          label="Seleccionar superficies"
-          suspended={!!pending}
-          onClose={() => {
-            if (!dental.busy && !dental.attempt) {
-              setSurfaceSelection(null);
-              dental.selectTool(null);
-            }
-          }}
-        >
-          <h3 className="font-semibold">Seleccionar superficies</h3>
-          <p>
-            Pieza {surfaceSelection.tooth} · {toolLabel(dental.activeTool)}
-          </p>
-          <svg
-            role="img"
-            aria-label={`Superficies de pieza ${surfaceSelection.tooth}`}
-            viewBox="0 0 42 42"
-            className="mx-auto h-40 w-40 text-muted"
-          >
-            <ToothDrawing tooth={surfaceSelection.tooth} surfaces={surfaceSelection.codes} />
-          </svg>
-          <svg
-            role="img"
-            aria-label={`Vista oclusal de pieza ${surfaceSelection.tooth}`}
-            viewBox="0 94 42 28"
-            className="mx-auto h-24 w-40 text-muted"
-          >
-            <ToothDrawing tooth={surfaceSelection.tooth} surfaces={surfaceSelection.codes} />
-          </svg>
-          <fieldset disabled={dental.busy || !!dental.attempt}>
-            <legend>Superficies</legend>
-            <div className="flex flex-wrap gap-2">
-              {surfaces
-                .filter((item) => activeSurfaceCodes.includes(item.code))
-                .map((item) => (
-                  <label
-                    key={item.code}
-                    className="flex min-h-11 items-center gap-2 rounded border border-border p-2"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={surfaceSelection.codes.includes(item.code)}
-                      onChange={(event) =>
-                        setSurfaceSelection({
-                          ...surfaceSelection,
-                          codes: event.target.checked
-                            ? [...surfaceSelection.codes, item.code]
-                            : surfaceSelection.codes.filter((code) => code !== item.code),
-                        })
-                      }
-                    />
-                    {item.label} ({item.code})
-                  </label>
                 ))}
-            </div>
-          </fieldset>
-          {dental.error && <p role="alert">{dental.error}</p>}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              variant="clinicalSecondary"
-              disabled={dental.busy || !!dental.attempt}
-              onClick={() => {
+              <Button
+                variant="clinicalSecondary"
+                onClick={() => {
+                  setInspection(null);
+                  document
+                    .querySelector<HTMLElement>('[aria-label="Condiciones disponibles"] button')
+                    ?.focus({ preventScroll: true });
+                }}
+              >
+                Registrar
+              </Button>
+              <Button
+                variant="clinicalSecondary"
+                onClick={() => {
+                  const anchor = inspection.anchor;
+                  setInspection(null);
+                  anchor.focus({ preventScroll: true });
+                }}
+              >
+                Cerrar pieza
+              </Button>
+            </ToothInspectionPopover>
+          )}
+        {activeVariant && (scopeReview || activeVariant.scope === 'global_arch') && (
+          <TreatmentScopeModal
+            key={activeVariant.id}
+            variant={activeVariant}
+            dentition={dentition}
+            dental={dental}
+            returnFocus={initiatingRef.current}
+            suspended={!!pending}
+            onClose={() => {
+              transition(() => {
+                setScopeReview(false);
+                dental.discard();
+              });
+            }}
+          />
+        )}
+        {surfaceSelection && dental.activeTool && (
+          <DentalConditionModal
+            returnFocus={initiatingRef.current}
+            label="Seleccionar superficies"
+            suspended={!!pending}
+            onClose={() => {
+              if (!dental.busy && !dental.attempt) {
                 setSurfaceSelection(null);
                 dental.selectTool(null);
-              }}
+              }
+            }}
+          >
+            <h3 className="font-semibold">Seleccionar superficies</h3>
+            <p>
+              Pieza {surfaceSelection.tooth} · {toolLabel(dental.activeTool)}
+            </p>
+            <svg
+              role="img"
+              aria-label={`Superficies de pieza ${surfaceSelection.tooth}`}
+              viewBox="0 0 42 42"
+              className="mx-auto h-40 w-40 text-muted"
             >
-              Cancelar superficies
-            </Button>
-            <Button
-              variant="clinical"
-              disabled={dental.busy || !!dental.attempt || !surfaceSelection.codes.length}
-              onClick={async () => {
-                if (!dental.activeTool) return;
-                const saved = await applyChart(
-                  surfaceSelection.tooth,
-                  surfaces
-                    .filter((item) => surfaceSelection.codes.includes(item.code))
-                    .map((item) => item.code),
-                );
-                if (saved) setSurfaceSelection(null);
-              }}
+              <ToothDrawing tooth={surfaceSelection.tooth} surfaces={surfaceSelection.codes} />
+            </svg>
+            <svg
+              role="img"
+              aria-label={`Vista oclusal de pieza ${surfaceSelection.tooth}`}
+              viewBox="0 94 42 28"
+              className="mx-auto h-24 w-40 text-muted"
             >
-              Confirmar
-            </Button>
-            {dental.attempt && (
+              <ToothDrawing tooth={surfaceSelection.tooth} surfaces={surfaceSelection.codes} />
+            </svg>
+            <fieldset disabled={dental.busy || !!dental.attempt}>
+              <legend>Superficies</legend>
+              <div className="flex flex-wrap gap-2">
+                {surfaces
+                  .filter((item) => activeSurfaceCodes.includes(item.code))
+                  .map((item) => (
+                    <label
+                      key={item.code}
+                      className="flex min-h-11 items-center gap-2 rounded border border-border p-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={surfaceSelection.codes.includes(item.code)}
+                        onChange={(event) =>
+                          setSurfaceSelection({
+                            ...surfaceSelection,
+                            codes: event.target.checked
+                              ? [...surfaceSelection.codes, item.code]
+                              : surfaceSelection.codes.filter((code) => code !== item.code),
+                          })
+                        }
+                      />
+                      {item.label} ({item.code})
+                    </label>
+                  ))}
+              </div>
+            </fieldset>
+            {dental.error && <p role="alert">{dental.error}</p>}
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 variant="clinicalSecondary"
-                disabled={dental.busy}
+                disabled={dental.busy || !!dental.attempt}
                 onClick={() => {
-                  dental.discard();
                   setSurfaceSelection(null);
+                  dental.selectTool(null);
                 }}
               >
-                Descartar intento
+                Cancelar superficies
               </Button>
-            )}
-            {dental.attempt && (
               <Button
                 variant="clinical"
-                disabled={dental.busy}
+                disabled={dental.busy || !!dental.attempt || !surfaceSelection.codes.length}
                 onClick={async () => {
-                  if (await dental.retry()) setSurfaceSelection(null);
+                  if (!dental.activeTool) return;
+                  const saved = await applyChart(
+                    surfaceSelection.tooth,
+                    surfaces
+                      .filter((item) => surfaceSelection.codes.includes(item.code))
+                      .map((item) => item.code),
+                  );
+                  if (saved) setSurfaceSelection(null);
                 }}
               >
-                Reintentar operación
+                Confirmar
               </Button>
-            )}
-          </div>
-        </DentalConditionModal>
-      )}
-      {review && draft?.correction && (
-        <AlertDialog open onOpenChange={setReview}>
-          <AlertDialogContent className="max-h-[calc(100dvh-32px)] overflow-y-auto break-words [&>*]:shrink-0 [&_button]:min-h-[44px]">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Revisar corrección</AlertDialogTitle>
-              <AlertDialogDescription>
-                Paciente de la ficha abierta. Confirma el registro original y la consecuencia antes
-                de guardar.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {patient && <PatientIdentity patient={patient} />}
-            <p>
-              Original: Pieza {draft.correction.source.tooth_fdi} ·{' '}
-              {labels[draft.correction.source.condition_code] ??
-                draft.correction.source.condition_code}{' '}
-              · {conditionStatus(draft.correction.source.status)} · Revisión{' '}
-              {draft.correction.source.revision}
-            </p>
-            <p className="whitespace-pre-wrap break-words">
-              Evidencia original: {draft.correction.source.surfaces.join(', ') || 'Sin superficies'}{' '}
-              · {draft.correction.source.note || 'Sin nota'}
-            </p>
-            {conflictPending && conflict && (
+              {dental.attempt && (
+                <Button
+                  variant="clinicalSecondary"
+                  disabled={dental.busy}
+                  onClick={() => {
+                    dental.discard();
+                    setSurfaceSelection(null);
+                  }}
+                >
+                  Descartar intento
+                </Button>
+              )}
+              {dental.attempt && (
+                <Button
+                  variant="clinical"
+                  disabled={dental.busy}
+                  onClick={async () => {
+                    if (await dental.retry()) setSurfaceSelection(null);
+                  }}
+                >
+                  Reintentar operación
+                </Button>
+              )}
+            </div>
+          </DentalConditionModal>
+        )}
+        {review && draft?.correction && (
+          <AlertDialog open onOpenChange={setReview}>
+            <AlertDialogContent className="max-h-[calc(100dvh-32px)] overflow-y-auto break-words [&>*]:shrink-0 [&_button]:min-h-[44px]">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Revisar corrección</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Paciente de la ficha abierta. Confirma el registro original y la consecuencia
+                  antes de guardar.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {patient && <PatientIdentity patient={patient} />}
+              <p>
+                Original: Pieza {draft.correction.source.tooth_fdi} ·{' '}
+                {labels[draft.correction.source.condition_code] ??
+                  draft.correction.source.condition_code}{' '}
+                · {conditionStatus(draft.correction.source.status)} · Revisión{' '}
+                {draft.correction.source.revision}
+              </p>
               <p className="whitespace-pre-wrap break-words">
-                Fuente actual: Pieza {conflict.tooth_fdi} · {conditionStatus(conflict.status)} ·
-                Revisión {conflict.revision} · {conflict.surfaces.join(', ')} · {conflict.note}
+                Evidencia original:{' '}
+                {draft.correction.source.surfaces.join(', ') || 'Sin superficies'} ·{' '}
+                {draft.correction.source.note || 'Sin nota'}
               </p>
-            )}
-            <p>
-              Se marcará como registrado por error. No implica resolución clínica ni borra
-              revisiones anteriores.
-            </p>
-            <p className="whitespace-pre-wrap break-words">
-              Motivo: {draft.correction.reason.trim()}
-            </p>
-            <p className="whitespace-pre-wrap break-words">
-              {draft.correction.replacement
-                ? `Reemplazo nuevo: Pieza ${draft.tooth_fdi} · ${labels[draft.condition_code]} · ${draft.dentition === 'permanent' ? 'Permanente' : 'Temporal'} · ${draft.surfaces.join(', ') || 'Sin superficies especificadas'} · ${draft.note?.trim() || 'Sin nota'}`
-                : 'Sin registro de reemplazo.'}
-            </p>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Volver al borrador</AlertDialogCancel>
-              <Button variant="clinical" onClick={() => void save(true)}>
-                Guardar corrección
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-      {pending && (
-        <AlertDialog
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              routeCancel.current?.();
-              routeCancel.current = null;
-              setPending(null);
-              guard?.cancelTransition();
-            }
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Condición sin guardar</AlertDialogTitle>
-              <AlertDialogDescription>
-                {attempt?.correction
-                  ? 'La corrección pudo guardarse. Descartar no la deshace; el reintento conserva el mismo contenido.'
-                  : dental.attempt
-                    ? 'La operación pudo guardarse. Reintenta con el mismo contenido o descarta el intento sin borrar su historial.'
-                    : 'Guarda, descarta los cambios o sigue editando.'}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {saveError && (
-              <p role="alert" className="text-error">
-                {saveError}
+              {conflictPending && conflict && (
+                <p className="whitespace-pre-wrap break-words">
+                  Fuente actual: Pieza {conflict.tooth_fdi} · {conditionStatus(conflict.status)} ·
+                  Revisión {conflict.revision} · {conflict.surfaces.join(', ')} · {conflict.note}
+                </p>
+              )}
+              <p>
+                Se marcará como registrado por error. No implica resolución clínica ni borra
+                revisiones anteriores.
               </p>
-            )}
-            <AlertDialogFooter>
-              <AlertDialogCancel
-                disabled={saving || dental.busy}
-                onClick={() => {
-                  routeCancel.current?.();
-                  routeCancel.current = null;
-                  setPending(null);
-                  guard?.cancelTransition();
-                }}
-              >
-                Seguir editando
-              </AlertDialogCancel>
-              <Button
-                variant="clinicalSecondary"
-                disabled={saving || dental.busy}
-                onClick={discard}
-              >
-                Descartar condición
-              </Button>
-              <Button
-                variant="clinical"
-                aria-busy={saving}
-                className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
-                disabled={
-                  saving ||
-                  dental.busy ||
-                  !!draft?.correction ||
-                  conflictBlocked ||
-                  (!!treatmentEdit && !treatmentSaveAvailable) ||
-                  (!treatmentEdit &&
-                    !dental.attempt &&
-                    (!draft?.tooth_fdi || !draft?.condition_code))
-                }
-                onClick={async () => {
-                  if (treatmentEdit) {
-                    await treatmentSaveRef.current?.();
-                    return;
-                  }
-                  if (!dental.attempt) {
-                    void save();
-                    return;
-                  }
-                  if (await dental.retry()) {
-                    const continuation = pending;
+              <p className="whitespace-pre-wrap break-words">
+                Motivo: {draft.correction.reason.trim()}
+              </p>
+              <p className="whitespace-pre-wrap break-words">
+                {draft.correction.replacement
+                  ? `Reemplazo nuevo: Pieza ${draft.tooth_fdi} · ${labels[draft.condition_code]} · ${draft.dentition === 'permanent' ? 'Permanente' : 'Temporal'} · ${draft.surfaces.join(', ') || 'Sin superficies especificadas'} · ${draft.note?.trim() || 'Sin nota'}`
+                  : 'Sin registro de reemplazo.'}
+              </p>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Volver al borrador</AlertDialogCancel>
+                <Button variant="clinical" onClick={() => void save(true)}>
+                  Guardar corrección
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+        {pending && (
+          <AlertDialog
+            open
+            onOpenChange={(open) => {
+              if (saving || dental.busy || notes.busy) return;
+              if (!open) {
+                routeCancel.current?.();
+                routeCancel.current = null;
+                setPending(null);
+                guard?.cancelTransition();
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {pendingNotes && notes.dirty ? 'Nota sin guardar' : 'Condición sin guardar'}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {attempt?.correction
+                    ? 'La corrección pudo guardarse. Descartar no la deshace; el reintento conserva el mismo contenido.'
+                    : dental.attempt
+                      ? 'La operación pudo guardarse. Reintenta con el mismo contenido o descarta el intento sin borrar su historial.'
+                      : 'Guarda, descarta los cambios o sigue editando.'}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {(saveError || notes.error) && (
+                <p role="alert" className="text-error">
+                  {saveError || notes.error}
+                </p>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={saving || dental.busy || notes.busy}
+                  onClick={() => {
+                    routeCancel.current?.();
+                    routeCancel.current = null;
                     setPending(null);
                     guard?.cancelTransition();
-                    if (continuation) window.requestAnimationFrame(continuation);
+                  }}
+                >
+                  Seguir editando
+                </AlertDialogCancel>
+                <Button
+                  variant="clinicalSecondary"
+                  disabled={saving || dental.busy || notes.busy}
+                  onClick={discard}
+                >
+                  {pendingNotes && notes.dirty ? 'Descartar nota y cambios' : 'Descartar condición'}
+                </Button>
+                <Button
+                  variant="clinical"
+                  aria-busy={saving || notes.busy}
+                  className="inline-flex w-[220px] max-w-full items-center justify-center gap-2"
+                  disabled={
+                    saving ||
+                    notes.busy ||
+                    (pendingNotes && !!notes.latest) ||
+                    dental.busy ||
+                    !!draft?.correction ||
+                    conflictBlocked ||
+                    (!!treatmentEdit && !treatmentSaveAvailable) ||
+                    (!(pendingNotes && notes.dirty) &&
+                      !treatmentEdit &&
+                      !dental.attempt &&
+                      (!draft?.tooth_fdi || !draft?.condition_code))
                   }
-                }}
-              >
-                {saving && <Spinner />}
-                {saving ? 'Guardando…' : 'Guardar y continuar'}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                  onClick={async () => {
+                    if (pendingNotes && notes.dirty) {
+                      await notes.save();
+                      return;
+                    }
+                    if (treatmentEdit) {
+                      await treatmentSaveRef.current?.();
+                      return;
+                    }
+                    if (!dental.attempt) {
+                      void save();
+                      return;
+                    }
+                    if (await dental.retry()) {
+                      const continuation = pending;
+                      setPending(null);
+                      guard?.cancelTransition();
+                      if (continuation) window.requestAnimationFrame(continuation);
+                    }
+                  }}
+                >
+                  {(saving || notes.busy) && <Spinner />}
+                  {saving || notes.busy ? 'Guardando…' : 'Guardar y continuar'}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </section>
+      {notesWidth >= 960 ? (
+        <div className={notesWidth >= 1280 ? 'w-96 shrink-0' : 'w-80 shrink-0'}>
+          <DentalClinicalNotes
+            notes={notes}
+            hideSaveIndicator={!!pending}
+            onHighlight={setNoteHighlightedTeeth}
+          />
+        </div>
+      ) : (
+        <>
+          <Button
+            variant="clinical"
+            className="fixed bottom-[calc(16px+env(safe-area-inset-bottom))] right-4 z-30 min-h-[44px]"
+            onClick={() => setNotesSheet(true)}
+          >
+            Notas
+          </Button>
+          <Sheet open={notesSheet} onOpenChange={setNotesSheet}>
+            <SheetContent
+              aria-describedby={undefined}
+              className="[&_button]:min-h-11 [&_button]:min-w-11"
+            >
+              <SheetHeader>
+                <SheetTitle>Notas clínicas</SheetTitle>
+              </SheetHeader>
+              <div className="overflow-y-auto">
+                <DentalClinicalNotes
+                  notes={notes}
+                  hideSaveIndicator={!!pending}
+                  onHighlight={setNoteHighlightedTeeth}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+        </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -2281,4 +2417,11 @@ function conditionStatus(status: PatientCondition['status']): string {
     : status === 'resolved'
       ? 'Resuelta'
       : 'Registrada por error';
+}
+
+function recordGroup(record: PatientCondition | PatientTreatment): string {
+  if ('condition_code' in record) return `Pieza ${record.tooth_fdi}`;
+  return record.teeth.length
+    ? `Pieza ${record.teeth[0].tooth_fdi}`
+    : `Arcada ${record.arch === 'upper' ? 'superior' : 'inferior'}`;
 }

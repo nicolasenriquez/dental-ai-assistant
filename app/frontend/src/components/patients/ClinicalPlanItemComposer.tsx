@@ -2,6 +2,7 @@ import { type RefObject, useState } from 'react';
 import type {
   AddPlanItem,
   Dentition,
+  PatientTreatment,
   ToothSurface,
   TreatmentCatalog,
   TreatmentMember,
@@ -13,6 +14,7 @@ import { TreatmentSymbol } from './TreatmentSymbol';
 interface ClinicalPlanItemComposerProps {
   formRef?: RefObject<HTMLFormElement>;
   catalog: TreatmentCatalog;
+  treatments?: PatientTreatment[];
   busy: boolean;
   onDirty: (dirty: boolean) => void;
   onSave: (
@@ -22,6 +24,7 @@ interface ClinicalPlanItemComposerProps {
 export function ClinicalPlanItemComposer({
   formRef,
   catalog,
+  treatments = [],
   busy,
   onDirty,
   onSave,
@@ -120,6 +123,9 @@ export function ClinicalPlanItemComposer({
             <PatientOdontogram
               dentition={dentition}
               conditions={[]}
+              treatments={treatments.filter((record) => record.dentition === dentition)}
+              treatmentCatalog={catalog}
+              previewTool={variantId}
               labels={{}}
               selectedTooth={members[0]?.tooth_fdi ?? 0}
               selectedTeeth={members.map((m) => m.tooth_fdi)}
