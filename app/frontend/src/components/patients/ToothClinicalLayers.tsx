@@ -11,6 +11,7 @@ import {
   surfaceShapes,
   toothAnatomy,
   toothDrawingTransforms,
+  toothOcclusalProfile,
 } from './toothGeometry';
 
 interface ToothClinicalLayersProps {
@@ -67,6 +68,9 @@ export function ToothClinicalLayers({
   return (
     <g pointerEvents="none">
       <defs>
+        <clipPath id={`${id}-occlusal`}>
+          <path d={toothOcclusalProfile(tooth)} />
+        </clipPath>
         <clipPath id={`${id}-pulp`}>
           <path d={anatomy.pulp} />
         </clipPath>
@@ -84,7 +88,10 @@ export function ToothClinicalLayers({
         </pattern>
       </defs>
       {preview && (
-        <g className="dental-preview" transform={transforms.lateral}>
+        <g
+          className={`dental-preview dental-${catalog?.variants.find((v) => v.id === preview)?.layer_role ?? findingPaletteRole(preview)}`}
+          transform={transforms.lateral}
+        >
           <path
             data-preview-tool={preview}
             d={anatomy.path}
@@ -186,7 +193,7 @@ export function ToothClinicalLayers({
               <path d="M8 80h26" stroke="currentColor" strokeWidth="3" />
             )}
           </g>
-          <g transform={transforms.occlusal}>
+          <g transform={transforms.occlusal} clipPath={`url(#${id}-occlusal)`}>
             {row.surfaces.map((surface) => {
               const position = surfacePosition(surface, tooth);
               const center = centers[position];
@@ -206,11 +213,23 @@ export function ToothClinicalLayers({
           </g>
         </g>
       ))}
-      <g transform={transforms.occlusal} fill="none" className="stroke-border">
+      <g
+        transform={transforms.occlusal}
+        fill="none"
+        className="stroke-border"
+        clipPath={`url(#${id}-occlusal)`}
+      >
         {Object.values(surfaceShapes).map((path) => (
           <path key={path} d={path} strokeWidth=".6" />
         ))}
       </g>
+      <path
+        d={toothOcclusalProfile(tooth)}
+        transform={transforms.occlusal}
+        className="dental-outline"
+        fill="none"
+        strokeWidth="1.2"
+      />
     </g>
   );
 }

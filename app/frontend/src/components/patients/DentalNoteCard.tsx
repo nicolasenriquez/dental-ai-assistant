@@ -6,10 +6,25 @@ import { Button } from '../ui/Button';
 import { PatientActorLabel } from './PatientActorLabel';
 
 const types = {
-  diagnosis: { label: 'Diagnóstico', Icon: Stethoscope, color: 'text-primary' },
-  treatment: { label: 'Tratamiento', Icon: Syringe, color: 'text-success' },
-  treatment_plan: { label: 'Plan', Icon: ListChecks, color: 'text-muted' },
-  administrative: { label: 'Administrativa', Icon: UserCog, color: 'text-muted' },
+  diagnosis: {
+    label: 'Diagnóstico',
+    Icon: Stethoscope,
+    color: 'text-primary',
+    edge: 'border-l-primary',
+  },
+  treatment: {
+    label: 'Tratamiento',
+    Icon: Syringe,
+    color: 'text-success',
+    edge: 'border-l-success',
+  },
+  treatment_plan: { label: 'Plan', Icon: ListChecks, color: 'text-muted', edge: 'border-l-border' },
+  administrative: {
+    label: 'Administrativa',
+    Icon: UserCog,
+    color: 'text-muted',
+    edge: 'border-l-border',
+  },
 };
 interface DentalNoteCardProps {
   note: DentalClinicalNote;
@@ -27,7 +42,7 @@ export function DentalNoteCard({
   disabled,
 }: DentalNoteCardProps): JSX.Element {
   const [expanded, setExpanded] = useState(false);
-  const { label, Icon, color } = types[note.note_type];
+  const { label, Icon, color, edge } = types[note.note_type];
   const elapsedMinutes = (new Date(note.created_at).getTime() - Date.now()) / 60000;
   const relativeDate = new Intl.RelativeTimeFormat('es', { numeric: 'auto' }).format(
     Math.round(
@@ -45,7 +60,7 @@ export function DentalNoteCard({
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) onHighlight([]);
       }}
-      className="space-y-2 rounded border border-border bg-surface p-3"
+      className={`space-y-2 rounded-lg border border-border border-l-[3px] bg-surface p-3 ${edge}`}
     >
       <div className={`flex items-center gap-2 text-sm ${color}`}>
         <Icon size={16} aria-hidden="true" />

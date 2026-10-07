@@ -27,6 +27,7 @@ import {
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
 import {
   dentalGroups,
+  findingPaletteRole,
   normalizeConditionCatalog,
   resolveCondition,
   surfaceDescription,
@@ -54,7 +55,6 @@ import { PatientConditionHistory } from './PatientConditionHistory';
 import { PatientDentalNoteDetail } from './PatientDentalNoteDetail';
 import { PatientNoteNavigationGuard } from './PatientNoteNavigationGuard';
 import { PatientOdontogram } from './PatientOdontogram';
-import { PatientPlanContinuation } from './PatientPlanContinuation';
 import { ToothDrawing } from './ToothDrawing';
 import { ToothInspectionPopover } from './ToothInspectionPopover';
 import { TreatmentRecordModal } from './TreatmentRecordModal';
@@ -80,7 +80,6 @@ interface PatientDiagnosisProps {
   onConditionFocus?: (conditionId?: string) => void;
   focusedTreatmentId?: string;
   focusedDentalNoteId?: string;
-  onPlanContinue?: (planId?: string) => void;
 }
 interface ConditionAttempt {
   id: string;
@@ -128,7 +127,6 @@ export function PatientDiagnosis({
   onConditionFocus,
   focusedTreatmentId,
   focusedDentalNoteId,
-  onPlanContinue,
 }: PatientDiagnosisProps): JSX.Element {
   return (
     <PatientDiagnosisWorkspace
@@ -139,7 +137,6 @@ export function PatientDiagnosis({
       onConditionFocus={onConditionFocus}
       focusedTreatmentId={focusedTreatmentId}
       focusedDentalNoteId={focusedDentalNoteId}
-      onPlanContinue={onPlanContinue}
     />
   );
 }
@@ -151,7 +148,6 @@ function PatientDiagnosisWorkspace({
   onConditionFocus,
   focusedTreatmentId,
   focusedDentalNoteId,
-  onPlanContinue,
 }: PatientDiagnosisProps): JSX.Element {
   const guard = useOptionalTransitionGuard();
   const dataRouter = useContext(UNSAFE_DataRouterContext);
@@ -230,7 +226,7 @@ function PatientDiagnosisWorkspace({
   const savingRef = useRef(false);
   const routeCancel = useRef<(() => void) | null>(null);
   const initiatingRef = useRef<HTMLElement | null>(null);
-  const toothSelectRef = useRef<HTMLSelectElement>(null);
+  const notesTriggerRef = useRef<HTMLButtonElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const recordRefs = useRef(new Map<string, HTMLElement>());
@@ -341,7 +337,7 @@ function PatientDiagnosisWorkspace({
       setFocused(current);
       setHistoryId(current.id);
       setDentition(current.dentition);
-      setStatus(current.status);
+      setStatus(current.status === 'entered_in_error' ? 'all' : current.status);
     } catch (error) {
       if (request === focusSequence.current)
         setFocusError(
@@ -572,7 +568,7 @@ function PatientDiagnosisWorkspace({
       setHistoryId(conditionId);
       setFocused(current);
       setDentition(current.dentition);
-      setStatus(current.status);
+      setStatus(current.status === 'entered_in_error' ? 'all' : current.status);
       setHighlightedTooth(current.tooth_fdi);
       publishFocus(current.id);
     } catch {
@@ -602,7 +598,8 @@ function PatientDiagnosisWorkspace({
   const chooseTooth = (tooth: number, anchor?: HTMLElement, surface?: ToothSurface): void => {
     if (!tooth || draft || treatmentEdit || locked || dental.busy || dental.attempt) return;
     if (!dental.activeTool) {
-      const trigger = anchor ?? toothSelectRef.current;
+      notes.candidateFromChart(tooth, dentition, true);
+      const trigger = anchor;
       if (trigger) setInspection({ tooth, anchor: trigger });
       return;
     }
@@ -613,12 +610,12 @@ function PatientDiagnosisWorkspace({
     setInspection(null);
     if (activeVariant?.scope === 'global_arch') return;
     if (activeVariant?.scope === 'multi_tooth') {
-      initiatingRef.current = anchor ?? toothSelectRef.current;
+      initiatingRef.current = anchor ?? null;
       dental.selectMember(tooth, dentition);
       return;
     }
     if (tool.surface_codes.length && !surface) {
-      initiatingRef.current = anchor ?? toothSelectRef.current;
+      initiatingRef.current = anchor ?? null;
       setSurfaceSelection({ tooth, codes: [] });
       return;
     }
@@ -1202,26 +1199,6 @@ function PatientDiagnosisWorkspace({
                 !!treatmentEdit
               }
             />
-            <label className="block text-sm" htmlFor="chart-tooth">
-              Seleccionar pieza FDI
-            </label>
-            <select
-              id="chart-tooth"
-              ref={toothSelectRef}
-              className="min-h-[44px] w-full rounded border border-border bg-surface p-2"
-              value=""
-              disabled={
-                dental.busy || !!dental.attempt || locked || immutable || !!draft || !!treatmentEdit
-              }
-              onChange={(event) => chooseTooth(Number(event.target.value))}
-            >
-              <option value="">Selecciona una pieza</option>
-              {fdiTeeth(dentition).map((tooth) => (
-                <option key={tooth} value={tooth}>
-                  Pieza {tooth}
-                </option>
-              ))}
-            </select>
             <div aria-label="Condiciones disponibles" className="space-y-2">
               {groups.length > 1 ? (
                 <div role="group" aria-label="Categorías" className="flex flex-wrap gap-2">
@@ -1760,10 +1737,9 @@ function PatientDiagnosisWorkspace({
                     });
                   }}
                 >
-                  <option value="all">Todas</option>
+                  <option value="all">Historial completo</option>
                   <option value="active">Actuales</option>
                   <option value="resolved">Resueltas</option>
-                  <option value="entered_in_error">Registradas por error</option>
                 </select>
               </label>
             </div>
@@ -2027,7 +2003,7 @@ function PatientDiagnosisWorkspace({
         </div>
         {inspection &&
           !notes.deleting &&
-          !(notesWidth < 960 && notesSheet) &&
+          !(notesWidth < 1160 && notesSheet) &&
           !draft &&
           !surfaceSelection &&
           !scopeReview &&
@@ -2162,22 +2138,35 @@ function PatientDiagnosisWorkspace({
             <p>
               Pieza {surfaceSelection.tooth} · {toolLabel(dental.activeTool)}
             </p>
-            <svg
-              role="img"
-              aria-label={`Superficies de pieza ${surfaceSelection.tooth}`}
-              viewBox="0 0 42 42"
-              className="mx-auto h-40 w-40 text-muted"
-            >
-              <ToothDrawing tooth={surfaceSelection.tooth} surfaces={surfaceSelection.codes} />
-            </svg>
-            <svg
-              role="img"
-              aria-label={`Vista oclusal de pieza ${surfaceSelection.tooth}`}
-              viewBox="0 94 42 28"
-              className="mx-auto h-24 w-40 text-muted"
-            >
-              <ToothDrawing tooth={surfaceSelection.tooth} surfaces={surfaceSelection.codes} />
-            </svg>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="rounded-lg bg-surface-raised p-3">
+                <p className="mb-2 text-center text-xs text-muted">Vista oclusal</p>
+                <svg
+                  role="img"
+                  aria-label={`Vista oclusal de pieza ${surfaceSelection.tooth}`}
+                  viewBox="0 92 42 32"
+                  className="mx-auto h-32 w-full max-w-40 text-muted"
+                >
+                  <ToothDrawing
+                    tooth={surfaceSelection.tooth}
+                    surfaces={surfaceSelection.codes}
+                    view="occlusal"
+                    surfaceClassName={`dental-${activeVariant?.layer_role ?? findingPaletteRole(dental.activeTool)} fill-current`}
+                  />
+                </svg>
+              </div>
+              <div className="rounded-lg bg-surface-raised p-3">
+                <p className="mb-2 text-center text-xs text-muted">Vista lateral</p>
+                <svg
+                  role="img"
+                  aria-label={`Superficies de pieza ${surfaceSelection.tooth}`}
+                  viewBox="-4 -4 50 102"
+                  className="mx-auto h-32 w-full max-w-40 text-muted"
+                >
+                  <ToothDrawing tooth={surfaceSelection.tooth} view="lateral" />
+                </svg>
+              </div>
+            </div>
             <fieldset disabled={dental.busy || !!dental.attempt}>
               <legend>Superficies</legend>
               <div className="flex flex-wrap gap-2">
@@ -2404,11 +2393,8 @@ function PatientDiagnosisWorkspace({
             </AlertDialogContent>
           </AlertDialog>
         )}
-        {onPlanContinue && (
-          <PatientPlanContinuation patientId={patientId} onContinue={onPlanContinue} />
-        )}
       </section>
-      {notesWidth >= 960 ? (
+      {notesWidth >= 1160 ? (
         <div className={notesWidth >= 1280 ? 'w-96 shrink-0' : 'w-80 shrink-0'}>
           <DentalClinicalNotes
             notes={notes}
@@ -2421,6 +2407,7 @@ function PatientDiagnosisWorkspace({
           <Button
             variant="clinical"
             className="fixed bottom-[calc(16px+env(safe-area-inset-bottom))] right-4 z-30 min-h-[44px]"
+            ref={notesTriggerRef}
             onClick={() => setNotesSheet(true)}
           >
             Notas
@@ -2428,9 +2415,13 @@ function PatientDiagnosisWorkspace({
           <Sheet open={notesSheet} onOpenChange={setNotesSheet}>
             <SheetContent
               aria-describedby={undefined}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                notesTriggerRef.current?.focus();
+              }}
               className="[&_button]:min-h-11 [&_button]:min-w-11"
             >
-              <SheetHeader>
+              <SheetHeader className="sr-only">
                 <SheetTitle>Notas clínicas</SheetTitle>
               </SheetHeader>
               <div className="overflow-y-auto">

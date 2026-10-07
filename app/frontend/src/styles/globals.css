@@ -75,24 +75,28 @@
 }
 .dental-anatomy-root {
   fill: var(--dental-anatomy-root);
+  fill-opacity: 0.2;
   stroke: var(--dental-anatomy-outline);
 }
 .dental-anatomy-crown {
   fill: var(--dental-anatomy-crown);
+  fill-opacity: 0.2;
   stroke: var(--dental-anatomy-outline);
 }
 .dental-anatomy-pulp {
   fill: var(--dental-anatomy-pulp);
   stroke: var(--dental-anatomy-outline);
 }
+.dental-outline {
+  stroke: var(--dental-anatomy-outline);
+}
 .dental-pulp-fill {
   transition: fill 200ms ease;
 }
 .dental-preview {
-  color: var(--accent);
   opacity: 0.5;
   animation: dental-preview-pulse 1s ease-in-out infinite;
-  filter: drop-shadow(0 0 4px var(--accent));
+  filter: drop-shadow(0 0 4px currentColor);
 }
 .dental-tool-card {
   transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform
@@ -109,19 +113,10 @@
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 .dental-selection-ring {
-  animation: dental-ring-pulse 1.5s ease-in-out infinite;
+  transition: stroke 150ms ease, opacity 150ms ease;
 }
 .dental-linked-highlight {
   animation: dental-highlight-pulse 1s ease-in-out infinite;
-}
-@keyframes dental-ring-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
 }
 @keyframes dental-highlight-pulse {
   0%,
@@ -148,6 +143,9 @@
     animation: none;
   }
   .dental-tool-card,
+  .dental-outline {
+    stroke: var(--dental-anatomy-outline);
+  }
   .dental-pulp-fill {
     transition: none;
   }

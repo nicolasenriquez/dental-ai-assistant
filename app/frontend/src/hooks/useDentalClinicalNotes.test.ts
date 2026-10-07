@@ -51,33 +51,26 @@ it('preserves unbound candidate across leave and reentry; changes re-enable bind
   expect(result.current.bound).toBe(true);
 });
 
-it('appends blank Spanish template and freezes displayed binding for exact retry', async () => {
+it('keeps a free-text draft bound to the chosen tooth and retries the exact payload', async () => {
   mocks.create
     .mockRejectedValueOnce(new TypeError('Lost response'))
     .mockResolvedValueOnce({ committed: note });
   const { result } = renderHook(() => useDentalClinicalNotes('p', context));
-  act(() => result.current.setBody('Existing'));
-  act(() =>
-    result.current.appendTemplate({
-      id: 'caries',
-      category: 'diagnosis',
-      label: 'Caries',
-      body: 'Hallazgo:\nProfundidad:',
-    }),
-  );
-  expect(result.current.body).toBe('Existing\n\nHallazgo:\nProfundidad:');
   act(() => result.current.candidateFromChart(17, 'permanent'));
+  act(() => result.current.setBody('Existing'));
+  act(() => result.current.candidateFromChart(18, 'permanent'));
+  expect(result.current.candidate?.tooth).toBe(17);
   await act(async () => {
     await result.current.save();
   });
-  expect(result.current.body).toContain('Existing');
-  act(() => result.current.candidateFromChart(18, 'permanent'));
+  expect(result.current.body).toBe('Existing');
   await act(async () => {
     await result.current.retry();
   });
   expect(mocks.create.mock.calls[0][1]).toEqual(mocks.create.mock.calls[1][1]);
   expect(mocks.create.mock.calls[0][1].tooth_fdi).toBe(17);
   expect(result.current.body).toBe('');
+  expect(mocks.templates).not.toHaveBeenCalled();
 });
 
 it('edits body only and requires explicit conflict reconciliation', async () => {

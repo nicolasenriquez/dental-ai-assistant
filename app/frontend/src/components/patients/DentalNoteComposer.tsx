@@ -24,83 +24,29 @@ export function DentalNoteComposer({
       ? notes.candidate?.tooth
       : null;
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted">
-        {notes.context.note_type === 'treatment'
-          ? 'Nota del tratamiento seleccionado'
-          : notes.context.note_type === 'treatment_plan'
-            ? 'Nota del plan seleccionado'
-            : 'Nota de diagnóstico'}
-      </p>
+    <div className="space-y-3 rounded-lg border border-border bg-surface p-3">
       <label className="block text-sm">
-        {notes.editing ? 'Editar nota' : 'Nueva nota clínica'}
+        <span className="sr-only">{notes.editing ? 'Editar nota' : 'Nueva nota clínica'}</span>
         <textarea
           aria-label="Texto de nota clínica"
           value={notes.body}
+          placeholder="Escribe una nota clínica…"
           maxLength={4000}
           disabled={frozen}
           onChange={(event) => notes.setBody(event.target.value)}
           className="mt-2 min-h-[140px] w-full rounded border border-border bg-surface px-3 py-2 text-foreground"
         />
       </label>
-      {!notes.editing && (
-        <>
-          <label className="block text-sm">
-            Categoría de plantillas
-            <select
-              value={notes.category}
-              disabled={frozen}
-              onChange={(event) => notes.setCategory(event.target.value)}
-              className="w-full rounded border border-border bg-surface p-2"
-            >
-              {[
-                ['diagnosis', 'Diagnóstico'],
-                ['general', 'General'],
-                ['endodontics', 'Endodoncia'],
-                ['periodontics', 'Periodoncia'],
-                ['implantology', 'Implantología'],
-              ].map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            Plantillas
-            <select
-              aria-label="Plantillas"
-              value=""
-              disabled={frozen}
-              onChange={(event) => {
-                const template = notes.templates.find((t) => t.id === event.target.value);
-                if (template) notes.appendTemplate(template);
-              }}
-              className="w-full rounded border border-border bg-surface p-2"
-            >
-              <option value="">Seleccionar plantilla</option>
-              {notes.templates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {notes.templateError && (
-            <p role="alert">Plantillas no disponibles. Puedes escribir la nota.</p>
-          )}
-          {tooth && (
-            <label className="flex min-h-[44px] items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={notes.bound}
-                disabled={frozen}
-                onChange={(event) => notes.setBound(event.target.checked)}
-              />
-              Asociar al diente {tooth}
-            </label>
-          )}
-        </>
+      {!notes.editing && tooth && (
+        <label className="flex min-h-[44px] items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={notes.bound}
+            disabled={frozen}
+            onChange={(event) => notes.setBound(event.target.checked)}
+          />
+          Asociar al diente {tooth}
+        </label>
       )}
       {notes.editing && (
         <p className="text-sm text-muted">

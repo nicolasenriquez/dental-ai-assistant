@@ -14,7 +14,7 @@ import { PatientFormModal, type PatientFormValues } from '../components/PatientF
 import { PatientWorkspace, type PatientWorkspaceDetailError } from '../components/PatientWorkspace';
 import { ContextualAssistant } from '../components/clinical-assistant/ContextualAssistant';
 import { PatientActivity } from '../components/patients/PatientActivity';
-import { PatientClinicalPlans } from '../components/patients/PatientClinicalPlans';
+import { PatientClinicalPlanHistory } from '../components/patients/PatientClinicalPlanHistory';
 import { PatientDiagnosis } from '../components/patients/PatientDiagnosis';
 import { PatientHeaderDisclosure } from '../components/patients/PatientHeaderDisclosure';
 import { PatientInformation } from '../components/patients/PatientInformation';
@@ -193,26 +193,6 @@ export function PatientDetail() {
     if (next.toString() !== new URLSearchParams(location.search).toString()) {
       navigate(`${location.pathname}?${next.toString()}`, { replace: true });
     }
-  };
-  const publishPlanFocus = (id?: string): void => {
-    const next = new URLSearchParams(location.search);
-    if (id) next.set('plan', id);
-    else {
-      next.delete('plan');
-      next.delete('history');
-    }
-    if (next.toString() !== new URLSearchParams(location.search).toString()) {
-      navigate(`${location.pathname}?${next.toString()}`, { replace: true });
-    }
-  };
-  const continuePlan = (id?: string): void => {
-    const change = (): void => {
-      const next = new URLSearchParams({ tab: 'clinical', clinical: 'planning' });
-      if (id) next.set('plan', id);
-      navigate(`/patients/${patientId}?${next.toString()}`, { replace: true });
-    };
-    if (guard) guard.guardTransition(change);
-    else change();
   };
 
   return (
@@ -466,31 +446,6 @@ export function PatientDetail() {
                       >
                         Evoluciones
                       </Button>
-                      {(['planning', 'plans'] as const).map((mode) => (
-                        <Button
-                          key={mode}
-                          variant="clinicalSecondary"
-                          aria-pressed={clinicalSection === mode}
-                          className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
-                          onClick={() => {
-                            const change = (): void => {
-                              const next = new URLSearchParams(location.search);
-                              next.set('tab', 'clinical');
-                              next.set('clinical', mode);
-                              next.delete('condition');
-                              next.delete('treatment');
-                              next.delete('dental_note');
-                              navigate(`/patients/${patientId}?${next.toString()}`, {
-                                replace: true,
-                              });
-                            };
-                            if (guard) guard.guardTransition(change);
-                            else change();
-                          }}
-                        >
-                          {mode === 'planning' ? 'Planificación' : 'Planes'}
-                        </Button>
-                      ))}
                     </div>
                     {clinicalSection === 'diagnosis' ? (
                       <PatientDiagnosis
@@ -498,7 +453,6 @@ export function PatientDetail() {
                         patientId={patient.id}
                         patient={patient}
                         onConditionFocus={publishConditionFocus}
-                        onPlanContinue={continuePlan}
                         focusedTreatmentId={
                           new URLSearchParams(location.search).get('treatment') ?? undefined
                         }
@@ -510,18 +464,10 @@ export function PatientDetail() {
                         }
                       />
                     ) : clinicalSection === 'planning' || clinicalSection === 'plans' ? (
-                      <PatientClinicalPlans
-                        key={`${patient.id}-${clinicalSection}`}
+                      <PatientClinicalPlanHistory
+                        key={patient.id}
                         patientId={patient.id}
-                        mode={clinicalSection}
-                        focusedPlanId={
-                          new URLSearchParams(location.search).get('plan') ?? undefined
-                        }
-                        showHistory={new URLSearchParams(location.search).get('history') === '1'}
-                        focusedTreatmentId={
-                          new URLSearchParams(location.search).get('treatment') ?? undefined
-                        }
-                        onPlanFocus={publishPlanFocus}
+                        planId={new URLSearchParams(location.search).get('plan') ?? undefined}
                       />
                     ) : (
                       <PatientWorkspace

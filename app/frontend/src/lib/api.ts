@@ -1317,6 +1317,9 @@ export function getPatientTreatmentRevisions(
   return request(`/patients/${patientId}/dental-treatments/${id}/revisions?${query}`);
 }
 
+// Retained for historical activity events.
+export type PlanAction = 'confirm' | 'accept' | 'reopen' | 'close' | 'reactivate' | 'archive';
+
 export type ClinicalPlanState =
   | 'draft'
   | 'pending'
@@ -1377,9 +1380,6 @@ export interface ClinicalPlan {
   closure_reason: string | null;
   closure_note: string | null;
 }
-export interface PlanReceipt extends Omit<TreatmentReceipt, 'committed'> {
-  committed: ClinicalPlan;
-}
 export interface PlanRevision extends Omit<TreatmentRevision, 'before' | 'after' | 'action'> {
   before: ClinicalPlan | null;
   after: ClinicalPlan;
@@ -1389,100 +1389,8 @@ export interface PlanCommand {
   operation_id: string;
   expected_revision: number;
 }
-export interface PlanMetadata {
-  title?: string | null;
-  diagnosis?: string | null;
-  internal_notes?: string | null;
-}
-export interface AddPlanItem extends PlanCommand {
-  id: string;
-  treatment: TreatmentInput;
-  stages: { label: string; note?: string | null }[];
-}
-export function getClinicalPlans(
-  patientId: string,
-  options: { cursor?: string; state?: ClinicalPlanState } = {},
-): Promise<TreatmentPage<ClinicalPlan>> {
-  const query = new URLSearchParams({ limit: '20' });
-  if (options.cursor) query.set('cursor', options.cursor);
-  if (options.state) query.set('state', options.state);
-  return request(`/patients/${patientId}/clinical-plans?${query}`);
-}
 export function getClinicalPlan(patientId: string, id: string): Promise<ClinicalPlan> {
   return request(`/patients/${patientId}/clinical-plans/${id}`);
-}
-export function createClinicalPlan(
-  patientId: string,
-  body: PlanCommand & PlanMetadata & { id: string },
-): Promise<PlanReceipt> {
-  return request(`/patients/${patientId}/clinical-plans`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-}
-export function editClinicalPlan(
-  patientId: string,
-  id: string,
-  body: PlanCommand & PlanMetadata,
-): Promise<PlanReceipt> {
-  return request(`/patients/${patientId}/clinical-plans/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(body),
-  });
-}
-export function addClinicalPlanItem(
-  patientId: string,
-  id: string,
-  body: AddPlanItem,
-): Promise<PlanReceipt> {
-  return request(`/patients/${patientId}/clinical-plans/${id}/items`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-}
-export function editClinicalPlanItem(
-  patientId: string,
-  id: string,
-  itemId: string,
-  body: PlanCommand & { note: string | null },
-): Promise<PlanReceipt> {
-  return request(`/patients/${patientId}/clinical-plans/${id}/items/${itemId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(body),
-  });
-}
-export function reorderClinicalPlan(
-  patientId: string,
-  id: string,
-  body: PlanCommand & { item_ids: string[] },
-): Promise<PlanReceipt> {
-  return request(`/patients/${patientId}/clinical-plans/${id}/reorder`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-}
-export function addClinicalPlanStage(
-  patientId: string,
-  id: string,
-  itemId: string,
-  body: PlanCommand & { id: string; label: string; note?: string | null },
-): Promise<PlanReceipt> {
-  return request(`/patients/${patientId}/clinical-plans/${id}/items/${itemId}/stages`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-}
-export function editClinicalPlanStage(
-  patientId: string,
-  id: string,
-  itemId: string,
-  stageId: string,
-  body: PlanCommand & { label?: string; note?: string | null },
-): Promise<PlanReceipt> {
-  return request(`/patients/${patientId}/clinical-plans/${id}/items/${itemId}/stages/${stageId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(body),
-  });
 }
 export function getClinicalPlanRevisions(
   patientId: string,
@@ -1492,47 +1400,6 @@ export function getClinicalPlanRevisions(
   const query = new URLSearchParams({ limit: '20' });
   if (cursor) query.set('cursor', cursor);
   return request(`/patients/${patientId}/clinical-plans/${id}/revisions?${query}`);
-}
-
-export type PlanStageExecution =
-  | { action: 'complete'; body: PlanCommand & { clinical_note_body?: string | null } }
-  | { action: 'cancel'; body: PlanCommand & { reason?: string | null } };
-export function executeClinicalPlanStage(
-  patientId: string,
-  planId: string,
-  itemId: string,
-  stageId: string,
-  command: PlanStageExecution,
-): Promise<PlanReceipt> {
-  return request(
-    `/patients/${patientId}/clinical-plans/${planId}/items/${itemId}/stages/${stageId}/${command.action}`,
-    {
-      method: 'POST',
-      body: JSON.stringify(command.body),
-    },
-  );
-}
-
-export type PlanAction = 'confirm' | 'accept' | 'reopen' | 'close' | 'reactivate' | 'archive';
-export type PlanClosureReason =
-  | 'rejected_by_patient'
-  | 'expired'
-  | 'cancelled_by_clinic'
-  | 'patient_abandoned'
-  | 'other';
-export type PlanLifecycleCommand =
-  | { action: 'close'; body: PlanCommand & { reason: PlanClosureReason; note?: string | null } }
-  | { action: 'accept'; body: PlanCommand & { note?: string | null } }
-  | { action: 'confirm' | 'reopen' | 'reactivate' | 'archive'; body: PlanCommand };
-export function transitionClinicalPlan(
-  patientId: string,
-  id: string,
-  command: PlanLifecycleCommand,
-): Promise<PlanReceipt> {
-  return request(`/patients/${patientId}/clinical-plans/${id}/${command.action}`, {
-    method: 'POST',
-    body: JSON.stringify(command.body),
-  });
 }
 
 export interface DentalNoteContext {
@@ -1556,12 +1423,6 @@ export interface DentalClinicalNote {
   updated_at: string;
   deleted_at: string | null;
 }
-export interface DentalNoteTemplate {
-  id: string;
-  category: string;
-  label: string;
-  body: string;
-}
 export interface CreateDentalNote extends DentalNoteContext {
   id: string;
   operation_id: string;
@@ -1572,9 +1433,6 @@ export interface CreateDentalNote extends DentalNoteContext {
 }
 export interface DentalNoteReceipt extends Omit<TreatmentReceipt, 'committed'> {
   committed: DentalClinicalNote;
-}
-export function getDentalNoteTemplates(category: string): Promise<{ items: DentalNoteTemplate[] }> {
-  return request(`/patients/clinical-note-templates?${new URLSearchParams({ category })}`);
 }
 export function getDentalClinicalNotes(
   patientId: string,

@@ -61,18 +61,15 @@ beforeEach(() => {
   });
 });
 
-it('starts editable, appends template and saves visible optional binding only on Guardar', async () => {
+it('offers free text without templates and saves optional binding only on Guardar', async () => {
   mocks.create.mockResolvedValue({ committed: note });
   render(<Harness />);
+  fireEvent.click(screen.getByRole('button', { name: 'Diente 16' }));
   fireEvent.change(screen.getByLabelText('Texto de nota clínica'), {
     target: { value: 'Observación' },
   });
-  await screen.findByRole('option', { name: 'Caries' });
-  fireEvent.change(screen.getByLabelText('Plantillas'), { target: { value: 'caries' } });
-  expect(screen.getByLabelText('Texto de nota clínica')).toHaveValue(
-    'Observación\n\nHallazgo:\nProfundidad:',
-  );
-  fireEvent.click(screen.getByRole('button', { name: 'Diente 16' }));
+  expect(screen.queryByLabelText('Plantillas')).not.toBeInTheDocument();
+  expect(mocks.templates).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Asociar al diente 16' }));
   expect(mocks.create).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));

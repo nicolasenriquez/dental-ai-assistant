@@ -26,7 +26,7 @@ export function DentalClinicalNotes({
 }: DentalClinicalNotesProps): JSX.Element {
   const deleting = notes.deleting;
   return (
-    <aside aria-label="Notas clínicas" className="space-y-3 rounded bg-surface-raised p-3">
+    <aside aria-label="Notas clínicas" className="space-y-4">
       <h3 className="flex items-center gap-2 font-semibold">
         <NotebookPen size={18} aria-hidden="true" />
         Notas

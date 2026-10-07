@@ -4,14 +4,12 @@ import {
   type CreateDentalNote,
   type DentalClinicalNote,
   type DentalNoteContext,
-  type DentalNoteTemplate,
   type Dentition,
   type PlanCommand,
   createDentalClinicalNote,
   deleteDentalClinicalNote,
   editDentalClinicalNote,
   getDentalClinicalNotes,
-  getDentalNoteTemplates,
 } from '../lib/api';
 
 type Attempt =
@@ -31,20 +29,12 @@ export function useDentalClinicalNotes(patientId: string, context: DentalNoteCon
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [readError, setReadError] = useState(false);
-  const [category, setCategory] = useState(
-    context.note_type === 'diagnosis' ? 'diagnosis' : 'general',
-  );
-  const [templates, setTemplates] = useState<DentalNoteTemplate[]>([]);
-  const [templateError, setTemplateError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [commits, setCommits] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [latest, setLatest] = useState<DentalClinicalNote | null>(null);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const lock = useRef(false);
-  useEffect(() => {
-    setCategory(context.note_type === 'diagnosis' ? 'diagnosis' : 'general');
-  }, [context.note_type, context.entity_id]);
   const sequence = useRef(0);
   const load = useCallback(
     async (next?: string): Promise<void> => {
@@ -80,24 +70,6 @@ export function useDentalClinicalNotes(patientId: string, context: DentalNoteCon
       sequence.current++;
     };
   }, [load]);
-  useEffect(() => {
-    let alive = true;
-    setTemplateError(false);
-    setTemplates([]);
-    void getDentalNoteTemplates(category)
-      .then((page) => {
-        if (alive) setTemplates(page.items);
-      })
-      .catch(() => {
-        if (alive) {
-          setTemplates([]);
-          setTemplateError(true);
-        }
-      });
-    return () => {
-      alive = false;
-    };
-  }, [category]);
   const cancel = (): void => {
     setBody('');
     setEditing(null);
@@ -202,26 +174,20 @@ export function useDentalClinicalNotes(patientId: string, context: DentalNoteCon
     loading,
     readError,
     load,
-    templates,
-    templateError,
-    category,
-    setCategory,
     busy,
     commits,
     error,
     latest,
     attempt,
     dirty: busy || !!attempt || (editing ? body !== editing.body : !!body.trim()),
-    candidateFromChart: (tooth: number, dentition: Dentition): void => {
-      if (!tooth || editing || attempt) return;
+    candidateFromChart: (tooth: number, dentition: Dentition, explicit = false): void => {
+      if (!tooth || editing || attempt || (body.trim() && !explicit)) return;
       if (candidate?.tooth !== tooth || candidate.dentition !== dentition) {
         setCandidate({ tooth, dentition });
         setBound(true);
       }
     },
     clearCandidate: (): void => setCandidate(null),
-    appendTemplate: (template: DentalNoteTemplate): void =>
-      setBody((value) => `${value.trimEnd()}${value.trim() ? '\n\n' : ''}${template.body}`),
     edit: (note: DentalClinicalNote): void => {
       if (!busy && !body.trim() && !attempt) {
         setEditing(note);

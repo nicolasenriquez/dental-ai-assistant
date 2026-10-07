@@ -21,7 +21,10 @@ export function DentalConditionModal({
     const trigger = returnFocus ?? (document.activeElement as HTMLElement | null);
     panel.current?.focus({ preventScroll: true });
     return () => {
-      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+      window.requestAnimationFrame(() => {
+        if (trigger?.isConnected && document.activeElement === document.body)
+          trigger.focus({ preventScroll: true });
+      });
     };
   }, [returnFocus]);
   useEffect(() => {

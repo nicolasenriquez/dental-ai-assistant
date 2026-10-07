@@ -627,7 +627,7 @@ describe('PatientDetail URL continuity (S6)', () => {
       .mockResolvedValue({ items: [], total: 0, next_cursor: null });
     const view = renderS6('/patients/patient-1?tab=clinical&clinical=diagnosis&safe=kept');
     await screen.findByRole('heading', { name: 'Diagnóstico manual' });
-    fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'entered_in_error' } });
+    fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'all' } });
     fireEvent.click(await screen.findByRole('button', { name: 'Historial de condición' }));
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent(`condition=${historical.id}`),
@@ -639,7 +639,7 @@ describe('PatientDetail URL continuity (S6)', () => {
     revisions.mockClear();
     renderS6(url);
     expect(await screen.findByRole('article', { name: /Registrada por error/ })).toBeVisible();
-    expect(screen.getByLabelText('Estado')).toHaveValue('entered_in_error');
+    expect(screen.getByLabelText('Estado')).toHaveValue('all');
     await waitFor(() =>
       expect(revisions).toHaveBeenCalledWith('patient-1', historical.id, undefined, 50),
     );

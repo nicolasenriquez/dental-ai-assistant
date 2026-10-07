@@ -73,7 +73,7 @@ it('opens an exact error target in its historical filter and guards returning to
     });
   });
   await screen.findByRole('article', { name: /Pieza 51.*Registrada por error/ });
-  expect(screen.getByLabelText('Estado')).toHaveValue('entered_in_error');
+  expect(screen.getByLabelText('Estado')).toHaveValue('all');
   expect(screen.getByRole('button', { name: 'Temporal' })).toHaveAttribute('aria-pressed', 'true');
   fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'active' } });
   await screen.findByText('Sin registros actuales');
@@ -170,7 +170,24 @@ it('lateral surface selection confirms exactly once without extra save', async (
 it('occlusal surface activation applies exact surface without selector', async () => {
   mount([], undefined, () => mocks.create.mockResolvedValue({ ...record, tooth_fdi: 16 }));
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Pieza 16 · Mesial (M)' }));
+  const surface = document.querySelector(
+    '[data-arch-tooth="16"] [data-surface="M"]',
+  ) as SVGGeometryElement;
+  Object.defineProperty(surface, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+  Object.defineProperty(surface, 'isPointInFill', { value: () => true });
+  const outline = document.querySelector(
+    '[data-arch-tooth="16"] [data-occlusal-profile]',
+  ) as SVGGeometryElement;
+  Object.defineProperty(outline, 'isPointInFill', { value: () => true });
+  vi.stubGlobal(
+    'DOMPoint',
+    class {
+      matrixTransform(): object {
+        return {};
+      }
+    },
+  );
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 16:/ }), { detail: 1 });
   await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
   expect(mocks.create.mock.calls[0][1]).toMatchObject({
     tooth_fdi: 16,
@@ -232,7 +249,7 @@ it('resolve is a draft until save, cancel preserves record and immutable fields 
   mount();
   fireEvent.click(await screen.findByRole('button', { name: 'Resolver condición' }));
   expect(mocks.edit).not.toHaveBeenCalled();
-  expect(screen.getByLabelText('Seleccionar pieza FDI')).toBeDisabled();
+  expect(screen.queryByLabelText('Seleccionar pieza FDI')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Cancelar condición' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Descartar condición' }));
   expect(mocks.edit).not.toHaveBeenCalled();
@@ -817,7 +834,7 @@ it('a persisted correction link retains exact target on failed owned read and re
     },
   };
   mount([corrected]);
-  fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'entered_in_error' } });
+  fireEvent.change(screen.getByLabelText('Estado'), { target: { value: 'all' } });
   mocks.exact.mockRejectedValueOnce(new TypeError('unavailable')).mockResolvedValueOnce(corrected);
   fireEvent.click(await screen.findByRole('button', { name: 'Ver corrección exacta' }));
   await screen.findByText(/No pudimos cargar el registro vinculado/);
@@ -904,12 +921,15 @@ it('tool selection keeps chart context; surface selector cancels without writes'
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
   expect(screen.queryByLabelText('Pieza FDI')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Elegir pieza' })).toBeNull();
-  fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '36' } });
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 36:/ }));
   expect(screen.queryByRole('button', { name: 'Cambiar pieza' })).toBeNull();
   expect(screen.getByText(/Pieza 36 · Caries/)).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Cancelar superficies' }));
   expect(screen.queryByRole('checkbox', { name: 'Mesial (M)' })).toBeNull();
   expect(screen.queryByRole('checkbox', { name: 'Oclusal (O)' })).toBeNull();
+  expect(screen.queryByLabelText('Seleccionar pieza FDI')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Pieza 36 · Mesial (M)' })).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Pieza 36:/ })).toHaveFocus());
   expect(mocks.create).not.toHaveBeenCalled();
 });
 
@@ -966,7 +986,7 @@ it('keeps chart context after create and focuses exact record after edit and res
     return saved;
   });
   fireEvent.click(await screen.findByRole('button', { name: 'Caries' }));
-  fireEvent.change(screen.getByLabelText('Seleccionar pieza FDI'), { target: { value: '16' } });
+  fireEvent.click(screen.getByRole('button', { name: /^Pieza 16:/ }));
   fireEvent.click(screen.getByRole('checkbox', { name: 'Mesial (M)' }));
   fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
   await screen.findByRole('article', { name: 'Pieza 16 · Caries · Activa' });

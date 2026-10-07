@@ -19,6 +19,7 @@ import {
   surfaceShapes,
   toothAnatomy,
   toothDrawingTransforms,
+  toothOcclusalProfile,
 } from './toothGeometry';
 
 const quadrantLabels = [
@@ -86,7 +87,10 @@ export function PatientOdontogram({
         const matrix = path.getScreenCTM();
         if (!matrix || !surfaceCodes.includes(code)) continue;
         const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-        if (path.isPointInFill(point)) {
+        const outline = chartRef.current?.querySelector<SVGGeometryElement>(
+          `[data-arch-tooth="${tooth}"] [data-occlusal-profile]`,
+        );
+        if (path.isPointInFill(point) && outline?.isPointInFill(point)) {
           onSelect(tooth, event.currentTarget, code);
           return;
         }
@@ -248,28 +252,23 @@ export function PatientOdontogram({
                 >
                   <title>{describe(tooth)}</title>
                   {(selectedTooth === tooth || selectedTeeth.includes(tooth)) && (
-                    <rect
+                    <path
                       data-draft-tooth={tooth}
-                      x="-1"
-                      y={upper ? -2 : -46}
-                      width={step - 2}
-                      height={upper ? 142 : 160}
-                      rx="5"
+                      d={toothOcclusalProfile(tooth)}
+                      transform={transforms.occlusal}
                       fill="none"
                       className="stroke-primary dental-selection-ring"
                       strokeWidth="2.5"
                     />
                   )}
                   {(highlightedTooth === tooth || highlightedTeeth.includes(tooth)) && (
-                    <rect
-                      x="1"
-                      y={upper ? 0 : -44}
-                      width={step - 6}
-                      height={upper ? 140 : 156}
-                      rx="4"
+                    <path
+                      d={toothOcclusalProfile(tooth)}
+                      transform={transforms.occlusal}
                       fill="none"
                       data-linked-highlight={tooth}
                       className="stroke-warning dental-linked-highlight"
+                      strokeWidth="2"
                     />
                   )}
                   <g
@@ -324,7 +323,7 @@ export function PatientOdontogram({
                   )}
                   <text
                     x="21"
-                    y={upper ? 190 : -30}
+                    y={upper ? 162 : -2}
                     textAnchor="middle"
                     fontSize="12"
                     className="fill-foreground"
@@ -453,61 +452,6 @@ export function PatientOdontogram({
                 </button>
               ))}
           </div>
-        </div>
-      )}
-      {surfaceCodes.length > 0 && (
-        <div
-          aria-label="Vista oclusal"
-          className="mt-3 flex gap-3 overflow-x-auto rounded border border-border p-2"
-        >
-          {teeth.map((tooth) => (
-            <div
-              key={tooth}
-              className="shrink-0"
-              role="group"
-              aria-label={`Superficies de pieza ${tooth}`}
-            >
-              <p className="text-center text-sm">{tooth}</p>
-              <div className="grid h-36 w-36 grid-cols-3 grid-rows-3 rounded-full border border-border bg-surface">
-                {surfaceCodes.map((code) => {
-                  const position = surfacePosition(code, tooth);
-                  const cell =
-                    position === 'V'
-                      ? 'col-start-2 row-start-1'
-                      : position === 'L'
-                        ? 'col-start-2 row-start-3'
-                        : position === 'M'
-                          ? 'col-start-1 row-start-2'
-                          : position === 'D'
-                            ? 'col-start-3 row-start-2'
-                            : 'col-start-2 row-start-2';
-                  const label = {
-                    M: 'Mesial',
-                    D: 'Distal',
-                    O: 'Oclusal',
-                    V: 'Vestibular',
-                    L: 'Lingual',
-                  }[code];
-                  return (
-                    <button
-                      key={code}
-                      type="button"
-                      aria-label={`Pieza ${tooth} · ${label} (${code})`}
-                      disabled={disabled}
-                      className={`min-h-11 min-w-11 rounded border border-border text-sm hover:bg-surface-raised focus-visible:ring-2 focus-visible:ring-primary ${cell}`}
-                      onMouseEnter={() => onHighlight(tooth)}
-                      onMouseLeave={() => onHighlight(0)}
-                      onFocus={() => onHighlight(tooth)}
-                      onBlur={() => onHighlight(0)}
-                      onClick={(event) => onSelect(tooth, event.currentTarget, code)}
-                    >
-                      {code}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
         </div>
       )}
       <p className="mt-2 text-xs text-muted">
