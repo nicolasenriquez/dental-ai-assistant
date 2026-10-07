@@ -55,18 +55,11 @@ autonomous scribe tools and from generic chat assistants.
    replacement links and revision history. Bridges and splints use same-arch range/free selection
    and explicit confirmation as one procedure; bridge members retain pillar/pontic roles.
    Whole-arch appliances use an upper/lower picker without individual FDI members.
-- Clinical plans: Planificación and Planes create/resume patient-owned drafts with ordered
-  procedures and pending sessions. Confirmar moves a nonempty draft to pending; Registrar
-  aceptación records a clinical event and activates it. Pending plans can reopen; draft/pending/
-  active plans close with a reason; closed plans reactivate with history intact. Completed plans
-  archive to read-only. Planned procedures remain separate from observed diagnosis records.
-  Active plans complete/cancel individual sessions with actor/time evidence. The item shortcut
-  advances only the next pending session. Optional treatment notes commit with execution;
-  completed sessions remain immutable. Items with performed work finalize when no session remains
-  pending; all-cancelled items never claim performed work. Plans complete automatically only when
-  every item is completed. Reasoned linked corrections retain sessions and leave plan state intact.
-- Dental clinical notes: diagnosis, observed-procedure and plan notes with independently authored
-  Spanish templates, optional tooth association and link highlights. Body-only edits, logical
+- Clinical workspace: Diagnóstico and Evoluciones are the available modes. Plan authoring and
+  creation are retired. Existing plan links remain read-only for historical evidence; stored
+  plans, sessions and references are preserved. Creating a new plan returns HTTP 410.
+- Dental clinical notes: diagnosis, observed-procedure and plan notes with free text,
+  optional tooth association and link highlights. Body-only edits, logical
   deletes and per-note history are receipt-backed; one composer is shared by the diagnosis rail
   and the narrow Sheet. Images/PDF attachments are not implemented.
 - Activity: persisted approved evolution saves and note/condition/treatment/plan/clinical-note

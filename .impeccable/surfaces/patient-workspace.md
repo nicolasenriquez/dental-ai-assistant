@@ -43,19 +43,18 @@ Diagnosis puts the anatomical permanent/primary chart, tools and equivalent text
 list before saved records. At 1064px available width, a 300px inspector sits beside
 the chart with a 20px gap and at least 744px for its main column; otherwise it stacks.
 Below 744px chart width, quadrant controls preserve 44px tooth targets. Narrow views have an enlarged selected-tooth editor
-and 44px FDI selector. Hover/focus highlight is independent of the draft; active and
+and accessible quadrant controls. The redundant FDI combo and per-tooth surface bank are removed. Hover/focus highlight is independent of the draft; active and
 resolved conditions have symbols and text. All pages must load before a chart is
 called complete; partial failure preserves confirmed records with retry.
 
 The palette is an illustrated eight-category registry with independently authored
 lateral/occlusal profiles and variant motifs; cards use a 104px minimum grid, 72px
 minimum height, 2px borders and 6px support dots, and the legend has five base groups
-with explicit Existente/Planificado labels. A tool preview runs about 1s and never
+with explicit Existente/Planificado labels. A concept-colored tool preview runs about 1s and never
 writes; planned chart overlays render at 0.7 opacity with a P marker and appear only
 for the selected plan. Reduced motion suppresses preview rings and pulses but keeps
 state text. The editable dental-note composer is shared by diagnosis, observed
-procedures and plans: independently authored Spanish templates append their body
-only, tooth binding highlights linked members without replacing the candidate,
+procedures: free text without templates, tooth binding highlights linked members without replacing the candidate,
 280-character and longer bodies grow the field, and body-only edits, logical deletes
 and per-note history survive reload. One draft/feed survives the 320/384px rail and
 the floating Sheet and guards dirty patient/mode changes; uncertain commands freeze
@@ -107,25 +106,20 @@ Patient identity must stay visible. Context conflict names both patients or expl
 a patient-less conversation's history; it never offers to reassign historical work.
 Loading, query failure and empty work are distinct states. No invented metrics.
 
-Planificación and Planes use patient-local draft lists and ordered procedure/session detail.
-Plan creation, metadata/session edits and atomic planned-procedure additions use explicit actions.
-Planned records remain separate from observed diagnosis reads. Dirty authoring offers save,
-discard or remain; uncertain commands preserve operation identity and freeze their fields.
-Conflict review retains local text beside the latest saved plan, including read-only states.
-Clinical lifecycle actions require their own confirmation. Acceptance records a clinician-entered
-event; closure requires a Spanish reason. Closed/completed/archived plans are read-only, with
-reactivation or archival exposed only in their applicable state. Actor labels disclose stored
-account IDs through the existing patient actor control. No commercial or agenda actions appear.
+Old authorized plan links open stored evidence and revisions read-only. Diagnosis reads
+exclude future planned work and keep observed records separate.
 
-Active plan items show completed/total sessions, immutable actor/time evidence and treatment-owned
-execution notes. Completar siguiente sesión advances one pending session; explicit completion or
-cancellation requires its own confirmation. Cancelled items stay in the plan denominator. Automatic
-completion appears only when every item is completed. Unconfirmed execution/correction text guards
-navigation with discard/remain and survives conflict review. Linked corrections preserve sessions and
-plan state; closed reactivation retains partial performed evidence. Narrow controls wrap, and the
-same confirmation remains keyboard-operable with reduced motion.
+## Diagnosis simplification, 7 October 2026
 
-The selected plan renders a chart overlay without becoming a diagnosis record, and exact authorized
-`plan`, `treatment`, `dental_note` and `history` query links open the owning patient resource after
-reload. An unavailable or foreign plan link shows named not-found recovery and never opens a
-substitute plan. Diagnosis reads exclude future planned work and keep observed records separate.
+Clinical navigation exposes Diagnóstico and Evoluciones only. Plan creation/editor components
+are retired; old Activity links open read-only evidence and revision history. No persisted
+plan or note is deleted by this cleanup. Notes have one header, a free-text composer and
+semantic left-edge cards. Hover proposes a tooth only before typing; explicit tooth activation
+can change the candidate while writing. The association checkbox remains optional.
+The chart uses anatomical outline selection, clipped occlusal fills and a separate FDI row.
+The surface dialog uses side-by-side occlusal and full lateral views. Keyboard users choose
+a tooth then the five contextual surfaces. The chart keeps direct pointer surface activation.
+Current/resolved filters remain; Historial completo includes error annotations, without a
+separate daily error filter. Notes require at least 1160px available width for a rail;
+otherwise the Sheet preserves the draft and returns focus to Notas on dismissal.
+Selection is steady; card transitions and linked-note highlights respect reduced motion.
