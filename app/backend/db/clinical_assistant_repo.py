@@ -904,18 +904,30 @@ async def claim_turn(
                 thread,
                 stale_turn,
             )
+        await conn.execute(
+            """
+            DELETE FROM clinical_turn_usage
+            WHERE owner_user_id = $1 AND created_at <= now() - interval '24 hours'
+            """,
+            owner,
+        )
         turn_count = await conn.fetchval(
             """
             SELECT count(*)
-            FROM clinical_messages m
-            JOIN clinical_threads t ON t.id = m.thread_id
-            WHERE t.owner_user_id = $1 AND m.role = 'user'
-              AND m.created_at > now() - interval '24 hours'
+            FROM clinical_turn_usage
+            WHERE owner_user_id = $1 AND created_at > now() - interval '24 hours'
             """,
             owner,
         )
         if int(turn_count or 0) >= CLINICAL_TURN_LIMIT_PER_24H:
             raise ClinicalRateLimitError
+        await conn.execute(
+            """
+            INSERT INTO clinical_turn_usage (owner_user_id, created_at)
+            VALUES ($1, now())
+            """,
+            owner,
+        )
         await conn.execute(
             """
             UPDATE clinical_threads SET active_turn_id = $1, updated_at = now()

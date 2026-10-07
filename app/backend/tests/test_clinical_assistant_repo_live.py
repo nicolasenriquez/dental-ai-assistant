@@ -140,17 +140,11 @@ async def test_live_retry_cannot_target_another_thread_owner_or_completed_turn(d
 
 async def test_live_advisory_lock_serializes_quota_count_and_insert(db):
     owner = await _make_user(db)
-    history_thread = await _make_thread(db, owner)
     async with db.acquire() as conn:
         for _ in range(clinical_assistant_repo.CLINICAL_TURN_LIMIT_PER_24H - 1):
             await conn.execute(
-                """
-                INSERT INTO clinical_messages (id, thread_id, turn_id, role, content)
-                VALUES ($1, $2, $3, 'user', 'history')
-                """,
-                uuid4(),
-                history_thread,
-                uuid4(),
+                "INSERT INTO clinical_turn_usage (owner_user_id, created_at) VALUES ($1, now())",
+                owner,
             )
 
     thread_a = await _make_thread(db, owner)
@@ -168,6 +162,19 @@ async def test_live_advisory_lock_serializes_quota_count_and_insert(db):
         )
         == 1
     )
+
+
+async def test_live_deleting_threads_does_not_refill_quota(db):
+    owner = await _make_user(db)
+    for _ in range(clinical_assistant_repo.CLINICAL_TURN_LIMIT_PER_24H):
+        thread = await _make_thread(db, owner)
+        turn = uuid4()
+        await clinical_assistant_repo.claim_turn(owner, thread, turn, "Synthetic note")
+        await clinical_assistant_repo.finish_turn(owner, thread, turn, "completed")
+        await clinical_assistant_repo.delete_thread(owner, thread)
+    fresh = await _make_thread(db, owner)
+    with pytest.raises(clinical_assistant_repo.ClinicalRateLimitError):
+        await clinical_assistant_repo.claim_turn(owner, fresh, uuid4(), "Synthetic note")
 
 
 async def test_live_stale_turn_cannot_write_message_artifact_or_action(db):
