@@ -1,0 +1,60 @@
+{
+  "activeElement": {
+    "id": "condition-note",
+    "tag": "TEXTAREA"
+  },
+  "colors": [
+    {
+      "code": "pulpitis",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "caries",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "incipient_caries",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "pigmentation",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "fracture",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "missing",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "periapical_lt_2mm",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "periapical_2_4mm",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "periapical_gt_4mm",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "rotated",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "displaced",
+      "color": "rgb(148, 163, 184)"
+    },
+    {
+      "code": "unerupted",
+      "color": "rgb(148, 163, 184)"
+    }
+  ],
+  "viewport": {
+    "height": 792,
+    "width": 441
+  }
+}

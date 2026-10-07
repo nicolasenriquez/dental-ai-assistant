@@ -1,0 +1,192 @@
+{
+  "source": "odontogramConstants.ts/TreatmentIcons.ts",
+  "paletteColors": {
+    "pulpitis": {
+      "light": "#EF4444",
+      "dark": "#F87171"
+    },
+    "caries": {
+      "light": "#EF4444",
+      "dark": "#F87171"
+    },
+    "incipient_caries": {
+      "light": "#F97316",
+      "dark": "#FB923C"
+    },
+    "pigmentation": {
+      "light": "#92400E",
+      "dark": "#D97706"
+    },
+    "fracture": {
+      "light": "#BE185D",
+      "dark": "#EC4899"
+    },
+    "missing": {
+      "light": "#6B7280",
+      "dark": "#9CA3AF"
+    },
+    "periapical_small": {
+      "light": "#EF4444",
+      "dark": "#F87171"
+    },
+    "periapical_medium": {
+      "light": "#DC2626",
+      "dark": "#EF4444"
+    },
+    "periapical_large": {
+      "light": "#B91C1C",
+      "dark": "#DC2626"
+    },
+    "rotated": {
+      "light": "#8B5CF6",
+      "dark": "#A78BFA"
+    },
+    "displaced": {
+      "light": "#F59E0B",
+      "dark": "#FBBF24"
+    },
+    "unerupted": {
+      "light": "#9CA3AF",
+      "dark": "#D1D5DB"
+    },
+    "filling_composite": {
+      "light": "#3B82F6",
+      "dark": "#60A5FA"
+    },
+    "filling_amalgam": {
+      "light": "#6B7280",
+      "dark": "#9CA3AF"
+    },
+    "filling_temporary": {
+      "light": "#22C55E",
+      "dark": "#4ADE80"
+    },
+    "sealant": {
+      "light": "#06B6D4",
+      "dark": "#22D3EE"
+    },
+    "veneer": {
+      "light": "#EC4899",
+      "dark": "#F472B6"
+    },
+    "inlay": {
+      "light": "#3B82F6",
+      "dark": "#60A5FA"
+    },
+    "overlay": {
+      "light": "#3B82F6",
+      "dark": "#60A5FA"
+    },
+    "crown": {
+      "light": "#F59E0B",
+      "dark": "#FBBF24"
+    },
+    "crown_on_implant": {
+      "light": "#F59E0B",
+      "dark": "#FBBF24"
+    },
+    "provisional_crown_on_implant": {
+      "light": "#FCD34D",
+      "dark": "#FDE68A"
+    },
+    "pontic": {
+      "light": "#F97316",
+      "dark": "#FB923C"
+    },
+    "bridge_abutment": {
+      "light": "#FBBF24",
+      "dark": "#FDE68A"
+    },
+    "bridge": {
+      "light": "#F59E0B",
+      "dark": "#FBBF24"
+    },
+    "splint": {
+      "light": "#3B82F6",
+      "dark": "#60A5FA"
+    },
+    "extraction": {
+      "light": "#DC2626",
+      "dark": "#EF4444"
+    },
+    "implant": {
+      "light": "#10B981",
+      "dark": "#34D399"
+    },
+    "apicoectomy": {
+      "light": "#6366F1",
+      "dark": "#818CF8"
+    },
+    "root_canal_full": {
+      "light": "#8B5CF6",
+      "dark": "#A78BFA"
+    },
+    "root_canal_two_thirds": {
+      "light": "#8B5CF6",
+      "dark": "#A78BFA"
+    },
+    "root_canal_half": {
+      "light": "#8B5CF6",
+      "dark": "#A78BFA"
+    },
+    "post": {
+      "light": "#7C3AED",
+      "dark": "#A855F7"
+    },
+    "root_canal_overfill": {
+      "light": "#3B82F6",
+      "dark": "#60A5FA"
+    },
+    "bracket": {
+      "light": "#6366F1",
+      "dark": "#818CF8"
+    },
+    "tube": {
+      "light": "#6366F1",
+      "dark": "#818CF8"
+    },
+    "band": {
+      "light": "#8B5CF6",
+      "dark": "#A78BFA"
+    },
+    "attachment": {
+      "light": "#EC4899",
+      "dark": "#F472B6"
+    },
+    "retainer": {
+      "light": "#14B8A6",
+      "dark": "#2DD4BF"
+    },
+    "filling": {
+      "light": "#3B82F6",
+      "dark": "#60A5FA"
+    },
+    "root_canal": {
+      "light": "#8B5CF6",
+      "dark": "#A78BFA"
+    },
+    "bridge_pontic": {
+      "light": "#F97316",
+      "dark": "#FB923C"
+    },
+    "rotate": {
+      "light": "#8B5CF6",
+      "dark": "#A78BFA"
+    },
+    "displace": {
+      "light": "#F59E0B",
+      "dark": "#FBBF24"
+    }
+  },
+  "iconOverrides": {
+    "REST-BRIDGE-MC": "bridge_metal_ceramic",
+    "REST-BRIDGE-ZIR": "bridge_zirconia",
+    "REST-BRIDGE-MARY": "bridge_maryland",
+    "REST-CROWN-IMPL-MC": "crown_on_implant",
+    "REST-CROWN-IMPL-ZIR": "crown_on_implant",
+    "REST-CROWN-IMPL-PROV": "provisional_crown_on_implant",
+    "REST-SPLINT-OCC": "splint_occlusal",
+    "REST-SPLINT-PERIO": "splint_periodontal"
+  },
+  "implementationAssets": "Independent authorship required; captured SVG is audit evidence only"
+}

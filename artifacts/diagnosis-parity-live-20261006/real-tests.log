@@ -1,0 +1,70 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.7, pytest-8.3.4, pluggy-1.6.0
+rootdir: C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend
+configfile: pyproject.toml
+plugins: anyio-4.13.0, asyncio-0.25.2, respx-0.22.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collected 36 items / 8 deselected / 28 selected
+
+tests\test_clinical_workspace_live.py ........................           [ 85%]
+tests\test_patient_conditions_contract.py ....                           [100%]
+
+============================== warnings summary ===============================
+main.py:190
+main.py:190
+main.py:190
+main.py:190
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\main.py:190: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    from backend.routes import (  # noqa: E402
+
+tests/test_clinical_workspace_live.py::test_catalog_domain_http_and_migrated_sql_agree
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:1186: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    return asyncio.get_event_loop_policy()
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:857: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    _restore_event_loop_policy(asyncio.get_event_loop_policy()),
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:756: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    old_loop_policy = asyncio.get_event_loop_policy()
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:761: DeprecationWarning: 'asyncio.set_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    asyncio.set_event_loop_policy(policy)
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:1157: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:872: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    policy = asyncio.get_event_loop_policy()
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:778: DeprecationWarning: 'asyncio.set_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    asyncio.set_event_loop_policy(old_loop_policy)
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:925: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    policy = asyncio.get_event_loop_policy()
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:949: DeprecationWarning: 'asyncio.set_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    asyncio.set_event_loop_policy(previous_policy)
+
+tests/test_clinical_workspace_live.py: 24 warnings
+tests/test_patient_conditions_contract.py: 4 warnings
+  C:\Users\nenri\OneDrive\Desktop\proyectos\pry-ai-evaluator\ai-tutor\app\backend\.venv\Lib\site-packages\pytest_asyncio\plugin.py:961: DeprecationWarning: 'asyncio.get_event_loop_policy' is deprecated and slated for removal in Python 3.16
+    policy = asyncio.get_event_loop_policy()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========== 28 passed, 8 deselected, 257 warnings in 91.26s (0:01:31) ==========

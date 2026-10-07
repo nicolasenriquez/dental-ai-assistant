@@ -1,0 +1,17 @@
+{
+  "activeDialog": true,
+  "composers": [
+    {
+      "body": "",
+      "font": "14px",
+      "height": 0,
+      "visible": false
+    },
+    {
+      "body": "Borrador sintético de auditoría. No guardar.\n\nFinding: caries \nDepth: \nSymptoms: \nVitality test: \nSuggested treatment: ",
+      "font": "14px",
+      "height": 143.16287231445312,
+      "visible": true
+    }
+  ]
+}
