@@ -9,8 +9,10 @@ from pydantic import BaseModel, ConfigDict
 
 from .cursors import decode_cursor_payload, encode_cursor_payload
 
-ActivityKind = Literal["evolutions", "notes", "diagnoses"]
-ActivityFilter = Literal["all", "evolutions", "notes", "diagnoses"]
+ActivityKind = Literal["evolutions", "notes", "diagnoses", "treatments", "plans", "clinical_notes"]
+ActivityFilter = Literal[
+    "all", "evolutions", "notes", "diagnoses", "treatments", "plans", "clinical_notes"
+]
 
 
 class ActivityCursor(BaseModel):

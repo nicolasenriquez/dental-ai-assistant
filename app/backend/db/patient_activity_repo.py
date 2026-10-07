@@ -23,15 +23,32 @@ async def list_activity(
             WITH events AS (
                 SELECT e.id AS event_id, e.id AS resource_id, 'evolutions'::text AS kind,
                     'created'::text AS action, e.created_at AS occurred_at,
-                    NULL::uuid AS actor_user_id, NULL::integer AS tooth_fdi
+                    NULL::uuid AS actor_user_id, NULL::integer AS tooth_fdi, NULL::uuid AS plan_id
                 FROM evolutions e WHERE e.owner_user_id=$1 AND e.patient_id=$2
                 UNION ALL
-                SELECT r.id, r.note_id, 'notes', r.action, r.changed_at, r.actor_user_id, NULL::integer
+                SELECT r.id, r.note_id, 'notes', r.action, r.changed_at, r.actor_user_id, NULL::integer, NULL::uuid
                 FROM patient_note_revisions r WHERE r.owner_user_id=$1 AND r.patient_id=$2
                 UNION ALL
                 SELECT r.id, r.condition_id, 'diagnoses', r.action, r.changed_at, r.actor_user_id,
-                    (r.after_snapshot->>'tooth_fdi')::integer
+                    (r.after_snapshot->>'tooth_fdi')::integer, NULL::uuid
                 FROM patient_tooth_condition_revisions r
+                WHERE r.owner_user_id=$1 AND r.patient_id=$2
+                UNION ALL
+                SELECT r.id, r.treatment_id, 'treatments', r.action, r.changed_at,
+                    r.actor_user_id, NULL::integer, i.plan_id
+                FROM patient_dental_treatment_revisions r
+                LEFT JOIN patient_clinical_plan_items i ON i.treatment_id=r.treatment_id
+                    AND i.owner_user_id=r.owner_user_id AND i.patient_id=r.patient_id
+                WHERE r.owner_user_id=$1 AND r.patient_id=$2
+                UNION ALL
+                SELECT r.id, r.plan_id, 'plans', r.action, r.changed_at,
+                    r.actor_user_id, NULL::integer, r.plan_id
+                FROM patient_clinical_plan_revisions r
+                WHERE r.owner_user_id=$1 AND r.patient_id=$2
+                UNION ALL
+                SELECT r.id, r.note_id, 'clinical_notes', r.action, r.changed_at,
+                    r.actor_user_id, (r.after_snapshot->>'tooth_fdi')::integer, NULL::uuid
+                FROM patient_dental_clinical_note_revisions r
                 WHERE r.owner_user_id=$1 AND r.patient_id=$2
             ), filtered AS (
                 SELECT * FROM events WHERE $3::text='all' OR kind=$3

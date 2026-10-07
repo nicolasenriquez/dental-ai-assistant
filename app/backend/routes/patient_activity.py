@@ -25,7 +25,29 @@ class ActivityItem(BaseModel):
     event_id: UUID
     resource_id: UUID
     kind: ActivityKind
-    action: Literal["created", "edited", "resolved", "corrected"]
+    action: Literal[
+        "created",
+        "edited",
+        "resolved",
+        "corrected",
+        "deleted",
+        "create",
+        "edit",
+        "add_item",
+        "reorder",
+        "add_stage",
+        "edit_stage",
+        "edit_item",
+        "complete_stage",
+        "cancel_stage",
+        "correct_treatment",
+        "confirm",
+        "accept",
+        "reopen",
+        "close",
+        "reactivate",
+        "archive",
+    ]
     occurred_at: datetime
     actor: Actor | None
     title: str
@@ -46,6 +68,42 @@ def _item(row: dict[str, Any], patient: UUID) -> ActivityItem:
     elif kind == "notes":
         title = "Nota creada" if action == "created" else "Nota editada"
         href = f"/patients/{patient}?tab=info&note={resource}"
+    elif kind == "treatments":
+        title = {
+            "created": "Procedimiento registrado",
+            "edited": "Procedimiento editado",
+            "corrected": "Procedimiento corregido",
+        }[action]
+        href = f"/patients/{patient}?tab=clinical&clinical=diagnosis&treatment={resource}"
+        if row.get("plan_id"):
+            href = f"/patients/{patient}?tab=clinical&clinical=plans&plan={row['plan_id']}&treatment={resource}&history=1"
+    elif kind == "plans":
+        title = {
+            "create": "Plan creado",
+            "edit": "Plan editado",
+            "add_item": "Procedimiento planificado",
+            "reorder": "Procedimientos ordenados",
+            "add_stage": "Sesión añadida",
+            "edit_stage": "Sesión editada",
+            "edit_item": "Procedimiento planificado editado",
+            "complete_stage": "Sesión completada",
+            "cancel_stage": "Sesión cancelada",
+            "correct_treatment": "Procedimiento del plan corregido",
+            "confirm": "Plan confirmado",
+            "accept": "Aceptación clínica registrada",
+            "reopen": "Plan reabierto",
+            "close": "Plan cerrado",
+            "reactivate": "Plan reactivado",
+            "archive": "Plan archivado",
+        }[action]
+        href = f"/patients/{patient}?tab=clinical&clinical=plans&plan={resource}&history=1"
+    elif kind == "clinical_notes":
+        title = {
+            "created": "Nota clínica creada",
+            "edited": "Nota clínica editada",
+            "deleted": "Nota clínica eliminada",
+        }[action]
+        href = f"/patients/{patient}?tab=clinical&clinical=diagnosis&dental_note={resource}"
     else:
         title = {
             "created": "Condición registrada",
