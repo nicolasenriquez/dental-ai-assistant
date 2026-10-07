@@ -1,5 +1,9 @@
 # Arquitectura y retirada segura del flujo anterior
 
+Ejecución de Slice10 (2026-10-07): el inventario definitivo, las retiradas y las pruebas
+antes/después/rollback están en [slice10-evidence.md](slice10-evidence.md). El diagnóstico
+estructural siguiente conserva el estado auditado original; no describe el código actual.
+
 Contrato de esta OpenSpec, no implementación realizada. La arquitectura del target sigue AGENTS.md; no incorpora el registro modular de Vue, SQLAlchemy, un bus de eventos ni un contenedor de inyección de DentalPin. Aquí inversión de dependencias significa aceptar dependencias en el Seam que realmente varía, con Adapter de transporte/persistencia y pruebas, sin inventar interfaces para cada función.
 
 ## Diagnóstico estructural
