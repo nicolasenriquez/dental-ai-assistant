@@ -305,8 +305,48 @@ Previously stored observed-treatment payload hashes remain replayable.
 
 Execution/correction confirmations preserve local text on failure. Navigation offers discard/remain
 for unconfirmed clinical actions, never implicit execution through Guardar y continuar. The optional
-execution note is the treatment-only note storage implemented here; the wider editable dental-note
-composer/feed remains a later slice. Application rollback retains migration0027 data.
+execution note is stored as a treatment-owned clinical note; the wider editable composer and combined
+feed are documented under Dental clinical notes. Application rollback retains migration0027 data.
+
+### Dental clinical notes
+
+Typed diagnosis, observed-treatment and clinical-plan notes reuse durable command identity and
+receipts. Migration0028 extends the0027 execution-note storage without rewriting existing rows or
+receipts; application rollback retains every note and revision. General notes keep their Información
+owner and `/{patient_id}/notes` endpoint; the combined feed below merges both sources without
+changing general-note reads.
+
+| Endpoint under `/api/patients` | Behavior |
+| --- | --- |
+| `GET /clinical-note-templates?category=` | Independently authored blank Spanish templates |
+| `GET /{p}/clinical-notes` | Combined general/dental note feed page |
+| `POST /{p}/clinical-notes` | Create one typed note |
+| `GET /{p}/clinical-notes/{n}` | Owned committed snapshot |
+| `PATCH /{p}/clinical-notes/{n}` | Body-only edit |
+| `POST /{p}/clinical-notes/{n}/delete` | Logical soft delete with retained history |
+| `GET /{p}/clinical-notes/{n}/revisions` | Actor/time and before/after history |
+
+Create body contains stable UUID `id`, UUID `operation_id`, `expected_revision:0`,
+`note_type:"diagnosis"|"treatment"|"treatment_plan"`, the matching
+`entity_kind:"patient"|"treatment"|"plan"`, `entity_id`, trimmed `body` (1–4000 characters) and optional
+`dentition`/`tooth_fdi`. A tooth requires a diagnosis note with a valid FDI for its dentition;
+dentition without tooth is rejected. Edit contains `operation_id`, `expected_revision` and `body`.
+Delete contains `operation_id` and `expected_revision` and never erases the row or its revisions.
+Templates are servable content only; the server never appends or writes from a template automatically.
+
+Every command commits the note, its revision, the dental-note Activity event and its durable receipt
+in one transaction. Identical operation replay returns the original committed snapshot before checking
+the current revision; a changed payload or repeated resource UUID under a new operation returns409;
+stale revision returns409 with the latest owned snapshot; a deleted note rejects new writes; foreign
+patient/note/treatment/plan returns404. Create returns201 on first commit and200 on exact replay;
+edit/delete return200. Unknown fields and invalid binding return422.
+
+Reads return `id,patient_id,note_type,entity_kind,entity_id,entity_label,body,dentition,tooth_fdi,
+linked_teeth,revision,created_by,updated_by,created_at,updated_at,deleted_at`. Treatment-linked notes
+derive `entity_label` from the stored Spanish variant and `linked_teeth` from its members; plan notes use
+the plan title. The feed merges general notes as `note_type:"administrative"`, `entity_kind:"patient"`
+with no tooth binding, orders by `created_at DESC,id DESC`, counts both sources before the cursor and
+uses the same 20/1–50 cursor contract as the other bounded lists.
 
 ### Bounded lists and Activity
 
@@ -319,30 +359,38 @@ reflect later writes; clients restart after writes and deduplicate by record/eve
 
 | List | Ordering and cursor keys |
 | --- | --- |
-| Notes | updated_at DESC,id DESC |
+| General notes | updated_at DESC,id DESC |
+| Clinical-note feed | created_at DESC,id DESC; combined general + dental notes |
 | Revisions | revision DESC,id DESC, bound resource_id |
+| Clinical-note revisions | changed_at DESC,id DESC, bound note_id |
 | Conditions | tooth_fdi ASC,created_at ASC,id ASC; bound dentition/status |
 | Activity | occurred_at DESC,kind ASC,event_id DESC; bound requested kind |
 
 `GET /api/patients/{patient_id}/activity?kind=all&limit=20` supports
-all/evolutions/notes/diagnoses. Events project approved evolution created_at and manual
-note/condition revision changed_at, never clinician-editable evolution_at or draft
-content. Each item has event_id,resource_id,kind,action,occurred_at,actor,title,tooth_fdi,href.
-Note/condition event_id is revision UUID; resource_id is note/condition UUID. Evolution
-uses its UUID for both. Event identity is `(kind,event_id)`; revisions remain separate.
-Titles are fixed Spanish labels; tooth is optional and unknown actor/name stays null.
-Activity contains no note/evolution text, contact or RUT.
+all/evolutions/notes/diagnoses/treatments/plans/clinical_notes. Events project approved
+evolution created_at and manual note/condition/treatment/plan/clinical-note revision
+changed_at, never clinician-editable evolution_at or draft content. Each item has
+event_id,resource_id,kind,action,occurred_at,actor,title,tooth_fdi,href.
+Note/condition/treatment/plan/clinical-note event_id is the revision UUID; resource_id is
+the resource UUID. Evolution uses its UUID for both. Event identity is `(kind,event_id)`;
+revisions remain separate. Titles are fixed Spanish labels; tooth is optional and unknown
+actor/name stays null. Activity contains no note/evolution text, contact or RUT.
 
 Evolution href is `/patients/{patient_id}/evolutions/{id}`. Note/condition href uses
-`?tab=info&note={id}` / `?tab=clinical&clinical=diagnosis&condition={id}`. The ficha
-commits canonical query state on every view change: `tab=clinical&clinical=diagnosis|evolutions`,
-plus the focused condition UUID only inside diagnosis. Switching to evolutions drops the
-condition focus; leaving clinical drops clinical params while preserving unrelated safe
-parameters. Unknown tab/clinical enums default to Resumen/diagnosis and a malformed
-condition UUID never fetches. Clinical text, patient name, note and RUT never enter
-the URL. Exact owned GET lets UI focus resources beyond page1, selects matching
-dentition and opens latest state with history. Inaccessible target has named
-not-found recovery within its accessible ficha.
+`?tab=info&note={id}` / `?tab=clinical&clinical=diagnosis&condition={id}`. Observed-treatment
+href is `?tab=clinical&clinical=diagnosis&treatment={id}`; a plan-linked treatment correction
+adds `&plan={plan}&history=1`. Plan href is
+`?tab=clinical&clinical=plans&plan={id}&history=1`; dental-note href is
+`?tab=clinical&clinical=diagnosis&dental_note={id}`. The ficha
+commits canonical query state on every view change:
+`tab=clinical&clinical=diagnosis|evolutions|planning|plans`, plus the focused
+condition/treatment/plan/dental-note UUID only inside its owning section. Switching
+sections drops the previous resource focus; leaving clinical drops clinical params
+while preserving unrelated safe parameters. Unknown tab/clinical enums default to
+Resumen/diagnosis and a malformed resource UUID never fetches. Clinical text, patient
+name, note and RUT never enter the URL. Exact owned GET lets UI focus resources beyond
+page1, selects matching dentition and opens latest state with history. Inaccessible
+target has named not-found recovery within its accessible ficha.
 
 New clinical 404 envelope is `detail:{code:"not_found",message:"Registro no encontrado"}`.
 Revision 409 includes code,resource_id,current_revision. Validation 422 uses FastAPI's

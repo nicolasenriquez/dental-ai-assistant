@@ -46,7 +46,9 @@ autonomous scribe tools and from generic chat assistants.
   activation only inspects saved records. With an active tool, whole-tooth or occlusal-surface
   activation records a condition; lateral surface selection records on Confirmar. Tool selection
   and hover never write. Retry-safe commands, revision conflicts and history remain available;
-  Deshacer marks the new record entered in error without deleting its history.
+  Deshacer marks the new record entered in error without deleting its history. The chart uses
+  independently authored anatomical profiles, an illustrated eight-category palette and a
+  five-group legend; tool/hover previews never write.
 - Existing dental procedures: fixed Spanish variants in eight categories share the diagnosis
   chart and FDI list. Active-tool tooth/surface activation records observed work separately from
   findings. Saved-procedure edits require Guardar; reasoned corrections retain original evidence,
@@ -63,8 +65,13 @@ autonomous scribe tools and from generic chat assistants.
   completed sessions remain immutable. Items with performed work finalize when no session remains
   pending; all-cancelled items never claim performed work. Plans complete automatically only when
   every item is completed. Reasoned linked corrections retain sessions and leave plan state intact.
-- Activity: persisted approved evolution saves and note/condition revisions, filtered by category
-  with exact resource links. Counts and dates come from storage; unavailable authors stay unknown.
+- Dental clinical notes: diagnosis, observed-procedure and plan notes with independently authored
+  Spanish templates, optional tooth association and link highlights. Body-only edits, logical
+  deletes and per-note history are receipt-backed; one composer is shared by the diagnosis rail
+  and the narrow Sheet. Images/PDF attachments are not implemented.
+- Activity: persisted approved evolution saves and note/condition/treatment/plan/clinical-note
+  revisions, filtered by category with exact resource links. Counts and dates come from storage;
+  unavailable authors stay unknown.
 - Pending Work projects approvals, recoverable drafts and failed Drive exports;
   it does not create another clinical workflow or storage path.
 - Evolutions: five structured fields, source-note provenance, review flags, stale-draft detection.
@@ -88,7 +95,13 @@ register); technical documentation is English.
 - `design-qa.md` and `docs/assistant-drive-ui-audit.md` — historical visual/UX evidence, not contracts.
 - Playwright visual and ARIA snapshots under `app/frontend/tests/__snapshots__/`.
 - Vitest suite covering clinical lifecycle, Drive, patients, chat, voice.
+- Mirror-workspace evidence under `openspec/changes/mirror-dental-diagnosis-workspace/`
+  (per-slice evidence, release-gate notes, synthetic isolated-DB snapshots).
 Do not fabricate testimonials, pricing, certifications, or clinical outcome claims.
+Documented limits: no budgets, billing, appointments, messaging or attachment/gallery domain,
+no AI-generated diagnoses or plans, and no certified clinical standard. Illustrations are
+independently authored, not pixel-identical to any licensed reference. Native browser zoom,
+real-device hardware and reference clinical write UAT are not claimed.
 
 ## Product Principles
 
