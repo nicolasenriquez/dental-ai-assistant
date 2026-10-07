@@ -30,6 +30,59 @@
   --conversation-composer-shadow: 0 10px 28px rgb(0 0 0 / 18%);
   --conversation-dock-bottom-padding: 20px;
   --conversation-focus-ring: var(--accent-glow);
+  --dental-restoration: #60a5fa;
+  --dental-metal: #9ca3af;
+  --dental-temporary: #4ade80;
+  --dental-sealant: #22d3ee;
+  --dental-veneer: #f472b6;
+  --dental-crown: #fbbf24;
+  --dental-provisional: #fde68a;
+  --dental-extraction: #ef4444;
+  --dental-implant: #34d399;
+  --dental-orthodontics: #818cf8;
+  --dental-endodontics: #a78bfa;
+  --dental-post: #a855f7;
+  --dental-retainer: #2dd4bf;
+}
+
+.dental-restoration {
+  color: var(--dental-restoration);
+}
+.dental-metal {
+  color: var(--dental-metal);
+}
+.dental-temporary {
+  color: var(--dental-temporary);
+}
+.dental-sealant {
+  color: var(--dental-sealant);
+}
+.dental-veneer {
+  color: var(--dental-veneer);
+}
+.dental-crown {
+  color: var(--dental-crown);
+}
+.dental-provisional {
+  color: var(--dental-provisional);
+}
+.dental-extraction {
+  color: var(--dental-extraction);
+}
+.dental-implant {
+  color: var(--dental-implant);
+}
+.dental-orthodontics {
+  color: var(--dental-orthodontics);
+}
+.dental-endodontics {
+  color: var(--dental-endodontics);
+}
+.dental-post {
+  color: var(--dental-post);
+}
+.dental-retainer {
+  color: var(--dental-retainer);
 }
 
 * {

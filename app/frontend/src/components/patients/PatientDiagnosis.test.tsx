@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   exact: vi.fn(),
   revisions: vi.fn(),
   correct: vi.fn(),
+  treatmentList: vi.fn(),
+  treatmentCatalog: vi.fn(),
 }));
 vi.mock('../../lib/api', async () => ({
   ...(await vi.importActual('../../lib/api')),
@@ -25,6 +27,8 @@ vi.mock('../../lib/api', async () => ({
   getPatientCondition: mocks.exact,
   getPatientConditionRevisions: mocks.revisions,
   correctPatientCondition: mocks.correct,
+  getPatientTreatments: mocks.treatmentList,
+  getTreatmentCatalog: mocks.treatmentCatalog,
 }));
 const record = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -76,6 +80,13 @@ it('opens an exact error target in its historical filter and guards returning to
   expect(mocks.correct).not.toHaveBeenCalled();
 });
 function mount(items = [record], focusedConditionId?: string, configure?: () => void): void {
+  mocks.treatmentList.mockResolvedValue({ items: [], total: 0, next_cursor: null });
+  mocks.treatmentCatalog.mockResolvedValue({
+    version: 'dental-clinical-v1',
+    categories: [],
+    variants: [],
+    findings: [],
+  });
   mocks.list.mockResolvedValue({ items, total: items.length, next_cursor: null });
   mocks.catalog.mockResolvedValue({
     version: 1,
@@ -418,7 +429,7 @@ it('loads every page and flags incomplete reads and counts rather than displayin
   expect(mocks.list).toHaveBeenNthCalledWith(2, 'p', expect.objectContaining({ cursor: 'page2' }));
   expect(await screen.findByRole('article', { name: 'Pieza 36 · Caries · Activa' })).toBeVisible();
   expect(document.body.textContent).toContain(
-    'Lectura incompleta · 1 registros cargados en 1 piezas; no es un total completo',
+    'Lectura incompleta · 1 registros en 1 piezas; no es un total completo',
   );
 });
 
@@ -776,6 +787,13 @@ it('a persisted correction link retains exact target on failed owned read and re
 });
 
 it('late correction response cannot repaint another patient', async () => {
+  mocks.treatmentList.mockResolvedValue({ items: [], total: 0, next_cursor: null });
+  mocks.treatmentCatalog.mockResolvedValue({
+    version: 'dental-clinical-v1',
+    categories: [],
+    variants: [],
+    findings: [],
+  });
   mocks.list.mockResolvedValue({ items: [record], total: 1, next_cursor: null });
   mocks.catalog.mockResolvedValue({
     version: 1,

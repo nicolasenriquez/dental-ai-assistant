@@ -47,6 +47,11 @@ autonomous scribe tools and from generic chat assistants.
   activation records a condition; lateral surface selection records on Confirmar. Tool selection
   and hover never write. Retry-safe commands, revision conflicts and history remain available;
   Deshacer marks the new record entered in error without deleting its history.
+- Existing dental procedures: fixed Spanish variants in eight categories share the diagnosis
+  chart and FDI list. Active-tool tooth/surface activation records observed work separately from
+  findings. Saved-procedure edits require Guardar; reasoned corrections retain original evidence,
+  replacement links and revision history. Multi-tooth and whole-arch tools explain their unavailable
+  selection scope until the anatomical-selection slice ships.
 - Activity: persisted approved evolution saves and note/condition revisions, filtered by category
   with exact resource links. Counts and dates come from storage; unavailable authors stay unknown.
 - Pending Work projects approvals, recoverable drafts and failed Drive exports;

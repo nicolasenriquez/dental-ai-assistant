@@ -1148,3 +1148,146 @@ export function correctPatientCondition(
     body: JSON.stringify(body),
   });
 }
+
+export interface TreatmentVariant {
+  id: string;
+  label_es: string;
+  category_key: string;
+  clinical_type: string;
+  scope: 'tooth' | 'multi_tooth' | 'global_arch';
+  surface_codes: ToothSurface[];
+  allowed_dentitions: Dentition[];
+  visual_family: string;
+  icon_key: string;
+  palette_role: string;
+  layer_role: string;
+  enabled: boolean;
+  disabled_reason: string | null;
+}
+export interface TreatmentCatalog {
+  version: string;
+  categories: { key: string; label_es: string }[];
+  variants: TreatmentVariant[];
+  findings: ConditionCatalogEntry[];
+}
+export interface TreatmentMember {
+  tooth_fdi: number;
+  role: 'tooth' | 'pillar' | 'pontic';
+  surfaces: ToothSurface[];
+}
+export interface TreatmentInput {
+  id: string;
+  variant_id: string;
+  dentition: Dentition;
+  teeth: TreatmentMember[];
+  note?: string | null;
+}
+export interface PatientTreatment extends TreatmentInput {
+  patient_id: string;
+  catalog_version: string;
+  label_es: string;
+  clinical_type: string;
+  category_key: string;
+  scope: TreatmentVariant['scope'];
+  arch: 'upper' | 'lower' | null;
+  provenance: 'observed_existing' | 'planned_in_clinic';
+  state: 'existing' | 'planned' | 'performed' | 'cancelled' | 'entered_in_error';
+  revision: number;
+  supersedes_id: string | null;
+  replacement_id: string | null;
+  created_by: PatientActor;
+  updated_by: PatientActor;
+  created_at: string;
+  updated_at: string;
+}
+export interface TreatmentReceipt {
+  operation_id: string;
+  resource_id: string;
+  revision: number;
+  changed_resources: { kind: string; id: string; revision: number }[];
+  committed: PatientTreatment;
+}
+export interface CreatePatientTreatment extends TreatmentInput {
+  operation_id: string;
+  expected_revision: 0;
+}
+export interface EditPatientTreatment {
+  operation_id: string;
+  expected_revision: number;
+  note?: string | null;
+  surfaces?: ToothSurface[];
+}
+export interface CorrectPatientTreatment {
+  operation_id: string;
+  expected_revision: number;
+  reason: string;
+  replacement?: TreatmentInput | null;
+}
+export interface TreatmentRevision {
+  id: string;
+  revision: number;
+  action: 'created' | 'edited' | 'corrected';
+  before: PatientTreatment | null;
+  after: PatientTreatment;
+  reason: string | null;
+  actor: PatientActor;
+  changed_at: string;
+}
+export interface TreatmentPage<T> {
+  items: T[];
+  total: number;
+  next_cursor: string | null;
+}
+export function getTreatmentCatalog(): Promise<TreatmentCatalog> {
+  return request('/patients/treatment-catalog');
+}
+export function getPatientTreatments(
+  patientId: string,
+  options: { cursor?: string; limit?: number; dentition?: Dentition } = {},
+): Promise<TreatmentPage<PatientTreatment>> {
+  const query = new URLSearchParams({ limit: String(options.limit ?? 20) });
+  if (options.cursor) query.set('cursor', options.cursor);
+  if (options.dentition) query.set('dentition', options.dentition);
+  return request(`/patients/${patientId}/dental-treatments?${query}`);
+}
+export function getPatientTreatment(patientId: string, id: string): Promise<PatientTreatment> {
+  return request(`/patients/${patientId}/dental-treatments/${id}`);
+}
+export function createPatientTreatment(
+  patientId: string,
+  body: CreatePatientTreatment,
+): Promise<TreatmentReceipt> {
+  return request(`/patients/${patientId}/dental-treatments`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+export function updatePatientTreatment(
+  patientId: string,
+  id: string,
+  body: EditPatientTreatment,
+): Promise<TreatmentReceipt> {
+  return request(`/patients/${patientId}/dental-treatments/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+export function correctPatientTreatment(
+  patientId: string,
+  id: string,
+  body: CorrectPatientTreatment,
+): Promise<TreatmentReceipt> {
+  return request(`/patients/${patientId}/dental-treatments/${id}/corrections`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+export function getPatientTreatmentRevisions(
+  patientId: string,
+  id: string,
+  cursor?: string,
+): Promise<TreatmentPage<TreatmentRevision>> {
+  const query = new URLSearchParams({ limit: '20' });
+  if (cursor) query.set('cursor', cursor);
+  return request(`/patients/${patientId}/dental-treatments/${id}/revisions?${query}`);
+}

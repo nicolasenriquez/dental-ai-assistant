@@ -1,4 +1,10 @@
-import type { ConditionCatalog, ConditionCatalogEntry, Dentition, ToothSurface } from './api';
+import type {
+  ConditionCatalog,
+  ConditionCatalogEntry,
+  Dentition,
+  ToothSurface,
+  TreatmentCatalog,
+} from './api';
 
 // Presentation only. Clinical labels and applicability always come from the server.
 const symbols: Record<string, string> = Object.fromEntries(
@@ -118,6 +124,36 @@ export function conditionGroups(
     groups.set(group.key, group);
   }
   return [...groups.values()];
+}
+
+export function dentalGroups(
+  catalog: ConditionCatalog | null,
+  treatments: TreatmentCatalog | null,
+): ReturnType<typeof conditionGroups> {
+  const findings = conditionGroups(catalog);
+  return [
+    ...findings,
+    ...(treatments?.categories
+      .filter((category) => category.key !== 'diagnosis')
+      .map((category) => ({
+        key: category.key,
+        label: category.label_es,
+        entries: treatments.variants
+          .filter((variant) => variant.category_key === category.key)
+          .map((variant) => ({
+            code: variant.id,
+            label_es: variant.label_es,
+            label: variant.label_es,
+            category_key: category.key,
+            categoryLabel: category.label_es,
+            allowed_dentitions: variant.allowed_dentitions,
+            surface_codes: variant.surface_codes,
+            supported: variant.enabled,
+            symbol: variant.icon_key,
+            symbolUnavailable: false,
+          })),
+      })) ?? []),
+  ];
 }
 export function surfaceDescription(
   catalog: ConditionCatalog | null | undefined,

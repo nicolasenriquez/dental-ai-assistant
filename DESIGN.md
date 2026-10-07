@@ -161,6 +161,14 @@ The palette pairs blue signal accents with cool, low-chroma dark surfaces and so
 - **Danger Red / Error Rose:** Destructive or failed states; reserve error rose for softer supporting copy.
 - **Warning Amber:** Review-needed and caution states; the warning wash and edge form a restrained container.
 
+### Dental clinical colors
+
+The dental registry supplies semantic palette and anatomical-layer roles. Scoped `--dental-*`
+tokens identify restoration, material, crown, implant, endodontic and orthodontic marks in cards,
+chart symbols and record context. These roles do not replace action, focus, navigation or Chat
+colors. Endodontic palette violet remains distinct from its blue anatomical fill role. Labels and
+symbols carry clinical meaning alongside color.
+
 **The Signal-Only Accent Rule.** Let neutral surfaces carry the screen. Use clear blue to identify action, focus, selection, and the active route—not as a decorative fill.
 
 **The Status-Has-Text Rule.** Pair every status color with a symbol or plain status text. Never make color the only carrier of success, warning, or failure.

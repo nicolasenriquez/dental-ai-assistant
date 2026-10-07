@@ -1,8 +1,16 @@
 import { type MouseEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
-import type { ConditionCatalog, Dentition, PatientCondition, ToothSurface } from '../../lib/api';
+import type {
+  ConditionCatalog,
+  Dentition,
+  PatientCondition,
+  PatientTreatment,
+  ToothSurface,
+  TreatmentCatalog,
+} from '../../lib/api';
 import { resolveCondition, surfaceDescription } from '../../lib/odontogramPresentation';
 import { ConditionSymbol } from './ConditionSymbol';
 import { ToothDrawing } from './ToothDrawing';
+import { TreatmentSymbol } from './TreatmentSymbol';
 import { fdiQuadrants, fdiTeeth, surfacePosition, surfaceShapes } from './toothGeometry';
 
 const quadrantLabels = [
@@ -16,6 +24,8 @@ interface OdontogramProps {
   controls?: ReactNode;
   dentition: Dentition;
   conditions: PatientCondition[];
+  treatments?: PatientTreatment[];
+  treatmentCatalog?: TreatmentCatalog | null;
   labels: Record<string, string>;
   catalog?: ConditionCatalog | null;
   selectedTooth: number;
@@ -35,6 +45,8 @@ export function PatientOdontogram({
   controls,
   dentition,
   conditions,
+  treatments = [],
+  treatmentCatalog,
   labels,
   catalog,
   selectedTooth,
@@ -91,7 +103,10 @@ export function PatientOdontogram({
     const records = conditions.filter(
       (item) => item.dentition === dentition && item.tooth_fdi === tooth,
     );
-    return records.length
+    const procedures = treatments.filter(
+      (r) => r.dentition === dentition && r.teeth.some((m) => m.tooth_fdi === tooth),
+    );
+    const text = records.length
       ? records
           .map(
             (item) =>
@@ -101,6 +116,9 @@ export function PatientOdontogram({
       : complete
         ? 'sin condiciones guardadas'
         : 'condiciones no confirmadas';
+    return procedures.length
+      ? `${text}; ${procedures.map((r) => `${r.label_es}, ${r.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}`).join('; ')}`
+      : text;
   };
   const describe = (tooth: number): string => `Pieza ${tooth}: ${describeRecords(tooth)}`;
   return (
@@ -224,6 +242,27 @@ export function PatientOdontogram({
                     />
                   </g>
                 ))}
+                {treatments
+                  .filter(
+                    (r) =>
+                      r.dentition === dentition &&
+                      r.state !== 'entered_in_error' &&
+                      r.teeth.some((m) => m.tooth_fdi === tooth),
+                  )
+                  .map((record, k) => {
+                    const variant = treatmentCatalog?.variants.find(
+                      (v) => v.id === record.variant_id,
+                    );
+                    return variant ? (
+                      <g
+                        key={record.id}
+                        data-treatment-id={record.id}
+                        transform={`translate(${(k % 3) * 13} ${104 + Math.floor(k / 3) * 13}) scale(.55)`}
+                      >
+                        <TreatmentSymbol variant={variant} />
+                      </g>
+                    ) : null;
+                  })}
               </g>
             );
           })}

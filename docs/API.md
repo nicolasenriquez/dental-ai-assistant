@@ -162,6 +162,47 @@ No-op PATCH creates no revision/event. Other 409 codes are active_condition_exis
 (owned existing Condition) and condition_resolved. UI retains draft for explicit
 refresh/rebase rather than overwriting newer work.
 
+### Existing dental procedures
+
+`GET /api/patients/treatment-catalog` requires authentication and returns
+`dental-clinical-v1`, eight Spanish categories, 63 therapeutic variants and twelve preserved
+finding codes. Variants include scope, supported surfaces/dentitions, visual family, icon key and
+separate palette/layer roles. Only single-tooth variants are enabled in this slice; multi-tooth and
+whole-arch entries include a disabled explanation and their commands return422.
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /api/patients/{p}/dental-treatments` | Owned page with `items,total,next_cursor` |
+| `POST /api/patients/{p}/dental-treatments` | Record observed existing work |
+| `GET /api/patients/{p}/dental-treatments/{t}` | Owned committed snapshot |
+| `PATCH /api/patients/{p}/dental-treatments/{t}` | Explicit note/surface edit |
+| `POST /api/patients/{p}/dental-treatments/{t}/corrections` | Reasoned logical reversal, optional replacement |
+| `GET /api/patients/{p}/dental-treatments/{t}/revisions` | Actor/time, before/after and correction evidence |
+
+Create body contains stable UUID `id`, UUID `operation_id`, `expected_revision:0`, `variant_id`,
+`dentition`, one `teeth:[{tooth_fdi,role:"tooth",surfaces:[]}]` member and optional `note` (max1000).
+The server snapshots Spanish variant metadata, sets `state:"existing"` and
+`provenance:"observed_existing"`, and derives actor/time. It creates no finding or planned execution.
+FDI must match the dentition; surfaces are canonical M/D/O/V/L, unique and supported by the variant.
+No pediatric-only or vestibular-only restriction is inferred from a label or icon.
+
+PATCH contains `operation_id`, current `expected_revision`, and `note` and/or `surfaces`.
+Correction contains `operation_id`, current `expected_revision`, nonempty `reason` (max1000) and
+optional `replacement` with the create fields except operation/revision. Original becomes
+`entered_in_error`; original/replacement links and before/after snapshots remain readable.
+
+Every write atomically commits rows, members, revisions and its durable receipt. Receipt contains
+`operation_id,resource_id,revision,changed_resources,committed`. Identical operation replay returns
+the original committed snapshot before checking current revision. Changed payload or repeated
+resource UUID under a new operation returns409; stale edit returns409 with latest authorized
+snapshot. Foreign resources return404; unknown fields and invalid anatomy return422.
+Create/correction return201 on first commit and200 on exact replay; edits return200.
+
+Lists default to20 and allow1..100. Cursor binds owner/patient/dentition or history resource and
+orders by descending time/UUID. Reads include logical errors for history access; diagnosis filters
+current/error states locally. Later-page failure is reported as incomplete with a read-only retry.
+Application rollback retains additive migration0025 tables and their clinical evidence.
+
 ### Bounded lists and Activity
 
 Notes, conditions, revisions and Activity return `{items,next_cursor,total}`.
