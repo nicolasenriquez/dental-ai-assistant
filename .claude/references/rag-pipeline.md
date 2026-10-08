@@ -1,7 +1,6 @@
 # Reference: RAG & ingestion pipeline
 
-On-demand detail for work in `rag/`, `ingest/`, `services/`, `llm/`. Full `file:line` evidence lives in
-`docs/codebase-analysis.md` (§ RAG & ingestion pipeline). The CLAUDE.md "RAG pipeline invariants" are the
+On-demand detail for work in `rag/`, `ingest/`, `services/`, `llm/`. The CLAUDE.md "RAG pipeline invariants" are the
 contract; this is the how.
 
 **Flow.** A source becomes `videos` + `chunks` rows: acquire transcript → `chunk_video_timestamped()` (Docling

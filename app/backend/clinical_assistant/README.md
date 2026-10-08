@@ -33,6 +33,6 @@ card. Every stream event uses schema version 1 with event ID, monotonic
 sequence, thread/turn/item IDs, type, status, and data; clients discard events
 that fail validation or belong to another thread or turn.
 
-See [clinical grounding operations](../../../docs/clinical-grounding.md) for
+See [clinical grounding operations](../../../knowledge/clinical/CONTEXT.md) for
 catalog synchronization, provenance/release hold, privacy-safe telemetry, and
 the deferred `improve-clinical-run-lifecycle` boundary.

@@ -12,7 +12,7 @@ and, for every source referenced by an active concept:
 - `review_status = "reviewed"` — rights analysis recorded
 
 All imported cards and sources are unresolved, so the gate fails today. That
-is the correct state: `docs/clinical-grounding.md` holds release until
+is the correct state: this release policy holds release until
 permission and entry-level evidence exist. Passing the build or checksum
 proves artifact identity, never rights or clinical correctness.
 

@@ -1,4 +1,8 @@
-"""Authenticated patient-local clinical plan authoring and history."""
+"""Authenticated patient-local clinical plan history and item/stage editing.
+
+Plan creation was retired (POST returns 410); read, item, and stage commands
+remain for existing plans.
+"""
 
 from typing import Any
 from uuid import UUID

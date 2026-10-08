@@ -17,7 +17,7 @@ Usage (from app/backend/):
 ``--check`` never writes: it fails when the checked-in artifact drifts from
 the workspace. ``--release-check`` fails while per-concept review or
 source-level reuse rights remain unresolved; a successful build is not a
-release decision (see docs/clinical-grounding.md).
+release decision (see knowledge/clinical/_meta/release-policy.md).
 
 Exit codes: 0 success; 1 validation, drift, or build failure; 2 release gate.
 """

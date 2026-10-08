@@ -39,4 +39,4 @@ uv run python scripts/build_clinical_catalog.py --release-check
 `--check` fails on drift and never writes. `--release-check` also checks
 artifact parity, then fails while review or reuse rights are unresolved.
 Neither command establishes permission; current hold lives in
-`../../docs/clinical-grounding.md`.
+`_meta/release-policy.md`.

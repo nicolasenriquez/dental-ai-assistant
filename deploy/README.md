@@ -71,7 +71,7 @@ docker run --rm --mount "type=bind,source=$(pwd),target=/src,readonly" \
 Nonzero exit blocks production deployment. This checks artifact parity and
 declared review state; human verification of clinical and reuse evidence
 remains necessary. The existing catalog currently fails this check by design
-(see `docs/clinical-grounding.md`).
+(see `knowledge/clinical/_meta/release-policy.md`).
 
 Clinical drafting uses synthetic data only in development, automated tests, and
 manual evaluation. Production defaults

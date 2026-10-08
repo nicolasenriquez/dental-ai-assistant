@@ -132,7 +132,7 @@ Deep, task-type-specific detail lives in `.claude/references/` and loads **only 
 - **Structural / architecture decisions** → `.claude/references/architecture-patterns.md` — why the file structure is shaped the way it is.
 - **Adding a new feature area / slice** → `.claude/references/vertical-slice-architecture.md` — the vertical-slice pattern this repo follows.
 - **Deployment / external-API integration** (`deploy/`, Supadata, OpenRouter) → `.claude/references/deployment.md` — the compose stack, the blue/green invariant, and the mocked-boundary testing pattern.
-- **Clinical knowledge authoring** (`knowledge/clinical/`) → `knowledge/clinical/CONTEXT.md` — concept cards, the source registry, the deterministic compiler, and release gates. Runtime behavior and the catalog release hold stay in `docs/clinical-grounding.md`.
+- **Clinical knowledge authoring** (`knowledge/clinical/`) → `knowledge/clinical/CONTEXT.md` — concept cards, the source registry, the deterministic compiler, and release gates. Runtime behavior and the catalog release hold are described in the same tree (`_meta/release-policy.md`).
 
 These are **pointers, not `@`-imports**: the guide is pulled in on demand when you're doing that kind of work, so the always-on rules stay lean. (An `@`-import would load the file into context every session — always-on, not on-demand.)
 

@@ -1,7 +1,9 @@
 # Reference: backend testing harness
 
 On-demand detail for writing backend tests under `app/backend/tests/`. Run from `app/backend/` with
-`uv run pytest tests -xvs`. Full evidence in `docs/codebase-analysis.md` (§ Tooling, tests, commands & deploy).
+`uv run pytest tests -xvs`. Live-Postgres suites opt in via `*_LIVE_TEST_DSN` env vars
+(`CLINICAL_LIVE_TEST_DSN`, `CLINICAL_EXPORT_LIVE_TEST_DSN`, `DRIVE_LIVE_TEST_DSN`,
+`INGESTION_LIVE_TEST_DSN`, `WORKSPACE_LIVE_TEST_DSN`) against a migrated scratch database.
 
 **Shape.** Flat `tests/` directory (no unit/integration split). `asyncio_mode="auto"`, so a plain
 `async def test_*` works with no decorator. Integration tests drive the FastAPI app through `httpx.AsyncClient`.

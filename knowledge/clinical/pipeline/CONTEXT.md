@@ -2,7 +2,7 @@
 
 Working files stay in `../concepts/<domain>/` and `../sources/sources.toml`.
 No patient data belongs here. Rules live in `../_meta/`; release hold lives in
-`../../../docs/clinical-grounding.md`.
+`../../_meta/release-policy.md`.
 
 1. **Intake.** Input: source and proposed term/definition. Register source,
    then draft concept using `../_meta/schema.md`. Output: one concept card,
