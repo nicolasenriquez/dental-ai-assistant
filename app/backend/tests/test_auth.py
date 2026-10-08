@@ -151,6 +151,95 @@ async def test_duplicate_signup_returns_409(client):
     assert r2.status_code == 409
 
 
+async def test_duplicate_signup_never_acquires_nested_connection(client, monkeypatch):
+    """Regression: duplicate signup must release its connection before auditing."""
+    from backend.routes import auth as auth_route
+
+    holds = {"n": 0}
+
+    class TrackingConn:
+        def transaction(self):
+            return self
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    class TrackingAcquire:
+        async def __aenter__(self):
+            holds["n"] += 1
+            assert holds["n"] == 1, "nested pool acquire while a connection is held"
+            return TrackingConn()
+
+        async def __aexit__(self, *exc):
+            holds["n"] -= 1
+            return False
+
+    class TrackingPool:
+        def acquire(self):
+            return TrackingAcquire()
+
+    monkeypatch.setattr(auth_route, "get_pg_pool", lambda: TrackingPool())
+
+    creds = {"email": "nested@example.com", "password": "password123"}
+    r1 = await client.post("/api/auth/signup", json=creds)
+    assert r1.status_code == 201
+    r2 = await client.post("/api/auth/signup", json=creds)
+    assert r2.status_code == 409
+
+
+async def test_signup_rejects_password_over_72_utf8_bytes(client):
+    r = await client.post(
+        "/api/auth/signup",
+        json={"email": "long@example.com", "password": "a" * 73},
+    )
+    assert r.status_code == 422
+
+
+async def test_signup_rejects_multibyte_password_over_72_bytes(client):
+    r = await client.post(
+        "/api/auth/signup",
+        json={"email": "multi@example.com", "password": "\u00e9" * 37},
+    )
+    assert r.status_code == 422
+
+
+async def test_signup_accepts_password_at_72_utf8_bytes(client):
+    r = await client.post(
+        "/api/auth/signup",
+        json={"email": "maxbytes@example.com", "password": "a" * 72},
+    )
+    assert r.status_code == 201
+
+
+async def test_signup_hashes_password_off_event_loop(client, monkeypatch):
+    """Regression: cost-12 bcrypt must not run on the event-loop thread."""
+    import threading
+
+    import bcrypt as bcrypt_mod
+
+    from backend.routes import auth as auth_route
+
+    main_thread = threading.main_thread()
+    seen: dict[str, bool] = {}
+
+    def fake_hash(plaintext: str) -> str:
+        seen["off_loop"] = threading.current_thread() is not main_thread
+        return bcrypt_mod.hashpw(plaintext.encode("utf-8"), bcrypt_mod.gensalt(rounds=4)).decode(
+            "utf-8"
+        )
+
+    monkeypatch.setattr(auth_route, "hash_password", fake_hash)
+    r = await client.post(
+        "/api/auth/signup",
+        json={"email": "thread@example.com", "password": "password123"},
+    )
+    assert r.status_code == 201
+    assert seen.get("off_loop") is True
+
+
 # ---------------------------------------------------------------------------
 # /api/auth/login
 # ---------------------------------------------------------------------------
@@ -182,6 +271,33 @@ async def test_login_with_wrong_password_returns_401(client):
         json={"email": "carol@example.com", "password": "wrong-password"},
     )
     assert r.status_code == 401
+
+
+async def test_login_verifies_password_off_event_loop(client, monkeypatch):
+    """Regression: bcrypt verification must not run on the event-loop thread."""
+    import threading
+
+    from backend.routes import auth as auth_route
+
+    main_thread = threading.main_thread()
+    seen: dict[str, bool] = {}
+
+    def fake_verify(plaintext: str, password_hash: str) -> bool:
+        seen["off_loop"] = threading.current_thread() is not main_thread
+        return plaintext == "password123"
+
+    monkeypatch.setattr(auth_route, "verify_password", fake_verify)
+    await client.post(
+        "/api/auth/signup",
+        json={"email": "verify@example.com", "password": "password123"},
+    )
+    client.cookies.clear()
+    r = await client.post(
+        "/api/auth/login",
+        json={"email": "verify@example.com", "password": "password123"},
+    )
+    assert r.status_code == 200
+    assert seen.get("off_loop") is True
 
 
 async def test_login_unknown_email_returns_401(client):

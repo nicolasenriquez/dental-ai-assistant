@@ -61,6 +61,13 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
 
+    @field_validator("password")
+    @classmethod
+    def password_fits_bcrypt(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("La contraseña no puede superar 72 bytes codificados en UTF-8.")
+        return value
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -215,6 +222,8 @@ async def signup(
     ip = _client_ip(request)
     pool = get_pg_pool()
 
+    duplicate = False
+    user: dict[str, Any] | None = None
     async with pool.acquire() as conn, conn.transaction():
         try:
             await signup_rate_limit.check(ip, conn)
@@ -230,26 +239,31 @@ async def signup(
                 },
             )
 
-        password_hash = hash_password(body.password)
+        password_hash = await asyncio.to_thread(hash_password, body.password)
         try:
-            user = await users_repo.create_local_user(
-                email=body.email, password_hash=password_hash, conn=conn
-            )
-        except asyncpg.UniqueViolationError as exc:
-            # The user insert that raised left the transaction in an aborted
-            # state (asyncpg's savepoint semantics). Record the duplicate on
-            # a fresh connection so the audit row still lands; the outer txn
-            # will roll back harmlessly.
-            pool_for_record = get_pg_pool()
-            async with pool_for_record.acquire() as record_conn:
-                await signup_rate_limit.record(
-                    record_conn, ip=ip, email_attempted=body.email, outcome="duplicate"
+            # Savepoint: a unique-violation rolls back only this inner scope,
+            # leaving the outer transaction healthy for a clean release.
+            async with conn.transaction():
+                user = await users_repo.create_local_user(
+                    email=body.email, password_hash=password_hash, conn=conn
                 )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
-            ) from exc
+        except asyncpg.UniqueViolationError:
+            # Audit AFTER releasing this connection: never acquire a second
+            # connection while the first is still held.
+            duplicate = True
+        else:
+            await signup_rate_limit.record(
+                conn, ip=ip, email_attempted=body.email, outcome="accepted"
+            )
 
-        await signup_rate_limit.record(conn, ip=ip, email_attempted=body.email, outcome="accepted")
+    if duplicate:
+        async with pool.acquire() as record_conn:
+            await signup_rate_limit.record(
+                record_conn, ip=ip, email_attempted=body.email, outcome="duplicate"
+            )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    assert user is not None
 
     # Verify Circle membership AFTER the user-creation transaction commits.
     # Holding a DB connection across an external HTTP call would block the
@@ -273,7 +287,11 @@ async def login(body: LoginRequest, response: Response) -> UserResponse | JSONRe
     # before password verification, so a mode change can never make a
     # Google-only user password-loginable.
     password_hash = user.get("password_hash") if user else None
-    if not user or not password_hash or not verify_password(body.password, password_hash):
+    if (
+        not user
+        or not password_hash
+        or not await asyncio.to_thread(verify_password, body.password, password_hash)
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
         )
