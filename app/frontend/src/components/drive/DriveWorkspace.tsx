@@ -474,6 +474,7 @@ export function DriveWorkspace({
 
   const handleOpen = async (file: DriveFile) => {
     if (!patientId) return;
+    const sequence = ++openSequence.current;
     const boundPatientId = patientId;
     setDoc({
       fileId: file.id,
@@ -491,15 +492,16 @@ export function DriveWorkspace({
     setInsertionFeedback(null);
     try {
       const content = await getDriveFile(file.id, patientId);
-      if (patientIdRef.current === boundPatientId) {
+      if (sequence === openSequence.current && patientIdRef.current === boundPatientId) {
         showLoadedFile(content, boundPatientId);
       }
     } catch {
+      if (sequence !== openSequence.current) return;
       setDoc(null);
       setDebugErrorMessage(null);
       setErrorMessage('No se pudo completar la acción');
     } finally {
-      setDocPhase('ready');
+      if (sequence === openSequence.current) setDocPhase('ready');
     }
   };
 

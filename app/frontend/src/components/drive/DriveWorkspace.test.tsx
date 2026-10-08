@@ -647,6 +647,53 @@ describe('document preview and edit', () => {
       screen.queryByRole('textbox', { name: 'Contenido del documento' }),
     ).not.toBeInTheDocument();
   });
+
+  it('does not reopen a document whose open resolved after Volver', async () => {
+    const gate = deferred<typeof fileBody & { content: string }>();
+    getDriveFileMock.mockReturnValueOnce(gate.promise);
+    listDriveFilesMock.mockResolvedValue({ files: [fileBody], next_page_token: null });
+    renderWorkspace();
+
+    await openFirstFile();
+    await screen.findByLabelText('Abriendo documento');
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
+    await screen.findByRole('button', { name: 'Abrir nota.txt' });
+
+    await act(async () => {
+      gate.resolve({ ...fileBody, content: 'respuesta tardía' });
+      await gate.promise;
+    });
+
+    expect(screen.queryByText('respuesta tardía')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Contenido del documento' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('late failure of a closed open does not displace the current document', async () => {
+    let rejectGate!: (e: Error) => void;
+    const gatePromise = new Promise<typeof fileBody & { content: string }>((_, reject) => {
+      rejectGate = reject;
+    });
+    getDriveFileMock.mockReturnValueOnce(gatePromise);
+    const fileB = { ...fileBody, id: 'f2', name: 'otra.txt', version: '1' };
+    listDriveFilesMock.mockResolvedValue({ files: [fileBody, fileB], next_page_token: null });
+    renderWorkspace();
+
+    await openFirstFile('nota.txt');
+    await screen.findByLabelText('Abriendo documento');
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
+    await openFirstFile('otra.txt');
+    await screen.findByText('**negrita**');
+
+    await act(async () => {
+      rejectGate(new Error('late failure'));
+      await gatePromise.catch(() => {});
+    });
+
+    expect(screen.getByText('**negrita**')).toBeInTheDocument();
+    expect(screen.queryByText('No se pudo completar la acción')).not.toBeInTheDocument();
+  });
 });
 
 describe('accessibility', () => {
