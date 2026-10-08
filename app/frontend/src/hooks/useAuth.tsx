@@ -182,26 +182,33 @@ function useAuthState(): UseAuthResult {
     }
   }, [authConfig]);
 
+  // Shared session finalization: load /me, then complete the Drive bootstrap
+  // and land in a ready state. Used by login, Google login, and signup so no
+  // entry point can leave the discriminated status stuck on anonymous.
+  const finishSession = useCallback(async () => {
+    const u = await me();
+    setUser(u);
+    const cfg = authConfig;
+    if (!cfg) {
+      setStatus('ready');
+      return;
+    }
+    await driveBootstrap(cfg, () => false);
+  }, [authConfig]);
+
   const doLogin = useCallback(
     async (email: string, password: string) => {
       setError(null);
       try {
         await apiLogin(email, password);
-        const u = await me();
-        setUser(u);
-        const cfg = authConfig;
-        if (!cfg) {
-          setStatus('ready');
-          return;
-        }
-        await driveBootstrap(cfg, () => false);
+        await finishSession();
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Login failed';
         setError(msg);
         throw e;
       }
     },
-    [authConfig],
+    [finishSession],
   );
 
   const doLoginWithGoogle = useCallback(
@@ -211,14 +218,7 @@ function useAuthState(): UseAuthResult {
       try {
         await apiLoginWithGoogle(credential);
         setStatus('establishing-session');
-        const u = await me();
-        setUser(u);
-        const cfg = authConfig;
-        if (!cfg) {
-          setStatus('ready');
-          return;
-        }
-        await driveBootstrap(cfg, () => false);
+        await finishSession();
       } catch (e) {
         setUser(null);
         setStatus(anonStatusFor(authConfig?.mode));
@@ -227,7 +227,7 @@ function useAuthState(): UseAuthResult {
         throw e;
       }
     },
-    [authConfig],
+    [finishSession, authConfig],
   );
 
   const doSignup = useCallback(
@@ -235,14 +235,14 @@ function useAuthState(): UseAuthResult {
       setError(null);
       try {
         await apiSignup(email, password);
-        await refresh();
+        await finishSession();
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Signup failed';
         setError(msg);
         throw e;
       }
     },
-    [refresh],
+    [finishSession],
   );
 
   const doLogout = useCallback(async () => {

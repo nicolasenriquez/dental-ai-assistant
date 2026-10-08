@@ -83,6 +83,7 @@ const loginWithGoogleMock = authApi.loginWithGoogle as unknown as Mock;
 type HookWithBootstrap = {
   status: unknown;
   loginWithGoogle: (credential: string) => Promise<void>;
+  signup: (email: string, password: string) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -177,6 +178,53 @@ describe('useAuth bootstrap state machine', () => {
     await act(async () => asBootstrapHook(result).refresh());
 
     expect(asBootstrapHook(result).status).toBe('ready-without-drive');
+  });
+
+  it('completes local signup into a ready session', async () => {
+    const signupMock = authApi.signup as unknown as Mock;
+    const gate = deferred<void>();
+    signupMock.mockReturnValue(gate.promise);
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(asBootstrapHook(result).status).toBe('unauthenticated-local'));
+
+    let signupPromise: Promise<void> | undefined;
+    act(() => {
+      signupPromise = asBootstrapHook(result).signup('ana@gmail.com', 'password123');
+    });
+    meMock.mockResolvedValue(mePayload);
+    act(() => {
+      gate.resolve();
+    });
+    await waitFor(() => expect(asBootstrapHook(result).status).toBe('ready'));
+    await act(async () => {
+      await signupPromise;
+    });
+    expect(signupMock).toHaveBeenCalledWith('ana@gmail.com', 'password123');
+  });
+
+  it('completes local signup including Drive bootstrap when enabled', async () => {
+    const signupMock = authApi.signup as unknown as Mock;
+    signupMock.mockResolvedValue(undefined);
+    getAuthConfigMock.mockResolvedValue({ ...localConfig, drive_enabled: true });
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(asBootstrapHook(result).status).toBe('unauthenticated-local'));
+
+    meMock.mockResolvedValue(mePayload);
+    await act(async () => asBootstrapHook(result).signup('ana@gmail.com', 'password123'));
+
+    expect(asBootstrapHook(result).status).toBe('ready');
+    expect(driveApi.getDriveStatus).toHaveBeenCalled();
+  });
+
+  it('signup with failed /me stays anonymous and surfaces the error', async () => {
+    const signupMock = authApi.signup as unknown as Mock;
+    signupMock.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(asBootstrapHook(result).status).toBe('unauthenticated-local'));
+
+    await expect(asBootstrapHook(result).signup('ana@gmail.com', 'password123')).rejects.toThrow();
+
+    expect(asBootstrapHook(result).status).toBe('unauthenticated-local');
   });
 });
 
