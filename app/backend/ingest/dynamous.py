@@ -33,15 +33,14 @@ logged but never crash the app — DynaChat keeps working with whatever it has.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
-import json
 import logging
 import re
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
-from backend.db.postgres import get_pg_pool
+from backend.db import dynamous_repo
 from backend.rag.chunker import chunk_video_timestamped
 from backend.rag.embeddings import embed_batch
 
@@ -137,39 +136,41 @@ def _hash_body(body: str) -> str:
 async def ingest_dynamous_content(content_dir: Path) -> dict[str, int]:
     """Walk *content_dir* and upsert all `*.md` transcripts.
 
-    Returns a counts dict: `{scanned, unchanged, ingested, errors}`.
+    Returns a counts dict: `{scanned, unchanged, metadata_updated, ingested,
+    errors}`.
 
     Idempotent on no-content-change: re-running with no file changes is a
-    pure read-only sweep (one SELECT per file).
+    pure read-only sweep (one SELECT per file). Metadata-only changes refresh
+    the source row without re-embedding.
     """
-    counts = {"scanned": 0, "unchanged": 0, "ingested": 0, "errors": 0}
+    counts = {"scanned": 0, "unchanged": 0, "metadata_updated": 0, "ingested": 0, "errors": 0}
     if not content_dir.exists():
         logger.info("Dynamous content dir %s does not exist — skipping ingest", content_dir)
         return counts
 
-    pool = get_pg_pool()
     for md_path in sorted(content_dir.rglob("*.md")):
         counts["scanned"] += 1
         rel_path = str(md_path.relative_to(content_dir))
         try:
-            await _ingest_one_file(md_path, rel_path, pool, counts)
+            await _ingest_one_file(md_path, rel_path, counts)
         except Exception:
             counts["errors"] += 1
             logger.exception("Failed to ingest %s", rel_path)
 
     logger.info(
-        "Dynamous ingest complete: scanned=%d unchanged=%d ingested=%d errors=%d",
+        "Dynamous ingest complete: scanned=%d unchanged=%d metadata_updated=%d ingested=%d errors=%d",
         counts["scanned"],
         counts["unchanged"],
+        counts["metadata_updated"],
         counts["ingested"],
         counts["errors"],
     )
     return counts
 
 
-async def _ingest_one_file(md_path: Path, rel_path: str, pool: Any, counts: dict[str, int]) -> None:
-    """Process one transcript file. Idempotent."""
-    text = md_path.read_text(encoding="utf-8")
+async def _ingest_one_file(md_path: Path, rel_path: str, counts: dict[str, int]) -> None:
+    """Process one transcript file. Idempotent; holds no connection while preparing."""
+    text = await asyncio.to_thread(md_path.read_text, encoding="utf-8")
     fm, body = _parse_frontmatter(text)
     body_hash = _hash_body(body)
 
@@ -180,109 +181,57 @@ async def _ingest_one_file(md_path: Path, rel_path: str, pool: Any, counts: dict
     # blob preserves it for future reporting / reverse lookups.
     metadata = {k: v for k, v in fm.items() if k not in {"title", "lesson_url"}}
 
-    async with pool.acquire() as conn:
-        existing = await conn.fetchrow(
-            """
-            SELECT id, content_hash
-            FROM videos
-            WHERE content_path = $1 AND source_type = 'dynamous'
-            LIMIT 1
-            """,
-            rel_path,
-        )
-
-        if existing and existing["content_hash"] == body_hash:
+    existing = await dynamous_repo.get_source_state(rel_path)
+    if existing and existing["content_hash"] == body_hash:
+        stored_meta = existing["metadata"] or {}
+        if (
+            existing["title"] == title
+            and existing["lesson_url"] == lesson_url
+            and stored_meta == metadata
+        ):
             counts["unchanged"] += 1
             return
+        # Body unchanged but frontmatter changed: refresh the source row only.
+        await dynamous_repo.update_source_metadata(str(existing["id"]), title, lesson_url, metadata)
+        counts["metadata_updated"] += 1
+        return
 
-        # Need to (re)chunk and (re)embed.
-        segments = _parse_segments(body)
-        if not segments:
-            logger.warning("No content extracted from %s; skipping", rel_path)
-            return
+    # Preparation (parse, chunk, embed) runs with no connection held.
+    segments = _parse_segments(body)
+    if not segments:
+        logger.warning("No content extracted from %s; skipping", rel_path)
+        return
 
-        chunks, _ = chunk_video_timestamped(segments)
-        if not chunks:
-            logger.warning("Chunker returned 0 chunks for %s; skipping", rel_path)
-            return
+    chunks, _ = chunk_video_timestamped(segments)
+    if not chunks:
+        logger.warning("Chunker returned 0 chunks for %s; skipping", rel_path)
+        return
 
-        # Embed chunks in groups of <=100 per call. text-embedding-3-small's
-        # 300k-token-per-request budget is roughly enough for ~600 typical
-        # chunks, but the largest workshops have >1000 chunks and overflow
-        # in one shot — splitting keeps each request well under the limit.
-        # Sequential per-chunk calls (the original loop) were ~30-100x slower
-        # on first-time ingest; one batched call per file when possible.
-        BATCH_SIZE = 100
-        embeddings: list[list[float]] = []
-        for start in range(0, len(chunks), BATCH_SIZE):
-            group = chunks[start : start + BATCH_SIZE]
-            embeddings.extend(embed_batch([ch["content"] for ch in group]))
+    # Embed chunks in groups of <=100 per call. text-embedding-3-small's
+    # 300k-token-per-request budget is roughly enough for ~600 typical
+    # chunks, but the largest workshops have >1000 chunks and overflow
+    # in one shot — splitting keeps each request well under the limit.
+    # Sequential per-chunk calls (the original loop) were ~30-100x slower
+    # on first-time ingest; one batched call per file when possible.
+    BATCH_SIZE = 100
+    embeddings: list[list[float]] = []
+    for start in range(0, len(chunks), BATCH_SIZE):
+        group = chunks[start : start + BATCH_SIZE]
+        embeddings.extend(await asyncio.to_thread(embed_batch, [ch["content"] for ch in group]))
 
-        async with conn.transaction():
-            if existing:
-                # Replace: drop old chunks, update source row.
-                video_id = str(existing["id"])
-                await conn.execute("DELETE FROM chunks WHERE video_id = $1", video_id)
-                await conn.execute(
-                    """
-                    UPDATE videos
-                    SET title = $2,
-                        lesson_url = $3,
-                        content_hash = $4,
-                        metadata = $5::jsonb
-                    WHERE id = $1
-                    """,
-                    video_id,
-                    title,
-                    lesson_url,
-                    body_hash,
-                    json.dumps(metadata),
-                )
-            else:
-                video_id = str(uuid4())
-                await conn.execute(
-                    """
-                    INSERT INTO videos (
-                        id, title, description, url, transcript,
-                        source_type, content_hash, content_path, lesson_url, metadata
-                    )
-                    VALUES (
-                        $1, $2, '', '', '',
-                        'dynamous', $3, $4, $5, $6::jsonb
-                    )
-                    """,
-                    video_id,
-                    title,
-                    body_hash,
-                    rel_path,
-                    lesson_url,
-                    json.dumps(metadata),
-                )
+    await dynamous_repo.replace_source(
+        rel_path=rel_path,
+        existing_video_id=str(existing["id"]) if existing else None,
+        title=title,
+        lesson_url=lesson_url,
+        body_hash=body_hash,
+        metadata=metadata,
+        chunks=chunks,
+        embeddings=embeddings,
+    )
 
-            for idx, (ch, emb) in enumerate(zip(chunks, embeddings, strict=True)):
-                await conn.execute(
-                    """
-                    INSERT INTO chunks (
-                        id, video_id, content, embedding, chunk_index,
-                        start_seconds, end_seconds, snippet, source_type
-                    )
-                    VALUES (
-                        $1, $2, $3, $4, $5,
-                        $6, $7, $8, 'dynamous'
-                    )
-                    """,
-                    str(uuid4()),
-                    video_id,
-                    ch["content"],
-                    json.dumps(emb),
-                    idx,
-                    float(ch.get("start_seconds", 0.0)),
-                    float(ch.get("end_seconds", 0.0)),
-                    str(ch.get("snippet", ""))[:300],
-                )
-
-        counts["ingested"] += 1
-        logger.info("Ingested %s (%d chunks)", rel_path, len(chunks))
+    counts["ingested"] += 1
+    logger.info("Ingested %s (%d chunks)", rel_path, len(chunks))
 
 
 __all__ = ["ingest_dynamous_content"]
