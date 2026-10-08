@@ -108,6 +108,10 @@ except (ValueError, ZoneInfoNotFoundError) as exc:
         f"CLINICAL_TIMEZONE must be a valid IANA timezone, got {CLINICAL_TIMEZONE!r}"
     ) from exc
 EXPORT_SYNC_STALE_AFTER_SECONDS: int = 300
+# Per-process admission bound for Drive export jobs: waiters queue WITHOUT
+# holding pool connections, so auth/clinic requests keep capacity while slow
+# exports run. The DB advisory lock remains the cross-process mutex.
+MAX_CONCURRENT_DRIVE_EXPORTS: int = int(os.environ.get("MAX_CONCURRENT_DRIVE_EXPORTS", "2"))
 
 VOICE_TRANSCRIPTION_ENABLED: bool = os.environ.get(
     "VOICE_TRANSCRIPTION_ENABLED", "false"

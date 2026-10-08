@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -276,17 +277,36 @@ async def period_lock(
     period_type: str,
     period_key: str,
 ) -> AsyncIterator[Connection]:
-    """Hold a session advisory lock on a dedicated, transaction-free connection."""
-    conn = await pool.acquire()
-    key = period_lock_key(owner_user_id, period_type, period_key)
-    locked = False
-    try:
-        await conn.execute("SELECT pg_advisory_lock($1)", key)
-        locked = True
-        yield conn
-    finally:
+    """Hold a session advisory lock on a dedicated, transaction-free connection.
+
+    A per-process semaphore gates admission BEFORE the pool acquire: waiters
+    queue without holding connections, so slow exports cannot consume the
+    whole shared pool (auth + clinical keep working). The advisory lock
+    remains the cross-process serialization guarantee.
+    """
+    async with _export_admission():
+        conn = await pool.acquire()
+        key = period_lock_key(owner_user_id, period_type, period_key)
+        locked = False
         try:
-            if locked:
-                await conn.execute("SELECT pg_advisory_unlock($1)", key)
+            await conn.execute("SELECT pg_advisory_lock($1)", key)
+            locked = True
+            yield conn
         finally:
-            await pool.release(conn)
+            try:
+                if locked:
+                    await conn.execute("SELECT pg_advisory_unlock($1)", key)
+            finally:
+                await pool.release(conn)
+
+
+_EXPORT_SEMAPHORE = asyncio.Semaphore(config.MAX_CONCURRENT_DRIVE_EXPORTS)
+
+
+@asynccontextmanager
+async def _export_admission() -> AsyncIterator[None]:
+    await _EXPORT_SEMAPHORE.acquire()
+    try:
+        yield
+    finally:
+        _EXPORT_SEMAPHORE.release()
