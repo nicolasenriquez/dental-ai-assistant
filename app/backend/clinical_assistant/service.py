@@ -124,6 +124,10 @@ class ArtifactNotDraftError(RuntimeError):
     """Raised when save preparation targets a frozen artifact."""
 
 
+class ArtifactConcurrentEditError(RuntimeError):
+    """The artifact changed while a regeneration was in flight."""
+
+
 async def create_thread(owner: UUID, title: str) -> ClinicalThreadResponse:
     safe_title = (await sanitize_content(owner, title)).display_text
     return ClinicalThreadResponse(**await repository.create_thread(owner, safe_title))
@@ -534,6 +538,7 @@ def _clinical_tool_handlers(
                 evolution_at=datetime.fromisoformat(str(artifact["evolution_at"])),
             ),
             status=str(artifact["status"]),
+            expected_turn_id=context.turn_id,
         )
         if updated is None:
             return ClinicalToolResult({"ok": False, "error": "ARTIFACT_NOT_FOUND"})
@@ -1098,6 +1103,14 @@ async def regenerate_draft(
         raise LookupError("Thread or patient not found")
     if artifact["status"] not in {"draft", "stale"}:
         raise ValueError("Artifact is no longer editable")
+    # Optimistic concurrency token: regeneration replaces the full payload, so
+    # the write must only land if the snapshot is still the stored one.
+    expected_payload = _artifact_payload(
+        source_note=str(artifact["source_note"]),
+        generated_draft=ClinicalDraft.model_validate(artifact["generated_draft"]),
+        draft=ClinicalDraft.model_validate(artifact["draft"]),
+        evolution_at=datetime.fromisoformat(str(artifact["evolution_at"])),
+    )
     patient_id = UUID(str(artifact["patient_id"]))
     if await patients_repo.get_patient(owner, patient_id) is None:
         raise LookupError("Patient not found")
@@ -1142,9 +1155,10 @@ async def regenerate_draft(
             evolution_at=evolution_at,
         ),
         status="draft",
+        expected_payload=expected_payload,
     )
     if updated is None:
-        raise ValueError("Artifact is no longer editable")
+        raise ArtifactConcurrentEditError
     return draft
 
 

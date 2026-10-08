@@ -710,6 +710,7 @@ async def test_clinical_update_tool_reopens_pending_artifact(monkeypatch) -> Non
         review_flags=[],
     )
     reopened: list[UUID] = []
+    update_calls: list[dict] = []
 
     async def stored(*_args):
         return {"pending_action": {"id": action_id, "artifact_id": artifact_id}}
@@ -734,6 +735,7 @@ async def test_clinical_update_tool_reopens_pending_artifact(monkeypatch) -> Non
         return type("Sanitized", (), {"display_text": content})()
 
     async def update(*_args, **_kwargs):
+        update_calls.append(dict(_kwargs))
         return {"id": artifact_id}
 
     monkeypatch.setattr(service.repository, "get_thread", stored)
@@ -752,6 +754,8 @@ async def test_clinical_update_tool_reopens_pending_artifact(monkeypatch) -> Non
     assert reopened == [action_id]
     assert result.payload["draft"]["treatment"] == "Texto breve"
     assert result.effect and result.effect["item_id"] == str(artifact_id)
+    # Regression: the agent tool write must carry the active-turn fence.
+    assert update_calls[0]["expected_turn_id"] == UUID(int=7)
 
 
 async def test_active_draft_fields_are_included_in_agent_messages() -> None:
@@ -816,6 +820,8 @@ async def test_regeneration_reuses_originating_drive_context(
             "source_note": "Redacta una evolución con este documento",
             "evolution_at": datetime.now(UTC),
             "status": status,
+            "draft": draft.model_dump(mode="json"),
+            "generated_draft": draft.model_dump(mode="json"),
         }
 
     async def get_patient(*_args):
@@ -859,7 +865,7 @@ async def test_regeneration_reuses_originating_drive_context(
     if update_accepted:
         assert await service.regenerate_draft(owner, thread, artifact_id) == draft
     else:
-        with pytest.raises(ValueError, match="no longer editable"):
+        with pytest.raises(service.ArtifactConcurrentEditError):
             await service.regenerate_draft(owner, thread, artifact_id)
 
     assert "Redacta una evolución con este documento" in captured["raw_note"]
@@ -870,6 +876,68 @@ async def test_regeneration_reuses_originating_drive_context(
         cast(service.clinical_evolutions.DraftGrounding, captured["grounding"]).patient_evidence
         == []
     )
+
+
+async def test_regeneration_passes_payload_snapshot_as_concurrency_token(monkeypatch) -> None:
+    """Regression: regenerate_draft must make its write conditional on the read snapshot."""
+    from backend.clinical_assistant import service
+    from backend.clinical_assistant.schemas import ClinicalDraft
+
+    owner = UUID(int=1)
+    thread = UUID(int=2)
+    patient = UUID(int=4)
+    artifact_id = UUID(int=5)
+    draft = ClinicalDraft(
+        context="Control",
+        findings="",
+        assessment="",
+        treatment="",
+        follow_up="",
+        review_flags=[],
+    )
+    evolution_at = datetime.now(UTC)
+
+    async def get_artifact(*_args):
+        return {
+            "id": artifact_id,
+            "turn_id": UUID(int=3),
+            "patient_id": patient,
+            "source_note": "Nota",
+            "evolution_at": evolution_at,
+            "status": "draft",
+            "draft": draft.model_dump(mode="json"),
+            "generated_draft": draft.model_dump(mode="json"),
+        }
+
+    update_calls: list[dict] = []
+
+    async def update(*_args, **_kwargs):
+        update_calls.append(dict(_kwargs))
+        return {"id": artifact_id}
+
+    monkeypatch.setattr(service.repository, "get_artifact", get_artifact)
+    monkeypatch.setattr(service.repository, "get_thread", AsyncMock(return_value={"messages": []}))
+    monkeypatch.setattr(service.repository, "update_artifact", update)
+    monkeypatch.setattr(
+        service.patients_repo, "get_patient", AsyncMock(return_value={"id": patient})
+    )
+    monkeypatch.setattr(
+        service,
+        "sanitize_content",
+        AsyncMock(return_value=type("S", (), {"display_text": "Nota", "model_text": "Nota"})()),
+    )
+    monkeypatch.setattr(
+        service.clinical_evolutions, "generate_draft", AsyncMock(return_value=draft)
+    )
+    monkeypatch.setattr(service.clinical_evolutions, "CLINICAL_EXTERNAL_LLM_ENABLED", True)
+
+    await service.regenerate_draft(owner, thread, artifact_id)
+
+    assert len(update_calls) == 1
+    expected = update_calls[0]["expected_payload"]
+    assert expected["source_note"] == "Nota"
+    assert expected["draft"] == draft.model_dump(mode="json")
+    assert "expected_turn_id" not in update_calls[0] or update_calls[0]["expected_turn_id"] is None
 
 
 @pytest.mark.parametrize("status", ["pending", "approved", "declined", "failed"])

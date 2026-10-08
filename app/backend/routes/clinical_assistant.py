@@ -261,6 +261,10 @@ async def regenerate_draft(
         raise HTTPException(
             status_code=422, detail={"code": "CLINICAL_CONTENT_INSUFFICIENT"}
         ) from None
+    except service.ArtifactConcurrentEditError:
+        raise HTTPException(
+            status_code=409, detail={"code": "CLINICAL_ARTIFACT_CONFLICT"}
+        ) from None
     except service.ClinicalGenerationError:
         raise HTTPException(
             status_code=502, detail={"code": "CLINICAL_MODEL_UNAVAILABLE"}

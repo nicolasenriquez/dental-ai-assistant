@@ -228,6 +228,78 @@ async def test_live_stale_turn_cannot_write_message_artifact_or_action(db):
     assert actions == 0
 
 
+async def test_live_update_artifact_payload_and_turn_guards(db):
+    """Regression for BUG-001/002: guarded writes must be conditional in SQL."""
+    owner = await _make_user(db)
+    thread = await _make_thread(db, owner)
+    patient = await _make_patient(db, owner)
+    turn = uuid4()
+    artifact_id = uuid4()
+    draft = {
+        "context": "Control",
+        "findings": "",
+        "assessment": "",
+        "treatment": "",
+        "follow_up": "",
+        "review_flags": [],
+    }
+    payload = {
+        "source_note": "Nota",
+        "generated_draft": draft,
+        "draft": draft,
+        "evolution_at": "2026-01-01T00:00:00+00:00",
+    }
+    await clinical_assistant_repo.claim_turn(owner, thread, turn, "Nota")
+    await clinical_assistant_repo.create_artifact(
+        owner, thread, turn, patient, artifact_id, payload
+    )
+
+    # Payload guard: matching snapshot updates; diverging snapshot is rejected.
+    updated = await clinical_assistant_repo.update_artifact(
+        owner,
+        thread,
+        artifact_id,
+        payload={**payload, "draft": {**draft, "context": "Cambio humano"}},
+        status="draft",
+        expected_payload=payload,
+    )
+    assert updated is not None
+
+    stale_snapshot = {**payload, "draft": {**draft, "context": "Edición concurrente"}}
+    rejected = await clinical_assistant_repo.update_artifact(
+        owner,
+        thread,
+        artifact_id,
+        payload={**payload, "draft": {**draft, "context": "Regeneración tarde"}},
+        status="draft",
+        expected_payload=stale_snapshot,
+    )
+    assert rejected is None
+
+    # Turn guard: once the active turn moves on, the old turn's write fails;
+    # an unguarded (human) write still succeeds.
+    new_turn = uuid4()
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE clinical_threads SET active_turn_id = $2, updated_at = now() WHERE id = $1",
+            thread,
+            new_turn,
+        )
+    guarded = await clinical_assistant_repo.update_artifact(
+        owner,
+        thread,
+        artifact_id,
+        payload=payload,
+        status="draft",
+        expected_turn_id=turn,
+    )
+    assert guarded is None
+    unguarded = await clinical_assistant_repo.update_artifact(
+        owner, thread, artifact_id, payload=payload, status="draft"
+    )
+    assert unguarded is not None
+
+
 async def test_live_completed_turn_draft_can_create_pending_action(db):
     owner = await _make_user(db)
     thread = await _make_thread(db, owner)

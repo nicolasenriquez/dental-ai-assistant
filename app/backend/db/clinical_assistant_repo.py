@@ -644,7 +644,18 @@ async def update_artifact(
     *,
     payload: dict[str, Any],
     status: str,
+    expected_payload: dict[str, Any] | None = None,
+    expected_turn_id: UUID | str | None = None,
 ) -> dict[str, Any] | None:
+    """Update one editable artifact.
+
+    Optional guards make the write conditional:
+    - `expected_payload` requires the stored payload's canonical fields
+      (draft, generated_draft, source_note, evolution_at) to match — the
+      optimistic concurrency token used by regenerate_draft.
+    - `expected_turn_id` requires the artifact's thread to still have this
+      turn active — the stale-worker fence used by the agent's update tool.
+    """
     async with get_pg_pool().acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -652,6 +663,18 @@ async def update_artifact(
             SET payload = $4::jsonb, status = $5, updated_at = now()
             WHERE id = $1 AND thread_id = $2 AND owner_user_id = $3
               AND status IN ('draft', 'stale')
+              AND ($6::boolean IS NOT TRUE OR (
+                    payload->'draft' = $7::jsonb
+                    AND payload->'generated_draft' = $8::jsonb
+                    AND payload->'source_note' = $9::jsonb
+                    AND payload->'evolution_at' = $10::jsonb
+                  ))
+              AND ($11::uuid IS NULL OR EXISTS (
+                    SELECT 1 FROM clinical_threads t
+                    WHERE t.id = clinical_turn_artifacts.thread_id
+                      AND t.owner_user_id = clinical_turn_artifacts.owner_user_id
+                      AND t.active_turn_id = $11
+                  ))
             RETURNING id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
                       status, payload, created_at, updated_at, resolved_at
             """,
@@ -660,6 +683,20 @@ async def update_artifact(
             _uuid(owner_user_id),
             json.dumps(payload, ensure_ascii=False, default=str),
             status,
+            expected_payload is not None,
+            json.dumps(expected_payload["draft"], ensure_ascii=False, default=str)
+            if expected_payload is not None
+            else None,
+            json.dumps(expected_payload["generated_draft"], ensure_ascii=False, default=str)
+            if expected_payload is not None
+            else None,
+            json.dumps(expected_payload["source_note"], ensure_ascii=False, default=str)
+            if expected_payload is not None
+            else None,
+            json.dumps(expected_payload["evolution_at"], ensure_ascii=False, default=str)
+            if expected_payload is not None
+            else None,
+            _uuid(expected_turn_id) if expected_turn_id is not None else None,
         )
     return _artifact_dict(row) if row else None
 
