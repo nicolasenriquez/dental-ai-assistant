@@ -43,6 +43,113 @@ describe('useConversations', () => {
       expect(error).toBe('Network error');
       expect(result.current.conversations.find((c) => c.id === '1')?.title).toBe('Original');
     });
+
+    it('failed rename keeps a fresher refetch intact', async () => {
+      const initial = [
+        { id: '1', title: 'Original', created_at: '', updated_at: '', preview: 'Hello' },
+        { id: '2', title: 'B', created_at: '', updated_at: '', preview: 'Hi' },
+      ];
+      vi.spyOn(api, 'getConversations').mockResolvedValueOnce(initial as api.Conversation[]);
+      let rejectRename: (e: Error) => void = () => {};
+      vi.spyOn(api, 'renameConversation').mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectRename = reject;
+        }) as Promise<api.Conversation>,
+      );
+
+      const { result } = renderHook(() => useConversations());
+      await waitFor(() => expect(result.current.conversations).toHaveLength(2));
+
+      const renamePromise = result.current.rename('1', 'Pending');
+      vi.spyOn(api, 'getConversations').mockResolvedValueOnce([
+        { id: '1', title: 'Server Title', created_at: '', updated_at: '', preview: 'Hello' },
+        { id: '2', title: 'B', created_at: '', updated_at: '', preview: 'Hi' },
+      ] as api.Conversation[]);
+      await act(async () => {
+        await result.current.refetch();
+      });
+
+      rejectRename(new Error('boom'));
+      const { ok } = await renamePromise;
+
+      expect(ok).toBe(false);
+      expect(result.current.conversations.find((c) => c.id === '1')?.title).toBe('Server Title');
+      expect(result.current.conversations.find((c) => c.id === '2')?.title).toBe('B');
+    });
+
+    it('failed rename does not revert a later successful rename of another item', async () => {
+      const initial = [
+        { id: '1', title: 'Original', created_at: '', updated_at: '', preview: 'Hello' },
+        { id: '2', title: 'B', created_at: '', updated_at: '', preview: 'Hi' },
+      ];
+      vi.spyOn(api, 'getConversations').mockResolvedValueOnce(initial as api.Conversation[]);
+      let rejectRename: (e: Error) => void = () => {};
+      vi.spyOn(api, 'renameConversation')
+        .mockReturnValueOnce(
+          new Promise((_, reject) => {
+            rejectRename = reject;
+          }) as Promise<api.Conversation>,
+        )
+        .mockResolvedValueOnce({} as api.Conversation);
+
+      const { result } = renderHook(() => useConversations());
+      await waitFor(() => expect(result.current.conversations).toHaveLength(2));
+
+      const pendingRename = result.current.rename('1', 'Pending');
+      await act(async () => {
+        await result.current.rename('2', 'New B');
+      });
+      await waitFor(() =>
+        expect(result.current.conversations.find((c) => c.id === '2')?.title).toBe('New B'),
+      );
+
+      // Server truth after the failed A + successful B.
+      vi.spyOn(api, 'getConversations').mockResolvedValueOnce([
+        { id: '1', title: 'Original', created_at: '', updated_at: '', preview: 'Hello' },
+        { id: '2', title: 'New B', created_at: '', updated_at: '', preview: 'Hi' },
+      ] as api.Conversation[]);
+      act(() => {
+        rejectRename(new Error('boom'));
+      });
+      const { ok } = await pendingRename;
+
+      expect(ok).toBe(false);
+      await waitFor(() =>
+        expect(result.current.conversations.find((c) => c.id === '2')?.title).toBe('New B'),
+      );
+      expect(result.current.conversations.find((c) => c.id === '1')?.title).toBe('Original');
+    });
+
+    it('failed rename of same id returns to the last successful title', async () => {
+      const initial = [
+        { id: '1', title: 'Original', created_at: '', updated_at: '', preview: 'Hello' },
+      ];
+      vi.spyOn(api, 'getConversations').mockResolvedValueOnce(initial as api.Conversation[]);
+      vi.spyOn(api, 'renameConversation')
+        .mockResolvedValueOnce({} as api.Conversation)
+        .mockRejectedValueOnce(new Error('second failed'));
+
+      const { result } = renderHook(() => useConversations());
+      await waitFor(() => expect(result.current.conversations).toHaveLength(1));
+
+      await act(async () => {
+        await result.current.rename('1', 'First');
+      });
+      await waitFor(() =>
+        expect(result.current.conversations.find((c) => c.id === '1')?.title).toBe('First'),
+      );
+
+      // Server still holds 'First' — the second attempt failed.
+      vi.spyOn(api, 'getConversations').mockResolvedValueOnce([
+        { id: '1', title: 'First', created_at: '', updated_at: '', preview: 'Hello' },
+      ] as api.Conversation[]);
+      const { ok } = await result.current.rename('1', 'Second');
+
+      expect(ok).toBe(false);
+      await waitFor(() =>
+        expect(result.current.conversations.find((c) => c.id === '1')?.title).toBe('First'),
+      );
+    });
   });
 
   describe('load error handling', () => {

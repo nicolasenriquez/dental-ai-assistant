@@ -15,6 +15,10 @@ export function useConversations(searchQuery?: string, enabled = true) {
   // Per-fetch ID so a stale response can't overwrite fresher results
   // when the user types faster than the network replies.
   const fetchIdRef = useRef(0);
+  // Mirror of the latest list so a failed rename can revert only its own
+  // title instead of restoring a whole-list snapshot.
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
 
   const load = useCallback(async () => {
     const myId = ++fetchIdRef.current;
@@ -46,13 +50,19 @@ export function useConversations(searchQuery?: string, enabled = true) {
   }, [load]);
 
   const rename = async (id: string, title: string): Promise<{ ok: boolean; error?: string }> => {
-    const prevConversations = conversations;
+    const prevTitle = conversationsRef.current.find((c) => c.id === id)?.title;
     setConversations((cs) => cs.map((c) => (c.id === id ? { ...c, title } : c)));
     try {
       await renameConversation(id, title);
       return { ok: true };
     } catch (e) {
-      setConversations(prevConversations);
+      // Functional rollback limited to the still-current optimistic entry:
+      // never clobber a fresher title applied by a later rename or refetch.
+      // Then reconcile authoritatively so failed renames never linger.
+      setConversations((cs) =>
+        cs.map((c) => (c.id === id && c.title === title ? { ...c, title: prevTitle ?? title } : c)),
+      );
+      void load();
       const msg = e instanceof Error ? e.message : 'Rename failed';
       return { ok: false, error: msg };
     }
