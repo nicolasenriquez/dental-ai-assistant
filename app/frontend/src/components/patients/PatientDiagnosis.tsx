@@ -17,7 +17,6 @@ import {
   type PatientTreatment,
   type ToothSurface,
   type UpdatePatientCondition,
-  correctPatientCondition,
   getConditionCatalog,
   getPatientCondition,
   getPatientConditions,
@@ -25,6 +24,7 @@ import {
   updatePatientCondition,
 } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
+import { freezeCorrection, submitCorrection } from '../../lib/conditionCorrection';
 import {
   dentalGroups,
   findingPaletteRole,
@@ -642,23 +642,20 @@ function PatientDiagnosisWorkspace({
         return false;
       const frozen = attempt ?? {
         id: source.id,
-        correction: {
-          operation_id: crypto.randomUUID(),
-          expected_revision: source.revision,
-          reason: draft.correction.reason.trim(),
-          replacement: draft.correction.replacement
-            ? {
-                id: draft.id,
-                dentition: draft.dentition,
-                tooth_fdi: draft.tooth_fdi,
-                condition_code: draft.condition_code,
-                surfaces: surfaces
-                  .filter((item) => draft.surfaces.includes(item.code))
-                  .map((item) => item.code),
-                note: draft.note?.trim() || null,
-              }
-            : null,
-        },
+        correction: freezeCorrection(
+          source.revision,
+          {
+            id: draft.id,
+            dentition: draft.dentition,
+            tooth_fdi: draft.tooth_fdi,
+            condition_code: draft.condition_code,
+            surfaces: draft.surfaces,
+            note: draft.note,
+            reason: draft.correction.reason,
+            replacement: draft.correction.replacement,
+          },
+          surfaces.map((item) => item.code),
+        ),
       };
       if (!frozen.correction) return false;
       setAttempt(frozen);
@@ -667,35 +664,21 @@ function PatientDiagnosisWorkspace({
       savingRef.current = true;
       setSaveError(null);
       try {
-        const result = await correctPatientCondition(patientId, frozen.id, frozen.correction);
+        const outcome = await submitCorrection(patientId, frozen.id, frozen.correction);
         if (!alive.current) return false;
-        setReceipt(result);
-        setAnnouncement('Corrección confirmada en ficha.');
-        reset();
-        setPending(null);
-        routeCancel.current?.();
-        routeCancel.current = null;
-        guard?.cancelTransition();
-        void load();
-        void activateResult(
-          result.replacement_condition_id ?? result.condition_id,
-          result.replacement_revision_id ?? result.correction_revision_id,
-        );
-        return true;
-      } catch (error) {
-        if (!alive.current) return false;
-        if (error instanceof ApiError && [404, 409, 422].includes(error.status)) {
-          setAttempt(null);
-          const detail = (error.body as { detail?: { code?: string } })?.detail;
+        if (!outcome.ok) {
+          const { failure } = outcome;
+          // 'unknown' = response lost: retain the frozen attempt so the
+          // retry re-sends the exact same command. Every server-rejected
+          // classification invalidates the attempt.
+          if (failure.kind !== 'unknown') setAttempt(null);
           if (
-            error.status === 409 &&
-            ['revision_conflict', 'condition_entered_in_error'].includes(detail?.code ?? '')
+            failure.kind === 'revision_conflict' ||
+            failure.kind === 'condition_entered_in_error'
           ) {
             setConflictPending(true);
             setConflict(null);
-            setSaveError(
-              'La condición cambió. Revisa el original actual antes de confirmar una nueva corrección.',
-            );
+            setSaveError(failure.message);
             try {
               const current = await getPatientCondition(patientId, frozen.id);
               if (alive.current) setConflict(current);
@@ -705,26 +688,30 @@ function PatientDiagnosisWorkspace({
                   'No pudimos cargar la versión actual. Reintenta sin perder tus cambios.',
                 );
             }
-          } else if (error.status === 409 && detail?.code === 'idempotency_conflict') {
+          } else if (failure.kind === 'idempotency_conflict') {
             setRecoveryBlocked(true);
             setConflictPending(true);
             setConflict(null);
-            setSaveError(
-              'Este intento tiene otro contenido guardado. Descarta el borrador y consulta el historial.',
-            );
-          } else
-            setSaveError(
-              error.status === 404
-                ? 'La condición no está disponible. Conservamos tu borrador.'
-                : error.status === 422
-                  ? 'Revisa el motivo y los datos del reemplazo (máximo 1000 caracteres).'
-                  : 'Ya existe esta condición activa. Conservamos el motivo y el reemplazo; revisa sus datos.',
-            );
-        } else
-          setSaveError(
-            'No confirmamos la corrección. Reintenta con el mismo contenido. Descartar no deshace una corrección que pudo guardarse.',
-          );
-        return false;
+            setSaveError(failure.message);
+          } else {
+            setSaveError(failure.message);
+          }
+          return false;
+        }
+        const receipt = outcome.receipt;
+        setReceipt(receipt);
+        setAnnouncement('Corrección confirmada en ficha.');
+        reset();
+        setPending(null);
+        routeCancel.current?.();
+        routeCancel.current = null;
+        guard?.cancelTransition();
+        void load();
+        void activateResult(
+          receipt.replacement_condition_id ?? receipt.condition_id,
+          receipt.replacement_revision_id ?? receipt.correction_revision_id,
+        );
+        return true;
       } finally {
         if (alive.current) setSaving(false);
         savingRef.current = false;
