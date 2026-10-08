@@ -31,6 +31,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
+import backend.integrations.google_drive_credentials as google_drive_credentials
 from backend import config
 from backend.auth import token_cipher
 from backend.auth.dependencies import COOKIE_NAME, get_current_user
@@ -820,30 +821,14 @@ async def _require_owned_patient(user_id: str, patient_id: UUID) -> None:
 
 async def _connection_access_token(user_id: str) -> tuple[dict[str, Any], str]:
     """Active connection + one request-local access token (never persisted)."""
-    row = await google_drive_repo.get_connection(user_id)
-    if row is None or row.get("status") != "active":
-        if row and row.get("status") == "revoked":
-            raise _DriveDomainError("GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN)
-        raise _DriveDomainError("GOOGLE_DRIVE_DISCONNECTED", status.HTTP_409_CONFLICT)
     try:
-        decrypted = token_cipher.decrypt(
-            user_id,
-            token_cipher.PURPOSE_REFRESH_TOKEN,
-            Ciphertext(
-                ciphertext=bytes(row["refresh_token_ciphertext"]),
-                nonce=bytes(row["refresh_token_nonce"]),
-                key_version=str(row["token_key_version"]),
-            ),
-        )
-    except ValueError:
-        await google_drive_repo.set_revoked(user_id)
+        row, token = await google_drive_credentials.get_connection_access_token(user_id)
+        return row, token
+    except google_drive_credentials.DriveCredentialsRevoked:
         raise _DriveDomainError("GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN) from None
-    try:
-        token_result = await google_drive_oauth.refresh_access_token(decrypted.plaintext.decode())
-    except google_drive_oauth.GoogleDriveOAuthError as exc:
-        if exc.code == "GOOGLE_DRIVE_INVALID_GRANT":
-            await google_drive_repo.set_revoked(user_id)
-            raise _DriveDomainError("GOOGLE_DRIVE_REVOKED", status.HTTP_403_FORBIDDEN) from None
+    except google_drive_credentials.DriveCredentialsDisconnected:
+        raise _DriveDomainError("GOOGLE_DRIVE_DISCONNECTED", status.HTTP_409_CONFLICT) from None
+    except google_drive_credentials.DriveCredentialsRefreshFailed:
         raise _DriveDomainError(
             "GOOGLE_DRIVE_REFRESH_FAILED", status.HTTP_503_SERVICE_UNAVAILABLE
         ) from None
@@ -851,9 +836,6 @@ async def _connection_access_token(user_id: str) -> tuple[dict[str, Any], str]:
         raise _DriveDomainError(
             "GOOGLE_DRIVE_REFRESH_FAILED", status.HTTP_503_SERVICE_UNAVAILABLE
         ) from None
-    if decrypted.rotated is not None:
-        await google_drive_repo.update_refresh_token_ciphertext(user_id, decrypted.rotated)
-    return row, str(token_result.access_token)
 
 
 async def _binding_secret(user_id: str, row: dict[str, Any]) -> bytes:

@@ -16,12 +16,11 @@ from uuid import UUID, uuid4
 from asyncpg import Connection, Pool
 from fastapi import BackgroundTasks
 
+import backend.integrations.google_drive_credentials as google_drive_credentials
 from backend import config
-from backend.auth import token_cipher
-from backend.auth.token_cipher import Ciphertext
 from backend.db import evolution_exports_repo, evolutions_repo, google_drive_repo, patients_repo
 from backend.db.postgres import get_pg_pool
-from backend.integrations import google_drive, google_drive_oauth
+from backend.integrations import google_drive
 from backend.patients.rut import mask_rut
 
 logger = logging.getLogger(__name__)
@@ -435,34 +434,20 @@ def _journal_part(metadata: Mapping[str, Any]) -> int | None:
 async def _connection_access_token(owner_user_id: UUID | str) -> tuple[dict[str, Any], str]:
     """Decrypt and refresh one request-local Drive access token."""
     owner = str(owner_user_id)
-    row = await google_drive_repo.get_connection(owner)
-    if row is None or row.get("status") != "active":
-        raise google_drive.GoogleDriveError(
-            "DRIVE_CONNECTION_REQUIRED", "Drive connection required"
-        )
     try:
-        decrypted = token_cipher.decrypt(
-            owner,
-            token_cipher.PURPOSE_REFRESH_TOKEN,
-            Ciphertext(
-                ciphertext=bytes(row["refresh_token_ciphertext"]),
-                nonce=bytes(row["refresh_token_nonce"]),
-                key_version=str(row["token_key_version"]),
-            ),
-        )
-        token_result = await google_drive_oauth.refresh_access_token(
-            decrypted.plaintext.decode("utf-8")
-        )
-    except (KeyError, TypeError, UnicodeDecodeError, ValueError) as exc:
+        row, token = await google_drive_credentials.get_connection_access_token(owner)
+        return row, token
+    except (
+        google_drive_credentials.DriveCredentialsRevoked,
+        google_drive_credentials.DriveCredentialsDisconnected,
+    ):
         raise google_drive.GoogleDriveError(
             "DRIVE_CONNECTION_REQUIRED", "Drive connection required"
-        ) from exc
-    except google_drive_oauth.GoogleDriveOAuthError as exc:
-        code = "DRIVE_CONNECTION_REQUIRED" if exc.code == "GOOGLE_DRIVE_INVALID_GRANT" else exc.code
-        raise google_drive.GoogleDriveError(code, "Drive token refresh failed") from exc
-    if decrypted.rotated is not None:
-        await google_drive_repo.update_refresh_token_ciphertext(owner, decrypted.rotated)
-    return row, str(token_result.access_token)
+        ) from None
+    except google_drive_credentials.DriveCredentialsRefreshFailed as exc:
+        raise google_drive.GoogleDriveError(
+            exc.code or "GOOGLE_DRIVE_REFRESH_FAILED", "Drive token refresh failed"
+        ) from None
 
 
 async def _mark_claim_failed(
