@@ -2,6 +2,7 @@ import { type MutableRefObject, useEffect, useState } from 'react';
 import type { useDentalWorkspace } from '../../hooks/useDentalWorkspace';
 import type { PatientTreatment, ToothSurface } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
+import { treatmentStateLabel } from '../../lib/odontogramPresentation';
 import { treatmentAnatomy, treatmentMembers } from '../../lib/treatmentAnatomy';
 import { Button } from '../ui/Button';
 import { DentalConditionModal } from './DentalConditionModal';
@@ -104,7 +105,7 @@ export function TreatmentRecordModal({
         </h3>
         <p className="text-sm text-muted">{treatmentMembers(base)}</p>
         <p>
-          {immutable ? 'Registrado por error · Solo lectura' : 'Existente · Observación manual'} ·
+          {treatmentStateLabel(base.state)} · {immutable ? 'Solo lectura' : 'Observación manual'} ·
           Revisión {base.revision}
         </p>
         <label className="block" htmlFor="treatment-note">

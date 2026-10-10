@@ -57,6 +57,13 @@ const variants: TreatmentVariant[] = [
   palette_role: 'orthodontics',
   layer_role: 'orthodontics',
 }));
+const treatmentStateLabels = {
+  existing: 'Existente',
+  planned: 'Planificado',
+  performed: 'Realizado',
+  cancelled: 'Cancelado',
+  entered_in_error: 'Registrado por error',
+} as const;
 const saved: PatientTreatment = {
   id: '00000000-0000-4000-8000-000000000016',
   patient_id: 'p',
@@ -231,6 +238,84 @@ it('selects a chart range, confirms bridge roles once and preserves shared recor
     const inspector = await screen.findByRole('dialog', { name: `Pieza ${tooth}` });
     expect(inspector).toHaveTextContent(bridge.label_es);
     fireEvent.keyDown(inspector, { key: 'Escape' });
+  }
+});
+
+it('renders treatment state labels truthfully in list rows and chart accessible text', async () => {
+  const teeth = [16, 17, 18, 15, 14];
+  const records: PatientTreatment[] = Object.entries(treatmentStateLabels).map(
+    ([state, label], index) => ({
+      ...saved,
+      id: `00000000-0000-4000-8000-00000000020${index}`,
+      label_es: `${label} sintético`,
+      state: state as PatientTreatment['state'],
+      teeth: [{ tooth_fdi: teeth[index], role: 'tooth', surfaces: [] }],
+    }),
+  );
+  mocks.list.mockResolvedValue({ items: records, total: records.length, next_cursor: null });
+
+  mount();
+  fireEvent.change(await screen.findByLabelText('Estado'), { target: { value: 'all' } });
+
+  for (const record of records) {
+    const label = treatmentStateLabels[record.state];
+    expect(
+      await screen.findByRole('article', { name: new RegExp(`${record.label_es}.*${label}`) }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', {
+        name: new RegExp(`Pieza ${record.teeth[0].tooth_fdi}:.*${record.label_es}, ${label}`),
+      }),
+    ).toBeVisible();
+  }
+});
+
+it('renders performed treatment as Realizado in tooth inspection and editor without enabling writes', async () => {
+  const performed = { ...saved, state: 'performed' as const, label_es: 'Procedimiento realizado' };
+  mocks.list.mockResolvedValue({ items: [performed], total: 1, next_cursor: null });
+
+  mount();
+  const tooth = await screen.findByRole('button', {
+    name: /Pieza 16:.*Procedimiento realizado, Realizado/,
+  });
+  fireEvent.click(tooth);
+  const inspector = await screen.findByRole('dialog', { name: 'Pieza 16' });
+  expect(inspector).toHaveTextContent('Procedimiento realizado · Realizado');
+  expect(mocks.create).not.toHaveBeenCalled();
+  expect(mocks.edit).not.toHaveBeenCalled();
+  fireEvent.click(within(inspector).getByRole('button', { name: 'Editar / Historial' }));
+
+  const editor = await screen.findByRole('dialog', { name: 'Editar procedimiento' });
+  expect(editor).toHaveTextContent('Realizado · Solo lectura');
+  expect(within(editor).queryByRole('button', { name: 'Guardar procedimiento' })).toBeNull();
+});
+
+it('renders whole-arch treatment states truthfully', async () => {
+  const archRecords: PatientTreatment[] = Object.entries(treatmentStateLabels).map(
+    ([state, label], index) => ({
+      ...saved,
+      id: `00000000-0000-4000-8000-00000000030${index}`,
+      variant_id: 'REST-SPLINT-OCC',
+      label_es: `Arcada ${label}`,
+      clinical_type: 'splint',
+      scope: 'global_arch',
+      arch: index % 2 === 0 ? 'upper' : 'lower',
+      state: state as PatientTreatment['state'],
+      teeth: [],
+    }),
+  );
+  mocks.list.mockResolvedValue({
+    items: archRecords,
+    total: archRecords.length,
+    next_cursor: null,
+  });
+
+  mount();
+  fireEvent.change(await screen.findByLabelText('Estado'), { target: { value: 'all' } });
+
+  const strip = await screen.findByLabelText('Procedimientos de arcada');
+  for (const record of archRecords) {
+    expect(strip).toHaveTextContent(`${record.label_es} · ${treatmentStateLabels[record.state]}`);
   }
 });
 

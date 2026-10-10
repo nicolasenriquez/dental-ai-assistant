@@ -31,6 +31,7 @@ import {
   normalizeConditionCatalog,
   resolveCondition,
   surfaceDescription,
+  treatmentStateLabel,
 } from '../../lib/odontogramPresentation';
 import { treatmentAnatomy, treatmentMembers } from '../../lib/treatmentAnatomy';
 import { PatientIdentity } from '../PatientIdentity';
@@ -379,7 +380,7 @@ function PatientDiagnosisWorkspace({
         : status === 'resolved'
           ? false
           : status === 'all'
-            ? r.state === 'existing' || r.state === 'performed' || r.state === 'entered_in_error'
+            ? true
             : r.state === 'existing' || r.state === 'performed'),
   );
   const localDirty =
@@ -1966,7 +1967,7 @@ function PatientDiagnosisWorkspace({
                     ) : (
                       <article
                         className="space-y-2 rounded px-2 py-3"
-                        aria-label={`${treatmentAnatomy(record)} · ${record.label_es} · ${record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}`}
+                        aria-label={`${treatmentAnatomy(record)} · ${record.label_es} · ${treatmentStateLabel(record.state)}`}
                         onMouseEnter={() =>
                           setNoteHighlightedTeeth(record.teeth.map((member) => member.tooth_fdi))
                         }
@@ -1987,10 +1988,7 @@ function PatientDiagnosisWorkspace({
                           {record.label_es}
                         </h4>
                         <p>
-                          {record.state === 'entered_in_error'
-                            ? 'Registrado por error'
-                            : 'Existente'}{' '}
-                          · {treatmentMembers(record)}
+                          {treatmentStateLabel(record.state)} · {treatmentMembers(record)}
                         </p>
                         {record.note && (
                           <p className="whitespace-pre-wrap break-words">{record.note}</p>
@@ -2102,8 +2100,7 @@ function PatientDiagnosisWorkspace({
                 .map((record) => (
                   <div key={record.id} className="mt-2 border-t border-border pt-2 text-sm">
                     <p>
-                      {record.label_es} ·{' '}
-                      {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}
+                      {record.label_es} · {treatmentStateLabel(record.state)}
                     </p>
                     <p>
                       {record.teeth

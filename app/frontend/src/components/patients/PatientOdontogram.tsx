@@ -7,7 +7,11 @@ import type {
   ToothSurface,
   TreatmentCatalog,
 } from '../../lib/api';
-import { resolveCondition, surfaceDescription } from '../../lib/odontogramPresentation';
+import {
+  resolveCondition,
+  surfaceDescription,
+  treatmentStateLabel,
+} from '../../lib/odontogramPresentation';
 import { ConditionSymbol } from './ConditionSymbol';
 import { ToothClinicalLayers } from './ToothClinicalLayers';
 import { ToothDrawing } from './ToothDrawing';
@@ -141,7 +145,7 @@ export function PatientOdontogram({
         ? 'sin condiciones guardadas'
         : 'condiciones no confirmadas';
     return procedures.length
-      ? `${text}; ${procedures.map((r) => `${r.label_es}, ${r.state === 'entered_in_error' ? 'Registrado por error' : r.state === 'planned' ? 'Planificado' : 'Existente'}`).join('; ')}`
+      ? `${text}; ${procedures.map((r) => `${r.label_es}, ${treatmentStateLabel(r.state)}`).join('; ')}`
       : text;
   };
   const describe = (tooth: number): string => `Pieza ${tooth}: ${describeRecords(tooth)}`;
@@ -407,7 +411,7 @@ export function PatientOdontogram({
             .map((record) => (
               <p key={record.id} className="rounded border border-border px-3 py-2 text-sm">
                 Arcada {record.arch === 'upper' ? 'superior' : 'inferior'} · {record.label_es} ·{' '}
-                {record.state === 'entered_in_error' ? 'Registrado por error' : 'Existente'}
+                {treatmentStateLabel(record.state)}
               </p>
             ))}
         </div>

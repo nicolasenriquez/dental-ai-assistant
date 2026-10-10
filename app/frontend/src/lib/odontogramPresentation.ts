@@ -2,6 +2,7 @@ import type {
   ConditionCatalog,
   ConditionCatalogEntry,
   Dentition,
+  PatientTreatment,
   ToothSurface,
   TreatmentCatalog,
 } from './api';
@@ -183,4 +184,14 @@ export function surfaceDescription(
   return !entry.supported || entry.surface_codes.length
     ? 'Sin superficies especificadas'
     : 'Pieza completa, sin superficies';
+}
+
+export function treatmentStateLabel(state: PatientTreatment['state']): string {
+  return {
+    existing: 'Existente',
+    planned: 'Planificado',
+    performed: 'Realizado',
+    cancelled: 'Cancelado',
+    entered_in_error: 'Registrado por error',
+  }[state];
 }

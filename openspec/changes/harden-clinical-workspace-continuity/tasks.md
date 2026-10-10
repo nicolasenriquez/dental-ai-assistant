@@ -72,10 +72,12 @@
 
 ## 8. Patient treatment-state truthfulness
 
-- [ ] 8.1 Add failing render tests for all five existing states across chart/list/popover/editor/whole-arch strip, including performed labels and accessible text independent of allowed commands.
+- [x] 8.1 Add failing render tests for all five existing states across chart/list/popover/editor/whole-arch strip, including performed labels and accessible text independent of allowed commands.
   Traceability: Patients S1; F01; T01; odontogram-human-workflow / Truthful observed-treatment state presentation.
-- [ ] 8.2 Apply an exhaustive existing-treatment presentation mapping without changing command permissions or filters; verify the same performed UUID reads Realizado everywhere after reload and that inspection emits zero writes, including an isolated stored performed fixture.
+  Notes: Added three fail-first Vitest cases in `app/frontend/src/components/patients/PatientDiagnosis.treatments.test.tsx`. They pin the five treatment states (`existing`, `planned`, `performed`, `cancelled`, `entered_in_error`) with Spanish labels across list rows, chart button accessible names, tooth inspection, the saved-record editor and whole-arch strip, and assert performed reads `Realizado` without enabling writes. Red proof: `bun x vitest run src/components/patients/PatientDiagnosis.treatments.test.tsx` → 13 passed / 3 failed, exposing current non-error fallback to `Existente`, missing planned/cancelled rendering in all-state reads and editor copy that cannot distinguish read-only states. Type/format proof: `bun run tsc --noEmit` passed; `bun x biome check src/components/patients/PatientDiagnosis.treatments.test.tsx` passed.
+- [x] 8.2 Apply an exhaustive existing-treatment presentation mapping without changing command permissions or filters; verify the same performed UUID reads Realizado everywhere after reload and that inspection emits zero writes, including an isolated stored performed fixture.
   Traceability: Patients S1; F01; T01; odontogram-human-workflow / Truthful observed-treatment state presentation.
+  Notes: Added one shared presentation mapping in `app/frontend/src/lib/odontogramPresentation.ts` and reused it in chart accessible text, treatment rows, tooth inspection, saved-treatment editor and whole-arch strip. `Historial completo` now displays all treatment states so planned/cancelled records can be read truthfully; active command behavior remains unchanged. Proof: `bun x vitest run src/components/patients/PatientOdontogram.test.tsx src/components/patients/PatientDiagnosis.treatments.test.tsx` passed (24 tests); `bun run tsc --noEmit` passed; `bun x biome check src/lib/odontogramPresentation.ts src/components/patients/PatientDiagnosis.tsx src/components/patients/PatientOdontogram.tsx src/components/patients/TreatmentRecordModal.tsx src/components/patients/PatientDiagnosis.treatments.test.tsx` passed.
 
 ## 9. Patient inspection, modal exits and member reset
 
