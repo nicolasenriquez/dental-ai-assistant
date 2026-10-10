@@ -46,9 +46,7 @@ export function TreatmentScopeModal({
       label={arch ? 'Seleccionar arcada' : 'Confirmar procedimiento en varias piezas'}
       returnFocus={returnFocus}
       suspended={suspended}
-      onClose={() => {
-        if (!dental.busy) onClose();
-      }}
+      onClose={onClose}
     >
       <div className="space-y-4">
         <h3 className="font-semibold">{variant.label_es}</h3>

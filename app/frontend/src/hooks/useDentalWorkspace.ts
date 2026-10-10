@@ -42,6 +42,7 @@ interface DentalWorkspace {
   selectionMode: 'range' | 'free';
   setSelectionMode: (mode: 'range' | 'free') => void;
   selectMember: (tooth: number, dentition: Dentition) => void;
+  clearMembers: () => void;
   activeTool: string | null;
   selectTool: (code: string | null) => void;
   busy: boolean;
@@ -299,6 +300,10 @@ export function useDentalWorkspace(
           rangeStart.current = null;
         }
       }
+    },
+    clearMembers: (): void => {
+      setSelectedTeeth([]);
+      rangeStart.current = null;
     },
     activeTool,
     selectTool: (code): void => {

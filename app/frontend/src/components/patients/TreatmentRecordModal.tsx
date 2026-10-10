@@ -95,9 +95,7 @@ export function TreatmentRecordModal({
       label="Editar procedimiento"
       returnFocus={returnFocus}
       suspended={suspended}
-      onClose={() => {
-        if (!dental.busy) onClose();
-      }}
+      onClose={onClose}
     >
       <div className="space-y-3">
         <h3 className="font-semibold">

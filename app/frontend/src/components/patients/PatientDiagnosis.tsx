@@ -1030,6 +1030,15 @@ function PatientDiagnosisWorkspace({
                 : 'Activa cada pieza para añadirla o retirarla.'}{' '}
               Misma arcada. Seleccionadas: {dental.selectedTeeth.join(', ') || 'ninguna'}.
             </p>
+            {dental.selectedTeeth.length > 0 && (
+              <Button
+                variant="clinicalSecondary"
+                disabled={dental.busy || !!dental.attempt}
+                onClick={() => dental.clearMembers()}
+              >
+                Limpiar selección
+              </Button>
+            )}
             <Button
               variant="clinical"
               disabled={dental.selectedTeeth.length < 2 || dental.busy || !!dental.attempt}
@@ -1176,16 +1185,10 @@ function PatientDiagnosisWorkspace({
               treatmentCatalog={dental.treatmentCatalog}
               labels={labels}
               catalog={catalog}
-              selectedTooth={
-                surfaceSelection?.tooth ??
-                inspection?.tooth ??
-                draft?.tooth_fdi ??
-                focused?.tooth_fdi ??
-                0
-              }
+              selectedTooth={surfaceSelection?.tooth ?? draft?.tooth_fdi ?? 0}
               selectedTeeth={dental.selectedTeeth}
               highlightedTooth={highlightedTooth}
-              highlightedTeeth={noteHighlightedTeeth}
+              highlightedTeeth={[...noteHighlightedTeeth, ...(focused ? [focused.tooth_fdi] : [])]}
               previewTool={dental.activeTool}
               onSelect={chooseTooth}
               surfaceCodes={dental.activeTool ? (activeSurfaceCodes as ToothSurface[]) : []}
