@@ -904,13 +904,22 @@ export function useClinicalAssistant(threadId: string | undefined) {
     if (!threadId || !turnId || stopInFlightRef.current === turnId) return;
     stopInFlightRef.current = turnId;
     const started = Date.now();
+    // ponytail: same identity guard as preparation. Capture the originating
+    // controller so a late Stop never aborts a newer subscription's stream.
+    const epoch = threadEpochRef.current;
+    const controller = abortRef.current;
+    const isCurrent = (): boolean =>
+      threadIdRef.current === threadId &&
+      threadEpochRef.current === epoch &&
+      activeTurnRef.current === turnId;
     setRuntime('stopping');
     void (async () => {
       try {
         for (let attempt = 0; attempt < 8; attempt += 1) {
           try {
             await cancelClinicalTurn(threadId, turnId);
-            abortRef.current?.abort();
+            if (!isCurrent()) return;
+            controller?.abort();
             await load();
             clinicalTrace('clinical.cancellation.finished', {
               thread_id: threadId,
@@ -926,8 +935,10 @@ export function useClinicalAssistant(threadId: string | undefined) {
               if (attempt < 7) {
                 // The Stop request can reach the server before the turn POST.
                 await new Promise((resolve) => setTimeout(resolve, 250));
+                if (!isCurrent()) return;
                 continue;
               }
+              if (!isCurrent()) return;
               await load();
               clinicalTrace('clinical.cancellation.finished', {
                 thread_id: threadId,
@@ -939,6 +950,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
               });
               return;
             }
+            if (!isCurrent()) return;
             setError('No pudimos detener la respuesta. Intenta nuevamente.');
             setRuntime('streaming');
             clinicalTrace('clinical.cancellation.finished', {

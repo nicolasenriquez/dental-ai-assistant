@@ -1018,3 +1018,156 @@ describe('useClinicalAssistant active patient persistence', () => {
     vi.useRealTimers();
   });
 });
+
+describe('clinical stop subscription isolation', () => {
+  type HookResult = { current: ReturnType<typeof useClinicalAssistant> };
+  const cancels: Array<ReturnType<typeof deferred<{ status: 'cancelled' }>>> = [];
+  let streamCalls: Array<{ turnId: string; signal: AbortSignal }> = [];
+  let rejectStop: ((reason?: unknown) => void) | null = null;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    cancels.length = 0;
+    streamCalls = [];
+    rejectStop = null;
+    vi.mocked(getClinicalThread).mockImplementation(async (id) => ({
+      ...thread(id === 'thread-1' ? patientA : patientB),
+      id,
+      active_turn_id: null,
+    }));
+    vi.mocked(streamClinicalTurn).mockImplementation((_id, request, signal) => {
+      streamCalls.push({ turnId: request.turn_id, signal: signal as AbortSignal });
+      return new Promise<Response>(() => {}); // pending; only the client controller matters
+    });
+    vi.mocked(cancelClinicalTurn).mockImplementation(() => {
+      const entry = deferred<{ status: 'cancelled' }>();
+      cancels.push(entry);
+      return entry.promise;
+    });
+  });
+
+  function renderAssistant(initialThreadId: string) {
+    return renderHook(({ id }) => useClinicalAssistant(id), {
+      initialProps: { id: initialThreadId },
+    });
+  }
+
+  // The send promise stays pending while the turn is live, so this must stay
+  // synchronous; returning it from an async helper would deadlock the test.
+  function startTurn(result: HookResult, text: string): void {
+    act(() => {
+      void result.current.send(text);
+    });
+    expect(result.current.runtime).toBe('streaming');
+  }
+
+  const settleCancel = (index: number) =>
+    act(async () => {
+      cancels[index].resolve({ status: 'cancelled' });
+      await cancels[index].promise;
+      await Promise.resolve();
+    });
+
+  // Double Stop for A, then switch to B and start B. Dedupe must leave exactly
+  // one cancel in flight for A.
+  async function stopThenSwitchToB() {
+    const { result, rerender } = renderAssistant('thread-1');
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-1'));
+    startTurn(result, 'Nota A');
+    act(() => {
+      result.current.stop();
+      result.current.stop();
+    });
+    await waitFor(() => expect(cancelClinicalTurn).toHaveBeenCalledTimes(1));
+
+    rerender({ id: 'thread-2' });
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-2'));
+    startTurn(result, 'Nota B');
+    const controllerB = streamCalls[streamCalls.length - 1].signal;
+    const turnB = streamCalls[streamCalls.length - 1].turnId;
+    return { result, controllerB, turnB };
+  }
+
+  it.each(['resolve', 'reject'] as const)(
+    'does not mutate B when deferred Stop for A %ss after B starts',
+    async (outcome) => {
+      if (outcome === 'reject') {
+        vi.mocked(cancelClinicalTurn).mockImplementationOnce(
+          () =>
+            new Promise<{ status: 'cancelled' }>((_resolve, reject) => {
+              rejectStop = reject;
+            }),
+        );
+      }
+      const { result, controllerB, turnB } = await stopThenSwitchToB();
+
+      await act(async () => {
+        if (outcome === 'resolve') cancels[0].resolve({ status: 'cancelled' });
+        else rejectStop?.(new Error('stop transport failed'));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(controllerB.aborted).toBe(false);
+      expect(result.current.error).toBeNull();
+      expect(result.current.runtime).toBe('streaming');
+      expect(result.current.activeTurnId).toBe(turnB);
+      expect(cancelClinicalTurn).toHaveBeenCalledTimes(1);
+      expect(
+        result.current.items.some((item) => item.type === 'user' && item.content === 'Nota B'),
+      ).toBe(true);
+    },
+  );
+
+  it('ignores a late Stop from an earlier subscription of the same thread', async () => {
+    const { result, rerender } = renderAssistant('thread-1');
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-1'));
+    startTurn(result, 'Nota A1');
+    act(() => result.current.stop());
+    await waitFor(() => expect(cancelClinicalTurn).toHaveBeenCalledTimes(1));
+
+    rerender({ id: 'thread-2' });
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-2'));
+    rerender({ id: 'thread-1' });
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-1'));
+    startTurn(result, 'Nota A2');
+    const controllerA2 = streamCalls[streamCalls.length - 1].signal;
+
+    await settleCancel(0);
+
+    // Same thread id, new subscription generation: A1's callbacks must not
+    // reload A2's transcript back to an empty history nor abort A2's controller.
+    expect(
+      result.current.items.some((item) => item.type === 'user' && item.content === 'Nota A2'),
+    ).toBe(true);
+    expect(controllerA2.aborted).toBe(false);
+    expect(result.current.runtime).toBe('streaming');
+  });
+
+  it("keeps B's in-flight Stop scoped when A's Stop cleanup runs", async () => {
+    const { result, controllerB } = await stopThenSwitchToB();
+    act(() => result.current.stop());
+    await waitFor(() => expect(cancelClinicalTurn).toHaveBeenCalledTimes(2));
+    expect(result.current.runtime).toBe('stopping');
+
+    await settleCancel(0);
+
+    // A's cleanup must not clear B's dedupe marker nor abort B's controller.
+    expect(result.current.runtime).toBe('stopping');
+    expect(cancelClinicalTurn).toHaveBeenCalledTimes(2);
+    expect(controllerB.aborted).toBe(false);
+
+    await settleCancel(1);
+  });
+
+  it('detaches and unmounts without cancelling server work', async () => {
+    const { result, unmount } = renderAssistant('thread-1');
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-1'));
+    startTurn(result, 'Nota A');
+    act(() => result.current.detach());
+    expect(streamCalls[streamCalls.length - 1].signal.aborted).toBe(true);
+    expect(cancelClinicalTurn).not.toHaveBeenCalled();
+    unmount();
+    expect(cancelClinicalTurn).not.toHaveBeenCalled();
+  });
+});
