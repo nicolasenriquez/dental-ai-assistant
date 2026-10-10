@@ -12,6 +12,9 @@ interface ApprovalRequestItemProps {
   onBackToEdit: () => void;
   autoOpen?: boolean;
   onAutoOpen?: () => void;
+  onRecoverDraft?: () => void;
+  onVerify?: () => void;
+  verificationNeeded?: boolean;
   embedded?: boolean;
   reviewFlags?: ClinicalDraft['review_flags'];
 }
@@ -22,6 +25,9 @@ export function ApprovalRequestItem({
   onBackToEdit,
   autoOpen = false,
   onAutoOpen,
+  onRecoverDraft,
+  onVerify,
+  verificationNeeded = false,
   embedded = false,
   reviewFlags = [],
 }: ApprovalRequestItemProps) {
@@ -134,6 +140,7 @@ export function ApprovalRequestItem({
   if (embedded && committing) return null;
 
   if (!pending) {
+    const recoverable = item.status === 'failed';
     return (
       <div
         className={`${embedded ? 'clinical-evolution-approval-terminal' : 'clinical-approval-terminal'} clinical-approval-terminal--${item.status}`}
@@ -148,8 +155,22 @@ export function ApprovalRequestItem({
           <strong>{statusLabel}</strong>
           {item.status === 'declined'
             ? 'No se realizaron cambios.'
-            : 'Esta confirmación expiró o ya no puede recuperarse.'}
+            : 'No pudimos guardar esta evolución. El borrador se conserva.'}
         </span>
+        {recoverable && (onRecoverDraft || onVerify) && (
+          <span className="mt-2 flex flex-wrap items-center gap-2">
+            {onRecoverDraft && !verificationNeeded && (
+              <button type="button" className="clinical-primary-button" onClick={onRecoverDraft}>
+                Recuperar borrador
+              </button>
+            )}
+            {onVerify && (
+              <button type="button" className="clinical-secondary-button" onClick={onVerify}>
+                Verificar estado
+              </button>
+            )}
+          </span>
+        )}
       </div>
     );
   }

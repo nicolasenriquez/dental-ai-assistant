@@ -28,6 +28,36 @@ function draftForApproval(
   );
 }
 
+// One artifact can accumulate several actions. Pick the effective one from the
+// canonical artifact lifecycle instead of the first historic attempt, and never
+// let a preserved old failed action lock a recovered draft.
+function effectiveApproval(
+  group: ClinicalTranscriptItem[],
+  item: DraftItemData,
+): ApprovalItemData | undefined {
+  const candidates = group
+    .filter(
+      (candidate): candidate is ApprovalItemData =>
+        candidate.type === 'approval' && candidate.action.artifact_id === item.id,
+    )
+    .sort(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
+    );
+  if (candidates.length === 0) return undefined;
+  const pending = candidates.filter((candidate) => candidate.status === 'pending');
+  if (pending.length > 0) return pending[pending.length - 1];
+  if (item.artifactStatus === 'draft' || item.artifactStatus === 'stale') return undefined;
+  const matching = candidates.filter((candidate) =>
+    item.artifactStatus === 'approved'
+      ? candidate.status === 'completed'
+      : item.artifactStatus === 'declined'
+        ? candidate.status === 'declined'
+        : candidate.status === 'failed',
+  );
+  return matching[matching.length - 1] ?? candidates[candidates.length - 1];
+}
+
 function approvalForResult(
   group: ClinicalTranscriptItem[],
   result: ResultItemData,
@@ -49,6 +79,9 @@ interface ClinicalTranscriptProps {
   onPrepare: (item: DraftItemData) => void;
   onResolve: (item: ApprovalItemData, decision: 'approve' | 'decline') => void;
   onBackToEdit: (item: ApprovalItemData) => void;
+  onRecoverDraft?: (item: ApprovalItemData) => void;
+  onVerify?: () => void;
+  unverifiedActionId?: string | null;
   onRetry: (turnId: string) => void;
   busy?: boolean;
   activeTurn?: ActiveClinicalTurn | null;
@@ -89,6 +122,9 @@ export function ClinicalTranscript({
   onPrepare,
   onResolve,
   onBackToEdit,
+  onRecoverDraft,
+  onVerify,
+  unverifiedActionId = null,
   onRetry,
   busy = false,
   activeTurn = null,
@@ -249,10 +285,7 @@ export function ClinicalTranscript({
                   );
                 }
                 if (item.type === 'draft') {
-                  const approval = group.find(
-                    (candidate): candidate is ApprovalItemData =>
-                      candidate.type === 'approval' && candidate.action.artifact_id === item.id,
-                  );
+                  const approval = effectiveApproval(group, item);
                   const result = group.find(
                     (candidate): candidate is ResultItemData =>
                       candidate.type === 'result' && candidate.actionId === approval?.id,
@@ -272,6 +305,11 @@ export function ClinicalTranscript({
                       onPrepare={() => onPrepare(item)}
                       onResolve={onResolve}
                       onBackToEdit={onBackToEdit}
+                      onRecoverDraft={
+                        approval && onRecoverDraft ? () => onRecoverDraft(approval) : undefined
+                      }
+                      onVerify={onVerify}
+                      verificationNeeded={unverifiedActionId === approval?.id}
                       autoOpenApproval={autoOpenApprovalId === approval?.id}
                       onAutoOpenApproval={onAutoOpenApproval}
                       preparing={preparingDraftId === item.id}
@@ -297,6 +335,9 @@ export function ClinicalTranscript({
                       item={item}
                       onResolve={(decision) => onResolve(item, decision)}
                       onBackToEdit={() => onBackToEdit(item)}
+                      onRecoverDraft={onRecoverDraft ? () => onRecoverDraft(item) : undefined}
+                      onVerify={onVerify}
+                      verificationNeeded={unverifiedActionId === item.id}
                       autoOpen={autoOpenApprovalId === item.id}
                       onAutoOpen={onAutoOpenApproval}
                     />

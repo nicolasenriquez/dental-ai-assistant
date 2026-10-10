@@ -54,6 +54,7 @@ function renderItem(
   status: ClinicalApprovalItem['status'],
   resource: string | null = null,
   autoOpen = false,
+  callbacks: { onRecoverDraft?: () => void; onVerify?: () => void } = {},
 ) {
   return render(
     <MemoryRouter>
@@ -61,6 +62,8 @@ function renderItem(
         item={item(status, resource)}
         onResolve={vi.fn()}
         onBackToEdit={vi.fn()}
+        onRecoverDraft={callbacks.onRecoverDraft}
+        onVerify={callbacks.onVerify}
         autoOpen={autoOpen}
       />
     </MemoryRouter>,
@@ -145,13 +148,33 @@ describe('ApprovalRequestItem', () => {
     expect(screen.getByRole('button', { name: 'Guardando…' })).toBeDisabled();
   });
 
-  it.each([
-    ['declined', 'Descartada', 'No se realizaron cambios.'],
-    ['failed', 'No disponible', 'Esta confirmación expiró o ya no puede recuperarse.'],
-  ] as const)('renders %s as a terminal state', (status, badge, copy) => {
-    renderItem(status);
-    expect(screen.getByText(badge)).toBeVisible();
-    expect(screen.getByText(copy)).toBeVisible();
+  it.each([['declined', 'Descartada', 'No se realizaron cambios.']] as const)(
+    'renders %s as a closed terminal state',
+    (status, badge, copy) => {
+      renderItem(status);
+      expect(screen.getByText(badge)).toBeVisible();
+      expect(screen.getByText(copy)).toBeVisible();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    },
+  );
+
+  it('offers explicit draft recovery and verification for a failed action', () => {
+    const onRecoverDraft = vi.fn();
+    const onVerify = vi.fn();
+    renderItem('failed', null, false, { onRecoverDraft, onVerify });
+    expect(screen.getByText('No disponible')).toBeVisible();
+    expect(
+      screen.getByText('No pudimos guardar esta evolución. El borrador se conserva.'),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Recuperar borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Verificar estado' }));
+    expect(onRecoverDraft).toHaveBeenCalledOnce();
+    expect(onVerify).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a failed action without recovery controls when no handler is provided', () => {
+    renderItem('failed');
+    expect(screen.getByText('No disponible')).toBeVisible();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 

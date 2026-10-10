@@ -558,6 +558,9 @@ export function ClinicalAssistantArea({
             onThreadStateChanged?.();
           });
         }}
+        onRecoverDraft={(item) => void assistant.recoverDraft(item)}
+        onVerify={() => void assistant.reload()}
+        unverifiedActionId={assistant.unverifiedActionId}
       />
       {assistant.error && (
         <p className="clinical-error" role="alert">

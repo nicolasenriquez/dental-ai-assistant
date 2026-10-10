@@ -33,6 +33,9 @@ interface ClinicalEvolutionArtifactProps {
   saveToDriveDisabled?: boolean;
   autoOpenApproval?: boolean;
   onAutoOpen?: () => void;
+  onRecoverDraft?: () => void;
+  onVerify?: () => void;
+  verificationNeeded?: boolean;
   onRecoverDriveExport?: (evolutionId: string) => void;
   onReconnectDrive?: () => void;
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
@@ -290,6 +293,9 @@ export function ClinicalEvolutionArtifact({
   saveToDriveDisabled = false,
   autoOpenApproval = false,
   onAutoOpen,
+  onRecoverDraft,
+  onVerify,
+  verificationNeeded = false,
   onRecoverDriveExport,
   onReconnectDrive,
   onOpenDriveJournal,
@@ -359,7 +365,7 @@ export function ClinicalEvolutionArtifact({
         }
       />
 
-      {stage === 'review' && approval && (
+      {stage === 'review' && approval && !terminalApproval && (
         <div className="clinical-artifact-review-actions">
           <ApprovalRequestItem
             item={approval}
@@ -436,6 +442,9 @@ export function ClinicalEvolutionArtifact({
           embedded
           onResolve={(decision) => onResolve?.(approval, decision)}
           onBackToEdit={() => onBackToEdit?.(approval)}
+          onRecoverDraft={onRecoverDraft}
+          onVerify={onVerify}
+          verificationNeeded={verificationNeeded}
           autoOpen={autoOpenApproval}
         />
       )}

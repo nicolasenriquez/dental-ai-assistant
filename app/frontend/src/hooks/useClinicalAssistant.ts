@@ -9,6 +9,7 @@ import {
   getClinicalThread,
   getPatients,
   prepareClinicalSave,
+  recoverClinicalDraft,
   regenerateClinicalDraft,
   resolveClinicalAction,
   resolveClinicalPatientSwitch,
@@ -69,6 +70,12 @@ function safeError(code: string): string {
     TURN_RETRY_INVALID: 'Este intento ya no se puede reintentar. Actualiza la conversación.',
     TOOL_EXECUTION_FAILED: 'No pudimos completar la consulta. Tu nota se conserva.',
     EVOLUTION_SAVE_FAILED: 'No pudimos guardar la evolución. Tu borrador se conserva.',
+    CLINICAL_RECOVERY_FAILED: 'No pudimos recuperar el borrador. Actualiza la conversación.',
+    CLINICAL_RECOVERY_INELIGIBLE:
+      'Esta confirmación ya no se puede recuperar. Actualiza la conversación.',
+    CLINICAL_RECOVERY_STALE: 'La evolución cambió. Actualiza la conversación antes de recuperar.',
+    CLINICAL_RECOVERY_CONFLICT: 'Hay trabajo clínico en curso. Espera y vuelve a intentar.',
+    CLINICAL_RECOVERY_BUSY: 'No pudimos recuperar el borrador ahora. Intenta nuevamente.',
   };
   return messages[code] ?? 'No pudimos completar la acción. Tu trabajo se conserva.';
 }
@@ -179,6 +186,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
   const [runtime, setRuntime] = useState<ClinicalRuntime>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [unverifiedActionId, setUnverifiedActionId] = useState<string | null>(null);
   const [artifactSyncState, setArtifactSyncState] = useState<
     Record<string, 'idle' | 'saving' | 'saved' | 'error'>
   >({});
@@ -244,6 +252,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         ),
     );
     dispatch({ type: 'reset', items: hydrated });
+    setUnverifiedActionId(null);
     for (const item of patientSwitchItemsRef.current) dispatch({ type: 'append', item });
     setRuntime(
       loaded.active_turn_id
@@ -897,22 +906,78 @@ export function useClinicalAssistant(threadId: string | undefined) {
           status: resolvedStatus,
           action: result,
         });
-        setRuntime('idle');
         setThread((current) => (current ? { ...current, pending_action: null } : current));
+        if (resolvedStatus === 'failed') {
+          // The canonical failure updates the artifact timestamp recovery needs.
+          await load().catch(() => undefined);
+          setRuntime('failed');
+          setError(safeError('EVOLUTION_SAVE_FAILED'));
+          return;
+        }
+        setRuntime('idle');
+        setError(null);
       } catch (caught) {
         if (threadIdRef.current !== scope) return;
         const code = apiErrorCode(caught);
-        const unavailable = code === 'ACTION_EXPIRED' || code === 'EVOLUTION_SAVE_FAILED';
+        // Reconcile before retrying: the write may have committed or failed canonically.
+        let reloaded: ClinicalThread | null = null;
+        try {
+          reloaded = await load();
+        } catch {
+          reloaded = null;
+        }
+        if (threadIdRef.current !== scope) return;
+        if (reloaded === null) setUnverifiedActionId(item.action.id);
+        const canonical = reloaded?.actions?.find((action) => action.id === item.action.id);
+        if (canonical?.status === 'approved' || canonical?.status === 'declined') {
+          setRuntime('idle');
+          setError(null);
+          return;
+        }
+        const pending = canonical?.status === 'pending';
+        const unverified =
+          !canonical || canonical.status === 'failed' || canonical.status === 'expired';
         dispatch({
           type: 'resolveApproval',
           itemId: item.id,
-          status: unavailable ? 'failed' : 'pending',
+          status: unverified ? 'failed' : 'pending',
         });
         setError(safeError(code ?? 'EVOLUTION_SAVE_FAILED'));
-        setRuntime(unavailable ? 'failed' : 'awaiting_approval');
+        setRuntime(unverified ? 'failed' : pending ? 'awaiting_approval' : 'failed');
       }
     },
-    [],
+    [load],
+  );
+
+  const recoverDraft = useCallback(
+    async (item: ClinicalApprovalItem): Promise<boolean> => {
+      const scope = threadIdRef.current;
+      const artifact = thread?.artifacts?.find(
+        (candidate) => candidate.id === item.action.artifact_id,
+      );
+      if (!threadId || !artifact) {
+        setError(safeError('CLINICAL_RECOVERY_FAILED'));
+        return false;
+      }
+      try {
+        await recoverClinicalDraft(item.action.id, {
+          proposal_hash: item.action.proposal_hash,
+          expected_artifact_updated_at: artifact.updated_at,
+        });
+        if (threadIdRef.current !== scope) return false;
+        await load();
+        setError(null);
+        setRuntime('idle');
+        return true;
+      } catch (caught) {
+        if (threadIdRef.current !== scope) return false;
+        setError(safeError(apiErrorCode(caught) ?? 'CLINICAL_RECOVERY_FAILED'));
+        // Authoritative reread; a failed read keeps only the verification path available.
+        await load().catch(() => setUnverifiedActionId(item.action.id));
+        return false;
+      }
+    },
+    [load, thread, threadId],
   );
 
   const retryDriveExport = useCallback(async (evolutionId: string) => {
@@ -1106,6 +1171,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     runtime,
     activeTurnId,
     error,
+    unverifiedActionId,
     send,
     stop,
     setActivePatient,
@@ -1115,6 +1181,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     regenerateDraft,
     prepareDraft,
     resolve,
+    recoverDraft,
     backToEdit,
     cancelPatientSwitch,
     confirmPatientSwitch,

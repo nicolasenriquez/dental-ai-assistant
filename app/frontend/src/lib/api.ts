@@ -656,6 +656,19 @@ export const returnClinicalActionToEditing = (actionId: string) =>
     { method: 'POST', body: '{}' },
   );
 
+export type ClinicalRecoveryResult =
+  | { outcome: 'recovered' | 'already_recovered'; thread_id: string; artifact_id: string }
+  | { outcome: 'saved'; thread_id: string; artifact_id: string; evolution_id: string };
+
+export const recoverClinicalDraft = (
+  actionId: string,
+  body: { proposal_hash: string; expected_artifact_updated_at: string },
+) =>
+  request<ClinicalRecoveryResult>(`/clinical-actions/${actionId}/recover-draft`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
 export type DriveExportStatus = 'pending' | 'syncing' | 'synced' | 'failed' | 'unknown';
 
 export interface DriveExportState {
