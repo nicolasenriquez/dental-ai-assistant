@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   type ClinicalPlan,
   type PlanRevision,
@@ -23,6 +23,7 @@ export function PatientClinicalPlanHistory({
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
+  const destination = useRef<HTMLElement>(null);
   useEffect(() => {
     let alive = true;
     setPlan(null);
@@ -40,6 +41,7 @@ export function PatientClinicalPlanHistory({
         setPlan(record);
         setRevisions(history.items);
         setCursor(history.next_cursor);
+        destination.current?.focus();
       })
       .catch(() => {
         if (alive) setError(true);
@@ -52,7 +54,12 @@ export function PatientClinicalPlanHistory({
     };
   }, [patientId, planId, retry]);
   return (
-    <section aria-label="Historial de plan clínico" className="space-y-4">
+    <section
+      ref={destination}
+      tabIndex={-1}
+      aria-label="Historial de plan clínico"
+      className="space-y-4 focus-visible:ring-2 focus-visible:ring-primary"
+    >
       <h3 className="font-semibold">Historial de plan clínico</h3>
       <p className="text-sm text-muted">Registros anteriores, disponibles para consulta.</p>
       {loading && <p role="status">Cargando historial…</p>}

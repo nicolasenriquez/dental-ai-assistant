@@ -19,6 +19,7 @@ export function PatientDentalNoteDetail({
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const generation = useRef(0);
+  const destination = useRef<HTMLElement>(null);
   const load = useCallback(
     async (next?: string): Promise<void> => {
       const request = ++generation.current;
@@ -33,6 +34,7 @@ export function PatientDentalNoteDetail({
         setNote(record);
         setHistory((previous) => (next ? [...previous, ...revisions.items] : revisions.items));
         setCursor(revisions.next_cursor);
+        if (!next) destination.current?.focus();
       } catch {
         if (generation.current === request) setError(true);
       } finally {
@@ -51,8 +53,10 @@ export function PatientDentalNoteDetail({
   }, [load]);
   return (
     <section
+      ref={destination}
+      tabIndex={-1}
       aria-label="Nota clínica seleccionada"
-      className="space-y-3 border-t border-border pt-4"
+      className="space-y-3 border-t border-border pt-4 focus-visible:ring-2 focus-visible:ring-primary"
     >
       <h3 className="font-semibold">Nota clínica e historial</h3>
       {loading && <p role="status">Cargando nota clínica</p>}

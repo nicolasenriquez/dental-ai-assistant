@@ -17,7 +17,7 @@ const filters = [
   { kind: 'notes', label: 'Notas' },
   { kind: 'diagnoses', label: 'Diagnósticos' },
   { kind: 'treatments', label: 'Procedimientos' },
-  { kind: 'plans', label: 'Planes' },
+  { kind: 'plans', label: 'Histórico de planes' },
   { kind: 'clinical_notes', label: 'Notas clínicas' },
 ] as const;
 const icons = {

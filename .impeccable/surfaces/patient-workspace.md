@@ -71,13 +71,15 @@ new attempt. Confirmed corrections expose exact original/replacement revision li
 failed refreshes retry GET only and never repeat the write.
 
 Actividad groups persisted evolution saves and note/condition revisions by local
-day. Todos/Evoluciones/Notas/Diagnósticos filters reset pagination. Titles, time and
+day. Todos/Evoluciones/Notas/Diagnósticos filters reset pagination; Todos retains
+every stored event and the plan filter is qualified as `Histórico de planes`
+(read-only secondary access), never a daily authoring mode. Titles, time and
 counts come from owned sources; actors show the persisted trusted display_name or a
 stable distinguishable account UUID label with full-UUID disclosure — never a
 fabricated professional identity, email or RUT, and never Autor no disponible when a
 UUID exists. No clinical text, contacts or RUT appear in events. Exact UUID links
-read/focus the latest resource even outside page1, with its revision history
-available. Page errors retain known events and retry the same cursor; empty, loading
+read/focus the latest resource once after the owned read even outside page1, with its revision history
+available; later pagination or background refresh does not steal focus again. Page errors retain known events and retry the same cursor; empty, loading
 and end are distinct.
 
 Diagnosis defaults to Actuales while the API default stays all; Resueltas and
@@ -85,7 +87,8 @@ Registradas por error remain explicit historical filters with text/legend status
 Correction history shows the reason, actor and accessible original/replacement
 links. The ficha commits canonical query state on every view change —
 `tab=clinical&clinical=diagnosis|evolutions|planning|plans` plus a focused
-condition/treatment/plan/dental-note UUID only inside its owning section; reload
+condition/treatment/plan/dental-note UUID only inside its owning section; selecting
+diagnosis clears legacy plan focus parameters, reload
 restores it, unknown enums default deterministically, and clinical text/name/RUT
 never enter the URL.
 

@@ -221,10 +221,13 @@ Application rollback retains additive migration0025 tables and their clinical ev
 
 All routes below require the authenticated patient owner. Migration0026 adds plan aggregates,
 ordered items/sessions and append-only plan revisions. Application rollback retains these tables.
+Plan creation was retired (`POST /` returns 410); reads and stored-plan item/stage/lifecycle
+commands remain for existing plans.
 
 | Endpoint under `/api/patients/{p}/clinical-plans` | Behavior |
 | --- | --- |
-| `GET /`, `POST /` | Paged plan list or create a draft |
+| `GET /` | Paged plan list |
+| `POST /` | Retired authoring entry point: always 410 `historial`, never writes |
 | `GET /{plan}`, `PATCH /{plan}` | Aggregate snapshot or edit metadata |
 | `GET /{plan}/revisions` | Paged before/after history, actor/time and reason |
 | `POST /{plan}/items` | Atomically add planned treatment, members, item and initial sessions |
@@ -368,7 +371,9 @@ reflect later writes; clients restart after writes and deduplicate by record/eve
 | Activity | occurred_at DESC,kind ASC,event_id DESC; bound requested kind |
 
 `GET /api/patients/{patient_id}/activity?kind=all&limit=20` supports
-all/evolutions/notes/diagnoses/treatments/plans/clinical_notes. Events project approved
+all/evolutions/notes/diagnoses/treatments/plans/clinical_notes. Todos retains every stored
+event category; plan events are historical evidence (the UI presents the plans filter as
+`Histórico de planes`), never a daily authoring mode. Events project approved
 evolution created_at and manual note/condition/treatment/plan/clinical-note revision
 changed_at, never clinician-editable evolution_at or draft content. Each item has
 event_id,resource_id,kind,action,occurred_at,actor,title,tooth_fdi,href.
@@ -386,12 +391,15 @@ adds `&plan={plan}&history=1`. Plan href is
 commits canonical query state on every view change:
 `tab=clinical&clinical=diagnosis|evolutions|planning|plans`, plus the focused
 condition/treatment/plan/dental-note UUID only inside its owning section. Switching
-sections drops the previous resource focus; leaving clinical drops clinical params
-while preserving unrelated safe parameters. Unknown tab/clinical enums default to
-Resumen/diagnosis and a malformed resource UUID never fetches. Clinical text, patient
-name, note and RUT never enter the URL. Exact owned GET lets UI focus resources beyond
-page1, selects matching dentition and opens latest state with history. Inaccessible
-target has named not-found recovery within its accessible ficha.
+sections drops the previous resource focus, and selecting diagnosis also drops the legacy
+`plan`/`history` parameters, which belong to stored plan history; leaving clinical drops
+clinical params while preserving unrelated safe parameters. Unknown tab/clinical enums
+default to Resumen/diagnosis and a malformed resource UUID never fetches. Clinical text,
+patient name, note and RUT never enter the URL. Exact owned GET lets UI focus resources
+beyond page1, selects matching dentition and opens latest state with history; the exact
+note/plan destination receives focus once after that owned read, and later pagination or
+background refresh does not steal focus again. Inaccessible target has named not-found
+recovery within its accessible ficha.
 
 New clinical 404 envelope is `detail:{code:"not_found",message:"Registro no encontrado"}`.
 Revision 409 includes code,resource_id,current_revision. Validation 422 uses FastAPI's

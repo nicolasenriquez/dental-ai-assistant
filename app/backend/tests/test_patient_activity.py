@@ -59,6 +59,80 @@ async def test_clinical_activity_safe_exact_resource_links(
         app.dependency_overrides.pop(get_current_user, None)
 
 
+@pytest.mark.parametrize(
+    ("kind", "action", "with_plan", "expected"),
+    [
+        ("evolutions", "created", False, "/patients/{patient}/evolutions/{resource}"),
+        ("notes", "created", False, "/patients/{patient}?tab=info&note={resource}"),
+        (
+            "diagnoses",
+            "created",
+            False,
+            "/patients/{patient}?tab=clinical&clinical=diagnosis&condition={resource}",
+        ),
+        (
+            "treatments",
+            "created",
+            False,
+            "/patients/{patient}?tab=clinical&clinical=diagnosis&treatment={resource}",
+        ),
+        (
+            "treatments",
+            "created",
+            True,
+            "/patients/{patient}?tab=clinical&clinical=plans"
+            "&plan={plan}&treatment={resource}&history=1",
+        ),
+        (
+            "plans",
+            "create",
+            False,
+            "/patients/{patient}?tab=clinical&clinical=plans&plan={resource}&history=1",
+        ),
+        (
+            "clinical_notes",
+            "created",
+            False,
+            "/patients/{patient}?tab=clinical&clinical=diagnosis&dental_note={resource}",
+        ),
+    ],
+)
+async def test_activity_owned_links_are_canonical_for_the_owning_section(
+    monkeypatch, kind, action, with_plan, expected
+) -> None:
+    from backend.routes import patient_activity
+
+    owner, patient, resource, plan = uuid4(), uuid4(), uuid4(), uuid4()
+
+    async def events(*args):
+        assert args[:3] == (owner, patient, kind)
+        return [
+            {
+                "event_id": uuid4(),
+                "resource_id": resource,
+                "kind": kind,
+                "action": action,
+                "occurred_at": datetime.now(UTC),
+                "actor_user_id": owner,
+                "tooth_fdi": None,
+                **({"plan_id": plan} if with_plan else {}),
+            }
+        ], 1
+
+    monkeypatch.setattr(patient_activity.repo, "list_activity", events)
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(owner)}
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            response = await client.get(f"/api/patients/{patient}/activity?kind={kind}")
+            assert response.status_code == 200, response.text
+            href = response.json()["items"][0]["href"]
+            assert href == expected.format(patient=patient, resource=resource, plan=plan)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
 def test_activity_cursor_is_strict_and_bound() -> None:
     patient, event = uuid4(), uuid4()
     value = ActivityCursor(

@@ -85,6 +85,14 @@ it('labels persisted actors with distinguishable UUID abbreviations and full dis
   expect(screen.queryByText('Autor no disponible')).toBeNull();
 });
 
+it('labels legacy plan evidence as read-only history instead of a daily filter', async () => {
+  list.mockResolvedValueOnce({ items: [], total: 0, next_cursor: null });
+  mount();
+  await screen.findByText('Sin actividad guardada');
+  expect(screen.queryByRole('button', { name: 'Planes' })).not.toBeInTheDocument();
+  expect(screen.getByText(/hist[óo]ri.*planes/i)).toBeInTheDocument();
+});
+
 it('resets filter/cursor and rejects late responses from the previous category', async () => {
   let finish: (value: unknown) => void = () => {};
   list

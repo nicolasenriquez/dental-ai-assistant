@@ -407,10 +407,11 @@ export function PatientDetail() {
                             const next = new URLSearchParams(location.search);
                             next.set('tab', 'clinical');
                             next.set('clinical', 'diagnosis');
+                            next.delete('plan');
+                            next.delete('history');
                             if (clinicalSection !== 'diagnosis') {
                               next.delete('treatment');
                               next.delete('dental_note');
-                              next.delete('history');
                             }
                             navigate(`${location.pathname}?${next.toString()}`, {
                               replace: true,

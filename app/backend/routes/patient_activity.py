@@ -111,7 +111,7 @@ def _item(row: dict[str, Any], patient: UUID) -> ActivityItem:
             "resolved": "Condición resuelta",
             "corrected": "Condición corregida",
         }[action]
-        href = f"/patients/{patient}?tab=clinical&condition={resource}"
+        href = f"/patients/{patient}?tab=clinical&clinical=diagnosis&condition={resource}"
     actor = (
         Actor(user_id=row["actor_user_id"], display_name=row.get("actor_display_name"))
         if row["actor_user_id"]

@@ -683,6 +683,46 @@ describe('PatientDetail URL continuity (S6)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/patients/patient-1?tab=info&note=n');
   });
 
+  it('leaving a legacy plan for diagnosis clears plan focus and keeps stored history reachable', async () => {
+    const plan: api.ClinicalPlan = {
+      id: '00000000-0000-4000-8000-0000000000a1',
+      patient_id: 'patient-1',
+      title: 'Plan anterior',
+      diagnosis: 'Diagnóstico conservado',
+      internal_notes: null,
+      state: 'active',
+      revision: 3,
+      items: [],
+      created_at: '2026-10-03T12:00:00Z',
+      updated_at: '2026-10-03T12:00:00Z',
+      created_by: 'user',
+      updated_by: 'user',
+      confirmed_at: null,
+      confirmed_by: null,
+      accepted_at: null,
+      accepted_by: null,
+      acceptance_note: null,
+      closed_at: null,
+      closed_by: null,
+      closure_reason: null,
+      closure_note: null,
+    };
+    vi.spyOn(api, 'getClinicalPlan').mockResolvedValue(plan);
+    vi.spyOn(api, 'getClinicalPlanRevisions').mockResolvedValue({
+      items: [],
+      total: 0,
+      next_cursor: null,
+    });
+    renderS6(`/patients/patient-1?tab=clinical&clinical=plans&plan=${plan.id}&history=1`);
+    expect(await screen.findByText('Diagnóstico conservado')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Diagnóstico' }));
+    await screen.findByRole('heading', { name: 'Diagnóstico manual' });
+    const url = screen.getByTestId('location').textContent ?? '';
+    expect(url).toBe('/patients/patient-1?tab=clinical&clinical=diagnosis');
+    expect(url).not.toContain('plan=');
+    expect(url).not.toContain('history=');
+  });
+
   it('subview switches write the canonical URL and Evoluciones drops the condition focus', async () => {
     renderS6(`/patients/patient-1?tab=clinical&clinical=diagnosis&condition=${conditionRecord.id}`);
     await screen.findByRole('heading', { name: 'Diagnóstico manual' });
