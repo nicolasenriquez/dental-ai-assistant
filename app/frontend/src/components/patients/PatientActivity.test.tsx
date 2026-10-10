@@ -85,6 +85,23 @@ it('labels persisted actors with distinguishable UUID abbreviations and full dis
   expect(screen.queryByText('Autor no disponible')).toBeNull();
 });
 
+it('labels a supplied actor display name instead of the UUID fallback', async () => {
+  list.mockResolvedValueOnce({
+    items: [
+      {
+        ...event('r1'),
+        actor: { user_id: '00000000-0000-4000-8000-0000000000a1', display_name: 'Dra. Rojas' },
+      },
+    ],
+    total: 1,
+    next_cursor: null,
+  });
+  mount();
+  expect(await screen.findByText('Dra. Rojas')).toBeVisible();
+  expect(screen.queryByText(/^Usuario /)).toBeNull();
+  expect(screen.queryByText('Autor no disponible')).toBeNull();
+});
+
 it('labels legacy plan evidence as read-only history instead of a daily filter', async () => {
   list.mockResolvedValueOnce({ items: [], total: 0, next_cursor: null });
   mount();

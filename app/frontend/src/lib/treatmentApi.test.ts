@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import {
   ApiError,
   createPatientTreatment,
+  getDentalClinicalNoteRevisions,
   getPatientTreatments,
   updatePatientTreatment,
 } from './api';
@@ -53,4 +54,32 @@ it('preserves latest authorized snapshot in revision conflict', async () => {
       note: 'Local',
     }),
   ).rejects.toBeInstanceOf(ApiError);
+});
+
+it('keeps the supplied dental-note revision actor display name', async () => {
+  const mockFetch = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        items: [
+          {
+            id: 'revision',
+            revision: 2,
+            action: 'edited',
+            changed_at: '2026-10-03T12:00:00Z',
+            actor_user_id: '00000000-0000-4000-8000-000000000001',
+            actor_display_name: 'Dra. Rojas',
+          },
+        ],
+        total: 1,
+        next_cursor: null,
+      }),
+      { status: 200 },
+    ),
+  );
+  vi.stubGlobal('fetch', mockFetch);
+  const page = await getDentalClinicalNoteRevisions('patient', 'note');
+  expect(mockFetch.mock.calls[0][0]).toBe(
+    '/api/patients/patient/clinical-notes/note/revisions?limit=20',
+  );
+  expect(page.items[0].actor_display_name).toBe('Dra. Rojas');
 });

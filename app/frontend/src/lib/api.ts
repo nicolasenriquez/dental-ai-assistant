@@ -1467,6 +1467,7 @@ export interface DentalNoteRevision {
   action: 'created' | 'edited' | 'deleted';
   changed_at: string;
   actor_user_id: string;
+  actor_display_name: string | null;
 }
 
 export function getDentalClinicalNoteRevisions(

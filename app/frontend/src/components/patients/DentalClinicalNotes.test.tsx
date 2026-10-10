@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useDentalClinicalNotes } from '../../hooks/useDentalClinicalNotes';
 import type { DentalClinicalNote } from '../../lib/api';
@@ -107,6 +107,49 @@ it('highlights all treatment members and expands 280-character preview; deletion
   expect(mocks.remove).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Confirmar eliminación' }));
   await waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce());
+});
+
+it('keeps a bound note association on a body-only edit', async () => {
+  const updated = { ...note, body: 'Texto corregido', revision: 2 };
+  mocks.list.mockResolvedValue({ items: [note], total: 1, next_cursor: null });
+  mocks.edit.mockImplementation(async () => {
+    mocks.list.mockResolvedValue({ items: [updated], total: 1, next_cursor: null });
+    return { committed: updated };
+  });
+  render(<Harness />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Editar nota' }));
+  expect(screen.getByText(/Vínculo guardado: Diente 16/)).toBeVisible();
+  fireEvent.change(screen.getByLabelText('Texto de nota clínica'), {
+    target: { value: 'Texto corregido' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+  await waitFor(() => expect(mocks.edit).toHaveBeenCalledOnce());
+  expect(mocks.edit.mock.calls[0][1]).toBe('n');
+  expect(mocks.edit.mock.calls[0][2]).not.toHaveProperty('tooth_fdi');
+  expect(await screen.findByText('Texto corregido')).toBeVisible();
+  const card = await screen.findByRole('article', { name: 'Nota Diagnóstico' });
+  expect(within(card).getByText('Diente 16')).toBeVisible();
+});
+
+it('keeps general-note origins separate in the shared feed', async () => {
+  const general = {
+    ...note,
+    id: 'general',
+    note_type: 'administrative' as const,
+    author: { user_id: '00000000-0000-4000-8000-0000000000d1', display_name: 'Dr. General' },
+    tooth_fdi: null,
+    linked_teeth: [],
+  };
+  mocks.list.mockResolvedValue({ items: [general, note], total: 2, next_cursor: null });
+  render(<Harness />);
+  const card = await screen.findByRole('article', { name: 'Nota Administrativa' });
+  expect(within(card).getByText('Dr. General')).toBeVisible();
+  expect(within(card).queryByRole('button', { name: 'Editar nota' })).toBeNull();
+  expect(within(card).queryByRole('button', { name: 'Eliminar nota' })).toBeNull();
+  const clinical = screen.getByRole('article', { name: 'Nota Diagnóstico' });
+  expect(within(clinical).getByRole('button', { name: 'Editar nota' })).toBeVisible();
+  expect(mocks.edit).not.toHaveBeenCalled();
+  expect(mocks.remove).not.toHaveBeenCalled();
 });
 
 it('reviews a deletion conflict explicitly and replays a lost deletion response exactly', async () => {

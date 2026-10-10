@@ -51,6 +51,10 @@ export function PatientDentalNoteDetail({
       generation.current++;
     };
   }, [load]);
+  const actors = history.map((entry) => ({
+    user_id: entry.actor_user_id,
+    display_name: entry.actor_display_name ?? null,
+  }));
   return (
     <section
       ref={destination}
@@ -88,7 +92,13 @@ export function PatientDentalNoteDetail({
                 ? 'Nota editada'
                 : 'Nota eliminada'}{' '}
             · {formatClinicalDateShort(entry.changed_at)} {formatClinicalTime(entry.changed_at)} ·{' '}
-            <PatientActorLabel actor={{ user_id: entry.actor_user_id, display_name: null }} />
+            <PatientActorLabel
+              actor={{
+                user_id: entry.actor_user_id,
+                display_name: entry.actor_display_name ?? null,
+              }}
+              actors={actors}
+            />
           </li>
         ))}
       </ol>
