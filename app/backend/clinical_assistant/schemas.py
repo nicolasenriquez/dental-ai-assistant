@@ -113,6 +113,22 @@ class ActionResolutionRequest(BaseModel):
     proposal_hash: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 
 
+class RecoverDraftRequest(BaseModel):
+    """Client-asserted identity only: no patient, owner, content or status authority."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    proposal_hash: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+    expected_artifact_updated_at: datetime
+
+    @field_validator("expected_artifact_updated_at")
+    @classmethod
+    def validate_expected_artifact_updated_at(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("expected_artifact_updated_at debe incluir zona horaria")
+        return value
+
+
 class SafePatient(BaseModel):
     id: UUID
     first_name: str

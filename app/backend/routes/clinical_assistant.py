@@ -22,6 +22,7 @@ from backend.clinical_assistant.schemas import (
     OpenClinicalContext,
     PatientSwitchResolution,
     PrepareSaveRequest,
+    RecoverDraftRequest,
     RegenerateDraftRequest,
 )
 from backend.clinical_assistant.sensitive_input import safe_patient
@@ -339,3 +340,29 @@ async def return_to_editing(
         return cast(dict[str, Any], await service.return_to_editing(_user_id(user), action_id))
     except LookupError:
         raise HTTPException(status_code=404, detail="Acción pendiente no encontrada") from None
+
+
+@router.post("/clinical-actions/{action_id}/recover-draft")
+async def recover_draft(
+    action_id: UUID,
+    request: RecoverDraftRequest,
+    http_request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    _require_same_origin(http_request)
+    try:
+        return cast(dict[str, Any], await service.recover_draft(_user_id(user), action_id, request))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Acción no encontrada") from None
+    except service.RecoveryIneligibleError:
+        raise HTTPException(
+            status_code=409, detail={"code": "CLINICAL_RECOVERY_INELIGIBLE"}
+        ) from None
+    except service.RecoveryStaleError:
+        raise HTTPException(status_code=409, detail={"code": "CLINICAL_RECOVERY_STALE"}) from None
+    except service.RecoveryConflictError:
+        raise HTTPException(
+            status_code=409, detail={"code": "CLINICAL_RECOVERY_CONFLICT"}
+        ) from None
+    except service.RecoveryBusyError:
+        raise HTTPException(status_code=409, detail={"code": "CLINICAL_RECOVERY_BUSY"}) from None

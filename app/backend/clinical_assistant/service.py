@@ -30,6 +30,7 @@ from .schemas import (
     ClinicalThreadResponse,
     PatientSwitchResolution,
     PrepareSaveRequest,
+    RecoverDraftRequest,
 )
 from .sensitive_input import safe_patient, sanitize_content
 from .terminology import (
@@ -57,6 +58,10 @@ PendingActionExistsError = repository.PendingActionExistsError
 StaleClinicalTurnError = repository.StaleClinicalTurnError
 ActionExpiredError = repository.ActionExpiredError
 ProposalStaleError = repository.ProposalStaleError
+RecoveryIneligibleError = repository.RecoveryIneligibleError
+RecoveryStaleError = repository.RecoveryStaleError
+RecoveryConflictError = repository.RecoveryConflictError
+RecoveryBusyError = repository.RecoveryBusyError
 ClinicalGenerationDisabledError = clinical_evolutions.ClinicalGenerationDisabledError
 EmptyClinicalDraftError = clinical_evolutions.EmptyClinicalDraftError
 ClinicalGenerationError = clinical_evolutions.ClinicalGenerationError
@@ -228,6 +233,21 @@ async def resolve_action(
 
 async def return_to_editing(owner: UUID, action_id: UUID) -> dict[str, Any]:
     return cast(dict[str, Any], await repository.return_to_editing(owner, action_id))
+
+
+async def recover_draft(
+    owner: UUID, action_id: UUID, request: RecoverDraftRequest
+) -> dict[str, Any]:
+    """Validate the client-asserted identity and delegate the transactional recovery."""
+    return cast(
+        dict[str, Any],
+        await repository.recover_draft(
+            owner,
+            action_id,
+            request.proposal_hash,
+            request.expected_artifact_updated_at,
+        ),
+    )
 
 
 async def _get_recent_evolutions(context: ClinicalTurnContext) -> dict[str, Any]:

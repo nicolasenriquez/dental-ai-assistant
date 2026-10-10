@@ -7,6 +7,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
+import asyncpg
+
 from backend.config import CLINICAL_TURN_LIMIT_PER_24H
 from backend.db.postgres import get_pg_pool
 from backend.evolution_exports import service as evolution_exports_service
@@ -85,6 +87,36 @@ class ContextConflictError(Exception):
         self.thread = thread
         self.reason = reason
         super().__init__("Clinical context conflict")
+
+
+class RecoveryIneligibleError(Exception):
+    """The action or artifact lifecycle cannot be recovered."""
+
+
+class RecoveryStaleError(Exception):
+    """The recovery request no longer matches canonical action/artifact state."""
+
+
+class RecoveryConflictError(Exception):
+    """Active clinical work conflicts with recovery."""
+
+
+class RecoveryBusyError(Exception):
+    """Lifecycle locks are held by concurrent clinical work."""
+
+
+def _validate_retained_payload(artifact: dict[str, Any]) -> None:
+    """Fail closed unless the frozen artifact still holds a canonical draft payload."""
+    from backend.services.clinical_evolutions import ClinicalDraft
+
+    try:
+        if not isinstance(artifact["source_note"], str):
+            raise ValueError
+        ClinicalDraft.model_validate(artifact["draft"])
+        ClinicalDraft.model_validate(artifact["generated_draft"])
+        datetime.fromisoformat(str(artifact["evolution_at"]))
+    except (KeyError, TypeError, ValueError):
+        raise RecoveryStaleError from None
 
 
 async def open_context(
@@ -1372,3 +1404,178 @@ async def resolve_action(
                 owner,
             )
         return {**dict(row), "result": result}
+
+
+async def recover_draft(
+    owner_user_id: UUID | str,
+    action_id: UUID | str,
+    proposal_hash: str,
+    expected_artifact_updated_at: datetime,
+) -> dict[str, Any]:
+    """Restore one failed/expired action's retained draft without a clinical write.
+
+    Resolves the owner-scoped parent identities first, then locks the action,
+    artifact and thread with ``NOWAIT``. Approved history wins (returns the saved
+    identity); otherwise only the latest failed/expired action with a matching
+    hash and a valid retained payload may move the artifact failed -> draft. No
+    preparation, evolution persistence or export happens here.
+    """
+    owner = _uuid(owner_user_id)
+    action_uuid = _uuid(action_id)
+    try:
+        async with get_pg_pool().acquire() as conn, conn.transaction():
+            identity = await conn.fetchrow(
+                """
+                SELECT id, thread_id, artifact_id
+                FROM clinical_pending_actions
+                WHERE id = $1 AND owner_user_id = $2
+                """,
+                action_uuid,
+                owner,
+            )
+            if identity is None:
+                raise LookupError("Action not found")
+            thread_id = identity["thread_id"]
+            artifact_id = identity["artifact_id"]
+            if artifact_id is None:
+                raise RecoveryIneligibleError
+
+            action = await conn.fetchrow(
+                """
+                SELECT id, thread_id, artifact_id, patient_id, proposal_hash, status,
+                       result_resource_id, created_at
+                FROM clinical_pending_actions
+                WHERE id = $1 AND owner_user_id = $2
+                FOR UPDATE NOWAIT
+                """,
+                action_uuid,
+                owner,
+            )
+            if action is None:
+                raise LookupError("Action not found")
+            artifact = await conn.fetchrow(
+                """
+                SELECT id, owner_user_id, thread_id, turn_id, patient_id, artifact_type,
+                       status, payload, created_at, updated_at, resolved_at
+                FROM clinical_turn_artifacts
+                WHERE id = $1 AND owner_user_id = $2 AND thread_id = $3
+                FOR UPDATE NOWAIT
+                """,
+                artifact_id,
+                owner,
+                thread_id,
+            )
+            if artifact is None:
+                raise LookupError("Artifact not found")
+            thread = await conn.fetchrow(
+                """
+                SELECT id, active_turn_id
+                FROM clinical_threads
+                WHERE id = $1 AND owner_user_id = $2
+                FOR UPDATE NOWAIT
+                """,
+                thread_id,
+                owner,
+            )
+            if thread is None:
+                raise LookupError("Thread not found")
+            if (
+                action["thread_id"] != thread_id
+                or action["artifact_id"] != artifact_id
+                or action["patient_id"] != artifact["patient_id"]
+            ):
+                raise LookupError("Action not found")
+
+            actions = await conn.fetch(
+                """
+                SELECT id, status, result_resource_id, created_at
+                FROM clinical_pending_actions
+                WHERE artifact_id = $1 AND owner_user_id = $2
+                ORDER BY created_at ASC, id ASC
+                """,
+                artifact_id,
+                owner,
+            )
+            approved = [row for row in actions if row["status"] == "approved"]
+            if approved:
+                for row in approved:
+                    resource_id = row["result_resource_id"]
+                    if resource_id is None:
+                        raise RecoveryStaleError
+                    evolution = await conn.fetchrow(
+                        """
+                        SELECT id, patient_id
+                        FROM evolutions
+                        WHERE id = $1 AND owner_user_id = $2
+                        """,
+                        resource_id,
+                        owner,
+                    )
+                    if evolution is None or evolution["patient_id"] != artifact["patient_id"]:
+                        raise RecoveryStaleError
+                return {
+                    "outcome": "saved",
+                    "thread_id": thread_id,
+                    "artifact_id": artifact_id,
+                    "evolution_id": approved[-1]["result_resource_id"],
+                }
+
+            latest = actions[-1] if actions else None
+            if latest is None or latest["id"] != action_uuid:
+                raise RecoveryStaleError
+            if action["status"] not in {"failed", "expired"}:
+                raise RecoveryIneligibleError
+            if action["proposal_hash"] != proposal_hash:
+                raise RecoveryStaleError
+            if thread["active_turn_id"] is not None:
+                raise RecoveryConflictError
+            if await conn.fetchval(
+                """
+                SELECT 1 FROM clinical_pending_actions
+                WHERE thread_id = $1 AND owner_user_id = $2 AND status = 'pending'
+                LIMIT 1
+                """,
+                thread_id,
+                owner,
+            ):
+                raise RecoveryConflictError
+
+            if artifact["status"] == "draft":
+                return {
+                    "outcome": "already_recovered",
+                    "thread_id": thread_id,
+                    "artifact_id": artifact_id,
+                }
+            if artifact["status"] != "failed":
+                raise RecoveryIneligibleError
+            if artifact["updated_at"] != expected_artifact_updated_at:
+                raise RecoveryStaleError
+            _validate_retained_payload(_artifact_dict(artifact))
+            patient = await conn.fetchrow(
+                "SELECT 1 FROM patients WHERE id = $1 AND owner_user_id = $2",
+                artifact["patient_id"],
+                owner,
+            )
+            if patient is None:
+                raise RecoveryStaleError
+
+            await conn.execute(
+                """
+                UPDATE clinical_turn_artifacts
+                SET status = 'draft', resolved_at = NULL, updated_at = now()
+                WHERE id = $1 AND owner_user_id = $2 AND status = 'failed'
+                """,
+                artifact_id,
+                owner,
+            )
+            return {
+                "outcome": "recovered",
+                "thread_id": thread_id,
+                "artifact_id": artifact_id,
+            }
+    except (
+        asyncpg.LockNotAvailableError,
+        asyncpg.DeadlockDetectedError,
+        asyncpg.SerializationError,
+    ):
+        raise RecoveryBusyError from None

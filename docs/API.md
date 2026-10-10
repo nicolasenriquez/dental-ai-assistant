@@ -397,6 +397,51 @@ New clinical 404 envelope is `detail:{code:"not_found",message:"Registro no enco
 Revision 409 includes code,resource_id,current_revision. Validation 422 uses FastAPI's
 field-located detail array. Source failure is an error with retry, never an empty list.
 
+## Clinical Assistant
+
+The Assistant reuses the authenticated session. Approval mutations also require the
+same-origin policy (a valid `Origin` and, when present, `Sec-Fetch-Site: same-origin`);
+cross-site or missing-origin requests return 403.
+
+### `POST /api/clinical-actions/{action_id}/recover-draft`
+
+Recover retained draft content after a canonical approval failure or expiration without
+approving, preparing a save, persisting an evolution or triggering Drive export. It is
+separate from pending-only `return-to-editing`.
+
+Request body (strict, unknown fields rejected):
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `proposal_hash` | string | Lowercase SHA-256 hex, exactly 64 characters |
+| `expected_artifact_updated_at` | RFC3339 timestamp | Must include a timezone; current hydration version |
+
+No patient, owner, content, evolution ID or status authority is accepted from the client.
+
+Success is `200` with a discriminated `outcome`:
+
+| `outcome` | Additional fields | Meaning |
+| --- | --- | --- |
+| `recovered` | `thread_id`, `artifact_id` | Artifact restored `failed` → `draft`; the terminal action is preserved |
+| `already_recovered` | `thread_id`, `artifact_id` | Artifact was already `draft`; later edits are not overwritten |
+| `saved` | `thread_id`, `artifact_id`, `evolution_id` | Approved history holds a valid owned evolution; returned without mutation |
+
+The client then hydrates the exact thread. Recovery is not a clinical save and creates no
+approval, evolution or export.
+
+| Failure | Status | Detail |
+| --- | --- | --- |
+| Missing/foreign action, thread, artifact or patient | `404` | No existence disclosure |
+| Invalid body or hash format | `422` | FastAPI field-located detail array |
+| Declined/pending action, or unexpected artifact lifecycle | `409` | `{code:"CLINICAL_RECOVERY_INELIGIBLE"}` |
+| Superseded action, hash/timestamp mismatch, malformed retained payload or contradictory approved result | `409` | `{code:"CLINICAL_RECOVERY_STALE"}` |
+| Active turn or another pending thread approval | `409` | `{code:"CLINICAL_RECOVERY_CONFLICT"}` |
+| Lifecycle locks held by concurrent work | `409` | `{code:"CLINICAL_RECOVERY_BUSY"}` |
+
+Generic artifact update, regeneration and save preparation continue to reject terminal
+`failed` artifacts; only this operation restores `failed` → `draft`. No error includes
+patient text or internal SQL.
+
 ## Conversations
 
 ### `GET /api/conversations`
