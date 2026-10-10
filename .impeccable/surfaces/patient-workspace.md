@@ -49,7 +49,14 @@ called complete; partial failure preserves confirmed records with retry.
 
 The palette is an illustrated eight-category registry with independently authored
 lateral/occlusal profiles and variant motifs; cards use a 120px minimum grid, 72px
-minimum height, 2px borders and 6px support dots. The daily legend has five base
+minimum height, 2px borders and 6px support dots. The labelled `Categorías` control
+only navigates (current category in `aria-current`, armed tool in `aria-pressed`);
+high-volume categories (>12 entries, i.e. Restauradora) add contextual text search
+normalized for case and diacritics with result count, `Limpiar búsqueda` and
+`Sin coincidencias` feedback, while filtered results keep existing applicability and
+the armed tool survives filtering. Concept legend labels describe the shared symbol
+(`Corona`), never the first catalog variant; saved records keep their own variant
+label. The daily legend has five base
 groups without a plan label; historical read-only plan evidence stays available
 through stored plan links and history. A concept-colored tool preview runs about 1s and never
 writes; the read-only selected-plan chart overlay renders at 0.7 opacity with a P

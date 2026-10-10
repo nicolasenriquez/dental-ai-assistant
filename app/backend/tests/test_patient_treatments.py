@@ -51,6 +51,28 @@ async def test_treatment_catalog_complete_and_authenticated():
             ]
             assert len(crowns) == 2
             assert {v["clinical_type"] for v in crowns} == {"crown"}
+            assert [c["key"] for c in catalog["categories"]] == [
+                "diagnosis",
+                "restorative",
+                "surgery",
+                "endodontics",
+                "orthodontics",
+                "preventive",
+                "periodontics",
+                "pediatric",
+            ]
+            assert catalog["variants"][0]["id"] == "PREV-SEAL"
+            assert catalog["variants"][-1]["id"] == "CORE-ENDO-OVERFILL"
+            assert [v["id"] for v in catalog["variants"] if v["clinical_type"] == "crown"] == [
+                "REST-CROWN-MC",
+                "REST-CROWN-ZIR",
+                "REST-CROWN-DISI",
+                "REST-CROWN-METAL",
+                "REST-CROWN-PROV",
+                "REST-CROWN-RECEMENT",
+                "REST-CROWN-POST-ENDO",
+                "PED-CROWN-SS",
+            ]
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 

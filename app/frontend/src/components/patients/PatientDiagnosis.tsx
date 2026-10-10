@@ -94,6 +94,11 @@ const surfaces: { code: ToothSurface; label: string }[] = [
   { code: 'V', label: 'Vestibular' },
   { code: 'L', label: 'Lingual' },
 ];
+const normalizeSearch = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/\p{Mn}/gu, '')
+    .toLowerCase();
 function values(draft: CreatePatientCondition & { status: string }): string {
   return JSON.stringify([
     draft.dentition,
@@ -208,6 +213,7 @@ function PatientDiagnosisWorkspace({
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [pendingNotes, setPendingNotes] = useState(true);
   const [category, setCategory] = useState<string | null>(null);
+  const [catalogQuery, setCatalogQuery] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [review, setReview] = useState(false);
   const [receipt, setReceipt] = useState<ConditionCorrectionReceipt | null>(null);
@@ -366,6 +372,14 @@ function PatientDiagnosisWorkspace({
   });
   const groups = dentalGroups(catalog, dental.treatmentCatalog);
   const activeGroup = groups.find((group) => group.key === category) ?? groups[0];
+  // ponytail: search only pays for itself on high-volume categories (29 Restauradora entries).
+  const searchable = (activeGroup?.entries.length ?? 0) > 12;
+  const normalizedQuery = normalizeSearch(catalogQuery);
+  const visibleEntries = normalizedQuery
+    ? (activeGroup?.entries ?? []).filter((tool) =>
+        normalizeSearch(tool.label_es).includes(normalizedQuery),
+      )
+    : (activeGroup?.entries ?? []);
   const activeVariant = dental.treatmentCatalog?.variants.find((v) => v.id === dental.activeTool);
   const activeSurfaceCodes =
     activeVariant?.surface_codes ??
@@ -1206,16 +1220,19 @@ function PatientDiagnosisWorkspace({
                 !!treatmentEdit
               }
             />
-            <div aria-label="Condiciones disponibles" className="space-y-2">
+            <div className="space-y-2">
               {groups.length > 1 ? (
                 <div role="group" aria-label="Categorías" className="flex flex-wrap gap-2">
                   {groups.map((group) => (
                     <Button
                       key={group.key}
                       variant="clinicalSecondary"
-                      aria-pressed={activeGroup?.key === group.key}
-                      className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
-                      onClick={() => setCategory(group.key)}
+                      aria-current={activeGroup?.key === group.key ? 'true' : undefined}
+                      className="aria-[current=true]:border-primary aria-[current=true]:bg-surface aria-[current=true]:font-semibold aria-[current=true]:text-foreground"
+                      onClick={() => {
+                        setCategory(group.key);
+                        setCatalogQuery('');
+                      }}
                     >
                       {group.label}
                     </Button>
@@ -1224,55 +1241,79 @@ function PatientDiagnosisWorkspace({
               ) : groups.length === 1 ? (
                 <h4 className="font-medium">{groups[0].label}</h4>
               ) : null}
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
-                {activeGroup?.entries.map((tool) => (
-                  <Button
-                    key={tool.code}
-                    aria-label={tool.label_es}
-                    aria-describedby={
-                      tool.surface_codes.length ? `${patientId}-${tool.code}-surfaces` : undefined
-                    }
-                    variant="clinicalSecondary"
-                    aria-pressed={dental.activeTool === tool.code}
-                    className="dental-tool-card relative !min-h-[72px] flex w-full flex-col items-center justify-center gap-1 rounded-lg !border-2 !px-1.5 !py-[7px] text-center aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:font-semibold aria-pressed:text-foreground"
-                    disabled={
-                      locked ||
-                      dental.busy ||
-                      !!dental.attempt ||
-                      immutable ||
-                      !tool.supported ||
-                      !tool.allowed_dentitions.includes(dentition) ||
-                      !!draft ||
-                      !!treatmentEdit
-                    }
-                    onClick={() => chooseTool(tool.code)}
-                  >
-                    {dental.treatmentCatalog?.variants.some((v) => v.id === tool.code) ? (
-                      <TreatmentSymbol
-                        variant={
-                          dental.treatmentCatalog.variants.find((v) => v.id === tool.code) ?? {
-                            icon_key: tool.symbol,
-                            palette_role: 'restoration',
+              <div role="group" aria-label="Condiciones disponibles" className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {searchable && (
+                    <input
+                      type="search"
+                      value={catalogQuery}
+                      placeholder="Buscar…"
+                      aria-label={`Buscar en ${activeGroup?.label}`}
+                      className="min-h-[44px] w-full max-w-xs rounded border border-border bg-surface px-3 py-2 text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                      onChange={(event) => setCatalogQuery(event.target.value)}
+                    />
+                  )}
+                  {catalogQuery && (
+                    <Button variant="clinicalSecondary" onClick={() => setCatalogQuery('')}>
+                      Limpiar búsqueda
+                    </Button>
+                  )}
+                  <p role="status" className="text-sm text-muted">
+                    {visibleEntries.length
+                      ? `${visibleEntries.length} resultado${visibleEntries.length === 1 ? '' : 's'}`
+                      : 'Sin coincidencias'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
+                  {visibleEntries.map((tool) => (
+                    <Button
+                      key={tool.code}
+                      aria-label={tool.label_es}
+                      aria-describedby={
+                        tool.surface_codes.length ? `${patientId}-${tool.code}-surfaces` : undefined
+                      }
+                      variant="clinicalSecondary"
+                      aria-pressed={dental.activeTool === tool.code}
+                      className="dental-tool-card relative !min-h-[72px] flex w-full flex-col items-center justify-center gap-1 rounded-lg !border-2 !px-1.5 !py-[7px] text-center aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:font-semibold aria-pressed:text-foreground"
+                      disabled={
+                        locked ||
+                        dental.busy ||
+                        !!dental.attempt ||
+                        immutable ||
+                        !tool.supported ||
+                        !tool.allowed_dentitions.includes(dentition) ||
+                        !!draft ||
+                        !!treatmentEdit
+                      }
+                      onClick={() => chooseTool(tool.code)}
+                    >
+                      {dental.treatmentCatalog?.variants.some((v) => v.id === tool.code) ? (
+                        <TreatmentSymbol
+                          variant={
+                            dental.treatmentCatalog.variants.find((v) => v.id === tool.code) ?? {
+                              icon_key: tool.symbol,
+                              palette_role: 'restoration',
+                            }
                           }
-                        }
-                      />
-                    ) : (
-                      <ConditionSymbol code={tool.symbol} />
-                    )}
-                    {tool.label_es}
-                    {tool.surface_codes.length > 0 && (
-                      <span
-                        className="dental-sealant absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-current"
-                        title="Admite superficies"
-                        id={`${patientId}-${tool.code}-surfaces`}
-                        aria-label="Admite superficies"
-                      />
-                    )}
-                    {tool.symbolUnavailable && (
-                      <span className="sr-only">Símbolo no disponible</span>
-                    )}
-                  </Button>
-                ))}
+                        />
+                      ) : (
+                        <ConditionSymbol code={tool.symbol} />
+                      )}
+                      {tool.label_es}
+                      {tool.surface_codes.length > 0 && (
+                        <span
+                          className="dental-sealant absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-current"
+                          title="Admite superficies"
+                          id={`${patientId}-${tool.code}-surfaces`}
+                          aria-label="Admite superficies"
+                        />
+                      )}
+                      {tool.symbolUnavailable && (
+                        <span className="sr-only">Símbolo no disponible</span>
+                      )}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

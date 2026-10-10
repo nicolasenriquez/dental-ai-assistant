@@ -34,6 +34,34 @@ const groups = [
   },
   { label: 'Ortodoncia', types: ['bracket', 'tube', 'band', 'attachment', 'retainer'] },
 ];
+// Concepts describe the shared symbol, never one variant of the clinical type.
+const CONCEPT_LABELS: Record<string, string> = {
+  filling_composite: 'Obturación',
+  filling_amalgam: 'Obturación de amalgama',
+  filling_temporary: 'Obturación temporal',
+  sealant: 'Sellador',
+  veneer: 'Carilla',
+  inlay: 'Incrustación',
+  overlay: 'Recubrimiento',
+  crown: 'Corona',
+  crown_on_implant: 'Corona sobre implante',
+  provisional_crown_on_implant: 'Corona provisional sobre implante',
+  bridge: 'Puente',
+  splint: 'Férula',
+  extraction: 'Extracción',
+  implant: 'Implante',
+  apicoectomy: 'Cirugía apical',
+  root_canal_full: 'Endodoncia completa',
+  root_canal_two_thirds: 'Endodoncia de dos tercios',
+  root_canal_half: 'Endodoncia parcial',
+  post: 'Perno',
+  root_canal_overfill: 'Obturación radicular sobreextendida',
+  bracket: 'Bracket',
+  tube: 'Tubo',
+  band: 'Banda',
+  attachment: 'Atache',
+  retainer: 'Retenedor',
+};
 export function DentalLegend({
   catalog,
   treatments,
@@ -71,7 +99,7 @@ export function DentalLegend({
                     <TreatmentSymbol
                       variant={{ icon_key: type, palette_role: variant.palette_role }}
                     />
-                    {variant.label_es}
+                    {CONCEPT_LABELS[type] ?? variant.label_es}
                   </li>
                 ) : null;
               })}
