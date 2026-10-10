@@ -298,6 +298,7 @@ export function EvolutionReviewArtifact({
                 <span aria-hidden="true">·</span>
               </>
             )}
+            {isAssistant && !patient && <span>Información del paciente no disponible</span>}
             <time dateTime={evolutionAt}>
               {isAssistant
                 ? formatClinicalDateShort(evolutionAt)
@@ -765,7 +766,9 @@ export function EvolutionReviewArtifact({
               <button
                 type="button"
                 className="clinical-primary-button"
-                disabled={emptyDraft || editingField !== null || preparing}
+                disabled={
+                  emptyDraft || editingField !== null || preparing || (isAssistant && !patient)
+                }
                 onClick={onPrepare}
               >
                 {preparing ? (

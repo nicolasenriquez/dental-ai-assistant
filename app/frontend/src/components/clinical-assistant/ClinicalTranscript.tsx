@@ -8,7 +8,7 @@ import type {
   ClinicalDraftItem as DraftItemData,
 } from '../../hooks/useClinicalAssistant';
 import { useConversationViewportCache } from '../../hooks/useConversationViewportCache';
-import type { ClinicalDraft, ClinicalPatient, DriveJournalTarget } from '../../lib/api';
+import type { ClinicalDraft, DriveJournalTarget } from '../../lib/api';
 import { Message } from '../Message';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 import { ClinicalDraftItem } from './ClinicalDraftItem';
@@ -60,7 +60,6 @@ interface ClinicalTranscriptProps {
   onSaveDraftToDrive?: (item: DraftItemData) => void;
   driveTransferDisabled?: boolean;
   activePatientId?: string | null;
-  activePatient?: ClinicalPatient | null;
   onRecoverDriveExport?: (evolutionId: string) => void;
   onReconnectDrive?: () => void;
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
@@ -100,7 +99,6 @@ export function ClinicalTranscript({
   onSaveDraftToDrive,
   driveTransferDisabled = false,
   activePatientId = null,
-  activePatient = null,
   onRecoverDriveExport,
   onReconnectDrive,
   onOpenDriveJournal,
@@ -262,10 +260,7 @@ export function ClinicalTranscript({
                       key={item.id}
                       item={item}
                       threadId={threadId}
-                      patient={
-                        approval?.patient ??
-                        (activePatient?.id === item.patientId ? activePatient : undefined)
-                      }
+                      patient={item.patient ?? approval?.patient ?? null}
                       approval={approval}
                       result={result}
                       onChange={(draft) => onDraftChange(item.id, draft)}

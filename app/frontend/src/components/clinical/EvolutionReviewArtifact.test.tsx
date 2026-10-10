@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ClinicalDraft } from '../../lib/api';
+import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
 import { EvolutionReviewArtifact } from './EvolutionReviewArtifact';
 
 const draft: ClinicalDraft = {
@@ -23,6 +23,13 @@ const flaggedDraft: ClinicalDraft = {
 };
 
 afterEach(cleanup);
+
+const patient: ClinicalPatient = {
+  id: 'patient-1',
+  first_name: 'Ana',
+  last_name: 'Pérez',
+  rut_masked: '12.345.•••-6',
+};
 
 function renderArtifact(onChange = vi.fn()) {
   return {
@@ -133,6 +140,7 @@ describe('EvolutionReviewArtifact', () => {
     render(
       <EvolutionReviewArtifact
         mode="assistant"
+        patient={patient}
         sourceNote="Nota original"
         draft={draft}
         generatedDraft={draft}
@@ -314,6 +322,7 @@ describe('EvolutionReviewArtifact', () => {
     render(
       <EvolutionReviewArtifact
         mode="assistant"
+        patient={patient}
         sourceNote="Nota original"
         draft={flaggedDraft}
         generatedDraft={flaggedDraft}

@@ -518,7 +518,6 @@ export function ClinicalAssistantArea({
         }
         driveTransferDisabled={!activePatient}
         activePatientId={activePatient?.id}
-        activePatient={activePatient}
         onRecoverDriveExport={(evolutionId) => void assistant.retryDriveExport(evolutionId)}
         onReconnectDrive={() => {
           if (!driveOpen) onToggleDrive?.();

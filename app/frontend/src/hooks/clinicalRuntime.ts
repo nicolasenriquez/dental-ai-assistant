@@ -43,13 +43,14 @@ export interface ClinicalDraftItem extends ClinicalBaseItem {
   edited: boolean;
   stale: boolean;
   patientId: string;
+  patient?: ClinicalPatient | null;
   evolutionAt: string;
 }
 
 export interface ClinicalApprovalItem extends ClinicalBaseItem {
   type: 'approval';
   action: ClinicalPendingAction;
-  patient: ClinicalPatient;
+  patient: ClinicalPatient | null;
 }
 
 export interface ClinicalResultItem extends ClinicalBaseItem {
@@ -92,6 +93,7 @@ export function artifactToDraftItem(artifact: ClinicalTurnArtifact): ClinicalDra
     edited: JSON.stringify(artifact.draft) !== JSON.stringify(artifact.generated_draft),
     stale: artifact.status === 'stale',
     patientId: artifact.patient_id,
+    patient: artifact.patient ?? null,
     evolutionAt: artifact.evolution_at,
   };
 }
@@ -249,6 +251,7 @@ export type ClinicalReducerAction =
   | { type: 'event'; event: ClinicalEvent }
   | { type: 'append'; item: ClinicalTranscriptItem }
   | { type: 'updateDraft'; itemId: string; draft: ClinicalDraft }
+  | { type: 'updateDraftPatient'; itemId: string; patient: ClinicalPatient | null }
   | { type: 'updateSource'; itemId: string; sourceNote: string }
   | { type: 'updateDate'; itemId: string; evolutionAt: string }
   | { type: 'replaceDraft'; itemId: string; draft: ClinicalDraft }
@@ -368,6 +371,7 @@ function itemFromEvent(event: ClinicalEvent): ClinicalTranscriptItem | null {
       edited: JSON.stringify(draft) !== JSON.stringify(generatedDraft),
       stale: false,
       patientId,
+      patient: null,
       evolutionAt,
     };
   }
@@ -485,6 +489,16 @@ export function clinicalReducer(
               draft: action.draft,
               edited: JSON.stringify(action.draft) !== JSON.stringify(item.baseline),
             }
+          : item,
+      ),
+    };
+  }
+  if (action.type === 'updateDraftPatient') {
+    return {
+      ...state,
+      items: state.items.map((item) =>
+        item.id === action.itemId && item.type === 'draft' && item.patient == null
+          ? { ...item, patient: action.patient }
           : item,
       ),
     };

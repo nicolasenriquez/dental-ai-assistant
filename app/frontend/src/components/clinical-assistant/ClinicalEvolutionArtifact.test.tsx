@@ -187,7 +187,7 @@ describe('ClinicalEvolutionArtifact', () => {
 
   it('renders draft lifecycle with one review action and overflow utilities', () => {
     const onPrepare = vi.fn();
-    renderArtifact(draftItem(), undefined, onPrepare, vi.fn());
+    renderArtifact(draftItem(), undefined, onPrepare, vi.fn(), patient);
 
     expect(screen.getByText('Borrador')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();

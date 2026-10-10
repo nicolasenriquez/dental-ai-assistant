@@ -92,8 +92,10 @@ export function ApprovalRequestItem({
           <small className="clinical-status-badge">{statusLabel}</small>
           {evolutionAt && (
             <time dateTime={evolutionAt}>
-              {item.patient.first_name} {item.patient.last_name} ·{' '}
-              {formatClinicalDateTime(evolutionAt)}
+              {item.patient
+                ? `${item.patient.first_name} ${item.patient.last_name}`
+                : 'Información del paciente no disponible'}{' '}
+              · {formatClinicalDateTime(evolutionAt)}
             </time>
           )}
         </span>
@@ -181,12 +183,18 @@ export function ApprovalRequestItem({
             {committing && !embedded && <Spinner />}
             {statusLabel}
           </span>
-          <p>
-            <strong>
-              {item.patient.first_name} {item.patient.last_name}
-            </strong>
-          </p>
-          <p>{item.patient.rut_masked}</p>
+          {item.patient ? (
+            <>
+              <p>
+                <strong>
+                  {item.patient.first_name} {item.patient.last_name}
+                </strong>
+              </p>
+              <p>{item.patient.rut_masked}</p>
+            </>
+          ) : (
+            <p>Información del paciente no disponible</p>
+          )}
           {evolutionAt && <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>}
           <p>Se incorporará esta evolución a la ficha clínica del paciente.</p>
           {typeof payload?.final_text === 'string' && (

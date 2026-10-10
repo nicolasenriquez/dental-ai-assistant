@@ -7,6 +7,7 @@ import {
   type ComposerContextItem,
   cancelClinicalTurn,
   getClinicalThread,
+  getPatients,
   prepareClinicalSave,
   regenerateClinicalDraft,
   resolveClinicalAction,
@@ -159,13 +160,7 @@ function actionItems(thread: ClinicalThread): ClinicalTranscriptItem[] {
     createdAt: action.created_at,
     type: 'approval' as const,
     action,
-    patient: action.patient ??
-      thread.active_patient ?? {
-        id: action.patient_id,
-        first_name: 'Paciente',
-        last_name: '',
-        rut_masked: '••••',
-      },
+    patient: action.patient ?? null,
   }));
 }
 
@@ -277,6 +272,29 @@ export function useClinicalAssistant(threadId: string | undefined) {
     }
     return loaded;
   }, [threadId]);
+
+  // ponytail: incremental SSE artifacts omit patient metadata; resolve it from the
+  // existing owner-scoped directory read, and never overwrite known identity.
+  const resolveDraftPatient = useCallback(async (itemId: string, patientId: string) => {
+    try {
+      const patients = await getPatients();
+      const match = patients.find((patient) => patient.id === patientId);
+      dispatch({
+        type: 'updateDraftPatient',
+        itemId,
+        patient: match
+          ? {
+              id: match.id,
+              first_name: match.first_name,
+              last_name: match.last_name,
+              rut_masked: match.rut_masked,
+            }
+          : null,
+      });
+    } catch {
+      dispatch({ type: 'updateDraftPatient', itemId, patient: null });
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -490,6 +508,11 @@ export function useClinicalAssistant(threadId: string | undefined) {
               status: decoded.status,
             });
             dispatch({ type: 'event', event: decoded });
+            if (decoded.itemType === 'clinical_draft') {
+              const patientId =
+                typeof decoded.data.patient_id === 'string' ? decoded.data.patient_id : '';
+              if (patientId) void resolveDraftPatient(decoded.itemId, patientId);
+            }
             clinicalTrace('clinical.reducer.applied', {
               thread_id: decoded.threadId,
               turn_id: decoded.turnId,
@@ -831,7 +854,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           createdAt: action.created_at,
           type: 'approval',
           action,
-          patient: action.patient,
+          patient: action.patient ?? null,
         };
         dispatch({ type: 'upsertApproval', item: approval });
         setRuntime('awaiting_approval');
