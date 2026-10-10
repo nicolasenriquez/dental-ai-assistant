@@ -32,6 +32,7 @@ interface ClinicalEvolutionArtifactProps {
   onSaveToDrive?: () => void;
   saveToDriveDisabled?: boolean;
   autoOpenApproval?: boolean;
+  onAutoOpen?: () => void;
   onRecoverDriveExport?: (evolutionId: string) => void;
   onReconnectDrive?: () => void;
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
@@ -288,6 +289,7 @@ export function ClinicalEvolutionArtifact({
   onSaveToDrive,
   saveToDriveDisabled = false,
   autoOpenApproval = false,
+  onAutoOpen,
   onRecoverDriveExport,
   onReconnectDrive,
   onOpenDriveJournal,
@@ -366,6 +368,7 @@ export function ClinicalEvolutionArtifact({
             onResolve={(decision) => onResolve?.(approval, decision)}
             onBackToEdit={() => onBackToEdit?.(approval)}
             autoOpen={autoOpenApproval}
+            onAutoOpen={onAutoOpen}
           />
           {showOverflow && (
             <ArtifactOverflow content={clinicalContent} saveToDriveDisabled={saveToDriveDisabled} />

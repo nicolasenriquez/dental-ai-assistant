@@ -27,6 +27,7 @@ interface ClinicalDraftItemProps {
   onResolve?: (item: ClinicalApprovalItem, decision: 'approve' | 'decline') => void;
   onBackToEdit?: (item: ClinicalApprovalItem) => void;
   autoOpenApproval?: boolean;
+  onAutoOpenApproval?: () => void;
   onRecoverDriveExport?: (evolutionId: string) => void;
   onReconnectDrive?: () => void;
   onOpenDriveJournal?: (target: DriveJournalTarget) => void;
@@ -51,6 +52,7 @@ export function ClinicalDraftItem({
   onResolve,
   onBackToEdit,
   autoOpenApproval = false,
+  onAutoOpenApproval,
   onRecoverDriveExport,
   onReconnectDrive,
   onOpenDriveJournal,
@@ -84,6 +86,7 @@ export function ClinicalDraftItem({
       onSaveToDrive={onSaveToDrive}
       saveToDriveDisabled={saveToDriveDisabled}
       autoOpenApproval={autoOpenApproval}
+      onAutoOpen={onAutoOpenApproval}
       onRecoverDriveExport={onRecoverDriveExport}
       onReconnectDrive={onReconnectDrive}
       onOpenDriveJournal={onOpenDriveJournal}

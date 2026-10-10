@@ -11,6 +11,7 @@ interface ApprovalRequestItemProps {
   onResolve: (decision: 'approve' | 'decline') => void;
   onBackToEdit: () => void;
   autoOpen?: boolean;
+  onAutoOpen?: () => void;
   embedded?: boolean;
   reviewFlags?: ClinicalDraft['review_flags'];
 }
@@ -20,11 +21,14 @@ export function ApprovalRequestItem({
   onResolve,
   onBackToEdit,
   autoOpen = false,
+  onAutoOpen,
   embedded = false,
   reviewFlags = [],
 }: ApprovalRequestItemProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const autoOpenedRef = useRef(false);
   const payload = item.action.proposal_payload;
   const evolutionAt = typeof payload?.evolution_at === 'string' ? payload.evolution_at : null;
   const committing = item.status === 'running';
@@ -47,7 +51,13 @@ export function ApprovalRequestItem({
 
   const closeDialog = () => {
     if (dialogRef.current?.open) dialogRef.current.close();
-    if (previousFocusRef.current?.isConnected) previousFocusRef.current.focus();
+    const previous = previousFocusRef.current;
+    const insideDialog = previous ? dialogRef.current?.contains(previous) : false;
+    if (previous?.isConnected && previous !== document.body && !insideDialog) {
+      previous.focus();
+    } else {
+      triggerRef.current?.focus();
+    }
     previousFocusRef.current = null;
   };
 
@@ -79,8 +89,11 @@ export function ApprovalRequestItem({
     if ((!pending || (embedded && committing)) && dialogRef.current?.open) closeDialog();
   }, [committing, embedded, pending]);
   useEffect(() => {
-    if (autoOpen && item.status === 'pending' && !dialogRef.current?.open) openDialog();
-  }, [autoOpen, item.status]);
+    if (!autoOpen || item.status !== 'pending' || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    openDialog();
+    onAutoOpen?.();
+  }, [autoOpen, item.status, onAutoOpen]);
 
   if (saved) {
     if (embedded) return null;
@@ -143,7 +156,7 @@ export function ApprovalRequestItem({
 
   return (
     <>
-      {!autoOpen && !committing && (
+      {!committing && (
         <div
           className={embedded ? 'clinical-evolution-approval-prompt' : 'clinical-approval-prompt'}
           data-approval-id={item.id}
@@ -155,14 +168,24 @@ export function ApprovalRequestItem({
           {embedded ? (
             <div className="clinical-evolution-approval-actions">
               <button type="button" className="clinical-secondary-button" onClick={onBackToEdit}>
-                Volver a editar
+                Seguir editando
               </button>
-              <button type="button" className="clinical-primary-button" onClick={openDialog}>
-                Revisar y guardar
+              <button
+                ref={triggerRef}
+                type="button"
+                className="clinical-primary-button"
+                onClick={openDialog}
+              >
+                Confirmar guardado
               </button>
             </div>
           ) : (
-            <button type="button" className="clinical-primary-button" onClick={openDialog}>
+            <button
+              ref={triggerRef}
+              type="button"
+              className="clinical-primary-button"
+              onClick={openDialog}
+            >
               Continuar
             </button>
           )}

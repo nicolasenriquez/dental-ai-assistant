@@ -208,12 +208,12 @@ describe('ClinicalEvolutionArtifact', () => {
     );
 
     expect(view.container.querySelector('[data-clinical-stage="review"]')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Volver a editar' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Seguir editando' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Guardar en Drive' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Confirmar guardado' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revisar y guardar' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Revisar y guardar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar guardado' }));
     const dialog = screen.getByRole('dialog', { name: 'Guardar evolución' });
     expect(dialog).toBeVisible();
     expect(within(dialog).getByRole('button', { name: 'Volver a editar' })).toBeVisible();

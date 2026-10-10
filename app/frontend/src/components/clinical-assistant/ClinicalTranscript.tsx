@@ -54,6 +54,7 @@ interface ClinicalTranscriptProps {
   activeTurn?: ActiveClinicalTurn | null;
   preparingDraftId?: string | null;
   autoOpenApprovalId?: string | null;
+  onAutoOpenApproval?: () => void;
   artifactSyncState?: Record<string, 'idle' | 'saving' | 'saved' | 'error'>;
   onRetryArtifactSync?: (item: DraftItemData) => void;
   onSaveToDrive?: (item: Extract<ClinicalTranscriptItem, { type: 'assistant' }>) => void;
@@ -93,6 +94,7 @@ export function ClinicalTranscript({
   activeTurn = null,
   preparingDraftId = null,
   autoOpenApprovalId = null,
+  onAutoOpenApproval,
   artifactSyncState = {},
   onRetryArtifactSync,
   onSaveToDrive,
@@ -271,6 +273,7 @@ export function ClinicalTranscript({
                       onResolve={onResolve}
                       onBackToEdit={onBackToEdit}
                       autoOpenApproval={autoOpenApprovalId === approval?.id}
+                      onAutoOpenApproval={onAutoOpenApproval}
                       preparing={preparingDraftId === item.id}
                       syncState={artifactSyncState[item.id]}
                       onRetrySync={() => onRetryArtifactSync?.(item)}
@@ -295,6 +298,7 @@ export function ClinicalTranscript({
                       onResolve={(decision) => onResolve(item, decision)}
                       onBackToEdit={() => onBackToEdit(item)}
                       autoOpen={autoOpenApprovalId === item.id}
+                      onAutoOpen={onAutoOpenApproval}
                     />
                   );
                 if (item.type === 'result') {

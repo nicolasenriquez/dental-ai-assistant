@@ -537,6 +537,7 @@ export function ClinicalAssistantArea({
         }}
         preparingDraftId={preparingDraftId}
         autoOpenApprovalId={autoOpenApprovalId}
+        onAutoOpenApproval={() => setAutoOpenApprovalId(null)}
         artifactSyncState={assistant.artifactSyncState}
         onRetryArtifactSync={assistant.retryArtifactSync}
         onRetry={assistant.retryTurn}
