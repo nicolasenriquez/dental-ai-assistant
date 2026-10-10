@@ -720,7 +720,11 @@ export function ClinicalAssistantArea({
             <div className="clinical-queue" aria-label="Mensajes en cola">
               <strong>Mensajes en cola {queued.length}/3</strong>
               <p className="text-xs text-muted">
-                Detener respuesta cancela sólo la respuesta actual; la cola puede continuar.
+                Cancela sólo la respuesta actual.{' '}
+                <strong className="font-medium">
+                  Hay {queued.length}{' '}
+                  {queued.length === 1 ? 'mensaje pendiente' : 'mensajes pendientes'}.
+                </strong>
               </p>
               {queueDeliveryFailed && (
                 <button

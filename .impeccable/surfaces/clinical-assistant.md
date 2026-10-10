@@ -66,6 +66,13 @@ only server-persisted clinical work. Return to running detached work reconciles 
 Unsent memory registers a native unload guard; confirming reload still loses it.
 Queue entries are claimed before dispatch and rejected delivery requires explicit retry.
 Send acceptance is independent of generation success or detaching the SSE subscriber.
+Stop names the current response (`Detener respuesta actual`) and the queue says
+`Cancela sólo la respuesta actual. Hay N mensajes pendientes.`; stopping never pauses
+or erases the queue, and no pause-all behavior exists. The composer summarizes
+`Enter envía · Shift+Enter agrega una línea` through `aria-describedby`, hidden below
+768px so narrow panes keep only the working controls. Under coarse pointers every
+assistant control reaches 44px through the shared coarse rule, including the header
+action override for Pending and Drive; desktop toolbars keep their compact 40px targets.
 
 Read results dispatch by `result_kind`; fallback never prints internal payloads.
 Terminology is general evidence, not patient findings. Approval names patient,

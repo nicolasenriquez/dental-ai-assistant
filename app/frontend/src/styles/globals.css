@@ -3265,6 +3265,20 @@ body,
   gap: 8px;
 }
 
+.clinical-composer-keys {
+  margin-right: auto;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .clinical-composer-keys {
+    display: none;
+  }
+}
+
 .clinical-composer .voice-composer-status {
   min-height: 36px;
 }
@@ -5446,6 +5460,7 @@ body,
 
 @media (pointer: coarse) {
   .clinical-assistant-area :is(button, a),
+  .clinical-assistant-area .workspace-header__actions > .clinical-secondary-button,
   .clinical-assistant-area .workspace-header__actions [data-drive-utility],
   .drive-workspace :is(button, a),
   .drive-sheet-close,

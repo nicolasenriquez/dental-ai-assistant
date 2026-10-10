@@ -108,9 +108,21 @@ describe('ClinicalComposer', () => {
     fireEvent.keyDown(composer, { key: 'Enter' });
     fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
     expect(onSubmit).toHaveBeenCalledTimes(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta actual' }));
     expect(onStop).toHaveBeenCalledOnce();
     expect(screen.queryByRole('button', { name: 'Enviar mensaje' })).not.toBeInTheDocument();
+  });
+
+  it('summarizes the keyboard keys without adding another control', () => {
+    renderComposer();
+
+    const hint = screen.getByText(/Enter envía/);
+    expect(hint).toHaveAttribute('id', 'clinical-composer-keys');
+    expect(hint).toHaveTextContent('Shift+Enter agrega una línea');
+    expect(screen.getByRole('textbox', { name: 'Nota clínica' })).toHaveAttribute(
+      'aria-describedby',
+      'clinical-composer-keys',
+    );
   });
 
   it('keeps note editable but locks submit controls during transcription', () => {

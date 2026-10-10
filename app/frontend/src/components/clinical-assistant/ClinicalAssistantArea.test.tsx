@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ClinicalAssistantController,
@@ -246,8 +247,53 @@ describe('ClinicalAssistantArea queue', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
 
     expect(composer).toHaveValue('Cuatro');
+    fireEvent.change(composer, { target: { value: 'Cuatro editado' } });
+    expect(composer).toHaveValue('Cuatro editado');
     expect(screen.getByRole('alert')).toHaveTextContent('Ya tienes 3 mensajes pendientes.');
     expect(screen.getByText('Mensajes en cola 3/3')).toBeVisible();
+  });
+
+  it('explains Stop scope and names the pending count separately', () => {
+    const assistant = createAssistant();
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    fireEvent.change(composer, { target: { value: 'Pendiente uno' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    expect(screen.getByText('Hay 1 mensaje pendiente.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Detener respuesta actual' })).toBeVisible();
+    fireEvent.change(composer, { target: { value: 'Pendiente dos' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    expect(screen.getByText('Hay 2 mensajes pendientes.')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta actual' }));
+
+    expect(assistant.stop).toHaveBeenCalledOnce();
+    expect(screen.getByText('Pendiente uno')).toBeVisible();
+    expect(screen.getByText('Pendiente dos')).toBeVisible();
+  });
+
+  it('keeps a route-backed Pending entry in the embedded header', () => {
+    assistantState.thread = createThread({
+      id: 'p',
+      first_name: 'Ana',
+      last_name: 'Pérez',
+      rut_masked: '••••',
+    });
+    render(
+      <MemoryRouter>
+        <ClinicalAssistantArea
+          threadId="thread-1"
+          assistant={createAssistant()}
+          embedded
+          returnToFicha
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Ver pendientes' })).toHaveAttribute(
+      'href',
+      '/assistant?view=pending',
+    );
   });
 
   it('preserves composer text but blocks submission while approval is pending', () => {
@@ -330,7 +376,7 @@ describe('ClinicalAssistantArea queue', () => {
     const assistant = createAssistant();
     render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta actual' }));
     expect(assistant.stop).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
   });
@@ -340,7 +386,7 @@ describe('ClinicalAssistantArea queue', () => {
     render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
     const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
     fireEvent.change(composer, { target: { value: 'Siguiente indicación' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta actual' }));
     expect(assistant.stop).toHaveBeenCalledOnce();
     expect(composer).toHaveValue('Siguiente indicación');
     expect(screen.getByRole('button', { name: 'Encolar' })).toBeVisible();

@@ -113,11 +113,15 @@ export function ClinicalComposer({
         onBlur={() => setFocused(false)}
         rows={1}
         aria-label={patient ? 'Nota clínica' : 'Consulta al asistente'}
+        aria-describedby="clinical-composer-keys"
         placeholder={patient ? 'Escribe o dicta la nota clínica…' : 'Escribe una consulta general…'}
         className="chat-composer-input clinical-composer-input"
         aria-busy={voice.state === 'transcribing'}
       />
       <div className="clinical-composer-toolbar">
+        <p id="clinical-composer-keys" className="clinical-composer-keys">
+          Enter envía · Shift+Enter agrega una línea
+        </p>
         <div className="clinical-composer-tools">
           <VoiceDictationStatus
             voiceState={voice.state}
@@ -155,10 +159,10 @@ export function ClinicalComposer({
                 primaryAction === 'send'
                   ? 'Enviar mensaje'
                   : primaryAction === 'stop'
-                    ? 'Detener respuesta'
+                    ? 'Detener respuesta actual'
                     : 'Deteniendo respuesta'
               }
-              title={primaryAction === 'send' ? 'Enviar' : 'Detener respuesta'}
+              title={primaryAction === 'send' ? 'Enviar' : 'Detener respuesta actual'}
             >
               {primaryAction === 'stopping' ||
               (primaryAction === 'send' &&
