@@ -1,0 +1,8 @@
+{
+  "artifact": "build-parity/assets/index-CNNUBSZj.js",
+  "original_tested_sha256": "3e03c160bcf24fbbf4a2a1e9e2c08e15d355ca6a4011d6ec7cb631cc82209a32",
+  "sanitized_sha256": "e38fa80b0828bdb98622725b8e028b878b8d59e7fe464fd490e35fce8ee35a5d",
+  "redactions": "One VITE_GOOGLE_PICKER_API_KEY browser literal removed; value never printed or retained in provenance.",
+  "limit": "The retained JS is a sanitized copy, not byte-identical to the originally tested build. Screenshots/results refer to the original test; Picker was not exercised.",
+  "runtime_changes": "None; container, source configuration and original environment remain unchanged."
+}

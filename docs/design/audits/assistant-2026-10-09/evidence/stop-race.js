@@ -1,0 +1,13 @@
+async page=>{
+ page.setDefaultTimeout(4000);await page.setViewportSize({width:1440,height:900});
+ const a=await page.evaluate(async()=>await(await fetch('/api/audit-control')).json());a.state.artifacts=[];a.state.actions=[];a.state.pending_action=null;a.state.messages=[];a.state.active_turn_id=null;
+ await page.evaluate(async state=>await fetch('/api/audit-control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state})}),a.state);
+ const secondId='99999999-9999-4999-8999-999999999999',second={...a.state,id:secondId,title:'Segunda conversación sintética'};
+ await page.route('**/api/clinical-threads',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify([a.state,second])}));
+ await page.route('**/api/clinical-threads/'+secondId,r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(second)}));
+ await page.route('**/turns/*/cancel',async r=>{await page.waitForTimeout(1800);await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'cancelled'})});});
+ await page.reload();await page.getByLabel('Nota clínica',{exact:true}).fill('Primer turno sintético');await page.getByRole('button',{name:'Enviar mensaje',exact:true}).click();await page.getByRole('button',{name:'Detener respuesta',exact:true}).click();await page.getByRole('button',{name:'Segunda conversación sintética',exact:true}).click();await page.getByLabel('Nota clínica',{exact:true}).waitFor();
+ await page.evaluate(secondId=>{const orig=window.fetch;window.fetch=(input,init)=>{if(String(input).includes(secondId+'/turns')&&init?.method==='POST'){const data=JSON.parse(init.body);let ctrl;const s=new ReadableStream({start(c){ctrl=c;}});window.__secondStream={...data,aborted:false};init.signal.addEventListener('abort',()=>{window.__secondStream.aborted=true;ctrl.error(new DOMException('Synthetic aborted','AbortError'));});return Promise.resolve(new Response(s,{status:200,headers:{'Content-Type':'text/event-stream'}}));}return orig(input,init);};},secondId);
+ await page.getByLabel('Nota clínica',{exact:true}).fill('Segundo turno sintético');await page.getByRole('button',{name:'Enviar mensaje',exact:true}).click();await page.waitForFunction(()=>!!window.__secondStream);await page.waitForTimeout(2000);await page.screenshot({path:'docs/design/audits/assistant-2026-10-09/evidence/stop-race-second.png'});
+ return {url:page.url(),secondAborted:await page.evaluate(()=>window.__secondStream.aborted),stopVisible:await page.getByRole('button',{name:'Detener respuesta',exact:true}).count(),transcript:await page.getByRole('log').innerText()};
+}

@@ -1,0 +1,1 @@
+{"url":"http://localhost:8000/a/99999999-9999-4999-8999-999999999999","secondAborted":true,"stopVisible":0,"transcript":"Prepara una evolución clínica\n\nEscribe o dicta la nota; revisarás el borrador antes de guardarlo.\n\nPreparar evolución\nConsultar evoluciones\nEscribir nota clínica"}

@@ -1,0 +1,1 @@
+{"text":"Nota previa dictado sintético editable editada ","patientDisabledWhileRecording":true,"autoSend":false,"focus":true}
