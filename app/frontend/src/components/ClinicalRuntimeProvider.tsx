@@ -23,6 +23,13 @@ export interface ClinicalQueuedEntry {
   patientName: string;
 }
 
+export interface ArtifactEditBuffer {
+  value: string;
+  baseline: string;
+  editing: boolean;
+  applied: boolean;
+}
+
 interface ClinicalMemory {
   drafts: Record<string, string>;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
@@ -30,6 +37,8 @@ interface ClinicalMemory {
   setQueues: Dispatch<SetStateAction<Record<string, ClinicalQueuedEntry[]>>>;
   attachments: Record<string, ComposerContextItem[]>;
   setAttachments: Dispatch<SetStateAction<Record<string, ComposerContextItem[]>>>;
+  artifactBuffers: Record<string, ArtifactEditBuffer>;
+  setArtifactBuffer: (key: string, buffer: ArtifactEditBuffer | null) => void;
 }
 
 interface SharedClinicalRuntime {
@@ -55,11 +64,24 @@ export function ClinicalRuntimeProvider({ children }: { children: ReactNode }): 
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [queues, setQueues] = useState<Record<string, ClinicalQueuedEntry[]>>({});
   const [attachments, setAttachments] = useState<Record<string, ComposerContextItem[]>>({});
+  const [artifactBuffers, setArtifactBuffers] = useState<Record<string, ArtifactEditBuffer>>({});
+  const setArtifactBuffer = useCallback((key: string, buffer: ArtifactEditBuffer | null) => {
+    setArtifactBuffers((current) => {
+      if (!buffer) {
+        if (!(key in current)) return current;
+        const next = { ...current };
+        delete next[key];
+        return next;
+      }
+      return { ...current, [key]: buffer };
+    });
+  }, []);
   const activate = useCallback((id: string) => setActiveThreadId(id), []);
   const hasUnsentWork =
     Object.values(drafts).some((draft) => draft.length > 0) ||
     Object.values(queues).some((queue) => queue.length > 0) ||
-    Object.values(attachments).some((items) => items.length > 0);
+    Object.values(attachments).some((items) => items.length > 0) ||
+    Object.values(artifactBuffers).some((buffer) => buffer.value !== buffer.baseline);
   useEffect(() => {
     if (!hasUnsentWork) return;
     const protectUnsentWork = (event: BeforeUnloadEvent) => {
@@ -75,7 +97,16 @@ export function ClinicalRuntimeProvider({ children }: { children: ReactNode }): 
 
   return (
     <MemoryContext.Provider
-      value={{ drafts, setDrafts, queues, setQueues, attachments, setAttachments }}
+      value={{
+        drafts,
+        setDrafts,
+        queues,
+        setQueues,
+        attachments,
+        setAttachments,
+        artifactBuffers,
+        setArtifactBuffer,
+      }}
     >
       <ClinicalRuntimeSession activeThreadId={activeThreadId} activate={activate}>
         {children}

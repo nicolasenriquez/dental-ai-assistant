@@ -187,6 +187,10 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const [artifactSyncState, setArtifactSyncState] = useState<
     Record<string, 'idle' | 'saving' | 'saved' | 'error'>
   >({});
+  const itemsRef = useRef(clinicalState.items);
+  itemsRef.current = clinicalState.items;
+  const artifactSyncStateRef = useRef(artifactSyncState);
+  artifactSyncStateRef.current = artifactSyncState;
   const abortRef = useRef<AbortController | null>(null);
   const stopInFlightRef = useRef<string | null>(null);
   const activeTurnRef = useRef<string | null>(null);
@@ -215,7 +219,29 @@ export function useClinicalAssistant(threadId: string | undefined) {
     setThread(loaded);
     activeTurnRef.current = loaded.active_turn_id;
     const actions = loaded.actions ?? [];
-    const hydrated = hydrateItems({ ...loaded, actions });
+    const persisted = hydrateItems({ ...loaded, actions });
+    // ponytail: a reload must not silently replace local edits whose sync is unresolved.
+    const hydrated = persisted.map((item) => {
+      if (item.type !== 'draft') return item;
+      const sync = artifactSyncStateRef.current[item.id];
+      if (sync !== 'saving' && sync !== 'error') return item;
+      const local = itemsRef.current.find(
+        (candidate): candidate is ClinicalDraftItem =>
+          candidate.type === 'draft' && candidate.id === item.id,
+      );
+      if (
+        !local ||
+        (JSON.stringify(local.draft) === JSON.stringify(item.draft) &&
+          local.sourceNote === item.sourceNote)
+      )
+        return item;
+      return {
+        ...item,
+        draft: local.draft,
+        sourceNote: local.sourceNote,
+        edited: JSON.stringify(local.draft) !== JSON.stringify(item.baseline),
+      };
+    });
     patientSwitchItemsRef.current = patientSwitchItemsRef.current.filter(
       (item) =>
         !hydrated.some(

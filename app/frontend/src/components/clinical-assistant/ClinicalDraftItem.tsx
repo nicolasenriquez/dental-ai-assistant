@@ -10,6 +10,7 @@ import { ClinicalEvolutionArtifact } from './ClinicalEvolutionArtifact';
 
 interface ClinicalDraftItemProps {
   item: DraftItemData;
+  threadId?: string;
   patient?: ClinicalPatient | null;
   onChange: (draft: ClinicalDraft) => void;
   onSourceChange: (sourceNote: string) => Promise<boolean>;
@@ -33,6 +34,7 @@ interface ClinicalDraftItemProps {
 
 export function ClinicalDraftItem({
   item,
+  threadId,
   patient,
   onChange,
   onSourceChange,
@@ -65,6 +67,7 @@ export function ClinicalDraftItem({
   return (
     <ClinicalEvolutionArtifact
       item={item}
+      threadId={threadId}
       patient={patient}
       approval={approval}
       result={result}

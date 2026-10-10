@@ -15,6 +15,7 @@ import { ApprovalRequestItem } from './ApprovalRequestItem';
 
 interface ClinicalEvolutionArtifactProps {
   item: ClinicalDraftItem;
+  threadId?: string;
   patient?: ClinicalPatient | null;
   approval?: ClinicalApprovalItem;
   result?: ClinicalResultItem;
@@ -270,6 +271,7 @@ function ArtifactOverflow({
 
 export function ClinicalEvolutionArtifact({
   item,
+  threadId,
   patient,
   approval,
   result,
@@ -322,6 +324,8 @@ export function ClinicalEvolutionArtifact({
     >
       <EvolutionReviewArtifact
         mode="assistant"
+        threadId={threadId}
+        artifactId={item.id}
         embedded
         patient={patient ?? approval?.patient}
         sourceNote={item.sourceNote}

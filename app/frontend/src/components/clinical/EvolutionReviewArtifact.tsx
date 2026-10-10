@@ -10,6 +10,7 @@ import {
   parseClinicalDateInput,
   parseClinicalDateTimeInput,
 } from '../../lib/clinicalDate';
+import { type ArtifactEditBuffer, useClinicalComposerMemory } from '../ClinicalRuntimeProvider';
 import { Spinner } from '../Spinner';
 import { ClinicalDateField } from '../patterns/ClinicalDateField';
 import { clinicalFields, hasClinicalContent } from './evolutionFields';
@@ -25,6 +26,8 @@ const lifecycleStageLabels: Record<ClinicalArtifactStage, string> = {
 
 interface EvolutionReviewArtifactProps {
   mode: 'assistant' | 'manual';
+  threadId?: string;
+  artifactId?: string;
   sourceNote: string;
   patient?: ClinicalPatient | null;
   draft: ClinicalDraft;
@@ -59,6 +62,8 @@ type ClinicalFieldKey = (typeof clinicalFields)[number]['key'];
 
 export function EvolutionReviewArtifact({
   mode,
+  threadId,
+  artifactId,
   sourceNote,
   patient,
   draft,
@@ -148,19 +153,80 @@ export function EvolutionReviewArtifact({
     onEvolutionAtChange(next.toISOString());
     closeDateControls();
   };
-  const startFieldEdit = (key: ClinicalFieldKey) => {
-    setEditingField(key);
-    setEditingValue(draft[key]);
+  const memory = useClinicalComposerMemory();
+  const bufferKey = (target: string): string | null =>
+    threadId && artifactId ? `${threadId}:${artifactId}:${target}` : null;
+  const readBuffer = (target: string): ArtifactEditBuffer | undefined => {
+    const key = bufferKey(target);
+    return key ? memory?.artifactBuffers[key] : undefined;
   };
-  const cancelFieldEdit = () => {
+  const writeBuffer = (target: string, value: string, editing: boolean, applied: boolean) => {
+    const key = bufferKey(target);
+    if (!key || !memory) return;
+    const baseline = memory.artifactBuffers[key]?.baseline ?? value;
+    memory.setArtifactBuffer(key, { value, baseline, editing, applied });
+  };
+  const clearBuffer = (target: string) => {
+    const key = bufferKey(target);
+    if (key) memory?.setArtifactBuffer(key, null);
+  };
+
+  const restoredBuffersRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!threadId || !artifactId || !memory) return;
+    const identity = `${threadId}:${artifactId}`;
+    if (restoredBuffersRef.current === identity) return;
+    restoredBuffersRef.current = identity;
+    for (const { key } of clinicalFields) {
+      const buffer = memory.artifactBuffers[`${identity}:field:${key}`];
+      if (!buffer?.editing) continue;
+      setEditingField(key);
+      setEditingValue(buffer.value);
+      break;
+    }
+    const sourceBuffer = memory.artifactBuffers[`${identity}:source`];
+    if (sourceBuffer?.editing) {
+      setSourceEditingValue(sourceBuffer.value);
+      setSourceOpen(true);
+      setEditingSource(true);
+    }
+  }, [artifactId, memory, threadId]);
+
+  // ponytail: clear an applied buffer only when its own sync reports success.
+  const previousSyncStateRef = useRef<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  useEffect(() => {
+    const previous = previousSyncStateRef.current;
+    previousSyncStateRef.current = syncState;
+    if (syncState !== 'saved' || previous === 'saved' || !threadId || !artifactId || !memory)
+      return;
+    const identity = `${threadId}:${artifactId}`;
+    for (const target of ['source', ...clinicalFields.map(({ key }) => `field:${key}`)]) {
+      const key = `${identity}:${target}`;
+      if (memory.artifactBuffers[key]?.applied) memory.setArtifactBuffer(key, null);
+    }
+  }, [artifactId, memory, syncState, threadId]);
+
+  const startFieldEdit = (key: ClinicalFieldKey) => {
+    const value = readBuffer(`field:${key}`)?.value ?? draft[key];
+    setEditingField(key);
+    setEditingValue(value);
+    writeBuffer(`field:${key}`, value, true, false);
+  };
+  const closeFieldEdit = () => {
     returnFocusFieldRef.current = editingField;
     setEditingField(null);
     setEditingValue('');
   };
+  const cancelFieldEdit = () => {
+    if (editingField) clearBuffer(`field:${editingField}`);
+    closeFieldEdit();
+  };
   const applyFieldEdit = () => {
     if (!editingField) return;
-    onChange({ ...draft, [editingField]: editingValue });
-    cancelFieldEdit();
+    const field = editingField;
+    writeBuffer(`field:${field}`, editingValue, false, true);
+    onChange({ ...draft, [field]: editingValue });
+    closeFieldEdit();
   };
 
   useEffect(() => {
@@ -179,11 +245,14 @@ export function EvolutionReviewArtifact({
     dateControlsRef.current = dateControls;
   }, [dateControls]);
   const startSourceEdit = () => {
-    setSourceEditingValue(sourceNote);
+    const value = readBuffer('source')?.value ?? sourceNote;
+    setSourceEditingValue(value);
     setSourceSaveState('idle');
     setEditingSource(true);
+    writeBuffer('source', value, true, false);
   };
   const cancelSourceEdit = () => {
+    clearBuffer('source');
     setSourceEditingValue(sourceNote);
     setSourceSaveState('idle');
     setEditingSource(false);
@@ -196,6 +265,7 @@ export function EvolutionReviewArtifact({
       setSourceSaveState('error');
       return;
     }
+    clearBuffer('source');
     setSourceSaveState('saved');
     setEditingSource(false);
   };
@@ -347,7 +417,10 @@ export function EvolutionReviewArtifact({
             <textarea
               rows={2}
               value={sourceEditingValue}
-              onChange={(event) => setSourceEditingValue(event.target.value)}
+              onChange={(event) => {
+                setSourceEditingValue(event.target.value);
+                writeBuffer('source', event.target.value, true, false);
+              }}
               disabled={readOnly}
               aria-label="Editar nota clínica original"
             />
@@ -434,7 +507,10 @@ export function EvolutionReviewArtifact({
                   ref={fieldTextareaRef}
                   rows={isAssistant ? 2 : 3}
                   value={editingValue}
-                  onChange={(event) => setEditingValue(event.target.value)}
+                  onChange={(event) => {
+                    setEditingValue(event.target.value);
+                    writeBuffer(`field:${key}`, event.target.value, true, false);
+                  }}
                   aria-label={label}
                 />
                 <div className="evolution-review-artifact__field-actions">
@@ -563,6 +639,7 @@ export function EvolutionReviewArtifact({
                     onChange={(event) => {
                       setSourceEditingValue(event.target.value);
                       setSourceSaveState('idle');
+                      writeBuffer('source', event.target.value, true, false);
                     }}
                     aria-label="Editar nota clínica original"
                   />

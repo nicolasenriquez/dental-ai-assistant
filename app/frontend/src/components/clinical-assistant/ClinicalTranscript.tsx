@@ -261,6 +261,7 @@ export function ClinicalTranscript({
                     <ClinicalDraftItem
                       key={item.id}
                       item={item}
+                      threadId={threadId}
                       patient={
                         approval?.patient ??
                         (activePatient?.id === item.patientId ? activePatient : undefined)
