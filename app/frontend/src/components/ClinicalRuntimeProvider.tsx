@@ -30,6 +30,17 @@ export interface ArtifactEditBuffer {
   applied: boolean;
 }
 
+// Unsent work is keyed by thread plus explicit patient context (null = general).
+export function clinicalContextKey(threadId: string, patientId: string | null): string {
+  return `${threadId}::ctx:${patientId ?? 'none'}`;
+}
+
+// A context whose unsent work was preserved after the workspace changed.
+export interface RetainedContext {
+  patientId: string | null;
+  label: string | null;
+}
+
 interface ClinicalMemory {
   drafts: Record<string, string>;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
@@ -39,6 +50,8 @@ interface ClinicalMemory {
   setAttachments: Dispatch<SetStateAction<Record<string, ComposerContextItem[]>>>;
   artifactBuffers: Record<string, ArtifactEditBuffer>;
   setArtifactBuffer: (key: string, buffer: ArtifactEditBuffer | null) => void;
+  retained: Record<string, RetainedContext | undefined>;
+  setRetained: (threadId: string, value: RetainedContext | null) => void;
 }
 
 interface SharedClinicalRuntime {
@@ -65,6 +78,18 @@ export function ClinicalRuntimeProvider({ children }: { children: ReactNode }): 
   const [queues, setQueues] = useState<Record<string, ClinicalQueuedEntry[]>>({});
   const [attachments, setAttachments] = useState<Record<string, ComposerContextItem[]>>({});
   const [artifactBuffers, setArtifactBuffers] = useState<Record<string, ArtifactEditBuffer>>({});
+  const [retained, setRetainedState] = useState<Record<string, RetainedContext | undefined>>({});
+  const setRetained = useCallback((threadId: string, value: RetainedContext | null) => {
+    setRetainedState((current) => {
+      if (!value) {
+        if (!(threadId in current)) return current;
+        const next = { ...current };
+        delete next[threadId];
+        return next;
+      }
+      return { ...current, [threadId]: value };
+    });
+  }, []);
   const setArtifactBuffer = useCallback((key: string, buffer: ArtifactEditBuffer | null) => {
     setArtifactBuffers((current) => {
       if (!buffer) {
@@ -106,6 +131,8 @@ export function ClinicalRuntimeProvider({ children }: { children: ReactNode }): 
         setAttachments,
         artifactBuffers,
         setArtifactBuffer,
+        retained,
+        setRetained,
       }}
     >
       <ClinicalRuntimeSession activeThreadId={activeThreadId} activate={activate}>

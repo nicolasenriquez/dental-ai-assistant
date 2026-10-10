@@ -15,7 +15,12 @@ import {
   captureComposerSelection,
   insertTranscript,
 } from '../../lib/composerSelection';
-import { type ClinicalQueuedEntry, useClinicalComposerMemory } from '../ClinicalRuntimeProvider';
+import {
+  type ClinicalQueuedEntry,
+  type RetainedContext,
+  clinicalContextKey,
+  useClinicalComposerMemory,
+} from '../ClinicalRuntimeProvider';
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { EmptyState } from '../patterns/EmptyState';
@@ -70,6 +75,10 @@ export function ClinicalAssistantArea({
   const memory = useClinicalComposerMemory();
   const [localDrafts, setLocalDrafts] = useState<Record<string, string>>({});
   const [localQueues, setLocalQueues] = useState<Record<string, QueuedEntry[]>>({});
+  const [localContexts, setLocalContexts] = useState<Record<string, ComposerContextItem[]>>({});
+  const [localRetained, setLocalRetained] = useState<Record<string, RetainedContext | undefined>>(
+    {},
+  );
   const draftByThread = memory?.drafts ?? localDrafts;
   const setDraftByThread = memory?.setDrafts ?? setLocalDrafts;
   const queueByThread = memory?.queues ?? localQueues;
@@ -79,9 +88,32 @@ export function ClinicalAssistantArea({
   const [queueError, setQueueError] = useState<string | null>(null);
   const [queueDeliveryFailed, setQueueDeliveryFailed] = useState(false);
   const queueClaimRef = useRef<string | null>(null);
-  const [localContexts, setLocalContexts] = useState<Record<string, ComposerContextItem[]>>({});
   const contextByThread = memory?.attachments ?? localContexts;
   const setContextByThread = memory?.setAttachments ?? setLocalContexts;
+  const retainedByThread = memory?.retained ?? localRetained;
+  const setRetainedForThread = useCallback(
+    (value: RetainedContext | null) => {
+      if (memory) {
+        memory.setRetained(threadId, value);
+        return;
+      }
+      setLocalRetained((current) => {
+        if (!value) {
+          if (!(threadId in current)) return current;
+          const next = { ...current };
+          delete next[threadId];
+          return next;
+        }
+        return { ...current, [threadId]: value };
+      });
+    },
+    [memory, threadId],
+  );
+  const [boundary, setBoundary] = useState<{
+    target: string | null;
+    origin: string | null;
+    label: string | null;
+  } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const areaRef = useRef<HTMLElement>(null);
   const resumedTargetRef = useRef<string | null>(null);
@@ -90,17 +122,29 @@ export function ClinicalAssistantArea({
   const previousVoiceInFlightRef = useRef(false);
   const patientChangeRequestRef = useRef(0);
   const lastPatientChangeRef = useRef<string | null | undefined>(undefined);
-  const value = draftByThread[threadId] ?? '';
+  const activePatient = assistant.thread?.active_patient ?? null;
+  const workspacePatientId = activePatient?.id ?? null;
+  const retained = retainedByThread[threadId];
+  const displayPatientId = retained ? retained.patientId : workspacePatientId;
+  const displayLabel = retained
+    ? retained.label
+    : activePatient
+      ? `${activePatient.first_name} ${activePatient.last_name}`
+      : null;
+  const displayKey = clinicalContextKey(threadId, displayPatientId);
+  const value = draftByThread[displayKey] ?? '';
   const queued = queueByThread[threadId] ?? [];
-  const contextItems = contextByThread[threadId] ?? [];
+  const contextItems = contextByThread[displayKey] ?? [];
+  // Work preserved under another context is labelled and cannot be sent.
+  const contextMismatch = retained !== undefined && retained.patientId !== workspacePatientId;
   const setValue = useCallback(
     (next: string | ((current: string) => string)) => {
       setDraftByThread((current) => ({
         ...current,
-        [threadId]: typeof next === 'function' ? next(current[threadId] ?? '') : next,
+        [displayKey]: typeof next === 'function' ? next(current[displayKey] ?? '') : next,
       }));
     },
-    [threadId, setDraftByThread],
+    [displayKey, setDraftByThread],
   );
   const updateQueue = useCallback(
     (next: (current: QueuedEntry[]) => QueuedEntry[]) => {
@@ -120,7 +164,6 @@ export function ClinicalAssistantArea({
   );
   const voice = useVoiceDictation(voiceScope, appendVoiceText);
   const voiceInFlight = isVoiceInFlight(voice.state);
-  const activePatient = assistant.thread?.active_patient ?? null;
   const queueAvailable = assistant.runtime === 'streaming' || assistant.runtime === 'stopping';
   const activeTurn = assistant.activeTurnId
     ? {
@@ -133,36 +176,112 @@ export function ClinicalAssistantArea({
     lastPatientChangeRef.current = undefined;
     setPatientSelectionState('idle');
     setPatientSelectionError(null);
+    setBoundary(null);
   }, [threadId]);
 
   const persistPatientChange = useCallback(
-    (patientId: string | null) => {
+    (patientId: string | null): Promise<boolean> => {
       const requestId = ++patientChangeRequestRef.current;
       lastPatientChangeRef.current = patientId;
       setPatientSelectionState('saving');
       setPatientSelectionError(null);
-      void Promise.resolve(assistant.setActivePatient(patientId))
+      return Promise.resolve(assistant.setActivePatient(patientId))
         .then(() => {
-          if (patientChangeRequestRef.current !== requestId) return;
+          if (patientChangeRequestRef.current !== requestId) return true;
           setPatientSelectionState('idle');
+          return true;
         })
         .catch(() => {
-          if (patientChangeRequestRef.current !== requestId) return;
+          if (patientChangeRequestRef.current !== requestId) return false;
           setPatientSelectionState('error');
           setPatientSelectionError('No pudimos cambiar el paciente activo.');
+          return false;
         });
     },
     [assistant.setActivePatient],
   );
 
+  const runGuardedPatientChange = useCallback(
+    (patientId: string | null) => {
+      const change = () =>
+        void persistPatientChange(patientId).then((ok) => {
+          if (ok) setRetainedForThread(null);
+        });
+      guardTransition ? guardTransition(change) : change();
+    },
+    [guardTransition, persistPatientChange, setRetainedForThread],
+  );
+
+  const clearContextSlot = useCallback(
+    (patientId: string | null) => {
+      const key = clinicalContextKey(threadId, patientId);
+      setDraftByThread((current) => ({ ...current, [key]: '' }));
+      setContextByThread((current) => ({ ...current, [key]: [] }));
+      updateQueue((current) => current.filter((entry) => entry.patientId !== patientId));
+    },
+    [threadId, setDraftByThread, setContextByThread, updateQueue],
+  );
+
+  // A retained slot that is emptied stops being the displayed context.
+  useEffect(() => {
+    if (!retained) return;
+    if (value.trim().length === 0 && contextItems.length === 0) setRetainedForThread(null);
+  }, [retained, value, contextItems.length, setRetainedForThread]);
+
   const requestPatientChange = useCallback(
     (patientId: string | null) => {
       if (patientSelectionState === 'saving') return;
-      const change = () => persistPatientChange(patientId);
-      guardTransition ? guardTransition(change) : change();
+      const hasTextWork = value.trim().length > 0 || contextItems.length > 0;
+      const conflicts =
+        (hasTextWork && displayPatientId !== patientId) ||
+        queued.some((entry) => entry.patientId !== patientId);
+      if (conflicts) {
+        setBoundary({ target: patientId, origin: displayPatientId, label: displayLabel });
+        return;
+      }
+      runGuardedPatientChange(patientId);
     },
-    [guardTransition, patientSelectionState, persistPatientChange],
+    [
+      patientSelectionState,
+      value,
+      contextItems.length,
+      displayPatientId,
+      displayLabel,
+      queued,
+      runGuardedPatientChange,
+    ],
   );
+
+  const resolveBoundary = useCallback(
+    (choice: 'remain' | 'preserve' | 'discard') => {
+      if (!boundary) return;
+      const { target, origin, label } = boundary;
+      if (choice === 'remain') {
+        setBoundary(null);
+        return;
+      }
+      const commit = () => {
+        void persistPatientChange(target).then((ok) => {
+          if (!ok) return;
+          if (choice === 'preserve') {
+            setRetainedForThread({ patientId: origin, label });
+          } else {
+            clearContextSlot(origin);
+            setRetainedForThread(null);
+          }
+          setBoundary(null);
+        });
+      };
+      guardTransition ? guardTransition(commit) : commit();
+    },
+    [boundary, guardTransition, persistPatientChange, setRetainedForThread, clearContextSlot],
+  );
+
+  const restoreLocked =
+    voiceInFlight ||
+    patientSelectionState === 'saving' ||
+    assistant.runtime === 'saving' ||
+    assistant.runtime === 'awaiting_approval';
 
   const retryPatientChange = useCallback(() => {
     const patientId = lastPatientChangeRef.current;
@@ -188,11 +307,11 @@ export function ClinicalAssistantArea({
       if (!item.content) return;
       setContextByThread((current) => ({
         ...current,
-        [threadId]: [...(current[threadId] ?? []), item],
+        [displayKey]: [...(current[displayKey] ?? []), item],
       }));
       textareaRef.current?.focus();
     },
-    [threadId, setContextByThread],
+    [displayKey, setContextByThread],
   );
 
   useEffect(() => {
@@ -234,7 +353,10 @@ export function ClinicalAssistantArea({
         setQueueDeliveryFailed(true);
         setQueueError('No pudimos enviar el mensaje en cola. Reintenta cuando vuelva la conexión.');
       }
-      updateQueue((current) => (accepted ? [...current] : [next, ...current]));
+      // Idempotent removal: a fast resolve must not resurrect the claimed entry.
+      updateQueue((current) =>
+        accepted ? current.filter((item) => item.id !== next.id) : [next, ...current],
+      );
     });
   }, [
     assistant.runtime,
@@ -248,7 +370,7 @@ export function ClinicalAssistantArea({
   ]);
 
   const send = () => {
-    if (!value.trim() || voiceInFlight) return;
+    if (!value.trim() || voiceInFlight || contextMismatch) return;
     const instruction = value.trim();
     if (assistant.runtime === 'saving' || assistant.runtime === 'awaiting_approval') return;
     if (queueAvailable) {
@@ -258,16 +380,16 @@ export function ClinicalAssistantArea({
       }
       setQueueError(null);
       setValue('');
-      setContextByThread((current) => ({ ...current, [threadId]: [] }));
+      setContextByThread((current) => ({ ...current, [displayKey]: [] }));
       updateQueue((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           content: instruction,
           contextItems,
-          patientId: assistant.thread?.active_patient?.id ?? null,
-          patientName: assistant.thread?.active_patient
-            ? `${assistant.thread.active_patient.first_name} ${assistant.thread.active_patient.last_name}`
+          patientId: workspacePatientId,
+          patientName: activePatient
+            ? `${activePatient.first_name} ${activePatient.last_name}`
             : 'Sin paciente',
         },
       ]);
@@ -275,11 +397,11 @@ export function ClinicalAssistantArea({
     }
     setQueueError(null);
     setValue('');
-    setContextByThread((current) => ({ ...current, [threadId]: [] }));
+    setContextByThread((current) => ({ ...current, [displayKey]: [] }));
     void assistant.send(instruction, contextItems).then((ok) => {
       if (!ok) {
         setValue((current) => current || instruction);
-        setContextByThread((current) => ({ ...current, [threadId]: contextItems }));
+        setContextByThread((current) => ({ ...current, [displayKey]: contextItems }));
       } else onThreadStateChanged?.();
     });
   };
@@ -303,7 +425,8 @@ export function ClinicalAssistantArea({
     }
     setQueueError(null);
     setValue(entry.content);
-    setContextByThread((current) => ({ ...current, [threadId]: entry.contextItems }));
+    const entryKey = clinicalContextKey(threadId, entry.patientId);
+    setContextByThread((current) => ({ ...current, [entryKey]: entry.contextItems }));
     updateQueue((current) => current.filter((item) => item.id !== entry.id));
     textareaRef.current?.focus();
   };
@@ -638,26 +761,63 @@ export function ClinicalAssistantArea({
                   </div>
                 </div>
               ))}
-              {queued[0]?.patientId !== (assistant.thread?.active_patient?.id ?? null) && (
+              {queued[0]?.patientId !== workspacePatientId && (
                 <div className="clinical-queue-conflict">
                   <p className="clinical-warning">
                     Este mensaje fue escrito para {queued[0]?.patientName}. El paciente activo
                     cambió; vuelve a seleccionarlo para continuar.
                   </p>
-                  {queued[0]?.patientId && (
-                    <button
-                      type="button"
-                      className="clinical-secondary-button"
-                      onClick={() => {
-                        requestPatientChange(queued[0].patientId);
-                      }}
-                      disabled={voiceInFlight || patientSelectionState === 'saving'}
-                    >
-                      Volver a {queued[0].patientName}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="clinical-secondary-button"
+                    onClick={() => {
+                      requestPatientChange(queued[0]?.patientId ?? null);
+                    }}
+                    disabled={restoreLocked}
+                  >
+                    Volver a {queued[0]?.patientName}
+                  </button>
                 </div>
               )}
+            </div>
+          )}
+          {retained && (
+            <div className="clinical-context-retained" role="status">
+              <p>
+                {retained.label
+                  ? `Borrador conservado para ${retained.label}.`
+                  : 'Borrador conservado sin paciente.'}
+              </p>
+              <button
+                type="button"
+                className="clinical-secondary-button"
+                disabled={restoreLocked}
+                onClick={() => requestPatientChange(retained.patientId)}
+              >
+                Volver a {retained.label ?? 'Sin paciente'}
+              </button>
+            </div>
+          )}
+          {boundary && (
+            <div
+              role="alertdialog"
+              aria-label="Trabajo sin enviar"
+              className="clinical-context-boundary"
+            >
+              <p>
+                {boundary.label
+                  ? `Trabajo sin enviar para ${boundary.label}.`
+                  : 'Trabajo sin enviar sin paciente.'}
+              </p>
+              <button type="button" onClick={() => resolveBoundary('remain')}>
+                Mantener paciente
+              </button>
+              <button type="button" onClick={() => resolveBoundary('preserve')}>
+                Conservar y cambiar
+              </button>
+              <button type="button" onClick={() => resolveBoundary('discard')}>
+                Descartar y cambiar
+              </button>
             </div>
           )}
           <ClinicalComposer
@@ -680,7 +840,7 @@ export function ClinicalAssistantArea({
             onRemoveContext={(id) =>
               setContextByThread((current) => ({
                 ...current,
-                [threadId]: (current[threadId] ?? []).filter((item) => item.id !== id),
+                [displayKey]: (current[displayKey] ?? []).filter((item) => item.id !== id),
               }))
             }
             voice={{
@@ -699,6 +859,7 @@ export function ClinicalAssistantArea({
             }}
             submitDisabled={
               voiceInFlight ||
+              contextMismatch ||
               assistant.runtime === 'saving' ||
               assistant.runtime === 'awaiting_approval'
             }

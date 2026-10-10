@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  clinicalContextKey,
   useClinicalComposerMemory,
   useOptionalClinicalRuntime,
 } from '../components/ClinicalRuntimeProvider';
@@ -68,11 +69,13 @@ export function useContextualAssistant(context: WorkspaceContext) {
       });
       if (requestId !== sequence.current) return;
       setConflict(null);
-      if (prefill.current)
+      if (prefill.current) {
+        const key = clinicalContextKey(result.thread.id, context.patientId ?? null);
         memory?.setDrafts((current) => ({
           ...current,
-          [result.thread.id]: current[result.thread.id] || prefill.current || '',
+          [key]: current[key] || prefill.current || '',
         }));
+      }
       if (!shared || width < 768) {
         const continueToThread = (): void => navigate(`/a/${result.thread.id}`);
         if (guard) guard.guardTransition(continueToThread);
