@@ -2662,3 +2662,214 @@ test('canonical protected views remain usable at every baseline viewport', async
     }
   }
 });
+
+function qaPendingDriveRow(id: string, evolutionId: string, owner: typeof patient): PendingWorkItem {
+  return {
+    id,
+    kind: 'drive_export_failed',
+    patient: {
+      id: owner.id,
+      display_name: `${owner.first_name} ${owner.last_name}`,
+      rut_masked: owner.rut_masked,
+    },
+    updated_at: '2026-10-01T12:00:00Z',
+    action: { kind: 'retry_drive_export', evolution_id: evolutionId, thread_id: threadId },
+  };
+}
+
+function qaPendingDraftRow(id: string, owner: typeof patient): PendingWorkItem {
+  return {
+    id,
+    kind: 'recoverable_draft',
+    patient: {
+      id: owner.id,
+      display_name: `${owner.first_name} ${owner.last_name}`,
+      rut_masked: owner.rut_masked,
+    },
+    updated_at: '2026-10-01T12:00:00Z',
+    action: { kind: 'continue_draft', artifact_id: `artifact-${id}`, thread_id: threadId },
+  };
+}
+
+interface QaPendingWindowFixture {
+  firstPage: () => PendingWorkItem[];
+  secondPage: () => PendingWorkItem[];
+  /** Fresh later-page reads fail after the retry. */
+  failSecondPage?: () => boolean;
+  /** POST status for the export retry. */
+  retryStatus?: () => number;
+  onRetry?: () => void;
+}
+
+/** Serves a two-page pending window and records the read/retry request sequence. */
+async function installPendingWindow(page: Page, fixture: QaPendingWindowFixture): Promise<string[]> {
+  const requests: string[] = [];
+  await page.route('**/api/clinical-pending-work**', async (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get('cursor');
+    requests.push(cursor ? `read:${cursor}` : 'read:first');
+    if (cursor && fixture.failSecondPage?.()) {
+      allowExpectedResourceFailure(page, 500);
+      await route.fulfill(json({ detail: 'No disponible' }, 500));
+      return;
+    }
+    const items = cursor ? fixture.secondPage() : fixture.firstPage();
+    await route.fulfill(
+      json({ items, total: items.length, next_cursor: cursor ? null : 'cursor-1' }),
+    );
+  });
+  await page.route('**/api/clinical/evolutions/*/drive-export/retry', async (route) => {
+    requests.push('retry');
+    const status = fixture.retryStatus?.() ?? 200;
+    if (status !== 200) allowExpectedResourceFailure(page, status);
+    fixture.onRetry?.();
+    await route.fulfill(json({ drive_export: { status: 'synced' } }, status));
+  });
+  return requests;
+}
+
+test('pending window retries a later-page export and keeps focus on a usable action', async ({
+  page,
+}) => {
+  await installQaRoutes(page);
+  const firstPage = [qaPendingDriveRow('drive:a', 'ev-a', patient)];
+  let secondPage = [qaPendingDriveRow('drive:b', 'ev-b', patientB)];
+  const requests = await installPendingWindow(page, {
+    firstPage: () => firstPage,
+    secondPage: () => secondPage,
+    onRetry: () => {
+      secondPage = [];
+    },
+  });
+  await page.goto('/assistant?view=pending');
+  await expect(page.getByRole('heading', { name: 'Ana Pérez' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ver más pendientes' }).click();
+  await expect(page.getByRole('heading', { name: 'Bruno Ríos' })).toBeVisible();
+
+  await page
+    .locator('article')
+    .filter({ hasText: 'Bruno Ríos' })
+    .getByRole('button', { name: 'Reintentar' })
+    .click();
+
+  await expect(page.getByRole('heading', { name: 'Bruno Ríos' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Ana Pérez' })).toBeVisible();
+  await expect(
+    page
+      .locator('article')
+      .filter({ hasText: 'Ana Pérez' })
+      .getByRole('link', { name: 'Ver evolución' }),
+  ).toBeFocused();
+  await expect(page.getByRole('status')).toHaveText('Se actualizó el trabajo pendiente.');
+  await expect(page.getByRole('button', { name: 'Ver más pendientes' })).toHaveCount(0);
+  expect(requests).toEqual(['read:first', 'read:cursor-1', 'retry', 'read:first', 'read:cursor-1']);
+});
+
+test('pending window keeps a failed export row anchored while it reconciles the window', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await installQaRoutes(page);
+  const fillers = Array.from({ length: 8 }, (_, index) =>
+    qaPendingDraftRow(`draft-${index}`, patient),
+  );
+  let firstPage = [...fillers];
+  const secondPage = [qaPendingDriveRow('drive:b', 'ev-b', patientB)];
+  const requests = await installPendingWindow(page, {
+    firstPage: () => firstPage,
+    secondPage: () => secondPage,
+    retryStatus: () => 502,
+    onRetry: () => {
+      firstPage = [qaPendingDraftRow('draft-new', patient), ...firstPage];
+    },
+  });
+  await page.goto('/assistant?view=pending');
+  await expect(page.getByRole('heading', { name: 'Ana Pérez' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Ver más pendientes' }).click();
+  const bruno = page.locator('article').filter({ hasText: 'Bruno Ríos' });
+  await expect(bruno).toBeVisible();
+
+  const retryButton = bruno.getByRole('button', { name: 'Reintentar' });
+  await retryButton.scrollIntoViewIfNeeded();
+  const scroller = page.locator('main.clinical-assistant-area.overflow-y-auto');
+  const before = (await bruno.boundingBox())!;
+  const scrollBefore = await scroller.evaluate((element) => element.scrollTop);
+  await retryButton.click();
+
+  await expect(page.getByRole('alert')).toHaveText(
+    'No pudimos reintentar la sincronización. La evolución sigue guardada en ficha.',
+  );
+  await expect(page.locator('article')).toHaveCount(10);
+  const after = (await bruno.boundingBox())!;
+  const scrollAfter = await scroller.evaluate((element) => element.scrollTop);
+  expect(Math.abs(after.y - before.y)).toBeLessThanOrEqual(1);
+  expect(scrollAfter).toBeGreaterThan(scrollBefore);
+  await expect(retryButton).toBeFocused();
+  expect(requests).toEqual(['read:first', 'read:cursor-1', 'retry', 'read:first', 'read:cursor-1']);
+});
+
+test('pending window keeps the last complete window when a later refresh page fails', async ({
+  page,
+}) => {
+  await installQaRoutes(page);
+  let failSecondPage = false;
+  const requests = await installPendingWindow(page, {
+    firstPage: () => [qaPendingDriveRow('drive:a', 'ev-a', patient)],
+    secondPage: () => [qaPendingDriveRow('drive:b', 'ev-b', patientB)],
+    failSecondPage: () => failSecondPage,
+    onRetry: () => {
+      failSecondPage = true;
+    },
+  });
+  await page.goto('/assistant?view=pending');
+  await page.getByRole('button', { name: 'Ver más pendientes' }).click();
+  const bruno = page.locator('article').filter({ hasText: 'Bruno Ríos' });
+  await expect(bruno).toBeVisible();
+  const retryButton = bruno.getByRole('button', { name: 'Reintentar' });
+  await retryButton.click();
+
+  await expect(page.getByRole('alert')).toContainText('No pudimos cargar tus pendientes.');
+  await expect(page.getByText('No pudimos reintentar la sincronización')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Ana Pérez' })).toBeVisible();
+  await expect(bruno).toBeVisible();
+  await expect(retryButton).toBeFocused();
+  expect(requests).toEqual(['read:first', 'read:cursor-1', 'retry', 'read:first', 'read:cursor-1']);
+});
+
+test('pending reads for a previous patient scope cannot replace the current one', async ({
+  page,
+}) => {
+  await installQaRoutes(page, { patients: [patient, patientB] });
+  let releaseHeld: (() => void) | null = null;
+  const held = new Promise<void>((resolve) => {
+    releaseHeld = resolve;
+  });
+  let settledStale = 0;
+  await page.route('**/api/clinical-pending-work**', async (route) => {
+    const scope = new URL(route.request().url()).searchParams.get('patient_id');
+    if (scope === patientId) {
+      await held;
+      settledStale += 1;
+      await route.fulfill(json({ items: [], total: 99, next_cursor: null }));
+      return;
+    }
+    await route.fulfill(json({ items: [], total: 7, next_cursor: null }));
+  });
+  await page.route(`**/api/patients/${patientBId}**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    await route.fulfill(json(path.endsWith('/evolutions') ? [] : patientB));
+  });
+
+  await page.goto(`/patients/${patientId}`);
+  await expect(page.getByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
+  await page
+    .locator('#main-content')
+    .getByRole('link', { name: 'Pacientes', exact: true })
+    .click();
+  await page.getByRole('link', { name: /Bruno Ríos/ }).click();
+  const summary = page.getByRole('region', { name: 'Resumen del paciente' });
+  await expect(summary.locator('dd[aria-live="polite"]')).toHaveText(['7', '7', '7']);
+
+  releaseHeld?.();
+  await expect.poll(() => settledStale).toBe(3);
+  await expect(summary.locator('dd[aria-live="polite"]')).toHaveText(['7', '7', '7']);
+});

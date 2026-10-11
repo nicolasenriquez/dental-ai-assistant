@@ -16,7 +16,13 @@ the update date and time, and links failed exports to the exact saved evolution.
 Rows may show a 160-character excerpt of persisted content, redacted before truncation;
 this is a read-only projection, not an AI-generated summary. Continue/review links retain
 the thread route and carry the artifact/action ID in the fragment for exact focus.
-Grouping applies to loaded items and preserves pagination and explicit retry.
+Grouping applies to loaded items. Retry and visible-window refocus re-read a bounded
+window through fresh cursors up to the opened depth, keep server totals and deduplicate
+stable IDs; a failed later page keeps the last complete window and reports its own read
+failure separately from the export-retry outcome. An explicit retry preserves the
+surviving row's offset and focus, moves focus to the next/previous usable action or the
+section when the row disappears, and announces the removal without claiming unsaved
+work; passive refocus keeps focus and anchor.
 The sidebar visibly distinguishes the selected Conversations/Pending view.
 Explicit retry links retain earlier attempts while showing the note once and
 offering recovery only on the latest failed attempt. Legacy attempts are not
