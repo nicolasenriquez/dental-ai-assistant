@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import re
 from pathlib import Path
@@ -184,6 +185,8 @@ async def _ingest_one_file(md_path: Path, rel_path: str, counts: dict[str, int])
     existing = await dynamous_repo.get_source_state(rel_path)
     if existing and existing["content_hash"] == body_hash:
         stored_meta = existing["metadata"] or {}
+        if isinstance(stored_meta, str):
+            stored_meta = json.loads(stored_meta) or {}
         if (
             existing["title"] == title
             and existing["lesson_url"] == lesson_url

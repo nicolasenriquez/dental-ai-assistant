@@ -7,6 +7,7 @@ failures never write, and body changes still replace atomically.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -57,11 +58,12 @@ def patch_pipeline(monkeypatch):
             None,
         ),
     )
-    monkeypatch.setattr(
-        dynamous,
-        "embed_batch",
-        lambda contents: [[0.1, 0.2] for _ in contents],
-    )
+
+    def embed(contents):
+        calls["embed"].append(contents)
+        return [[0.1, 0.2] for _ in contents]
+
+    monkeypatch.setattr(dynamous, "embed_batch", embed)
     return calls
 
 
@@ -88,12 +90,18 @@ def _capture_replace(calls: dict):
     return _fn
 
 
+@pytest.mark.parametrize(
+    "stored_metadata", ['{"course_slug": "module-1"}', {"course_slug": "module-1"}, None, "null"]
+)
 async def test_identical_file_is_unchanged_and_embeds_nothing(
-    tmp_path: Path, monkeypatch, patch_pipeline
+    tmp_path: Path, monkeypatch, patch_pipeline, stored_metadata
 ):
     calls = patch_pipeline
     md = tmp_path / "a.md"
-    md.write_text(_markdown(), encoding="utf-8")
+    markdown = _markdown()
+    if stored_metadata in (None, "null"):
+        markdown = markdown.replace("course_slug: module-1\n", "")
+    md.write_text(markdown, encoding="utf-8")
 
     async def get_state(_rel_path):
         return {
@@ -101,7 +109,7 @@ async def test_identical_file_is_unchanged_and_embeds_nothing(
             "content_hash": BODY_HASH,
             "title": "Lesson One",
             "lesson_url": "https://example.com/l",
-            "metadata": {"course_slug": "module-1"},
+            "metadata": stored_metadata,
         }
 
     monkeypatch.setattr(dynamous_repo, "get_source_state", get_state)
@@ -120,8 +128,9 @@ async def test_identical_file_is_unchanged_and_embeds_nothing(
     assert calls["replace"] == []
 
 
+@pytest.mark.parametrize("change", ["title", "metadata"])
 async def test_metadata_only_change_updates_source_without_embedding(
-    tmp_path: Path, monkeypatch, patch_pipeline
+    tmp_path: Path, monkeypatch, patch_pipeline, change
 ):
     calls = patch_pipeline
     md = tmp_path / "a.md"
@@ -131,9 +140,9 @@ async def test_metadata_only_change_updates_source_without_embedding(
         return {
             "id": "v1",
             "content_hash": BODY_HASH,
-            "title": "Old Title",
+            "title": "Old Title" if change == "title" else "New Title",
             "lesson_url": "https://example.com/l",
-            "metadata": {"course_slug": "module-1"},
+            "metadata": json.dumps({"course_slug": "module-1" if change == "title" else "old"}),
         }
 
     monkeypatch.setattr(dynamous_repo, "get_source_state", get_state)
