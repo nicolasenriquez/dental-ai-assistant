@@ -124,6 +124,10 @@ interface QaRouteOptions {
   clinicalThreadLoadFailures?: number;
   /** Consecutive `POST /api/clinical-actions/:id/resolve` requests served as 502 before reconciling. */
   clinicalResolveFailures?: number;
+  /** Initial clinical thread messages, e.g. to render read results in the transcript. */
+  clinicalMessages?: Array<Record<string, unknown>>;
+  /** Clinical thread title; defaults to the shared fixture title. */
+  clinicalThreadTitle?: string;
 }
 
 interface QaRouteControls {
@@ -932,6 +936,158 @@ test('review fixes: manual evolution keeps its parent-relative heading outline',
   await expect(review.getByRole('heading', { name: 'Seguimiento', level: 4 })).toBeVisible();
 });
 
+test('review fixes: consulted evolutions with a coincident timestamp stay distinguishable', async ({
+  page,
+}) => {
+  const coincidentAt = '2026-10-10T12:00:00Z';
+  const differentAt = '2026-10-11T09:15:00Z';
+  const evolutionIds = ['evolution-a', 'evolution-b', 'evolution-c'];
+  await installQaRoutes(page, {
+    clinicalMessages: [
+      {
+        id: 'assistant-evolutions',
+        thread_id: threadId,
+        turn_id: 'turn-evolutions',
+        role: 'assistant',
+        content: 'Estas son las evoluciones consultadas.',
+        clinical_result: {
+          result_kind: 'evolution_list',
+          payload: {
+            patient_id: patientId,
+            evolutions: [
+              { id: evolutionIds[0], evolution_at: coincidentAt },
+              { id: evolutionIds[1], evolution_at: coincidentAt },
+              { id: evolutionIds[2], evolution_at: differentAt },
+            ],
+          },
+        },
+        created_at: coincidentAt,
+      },
+    ],
+  });
+  let apiRequests = 0;
+  page.on('request', (request) => {
+    if (request.url().includes('/api/')) apiRequests += 1;
+  });
+  await page.goto(`/a/${threadId}`);
+  const transcript = page.getByRole('log', { name: 'Transcripción clínica' });
+  const links = transcript.getByRole('link');
+  await expect(links).toHaveCount(3);
+  const names = await links.evaluateAll((elements) =>
+    elements.map((element) => element.textContent?.trim() ?? ''),
+  );
+  expect(new Set(names).size).toBe(3);
+  expect(names[0]).toMatch(/^Ver evolución 1 del /);
+  expect(names[1]).toMatch(/^Ver evolución 2 del /);
+  expect(names[0].replace('Ver evolución 1 del ', '')).toBe(
+    names[1].replace('Ver evolución 2 del ', ''),
+  );
+  expect(names[2]).toMatch(/^Ver evolución del /);
+  for (const [index, evolutionId] of evolutionIds.entries()) {
+    await expect(links.nth(index)).toHaveAttribute(
+      'href',
+      `/patients/${patientId}/evolutions/${evolutionId}`,
+    );
+  }
+  const requestsAfterLoad = apiRequests;
+  await links.nth(0).focus();
+  await expect(links.nth(0)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(links.nth(1)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(links.nth(2)).toBeFocused();
+  for (const [width, height] of [
+    [1440, 900],
+    [1024, 768],
+    [768, 1024],
+    [390, 844],
+    [360, 800],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await expect(links.nth(0)).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(
+    await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
+  ).toBe(true);
+  await expect(links.nth(0)).toBeVisible();
+  const zoom = await page.context().newCDPSession(page);
+  // Model 200% desktop zoom: half-sized CSS viewport with doubled pixel density.
+  await zoom.send('Emulation.setDeviceMetricsOverride', {
+    width: 720,
+    height: 450,
+    deviceScaleFactor: 2,
+    mobile: false,
+  });
+  expect(await page.evaluate(() => ({ width: innerWidth, density: devicePixelRatio }))).toEqual({
+    width: 720,
+    density: 2,
+  });
+  await expect(links.nth(0)).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  expect(apiRequests).toBe(requestsAfterLoad);
+  console.log('[PMAX-001]', JSON.stringify({ names, apiRequests, requestsAfterLoad }));
+});
+
+test('review fixes: contextual shell keeps one Asistente clínico title with a subordinate empty heading', async ({
+  page,
+}) => {
+  await installQaRoutes(page, { clinicalThreadTitle: 'Asistente clínico' });
+  const mutations = trackQaApiMutations(page);
+  for (const viewport of [
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`/patients/${patientId}`);
+    const trigger = page.getByRole('button', { name: 'Asistente', exact: true });
+    await trigger.click();
+    const panel =
+      viewport.width < 1024
+        ? page.getByRole('dialog', { name: 'Asistente clínico' })
+        : page.getByRole('complementary', { name: 'Asistente del paciente' });
+    await expect(panel).toBeVisible();
+    await expect(
+      panel.getByRole('heading', { name: 'Asistente clínico', exact: true }),
+    ).toHaveCount(1);
+    await expect(
+      panel.getByRole('heading', { name: 'Prepara una evolución clínica', level: 3 }),
+    ).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Cambiar paciente activo' })).toContainText(
+      'Ana Pérez',
+    );
+    await expect(panel.getByRole('button', { name: /^Cerrar/ })).toHaveCount(1);
+    const note = `Borrador contextual ${viewport.width}.`;
+    await panel.getByRole('textbox', { name: 'Nota clínica' }).fill(note);
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole('textbox', { name: 'Nota clínica' })).toHaveValue(note);
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await assertNoHorizontalOverflow(page);
+    console.log(`[SHADCN-002] ${viewport.width}`, JSON.stringify({ note }));
+  }
+  expect(
+    mutations.filter((mutation) => mutation.path !== '/api/clinical-threads/open-context'),
+  ).toEqual([]);
+});
+
+test('review fixes: full assistant keeps its h1 and empty-state h2 with the default title', async ({
+  page,
+}) => {
+  await installQaRoutes(page, { clinicalThreadTitle: 'Asistente clínico' });
+  await page.goto(`/a/${threadId}`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Asistente clínico' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Prepara una evolución clínica', level: 2 }),
+  ).toBeVisible();
+});
+
 test('audit fixes: primary action states keep readable contrast and visible focus', async ({
   page,
 }) => {
@@ -1295,7 +1451,8 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
   });
   let currentClinicalThread: Record<string, unknown> = {
     ...clinicalThread,
-    messages: [],
+    title: options.clinicalThreadTitle ?? clinicalThread.title,
+    messages: options.clinicalMessages ?? [],
     artifacts: [],
     actions: [],
   };

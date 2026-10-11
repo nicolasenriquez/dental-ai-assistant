@@ -1115,6 +1115,56 @@ describe('ClinicalAssistantArea artifact heading composition', () => {
   });
 });
 
+describe('ClinicalAssistantArea contextual shell title', () => {
+  const patient: ClinicalPatient = {
+    id: 'patient-1',
+    first_name: 'Ana',
+    last_name: 'Pérez',
+    rut_masked: '12.345.•••-6',
+    birth_date: '1990-01-01',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    runtime.value = 'idle';
+    assistantState.thread = { ...createThread(patient), title: 'Asistente clínico' };
+  });
+
+  it('omits the embedded repetition of the contextual shell title and subordinates the empty state', () => {
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} embedded />);
+
+    expect(
+      screen.queryByRole('heading', { level: 2, name: 'Asistente clínico' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Prepara una evolución clínica', level: 3 }),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Cambiar paciente activo' })).toHaveTextContent(
+      'Ana Pérez',
+    );
+  });
+
+  it('keeps a non-repeating embedded thread title at its level', () => {
+    assistantState.thread = { ...createThread(patient), title: 'Control preventivo' };
+
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} embedded />);
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Control preventivo' })).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'Prepara una evolución clínica', level: 3 }),
+    ).toBeVisible();
+  });
+
+  it('keeps the full-route h1 and empty-state h2', () => {
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Asistente clínico' })).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'Prepara una evolución clínica', level: 2 }),
+    ).toBeVisible();
+  });
+});
+
 describe('ClinicalAssistantArea pending navigation availability', () => {
   beforeEach(() => {
     vi.clearAllMocks();
