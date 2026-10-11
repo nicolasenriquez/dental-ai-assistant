@@ -1,28 +1,86 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClinicalPendingWork } from '../../hooks/useClinicalPendingWork';
 import { retryClinicalDriveExport } from '../../lib/api';
 import { formatClinicalDateShort, formatClinicalTime } from '../../lib/clinicalDate';
 import { Button } from '../ui/Button';
 
+type PendingRestore = {
+  trigger: HTMLButtonElement;
+  row: HTMLElement;
+  rowIndex: number;
+  anchorTop: number;
+  scroller: HTMLElement | null;
+};
+
+function scrollableAncestor(element: HTMLElement | null): HTMLElement | null {
+  let current = element?.parentElement ?? null;
+  while (current) {
+    if (current.scrollHeight > current.clientHeight) return current;
+    current = current.parentElement;
+  }
+  return null;
+}
+
 export function ClinicalPendingWork({ patientId }: { patientId?: string }): JSX.Element {
   const { page, loading, error, refresh, loadMore } = useClinicalPendingWork(patientId);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [retryError, setRetryError] = useState(false);
-  const retry = async (id: string): Promise<void> => {
+  const [announcement, setAnnouncement] = useState('');
+  const rootRef = useRef<HTMLElement>(null);
+  const restoreRef = useRef<PendingRestore | null>(null);
+  const retry = async (id: string, trigger: HTMLButtonElement): Promise<void> => {
     setRetrying(id);
     setRetryError(false);
+    const row = trigger.closest('article');
+    const rows = rootRef.current ? Array.from(rootRef.current.querySelectorAll('article')) : [];
+    restoreRef.current = row
+      ? {
+          trigger,
+          row,
+          rowIndex: rows.indexOf(row),
+          anchorTop: row.getBoundingClientRect().top,
+          scroller: scrollableAncestor(row),
+        }
+      : null;
+    let exportFailed = false;
     try {
       await retryClinicalDriveExport(id);
-      await refresh();
     } catch {
-      setRetryError(true);
-    } finally {
-      setRetrying(null);
+      exportFailed = true;
     }
+    await refresh();
+    setRetryError(exportFailed);
+    setRetrying(null);
   };
+  useLayoutEffect(() => {
+    if (retrying !== null) return;
+    const pending = restoreRef.current;
+    if (!pending) return;
+    restoreRef.current = null;
+    const rowSurvived = pending.row.isConnected;
+    const actionSurvived = pending.trigger.isConnected;
+    if (rowSurvived && pending.scroller?.isConnected) {
+      const delta = pending.row.getBoundingClientRect().top - pending.anchorTop;
+      if (delta) pending.scroller.scrollTop += delta;
+    }
+    if (!rowSurvived || !actionSurvived) setAnnouncement('Se actualizó el trabajo pendiente.');
+    if (rowSurvived) {
+      if (!actionSurvived) pending.row.querySelector<HTMLElement>('a, button')?.focus();
+      else if (!document.activeElement || document.activeElement === document.body) {
+        pending.trigger.focus();
+      }
+      return;
+    }
+    const rows = rootRef.current ? Array.from(rootRef.current.querySelectorAll('article')) : [];
+    const target = rows[Math.max(0, Math.min(pending.rowIndex, rows.length - 1))];
+    (target?.querySelector<HTMLElement>('a, button') ?? rootRef.current)?.focus();
+  }, [page, retrying]);
   return (
-    <section aria-label="Trabajo pendiente" className="space-y-4 p-3">
+    <section ref={rootRef} tabIndex={-1} aria-label="Trabajo pendiente" className="space-y-4 p-3">
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
       {loading && !page && (
         <div role="status">
           <span className="sr-only">Cargando pendientes</span>
@@ -87,10 +145,11 @@ export function ClinicalPendingWork({ patientId }: { patientId?: string }): JSX.
                     <Button
                       variant="clinicalSecondary"
                       disabled={retrying !== null}
-                      onClick={() =>
-                        item.action.kind === 'retry_drive_export' &&
-                        void retry(item.action.evolution_id)
-                      }
+                      onClick={(event) => {
+                        if (item.action.kind === 'retry_drive_export') {
+                          void retry(item.action.evolution_id, event.currentTarget);
+                        }
+                      }}
                     >
                       {retrying === item.action.evolution_id ? 'Reintentando…' : 'Reintentar'}
                     </Button>
