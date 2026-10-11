@@ -88,6 +88,17 @@ it('uses the route for pending selection and switches back to conversations', as
   await waitFor(() => expect(getClinicalThreads).toHaveBeenCalled());
 });
 
+it('hides the direct pending-work entry while collapsed into the rail', async () => {
+  vi.mocked(getClinicalThreads).mockResolvedValue([]);
+  render(
+    <MemoryRouter>
+      <ClinicalThreadList isCollapsed />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(getClinicalThreads).toHaveBeenCalled());
+  expect(screen.queryByRole('button', { name: 'Pendientes' })).not.toBeInTheDocument();
+});
+
 function summary(id: string, activeTurnId: string | null = null): ClinicalThreadSummary {
   return {
     id,

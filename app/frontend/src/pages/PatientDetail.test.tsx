@@ -111,11 +111,21 @@ describe('PatientDetail evolution workspace', () => {
     expect(links).toHaveLength(2);
     expect(links[0]).toHaveAccessibleName('Ver evolución del 04 sep 2026 a las 23:28');
     expect(links[1]).toHaveAccessibleName('Ver evolución del 04 sep 2026 a las 10:00');
+    for (const [index, expected] of [
+      evolutionSummary.evolution_at,
+      second.evolution_at,
+    ].entries()) {
+      const stamps = [...links[index].querySelectorAll('time')];
+      expect(stamps.map((stamp) => stamp.getAttribute('datetime'))).toEqual([expected, expected]);
+    }
     fireEvent.click(links[1]);
     expect(await screen.findByText('No pudimos cargar esta evolución')).toBeVisible();
     expect(screen.getAllByRole('tab')).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
-    expect(await screen.findByRole('heading', { name: 'Evolución dental' })).toBeVisible();
+    const detail = await screen.findByRole('heading', { name: 'Evolución dental' });
+    const detailTime = detail.closest('article')?.querySelector('time');
+    expect(detailTime).toHaveAttribute('datetime', second.evolution_at);
+    expect(detailTime?.textContent).toContain('10:00');
     expect(getEvolution).toHaveBeenLastCalledWith('evolution-2');
     expect(screen.getByRole('link', { name: /10:00/ })).toHaveAttribute('aria-current', 'page');
   });

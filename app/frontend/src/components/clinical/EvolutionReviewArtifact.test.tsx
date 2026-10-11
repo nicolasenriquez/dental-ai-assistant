@@ -1,6 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
+import {
+  formatClinicalDate,
+  formatClinicalDateTime,
+  formatClinicalTime,
+} from '../../lib/clinicalDate';
 import { EvolutionReviewArtifact } from './EvolutionReviewArtifact';
 
 const draft: ClinicalDraft = {
@@ -134,6 +139,36 @@ describe('EvolutionReviewArtifact', () => {
       expect(screen.getByText(lifecycle)).toBeVisible();
     },
   );
+
+  it('keeps the numeric date editor independent from the abbreviated display', () => {
+    const evolutionAt = '2026-10-05T23:59:00';
+    render(
+      <EvolutionReviewArtifact
+        mode="assistant"
+        sourceNote="Nota original"
+        draft={draft}
+        generatedDraft={draft}
+        evolutionAt={evolutionAt}
+        stale={false}
+        edited={false}
+        onChange={vi.fn()}
+        onEvolutionAtChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(formatClinicalDateTime(evolutionAt))).toHaveAttribute(
+      'datetime',
+      evolutionAt,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar fecha y hora' }));
+    expect(screen.getByRole('textbox', { name: 'Fecha de evolución' })).toHaveValue(
+      formatClinicalDate(evolutionAt),
+    );
+    expect(screen.getByRole('textbox', { name: 'Hora de evolución' })).toHaveValue(
+      formatClinicalTime(evolutionAt),
+    );
+  });
 
   it('prepares an assistant draft without claiming to save it', () => {
     const onPrepare = vi.fn();

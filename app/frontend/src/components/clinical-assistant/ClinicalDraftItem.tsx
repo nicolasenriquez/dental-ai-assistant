@@ -12,6 +12,7 @@ interface ClinicalDraftItemProps {
   item: DraftItemData;
   threadId?: string;
   patient?: ClinicalPatient | null;
+  artifactHeadingLevel?: 2 | 3;
   onChange: (draft: ClinicalDraft) => void;
   onSourceChange: (sourceNote: string) => Promise<boolean>;
   onEvolutionAtChange: (evolutionAt: string) => void;
@@ -40,6 +41,7 @@ export function ClinicalDraftItem({
   item,
   threadId,
   patient,
+  artifactHeadingLevel,
   onChange,
   onSourceChange,
   onEvolutionAtChange,
@@ -77,6 +79,7 @@ export function ClinicalDraftItem({
       item={item}
       threadId={threadId}
       patient={patient}
+      artifactHeadingLevel={artifactHeadingLevel}
       approval={approval}
       result={result}
       onChange={onChange}

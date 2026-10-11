@@ -906,6 +906,12 @@ test('keeps the assistant header and sidebar consistent across viewport boundari
           .evaluate((element) => element.getBoundingClientRect().width),
       ).toBe(260);
     }
+    const pendingEntry = page.getByRole('link', { name: 'Ver pendientes' });
+    if (width >= 768) {
+      await expect(pendingEntry).toHaveCount(0);
+    } else {
+      await expect(pendingEntry).toBeVisible();
+    }
     if (width <= 900) {
       expect((await context.boundingBox())?.y).toBeLessThan((await actions.boundingBox())?.y ?? 0);
     }
@@ -1306,6 +1312,8 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await expect
     .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
     .toBe(260);
+  const pendingEntry = page.getByRole('link', { name: 'Ver pendientes' });
+  await expect(pendingEntry).toHaveCount(0);
   await expect(sidebar.getByRole('button', { name: 'Nueva conversación' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Asistente' })).toBeVisible();
   await expect(
@@ -1323,12 +1331,14 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     .toBe(56);
   await expect(sidebar).not.toHaveAttribute('aria-hidden', 'true');
   await expect(sidebar).not.toHaveAttribute('inert', '');
+  await expect(pendingEntry).toBeVisible();
   const restoreNavigation = sidebar.getByRole('button', { name: 'Expandir navegación' });
   await expect(restoreNavigation).toBeVisible();
   await restoreNavigation.click();
   await expect
     .poll(() => sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().width)))
     .toBe(260);
+  await expect(pendingEntry).toHaveCount(0);
   await expect(
     sidebar.getByRole('button', { name: 'Ana Pérez · Control', exact: true }),
   ).toBeVisible();
@@ -1388,8 +1398,8 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
   await liveArtifact.getByRole('textbox', { name: 'Fecha de evolución' }).fill('14/01/2026');
   await liveArtifact.getByRole('textbox', { name: 'Hora de evolución' }).fill('09:30');
   await liveArtifact.getByRole('button', { name: 'Aplicar' }).click();
-  await expect(liveArtifact.locator('.clinical-artifact-metadata time')).toContainText(
-    '14 ene 2026',
+  await expect(liveArtifact.locator('.clinical-artifact-metadata time')).toHaveText(
+    '14 ene 2026 · 09:30',
   );
 
   await page.getByRole('button', { name: 'Revisar y guardar' }).click();

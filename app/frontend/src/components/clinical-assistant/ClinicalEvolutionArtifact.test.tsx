@@ -8,6 +8,7 @@ import type {
   ClinicalPendingAction,
   DriveExportState,
 } from '../../lib/api';
+import { formatClinicalDateTime } from '../../lib/clinicalDate';
 import { ClinicalEvolutionArtifact } from './ClinicalEvolutionArtifact';
 
 const patient: ClinicalPatient = {
@@ -327,6 +328,33 @@ describe('ClinicalEvolutionArtifact', () => {
       evolutionId: 'evolution-1',
       journal: { period_type: 'weekly', period_key: '2026-W37', journal_part: 2 },
     });
+  });
+
+  it('shows complete same-day times while keeping the stored instant', () => {
+    const morning = '2026-10-05T09:30:00';
+    const afternoon = '2026-10-05T16:45:00';
+    const first = renderArtifact(
+      draftItem({ id: 'artifact-morning', evolutionAt: morning }),
+      undefined,
+      undefined,
+      undefined,
+      patient,
+    );
+    const firstTime = first.container.querySelector('time');
+    expect(firstTime?.textContent).toBe(formatClinicalDateTime(morning));
+    expect(firstTime).toHaveAttribute('datetime', morning);
+
+    const second = renderArtifact(
+      draftItem({ id: 'artifact-afternoon', evolutionAt: afternoon }),
+      undefined,
+      undefined,
+      undefined,
+      patient,
+    );
+    const secondTime = second.container.querySelector('time');
+    expect(secondTime?.textContent).toBe(formatClinicalDateTime(afternoon));
+    expect(secondTime).toHaveAttribute('datetime', afternoon);
+    expect(secondTime?.textContent).not.toBe(firstTime?.textContent);
   });
 
   it('closes a discarded artifact without editing, preparation or recovery controls', () => {

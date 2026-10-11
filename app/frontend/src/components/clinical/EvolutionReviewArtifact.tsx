@@ -4,7 +4,6 @@ import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import type { ClinicalDraft, ClinicalPatient } from '../../lib/api';
 import {
   formatClinicalDate,
-  formatClinicalDateShort,
   formatClinicalDateTime,
   formatClinicalTime,
   parseClinicalDateInput,
@@ -39,6 +38,7 @@ interface EvolutionReviewArtifactProps {
   sourceEditable?: boolean;
   showSource?: boolean;
   showDateTime?: boolean;
+  artifactHeadingLevel?: 2 | 3;
   canSave?: boolean;
   saving?: boolean;
   preparing?: boolean;
@@ -74,6 +74,7 @@ export function EvolutionReviewArtifact({
   sourceEditable = false,
   showSource = true,
   showDateTime = false,
+  artifactHeadingLevel = 3,
   canSave = false,
   saving = false,
   preparing = false,
@@ -123,6 +124,10 @@ export function EvolutionReviewArtifact({
   });
   const returnFocusFieldRef = useRef<ClinicalFieldKey | null>(null);
   const isAssistant = mode === 'assistant';
+  // Heading depth follows the containing section (full Assistant h1 → h2,
+  // contextual/manual h2 → h3); fields stay exactly one level below.
+  const ArtifactHeading = artifactHeadingLevel === 2 ? 'h2' : 'h3';
+  const FieldHeading = artifactHeadingLevel === 2 ? 'h3' : 'h4';
   const emptyDraft = !hasClinicalContent(draft);
   const visibleStage = lifecycleStage ?? 'draft';
   const assistantLifecycle =
@@ -286,7 +291,9 @@ export function EvolutionReviewArtifact({
         className={isAssistant ? 'clinical-artifact-heading' : 'evolution-review-artifact__heading'}
       >
         <div className={isAssistant ? 'clinical-artifact-heading__copy' : undefined}>
-          <h3>{isAssistant ? 'Evolución clínica' : 'Borrador para revisar'}</h3>
+          <ArtifactHeading>
+            {isAssistant ? 'Evolución clínica' : 'Borrador para revisar'}
+          </ArtifactHeading>
           <div className="clinical-artifact-metadata">
             {isAssistant && patient && (
               <>
@@ -299,11 +306,7 @@ export function EvolutionReviewArtifact({
               </>
             )}
             {isAssistant && !patient && <span>Información del paciente no disponible</span>}
-            <time dateTime={evolutionAt}>
-              {isAssistant
-                ? formatClinicalDateShort(evolutionAt)
-                : formatClinicalDateTime(evolutionAt)}
-            </time>
+            <time dateTime={evolutionAt}>{formatClinicalDateTime(evolutionAt)}</time>
             {onEvolutionAtChange && !readOnly && (
               <button
                 ref={dateEditButtonRef}
@@ -481,9 +484,9 @@ export function EvolutionReviewArtifact({
             }
           >
             <div className="evolution-review-artifact__field-heading">
-              <h4 id={`${fieldsId}-${key}`} tabIndex={-1}>
+              <FieldHeading id={`${fieldsId}-${key}`} tabIndex={-1}>
                 {label}
-              </h4>
+              </FieldHeading>
               {!readOnly && editingField !== key && (
                 <button
                   ref={(node) => {

@@ -144,6 +144,10 @@ describe('assistant artifact edit buffers', () => {
     const restored = await screen.findByRole('textbox', { name: 'Hallazgos' });
     expect(restored).toHaveValue('TEXTO SIN APLICAR');
     expect(restored).toHaveFocus();
+    expect(document.querySelector('.clinical-assistant-area time')).toHaveAttribute(
+      'datetime',
+      '2026-09-10T12:00:00Z',
+    );
   });
 
   it('keeps an unapplied source-note buffer and its editor across internal navigation', async () => {

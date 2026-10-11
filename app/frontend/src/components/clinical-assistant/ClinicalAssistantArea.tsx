@@ -2,6 +2,7 @@ import { HardDrive, Stethoscope } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ClinicalAssistantController } from '../../hooks/useClinicalAssistant';
+import { useSidebarCollapse } from '../../hooks/useSidebarCollapse';
 import { isVoiceInFlight, useVoiceDictation } from '../../hooks/useVoiceDictation';
 import {
   type ClinicalDraft,
@@ -95,6 +96,24 @@ export function ClinicalAssistantArea({
   resumeTarget,
 }: ClinicalAssistantAreaProps) {
   const Root = embedded ? 'section' : 'main';
+  const { sidebarCollapsed } = useSidebarCollapse();
+  const [mobileNavigation, setMobileNavigation] = useState(
+    () => window.matchMedia?.('(max-width: 767px)')?.matches ?? true,
+  );
+  useEffect(() => {
+    const media = window.matchMedia?.('(max-width: 767px)');
+    if (!media) return;
+    const handleChange = () => setMobileNavigation(media.matches);
+    media.addEventListener('change', handleChange);
+    return () => media.removeEventListener('change', handleChange);
+  }, []);
+  // The expanded shell sidebar exposes the direct pending-work entry; the header
+  // duplicate is suppressed only then. A focused entry stays mounted until focus
+  // moves, so a layout change cannot drop the focused element (R10).
+  const [pendingEntryFocused, setPendingEntryFocused] = useState(false);
+  const sidebarOffersPendingWork = !mobileNavigation && !sidebarCollapsed;
+  const showHeaderPendingEntry =
+    returnToFicha && (!sidebarOffersPendingWork || pendingEntryFocused);
   const [localPatientPickerOpen, setLocalPatientPickerOpen] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientsLoading, setPatientsLoading] = useState(true);
@@ -622,11 +641,13 @@ export function ClinicalAssistantArea({
         }
         actions={
           <>
-            {returnToFicha && (
+            {showHeaderPendingEntry && (
               <Link
                 className="clinical-secondary-button"
                 aria-label="Ver pendientes"
                 to="/assistant?view=pending"
+                onFocus={() => setPendingEntryFocused(true)}
+                onBlur={() => setPendingEntryFocused(false)}
               >
                 Pendientes
               </Link>
@@ -683,6 +704,7 @@ export function ClinicalAssistantArea({
         threadId={threadId}
         items={assistant.items}
         activeTurn={activeTurn}
+        artifactHeadingLevel={embedded ? 3 : 2}
         busy={queueAvailable || assistant.runtime === 'saving'}
         emptyState={
           threadReady ? (

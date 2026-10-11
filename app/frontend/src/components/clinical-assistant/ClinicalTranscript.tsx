@@ -74,6 +74,7 @@ interface ClinicalTranscriptProps {
   threadId: string;
   items: ClinicalTranscriptItem[];
   emptyState?: ReactNode;
+  artifactHeadingLevel?: 2 | 3;
   onDraftChange: (id: string, draft: ClinicalDraft) => void;
   onDraftSourceChange: (id: string, sourceNote: string) => Promise<boolean>;
   onDraftDateChange: (id: string, evolutionAt: string) => void;
@@ -117,6 +118,7 @@ export function ClinicalTranscript({
   threadId,
   items,
   emptyState,
+  artifactHeadingLevel,
   onDraftChange,
   onDraftSourceChange,
   onDraftDateChange,
@@ -299,6 +301,7 @@ export function ClinicalTranscript({
                       item={item}
                       threadId={threadId}
                       patient={item.patient ?? approval?.patient ?? null}
+                      artifactHeadingLevel={artifactHeadingLevel}
                       approval={approval}
                       result={result}
                       onChange={(draft) => onDraftChange(item.id, draft)}

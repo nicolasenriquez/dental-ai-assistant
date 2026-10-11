@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ClinicalAssistantController,
   ClinicalRuntime,
 } from '../../hooks/useClinicalAssistant';
+import { SidebarCollapseProvider, useSidebarCollapse } from '../../hooks/useSidebarCollapse';
 import {
   type ClinicalPatient,
   type ClinicalThread,
@@ -54,6 +55,15 @@ function createAssistant(): ClinicalAssistantController {
     artifactSyncState: {},
     retryArtifactSync: vi.fn(),
   };
+}
+
+function SidebarToggle() {
+  const { sidebarCollapsed, setSidebarCollapsed } = useSidebarCollapse();
+  return (
+    <button type="button" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}>
+      {sidebarCollapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
+    </button>
+  );
 }
 
 function createThread(activePatient: ClinicalPatient | null): ClinicalThread {
@@ -1036,5 +1046,167 @@ describe('ClinicalAssistantArea review recovery visibility', () => {
     expect(document.activeElement).toBe(trigger);
     expect(dockButton()).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
+  });
+});
+
+describe('ClinicalAssistantArea artifact heading composition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    runtime.value = 'idle';
+    assistantState.thread = createThread(null);
+  });
+
+  const clinicalFieldNames = [
+    'Motivo / contexto',
+    'Hallazgos',
+    'Diagnóstico / impresión clínica',
+    'Tratamiento / conducta',
+    'Seguimiento',
+  ];
+
+  function assistantWithDraft(): ClinicalAssistantController {
+    const draft = {
+      context: 'Control preventivo',
+      findings: 'Sin hallazgos nuevos',
+      assessment: 'Salud periodontal estable',
+      treatment: 'Mantener higiene',
+      follow_up: 'Control en seis meses',
+      review_flags: [],
+    };
+    const assistant = createAssistant();
+    assistant.items = [
+      {
+        id: 'draft-c5',
+        turnId: 'turn-1',
+        status: 'completed' as const,
+        createdAt: '2026-10-05T12:00:00Z',
+        type: 'draft' as const,
+        artifactStatus: 'draft' as const,
+        draft,
+        baseline: { ...draft },
+        sourceNote: 'Nota clínica',
+        edited: false,
+        stale: false,
+        patientId: 'p',
+        patient: null,
+        evolutionAt: '2026-10-05T12:00:00Z',
+      },
+    ];
+    return assistant;
+  }
+
+  it('nests the full Assistant artifact under its h1 with fields one level below', () => {
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistantWithDraft()} />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Asistente' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 2, name: 'Evolución clínica' })).toBeVisible();
+    for (const label of clinicalFieldNames) {
+      expect(screen.getByRole('heading', { level: 3, name: label })).toBeVisible();
+    }
+  });
+
+  it('keeps the contextual artifact and fields one level below the region heading', () => {
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistantWithDraft()} embedded />);
+
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Asistente' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Evolución clínica' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 4, name: 'Seguimiento' })).toBeVisible();
+  });
+});
+
+describe('ClinicalAssistantArea pending navigation availability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    runtime.value = 'idle';
+    assistantState.thread = createThread(null);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubViewport(isMobile: boolean) {
+    const listeners = new Set<() => void>();
+    const media = {
+      matches: isMobile,
+      addEventListener: (_event: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_event: string, listener: () => void) => listeners.delete(listener),
+      setMatches(next: boolean) {
+        media.matches = next;
+        for (const listener of listeners) listener();
+      },
+    };
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => media),
+    );
+    return media;
+  }
+
+  function renderArea() {
+    render(
+      <MemoryRouter>
+        <SidebarCollapseProvider>
+          <SidebarToggle />
+          <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} returnToFicha />
+        </SidebarCollapseProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  it('suppresses the header pending entry while the expanded sidebar offers it', () => {
+    stubViewport(false);
+    renderArea();
+
+    expect(screen.getByRole('heading', { name: 'Asistente' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Ver pendientes' })).not.toBeInTheDocument();
+  });
+
+  it('retains the header pending entry in the collapsed rail', () => {
+    stubViewport(false);
+    renderArea();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Colapsar barra lateral' }));
+
+    expect(screen.getByRole('link', { name: 'Ver pendientes' })).toHaveAttribute(
+      'href',
+      '/assistant?view=pending',
+    );
+  });
+
+  it('retains the header pending entry while the mobile drawer is closed', () => {
+    stubViewport(true);
+    renderArea();
+
+    expect(screen.getByRole('link', { name: 'Ver pendientes' })).toBeVisible();
+  });
+
+  it('keeps a focused header entry mounted until focus can move after a breakpoint change', () => {
+    const media = stubViewport(true);
+    renderArea();
+
+    const link = screen.getByRole('link', { name: 'Ver pendientes' });
+    act(() => link.focus());
+    expect(link).toHaveFocus();
+
+    act(() => media.setMatches(false));
+    expect(screen.getByRole('link', { name: 'Ver pendientes' })).toBeInTheDocument();
+
+    act(() => link.blur());
+    expect(screen.queryByRole('link', { name: 'Ver pendientes' })).not.toBeInTheDocument();
+  });
+
+  it('never adds the header pending entry to the contextual area', () => {
+    stubViewport(false);
+    render(
+      <MemoryRouter>
+        <SidebarCollapseProvider>
+          <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} embedded />
+        </SidebarCollapseProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Ver pendientes' })).not.toBeInTheDocument();
   });
 });

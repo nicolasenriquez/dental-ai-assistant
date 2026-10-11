@@ -123,6 +123,10 @@ describe('NewEvolution generation states', () => {
 
     expect(await screen.findByRole('heading', { name: 'Borrador generado' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Guardar evolución' })).toBeEnabled();
+    expect(screen.getByRole('heading', { level: 1, name: 'Nueva evolución dental' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 2, name: 'Borrador generado' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Borrador para revisar' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 4, name: 'Seguimiento' })).toBeVisible();
   });
 
   it('renders the partial state with review flags', async () => {

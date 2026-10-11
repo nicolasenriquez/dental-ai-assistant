@@ -906,12 +906,30 @@ test('review fixes: full assistant preserves snapshots and a continuous artifact
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   const transcript = page.getByRole('log', { name: 'Transcripción clínica' });
   await expect(
-    transcript.getByRole('heading', { name: 'Evolución clínica', level: 3 }),
+    transcript.getByRole('heading', { name: 'Evolución clínica', level: 2 }),
   ).toBeVisible();
   const levels = await transcript
     .locator('h2, h3, h4')
     .evaluateAll((headings) => headings.map((heading) => Number(heading.tagName.slice(1))));
-  expect(levels).toEqual([2, 3, 4, 4, 4, 4, 4]);
+  expect(levels).toEqual([2, 2, 3, 3, 3, 3, 3]);
+});
+
+test('review fixes: manual evolution keeps its parent-relative heading outline', async ({
+  page,
+}) => {
+  await installQaRoutes(page);
+  await page.goto(`/patients/${patientId}/evolutions/new`);
+  await expect(
+    page.getByRole('heading', { name: 'Nueva evolución dental', level: 1 }),
+  ).toBeVisible();
+  await page.getByLabel('Nota clínica').fill('Control preventivo QA.');
+  await page.getByRole('button', { name: 'Generar borrador con IA' }).click();
+  await expect(page.getByRole('heading', { name: 'Borrador generado', level: 2 })).toBeVisible();
+  const review = page.locator('.evolution-review-artifact');
+  await expect(
+    review.getByRole('heading', { name: 'Borrador para revisar', level: 3 }),
+  ).toBeVisible();
+  await expect(review.getByRole('heading', { name: 'Seguimiento', level: 4 })).toBeVisible();
 });
 
 test('audit fixes: primary action states keep readable contrast and visible focus', async ({
@@ -2277,7 +2295,9 @@ test('patients, patient detail, and new evolution preserve dialog contracts', as
   await expect(page.getByRole('heading', { name: 'Ana QA Pérez' })).toBeVisible();
 
   await page.goto(`/patients/${patientId}/evolutions/new`);
-  await expect(page.getByRole('heading', { name: 'Nueva evolución dental' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Nueva evolución dental', level: 1 }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Generar borrador con IA' })).toBeDisabled();
   await captureView(page, 'qa-new-evolution-empty');
   await page.getByLabel('Nota clínica').fill('Nota que no debe perderse QA.');
@@ -2289,10 +2309,14 @@ test('patients, patient detail, and new evolution preserve dialog contracts', as
   await expect(page.getByLabel('Fecha de evolución')).toBeVisible();
   await page.getByLabel('Nota clínica').fill('Control preventivo QA.');
   await page.getByRole('button', { name: 'Generar borrador con IA' }).click();
-  await expect(page.getByRole('heading', { name: 'Borrador generado' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Borrador generado', level: 2 })).toBeVisible();
   await captureView(page, 'qa-new-evolution-review');
 
   const review = page.locator('.evolution-review-artifact');
+  await expect(
+    review.getByRole('heading', { name: 'Borrador para revisar', level: 3 }),
+  ).toBeVisible();
+  await expect(review.getByRole('heading', { name: 'Seguimiento', level: 4 })).toBeVisible();
   await review.locator('button', { hasText: 'Editar' }).first().click();
   await review.getByRole('button', { name: 'Editar Hallazgos' }).click();
   await page.getByRole('textbox', { name: 'Hallazgos' }).fill('Hallazgo QA editado.');
@@ -2485,6 +2509,9 @@ test('clinical assistant exposes the review lifecycle and Drive surface', async 
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await expect(page.getByText('Preparé un borrador para revisión.')).toHaveCount(0);
   await expect(page.getByText('Borrador', { exact: true })).toBeVisible();
+  await expect(page.locator('.clinical-artifact-metadata time')).toHaveText(
+    '15 ene 2026 · 12:01',
+  );
   const reviewOpener = page.getByRole('button', { name: 'Revisar y guardar' });
   await reviewOpener.click();
   await auditDialog(page, 'Guardar evolución');

@@ -2185,6 +2185,7 @@ body,
   opacity: 1;
 }
 
+.clinical-artifact-heading h2,
 .clinical-artifact-heading h3 {
   display: flex;
   align-items: center;
@@ -2369,6 +2370,7 @@ body,
   grid-row: 1;
 }
 
+.clinical-draft-fields > div > .evolution-review-artifact__field-heading > h3,
 .clinical-draft-fields > div > .evolution-review-artifact__field-heading > h4 {
   color: var(--text-secondary);
   font-size: 13px;
@@ -2463,6 +2465,7 @@ body,
   padding: 6px;
 }
 
+.evolution-review-artifact__field-heading h3,
 .evolution-review-artifact__field-heading h4 {
   margin: 0;
   color: var(--text-secondary);
@@ -2895,6 +2898,7 @@ body,
   gap: 5px;
 }
 
+.evolution-review-artifact__fields > div > .evolution-review-artifact__field-heading > h3,
 .evolution-review-artifact__fields > div > .evolution-review-artifact__field-heading > h4,
 .evolution-review-artifact__source > span {
   color: var(--text-secondary);

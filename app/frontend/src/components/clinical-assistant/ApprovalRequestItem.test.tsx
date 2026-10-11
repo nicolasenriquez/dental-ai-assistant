@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ClinicalApprovalItem } from '../../hooks/useClinicalAssistant';
+import { formatClinicalDateTime } from '../../lib/clinicalDate';
 import { ApprovalRequestItem } from './ApprovalRequestItem';
 
 beforeAll(() => {
@@ -102,6 +103,15 @@ describe('ApprovalRequestItem', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar evolución' }));
     expect(onResolve).toHaveBeenCalledWith('approve');
   });
+  it('shows the complete abbreviated date and time with the original proposal instant', () => {
+    renderItem('pending', null, true);
+
+    const dialog = screen.getByRole('dialog', { name: 'Guardar evolución' });
+    expect(
+      within(dialog).getByText(formatClinicalDateTime('2026-09-10T12:00:00Z')),
+    ).toHaveAttribute('datetime', '2026-09-10T12:00:00Z');
+  });
+
   it('returns to editing without declining the action', () => {
     const onResolve = vi.fn();
     const onBackToEdit = vi.fn();

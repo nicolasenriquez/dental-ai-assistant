@@ -50,4 +50,26 @@ describe('clinical date formatting', () => {
       expect(parseClinicalDateTimeInput('06/09/2026', '01:30')).toBeInstanceOf(Date);
     },
   );
+
+  it('keeps the abbreviated Spanish display across midnight and another browser locale', () => {
+    const language = Object.getOwnPropertyDescriptor(navigator, 'language');
+    Object.defineProperty(navigator, 'language', { configurable: true, value: 'en-US' });
+    try {
+      expect(formatClinicalDateTime('2026-10-05T23:59:00')).toBe('05 oct 2026 · 23:59');
+      expect(formatClinicalDateTime('2026-10-06T00:01:00')).toBe('06 oct 2026 · 00:01');
+    } finally {
+      if (language) Object.defineProperty(navigator, 'language', language);
+      else Reflect.deleteProperty(navigator, 'language');
+    }
+  });
+
+  it.skipIf(Intl.DateTimeFormat().resolvedOptions().timeZone !== 'America/Santiago')(
+    'keeps the abbreviated display across the Chilean daylight-saving boundary',
+    () => {
+      // Chile 2026-09-06: 00:00 local jumps to 01:00 (UTC-4 -> UTC-3).
+      expect(formatClinicalDateTime('2026-09-05T23:30:00-04:00')).toBe('05 sep 2026 · 23:30');
+      expect(formatClinicalDateTime('2026-09-06T01:30:00-03:00')).toBe('06 sep 2026 · 01:30');
+      expect(formatClinicalDateTime('2026-09-06T04:30:00Z')).toBe('06 sep 2026 · 01:30');
+    },
+  );
 });

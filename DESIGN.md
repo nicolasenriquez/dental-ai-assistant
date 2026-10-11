@@ -264,7 +264,7 @@ Borders stay thin and subdued. Selection may add a blue edge or inset rail, whil
 - A selected Drive document appears as a named, removable attachment. Do not use “contexto” for a patient action or empty attachment slot.
 - Contextual clinical panels use the existing workspace surfaces and composer. Closing a panel preserves work; the explicit Stop action cancels execution.
 - Approval must read as a distinct clinician decision. A saved evolution says “Guardada en ficha”; Drive synchronization stays separate. Saved review flags say “observaciones”; pre-approval flags say “por revisar”.
-- Evolution date and time display as `dd/mm/aaaa` and `HH:mm`, independent of browser locale.
+- Evolution display uses the shared abbreviated Spanish formatter (`DD mes AAAA · HH:mm`, browser-local timezone, independent of UI locale) in Assistant artifacts, approval, manual review, consulted-evolution lists and patient-ficha metadata; the semantic `time` value keeps the original instant so same-day records stay distinguishable. Editable date/time fields remain numeric (`dd/mm/aaaa` and `HH:mm`).
 - Draft-copy success appears only after clipboard access succeeds; on failure, keep the text selectable.
 
 ### Feedback and Waiting

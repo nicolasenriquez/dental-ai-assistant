@@ -28,9 +28,6 @@
     - strong: Ana Pérez
     - text: /\d+\.\d+\.•••-6/
   - button "Quitar paciente activo"
-  - link "Ver pendientes":
-    - /url: /assistant?view=pending
-    - text: ""
   - button "Abrir Google Drive"
   - log "Transcripción clínica":
     - heading "Transcripción clínica" [level=2]

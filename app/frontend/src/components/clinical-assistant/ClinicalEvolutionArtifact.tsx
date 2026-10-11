@@ -19,6 +19,7 @@ interface ClinicalEvolutionArtifactProps {
   patient?: ClinicalPatient | null;
   approval?: ClinicalApprovalItem;
   result?: ClinicalResultItem;
+  artifactHeadingLevel?: 2 | 3;
   onChange: (draft: ClinicalDraftItem['draft']) => void;
   onSourceChange: (sourceNote: string) => Promise<boolean>;
   onEvolutionAtChange: (evolutionAt: string) => void;
@@ -280,6 +281,7 @@ export function ClinicalEvolutionArtifact({
   patient,
   approval,
   result,
+  artifactHeadingLevel = 3,
   onChange,
   onSourceChange,
   onEvolutionAtChange,
@@ -339,6 +341,7 @@ export function ClinicalEvolutionArtifact({
         threadId={threadId}
         artifactId={item.id}
         embedded
+        artifactHeadingLevel={artifactHeadingLevel}
         patient={patient ?? approval?.patient}
         sourceNote={item.sourceNote}
         draft={item.draft}

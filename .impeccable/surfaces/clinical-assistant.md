@@ -24,6 +24,11 @@ surviving row's offset and focus, moves focus to the next/previous usable action
 section when the row disappears, and announces the removal without claiming unsaved
 work; passive refocus keeps focus and anchor.
 The sidebar visibly distinguishes the selected Conversations/Pending view.
+The full Assistant header keeps its `Pendientes` entry unless the expanded sidebar
+visibly exposes that same destination: the collapsed rail, a hidden or closed mobile
+drawer, and a focused entry all retain it, while the existing
+`/assistant?view=pending` destination, the contextual navigation and the
+shell's guarded transitions are unchanged.
 Explicit retry links retain earlier attempts while showing the note once and
 offering recovery only on the latest failed attempt. Legacy attempts are not
 merged by matching their text. General replies offer Drive copy only with a patient.
@@ -39,6 +44,9 @@ Header allocates patient identity before thread metadata. Masked RUT occupies it
 line; return navigation never wraps. Short mobile viewports compact secondary header
 controls while the composer is focused, retaining patient identity and ficha access.
 Long evolutions expose a sticky native section selector and semantic section headings;
+artifact headings follow their containing section — full Assistant h2 with h3 fields,
+contextual h3 with h4 fields, manual review one level under its own section — with one
+artifact representation and no wrapper headings added to force the hierarchy;
 clinical text remains expanded. C1 field editors autosize between 180px and 480px,
 with 16px input text. Section title and explicit Editar share a row, followed by
 full clinical text and one separator. Footer reflows by artifact width.

@@ -193,6 +193,8 @@ test('integrated evolution ficha preserves exact routes, reload, history and nar
     await expect(clinical.getByRole('heading', { name: 'Historial de evoluciones' })).toBeVisible();
     const links = clinical.getByRole('link', { name: /Ver evolución del/ });
     await expect(links).toHaveCount(2);
+    expect(await links.first().getAttribute('aria-label')).toMatch(/a las \d{2}:\d{2}$/);
+    expect(await links.last().getAttribute('aria-label')).toMatch(/a las \d{2}:\d{2}$/);
     expect(await links.first().getAttribute('aria-label')).not.toBe(await links.last().getAttribute('aria-label'));
     await links.last().click();
     await expect(page).toHaveURL(new RegExp(`${secondId}$`));
