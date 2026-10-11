@@ -5484,7 +5484,8 @@ body,
   .drive-workspace :is(button, a),
   .drive-sheet-close,
   .patient-page-header button,
-  .patient-form-dialog :is(button, a) {
+  .patient-form-dialog :is(button, a),
+  .dialog-content :is(button, a) {
     min-width: 44px;
     min-height: 44px;
   }
