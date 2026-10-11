@@ -15,6 +15,16 @@ const patient = {
   last_evolution_at: '2026-09-08T17:22:00Z',
 };
 
+const patientBId = '8d0f4f7a-2d19-4cc0-9c2b-3d1f5a6e7b80';
+const patientB = {
+  id: patientBId,
+  first_name: 'Bruno',
+  last_name: 'Ríos',
+  rut_masked: '9.876.•••-2',
+  birth_date: '1985-06-12',
+  last_evolution_at: '2026-08-20T14:10:00Z',
+};
+
 const evolution = {
   id: evolutionId,
   patient_id: patientId,
@@ -101,6 +111,10 @@ interface QaRouteOptions {
   admin?: boolean;
   driveEnabled?: boolean;
   driveFiles?: QaDriveFile[];
+  /** Patient directory for `GET /api/patients` and picker search. Defaults to [patient]. */
+  patients?: (typeof patient)[];
+  /** Consecutive `PATCH active-patient` requests served as 500 before the change succeeds. */
+  patientChangeFailures?: number;
   conversationLoadFailures?: number;
   streamFailuresBeforeSuccess?: number;
   holdFirstStream?: boolean;
@@ -122,14 +136,15 @@ interface QaRuntimeDiagnostics {
 
 const qaRuntimeDiagnostics = new WeakMap<Page, QaRuntimeDiagnostics>();
 
-test('review fixes: context decision traps focus and Escape restores only the composer', async ({ page }) => {
+test('review fixes: context decision traps focus and Escape restores the patient control', async ({ page }) => {
   await installQaRoutes(page);
   await page.setViewportSize({ width: 834, height: 1000 });
   await page.goto(`/patients/${patientId}`);
   await page.getByRole('button', { name: 'Asistente', exact: true }).click();
   const input = page.getByRole('textbox', { name: 'Nota clínica' });
   await input.fill('Nota sin enviar');
-  await page.getByRole('button', { name: 'Quitar paciente activo' }).click();
+  const patientControl = page.getByRole('button', { name: 'Quitar paciente activo' });
+  await patientControl.click();
   const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
   await expect(decision).toBeVisible();
   const remain = decision.getByRole('button', { name: 'Mantener paciente' });
@@ -140,9 +155,224 @@ test('review fixes: context decision traps focus and Escape restores only the co
   await expect(remain).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(decision).toHaveCount(0);
-  await expect(input).toBeFocused();
+  await expect(patientControl).toBeFocused();
   await expect(input).toHaveValue('Nota sin enviar');
   await expect(page.getByRole('heading', { name: 'Asistente clínico', exact: true })).toBeVisible();
+});
+
+interface QaApiMutation {
+  method: string;
+  path: string;
+  body: unknown;
+}
+
+function trackQaApiMutations(page: Page): QaApiMutation[] {
+  const mutations: QaApiMutation[] = [];
+  page.on('request', (request) => {
+    if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method())) return;
+    if (!request.url().includes('/api/')) return;
+    let body: unknown = null;
+    try {
+      body = request.postDataJSON();
+    } catch {
+      body = request.postData();
+    }
+    mutations.push({ method: request.method(), path: new URL(request.url()).pathname, body });
+  });
+  return mutations;
+}
+
+test.describe('review fixes: context decision browser verification', () => {
+  test('keeps the safe keyboard path and unsent work at narrow and desktop widths', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveEnabled: true, driveFiles: [qaDriveFile] });
+    const mutations = trackQaApiMutations(page);
+    const draft = 'Nota sin enviar para Ana.';
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/a/${threadId}`);
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      await input.fill(draft);
+      await attachQaSource(page, qaDriveFile);
+      const before = mutations.length;
+
+      const patientControl = page.getByRole('button', { name: 'Quitar paciente activo' });
+      await patientControl.click();
+      const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+      await expect(decision).toBeVisible();
+      await expect(decision).toContainText('Cambiar a Sin paciente');
+      const remain = decision.getByRole('button', { name: 'Mantener paciente' });
+      await expect(remain).toBeFocused();
+      await expect(decision.getByRole('button', { name: 'Conservar y cambiar' })).toBeVisible();
+      await expect(decision.getByRole('button', { name: 'Descartar y cambiar' })).toBeVisible();
+      await assertNoHorizontalOverflow(page);
+
+      // One focus owner: the background composer leaves the accessibility tree.
+      await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveCount(0);
+      await page.keyboard.press('Shift+Tab');
+      await expect(decision.getByRole('button', { name: 'Descartar y cambiar' })).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(remain).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(decision).toHaveCount(0);
+      await expect(patientControl).toBeFocused();
+      await expect(input).toHaveValue(draft);
+      await expect(page.getByRole('button', { name: `Quitar ${qaDriveFile.name}` })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeVisible();
+      expect(mutations.slice(before)).toEqual([]);
+
+      await patientControl.click();
+      await expect(decision).toBeVisible();
+      await decision.getByRole('button', { name: 'Mantener paciente' }).click();
+      await expect(decision).toHaveCount(0);
+      await expect(patientControl).toBeFocused();
+      await expect(input).toHaveValue(draft);
+      await expect(page.getByRole('button', { name: `Quitar ${qaDriveFile.name}` })).toBeVisible();
+      expect(mutations.slice(before)).toEqual([]);
+      console.log(
+        '[C2-KEYBOARD]',
+        JSON.stringify({
+          viewport: `${viewport.width}x${viewport.height}`,
+          focusPath:
+            'initiating-patient-control > remain > discard > remain > Escape > patient-control',
+          mutations: mutations.length - before,
+        }),
+      );
+    }
+  });
+
+  test('records one exact patient-change identity and keeps the decision open on failure', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, {
+      patients: [patient, patientB],
+      patientChangeFailures: 1,
+    });
+    const mutations = trackQaApiMutations(page);
+    const draft = 'Nota sin enviar para Ana.';
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto(`/a/${threadId}`);
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    await input.fill(draft);
+
+    const openDecision = async () => {
+      await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
+      await page.getByRole('option', { name: /Bruno Ríos/ }).click();
+      const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+      await expect(decision).toBeVisible();
+      await expect(decision).toContainText('Cambiar a Bruno Ríos');
+      return decision;
+    };
+
+    let decision = await openDecision();
+    const beforeFailure = mutations.length;
+    await decision.getByRole('button', { name: 'Conservar y cambiar' }).click();
+
+    // The failed PATCH keeps the decision, its alert and all work recoverable.
+    await expect(decision).toBeVisible();
+    await expect(decision.getByRole('alert')).toHaveText('No pudimos cambiar el paciente activo.');
+    await expect(decision.getByRole('button', { name: 'Conservar y cambiar' })).toBeEnabled();
+    await expect(decision.getByRole('button', { name: 'Descartar y cambiar' })).toBeEnabled();
+    await expect(input).toHaveCount(0);
+    expect(mutations.slice(beforeFailure)).toEqual([
+      {
+        method: 'PATCH',
+        path: `/api/clinical-threads/${threadId}/active-patient`,
+        body: { patient_id: patientBId },
+      },
+    ]);
+
+    await decision.getByRole('button', { name: 'Mantener paciente' }).click();
+    await expect(decision).toHaveCount(0);
+    await expect(input).toHaveValue(draft);
+    expect(mutations.slice(beforeFailure)).toHaveLength(1);
+
+    decision = await openDecision();
+    await decision.getByRole('button', { name: 'Descartar y cambiar' }).click();
+    await expect(decision).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toContainText(
+      'Bruno Ríos',
+    );
+    await expect(input).toHaveValue('');
+    expect(mutations.slice(beforeFailure)).toEqual([
+      {
+        method: 'PATCH',
+        path: `/api/clinical-threads/${threadId}/active-patient`,
+        body: { patient_id: patientBId },
+      },
+      {
+        method: 'PATCH',
+        path: `/api/clinical-threads/${threadId}/active-patient`,
+        body: { patient_id: patientBId },
+      },
+    ]);
+    expect(mutations.filter((mutation) => mutation.path.endsWith('/turns'))).toEqual([]);
+    console.log(
+      '[C2-IDENTITY]',
+      JSON.stringify({
+        failedIdentity: `PATCH active-patient ${JSON.stringify({ patient_id: patientBId })}`,
+        discardedIdentity: `PATCH active-patient ${JSON.stringify({ patient_id: patientBId })}`,
+        mutationCount: mutations.length - beforeFailure,
+      }),
+    );
+  });
+
+  test('survives an upstream guard cancellation with the decision and draft intact', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveEnabled: true, driveFiles: [qaDriveFile] });
+    const mutations = trackQaApiMutations(page);
+    const draft = 'Nota para Ana antes del cambio.';
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/a/${threadId}`);
+
+    // Dirty Drive state registers the upstream transition blocker.
+    await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+    await page.getByRole('tab', { name: 'Documentos' }).click();
+    await page.getByRole('button', { name: `Abrir ${qaDriveFile.name}` }).click();
+    await page.getByRole('button', { name: 'Editar' }).click();
+    await page.getByLabel('Contenido del documento').fill(`${qaDriveFile.content} Modificado QA.`);
+    await page.getByRole('button', { name: 'Cerrar Google Drive' }).click();
+
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    await input.fill(draft);
+    await page.getByRole('button', { name: 'Quitar paciente activo' }).click();
+    const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+    await expect(decision).toBeVisible();
+    const beforeGuard = mutations.length;
+    await decision.getByRole('button', { name: 'Conservar y cambiar' }).click();
+
+    const dirtyDialog = page.getByRole('dialog', { name: 'Hay cambios sin guardar' });
+    await expect(dirtyDialog).toBeVisible();
+    await dirtyDialog.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(dirtyDialog).toHaveCount(0);
+
+    // Cancelling the upstream guard keeps the original boundary and work recoverable.
+    await expect(decision).toBeVisible();
+    await expect(decision.getByRole('button', { name: 'Conservar y cambiar' })).toBeFocused();
+    await expect(decision.getByRole('button', { name: 'Mantener paciente' })).toBeEnabled();
+    await expect(decision.getByRole('button', { name: 'Descartar y cambiar' })).toBeEnabled();
+    expect(mutations.slice(beforeGuard)).toEqual([]);
+
+    await decision.getByRole('button', { name: 'Mantener paciente' }).click();
+    await expect(decision).toHaveCount(0);
+    await expect(input).toHaveValue(draft);
+    expect(mutations.slice(beforeGuard)).toEqual([]);
+    console.log(
+      '[C2-NESTED-GUARD]',
+      JSON.stringify({
+        upstream: 'Hay cambios sin guardar > Cancelar',
+        focusOwner: 'Conservar y cambiar',
+        draftPreserved: true,
+        mutations: mutations.length - beforeGuard,
+      }),
+    );
+  });
 });
 
 test('review fixes: contextual composer gives writing a full row by pane width', async ({ page }) => {
@@ -838,6 +1068,8 @@ function clinicalEvent(
 async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promise<QaRouteControls> {
   let authenticated = options.authenticated ?? true;
   const admin = options.admin ?? true;
+  const directory = options.patients ?? [patient];
+  let patientChangeAttempts = 0;
   let loginAttempts = 0;
   let conversationLoadAttempts = 0;
   let currentConversation = { ...conversation, messages: [...conversation.messages] };
@@ -915,12 +1147,12 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
     if (path === '/api/patients/search' && method === 'POST') {
       const body = request.postDataJSON() as { query?: string };
       await route.fulfill(
-        json((body.query ?? '').toLowerCase().includes('sin resultado') ? [] : [patient]),
+        json((body.query ?? '').toLowerCase().includes('sin resultado') ? [] : directory),
       );
       return;
     }
     if (path === '/api/patients' && method === 'GET') {
-      await route.fulfill(json([patient]));
+      await route.fulfill(json(directory));
       return;
     }
     if (path === '/api/patients' && method === 'POST') {
@@ -1091,6 +1323,17 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
     if (path === `/api/clinical-threads/${threadId}/active-patient` && method === 'PATCH') {
+      patientChangeAttempts += 1;
+      if (patientChangeAttempts <= (options.patientChangeFailures ?? 0)) {
+        allowExpectedResourceFailure(page, 500);
+        await route.fulfill(json({ detail: 'No se pudo cambiar el paciente activo' }, 500));
+        return;
+      }
+      const body = request.postDataJSON() as { patient_id?: string | null };
+      currentClinicalThread = {
+        ...currentClinicalThread,
+        active_patient: directory.find((candidate) => candidate.id === body.patient_id) ?? null,
+      };
       await route.fulfill(json(currentClinicalThread));
       return;
     }

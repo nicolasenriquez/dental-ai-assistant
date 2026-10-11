@@ -57,6 +57,7 @@ function ClinicalAssistantContent() {
   const [driveDirty, setDriveDirty] = useState(false);
   const [pendingTransition, setPendingTransition] = useState<(() => void) | null>(null);
   const [savingTransition, setSavingTransition] = useState(false);
+  const dirtyTransitionReturnFocusRef = useRef<HTMLElement | null>(null);
   const driveRef = useRef<DriveWorkspaceHandle>(null);
   const composerInsertRef = useRef<(item: ComposerContextItem) => void>(() => undefined);
   const createStarted = useRef(false);
@@ -88,6 +89,8 @@ function ClinicalAssistantContent() {
   useEffect(() => {
     if (!driveDirty) return;
     return transitionGuard.registerBlocker((continuation) => {
+      dirtyTransitionReturnFocusRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setPendingTransition(() => continuation);
       return true;
     });
@@ -283,7 +286,16 @@ function ClinicalAssistantContent() {
       </div>
       {pendingTransition && (
         <AlertDialog open onOpenChange={(open) => !open && cancelDirtyTransition()}>
-          <AlertDialogContent>
+          <AlertDialogContent
+            onCloseAutoFocus={(event) => {
+              // Keep one active focus owner when the guarded transition is cancelled:
+              // restore focus to the element that requested the transition.
+              event.preventDefault();
+              const returnFocus = dirtyTransitionReturnFocusRef.current;
+              dirtyTransitionReturnFocusRef.current = null;
+              if (returnFocus?.isConnected) returnFocus.focus();
+            }}
+          >
             <AlertDialogHeader>
               <AlertDialogTitle>Hay cambios sin guardar</AlertDialogTitle>
               <AlertDialogDescription>

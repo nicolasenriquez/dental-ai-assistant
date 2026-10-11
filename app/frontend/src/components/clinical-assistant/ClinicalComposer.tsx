@@ -2,7 +2,7 @@ import { Square } from 'lucide-react';
 import { type KeyboardEvent, type RefObject, useState } from 'react';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
-import type { ClinicalPatient, ComposerContextItem } from '../../lib/api';
+import type { ComposerContextItem } from '../../lib/api';
 import { ComposerShell } from '../ComposerShell';
 import { VoiceDictationStatus } from '../voice/VoiceDictationStatus';
 
@@ -18,9 +18,20 @@ export interface ClinicalVoiceControls {
   onRetry: () => void;
 }
 
+/**
+ * Presentation of the context the composer is displaying. It is deliberately
+ * separate from the active workspace patient used for dispatch: a retained
+ * origin can differ from the patient that would receive a send.
+ */
+export interface ClinicalComposerOrigin {
+  /** Authorized label of the displayed origin; `null` means explicitly general. */
+  label: string | null;
+  /** The displayed origin differs from the active workspace patient and cannot dispatch. */
+  retained: boolean;
+}
+
 interface ClinicalComposerProps {
-  patient: ClinicalPatient | null;
-  retainedContextLabel?: string;
+  origin: ClinicalComposerOrigin;
   value: string;
   textareaRef: RefObject<HTMLTextAreaElement>;
   onChange: (value: string) => void;
@@ -36,8 +47,7 @@ interface ClinicalComposerProps {
 }
 
 export function ClinicalComposer({
-  patient,
-  retainedContextLabel,
+  origin,
   value,
   textareaRef,
   onChange,
@@ -54,6 +64,22 @@ export function ClinicalComposer({
   const [focused, setFocused] = useState(false);
   const voiceInFlight = isVoiceInFlight(voice.state);
   const voiceStatusLayout = voice.state !== 'idle' && voice.state !== 'success';
+  const generalOrigin = origin.label === null;
+  const originName = origin.label ?? '';
+  const accessibleName = origin.retained
+    ? generalOrigin
+      ? 'Borrador sin paciente'
+      : `Borrador para ${originName}`
+    : generalOrigin
+      ? 'Consulta al asistente'
+      : 'Nota clínica';
+  const placeholder = origin.retained
+    ? generalOrigin
+      ? 'Continúa el borrador sin paciente…'
+      : `Continúa el borrador para ${originName}…`
+    : generalOrigin
+      ? 'Escribe una consulta general…'
+      : 'Escribe o dicta la nota clínica…';
   useAutosizeTextarea({ ref: textareaRef, value });
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Escape' && voiceInFlight) {
@@ -81,9 +107,10 @@ export function ClinicalComposer({
         }
       }}
     >
-      {retainedContextLabel && (
+      {origin.retained && (
         <p className="w-full text-xs text-muted">
-          Borrador para {retainedContextLabel}. Vuelve a este contexto para enviar.
+          {generalOrigin ? 'Borrador sin paciente.' : `Borrador para ${originName}.`} Vuelve a este
+          contexto para enviar.
         </p>
       )}
       {contextItems.length > 0 && (
@@ -115,21 +142,9 @@ export function ClinicalComposer({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         rows={1}
-        aria-label={
-          retainedContextLabel
-            ? `Borrador para ${retainedContextLabel}`
-            : patient
-              ? 'Nota clínica'
-              : 'Consulta al asistente'
-        }
+        aria-label={accessibleName}
         aria-describedby="clinical-composer-keys"
-        placeholder={
-          retainedContextLabel
-            ? `Continúa el borrador para ${retainedContextLabel}…`
-            : patient
-              ? 'Escribe o dicta la nota clínica…'
-              : 'Escribe una consulta general…'
-        }
+        placeholder={placeholder}
         className="chat-composer-input clinical-composer-input"
         aria-busy={voice.state === 'transcribing'}
       />

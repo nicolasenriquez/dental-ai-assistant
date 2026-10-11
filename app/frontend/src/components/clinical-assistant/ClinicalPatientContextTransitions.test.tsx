@@ -166,7 +166,11 @@ function clinicalThread(id: string, activePatient: ClinicalPatient | null): Clin
   };
 }
 
-function AreaRoute(): JSX.Element | null {
+function AreaRoute({
+  guardTransition,
+}: {
+  guardTransition?: (continuation: () => void) => void;
+}): JSX.Element | null {
   const { threadId } = useParams<{ threadId: string }>();
   const shared = useOptionalClinicalRuntime();
   if (!threadId || !shared) return null;
@@ -174,6 +178,7 @@ function AreaRoute(): JSX.Element | null {
     <ClinicalAssistantArea
       threadId={threadId}
       assistant={shared.controller}
+      guardTransition={guardTransition}
       onComposerInsertReady={(callback) => {
         insertContext = callback;
       }}
@@ -186,7 +191,10 @@ function MemoryProbe(): null {
   return null;
 }
 
-function renderHarness(entry = '/a/a'): void {
+function renderHarness(
+  entry = '/a/a',
+  { guardTransition }: { guardTransition?: (continuation: () => void) => void } = {},
+): void {
   render(
     <MemoryRouter initialEntries={[entry]}>
       <ClinicalRuntimeProvider>
@@ -196,7 +204,7 @@ function renderHarness(entry = '/a/a'): void {
           <Link to="/a/b">Hilo B</Link>
         </nav>
         <Routes>
-          <Route path="/a/:threadId" element={<AreaRoute />} />
+          <Route path="/a/:threadId" element={<AreaRoute guardTransition={guardTransition} />} />
         </Routes>
       </ClinicalRuntimeProvider>
     </MemoryRouter>,
@@ -208,13 +216,26 @@ const composer = (): HTMLElement =>
 
 const boundary = (): HTMLElement => screen.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
 
-async function choosePatient(name: RegExp): Promise<void> {
+function patientTrigger(): HTMLElement {
   const header = document.querySelector('.workspace-header') as HTMLElement;
-  const trigger = within(header).getByRole('button', {
+  return within(header).getByRole('button', {
     name: /Seleccionar paciente|Cambiar paciente activo/,
   });
-  fireEvent.click(trigger);
+}
+
+async function choosePatient(name: RegExp): Promise<void> {
+  fireEvent.click(patientTrigger());
   fireEvent.click(await screen.findByRole('option', { name }));
+}
+
+async function startHeldTurn(content: string): Promise<HTMLElement> {
+  vi.mocked(api.streamClinicalTurn).mockImplementation(() => new Promise<Response>(() => {}));
+  renderHarness();
+  const composerEl = await screen.findByRole('textbox', { name: 'Nota clínica' });
+  fireEvent.change(composerEl, { target: { value: content } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+  await waitFor(() => expect(api.streamClinicalTurn).toHaveBeenCalledTimes(1));
+  return composerEl;
 }
 
 beforeEach(() => {
@@ -275,7 +296,7 @@ describe('assistant patient-context transitions', () => {
     expect(
       screen.queryByRole('alertdialog', { name: 'Trabajo sin enviar' }),
     ).not.toBeInTheDocument();
-    await waitFor(() => expect(composer()).toHaveFocus());
+    await waitFor(() => expect(patientTrigger()).toHaveFocus());
   });
 
   it('keeps the context decision locked until the patient change finishes', async () => {
@@ -292,6 +313,9 @@ describe('assistant patient-context transitions', () => {
     await choosePatient(/Bruno Ríos/);
     fireEvent.click(screen.getByRole('button', { name: 'Conservar y cambiar' }));
     for (const button of within(boundary()).getAllByRole('button')) expect(button).toBeDisabled();
+    expect(within(boundary()).getByRole('status')).toHaveTextContent(
+      'Cambiando el paciente activo',
+    );
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     expect(boundary()).toBeVisible();
     expect(api.setClinicalActivePatient).toHaveBeenCalledOnce();
@@ -316,14 +340,21 @@ describe('assistant patient-context transitions', () => {
       expect(api.setClinicalActivePatient).toHaveBeenCalledWith('a', PATIENT_B.id),
     );
     expect(await screen.findByText(/Borrador conservado para Ana Pérez/)).toBeVisible();
-    expect(screen.getByRole('textbox', { name: 'Borrador para Ana Pérez' })).toHaveValue(
-      'Nota para Ana',
-    );
+    const retainedInput = screen.getByRole('textbox', { name: 'Borrador para Ana Pérez' });
+    expect(retainedInput).toHaveValue('Nota para Ana');
+    expect(retainedInput).toHaveAttribute('placeholder', 'Continúa el borrador para Ana Pérez…');
+    expect(
+      screen.getByText(/^Borrador para Ana Pérez\. Vuelve a este contexto para enviar\.$/),
+    ).toBeVisible();
+    expect(patientTrigger()).toHaveTextContent(/Bruno Ríos/);
     expect(composer()).toHaveValue('Nota para Ana');
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     expect(send).toBeDisabled();
     fireEvent.click(send);
+    fireEvent.keyDown(retainedInput, { key: 'Enter' });
+    fireEvent.change(retainedInput, { target: { value: 'Nota para Ana editada' } });
     expect(api.streamClinicalTurn).not.toHaveBeenCalled();
+    expect(api.setClinicalActivePatient).toHaveBeenCalledTimes(1);
   });
 
   it('restores the original patient and recovers preserved work', async () => {
@@ -346,6 +377,9 @@ describe('assistant patient-context transitions', () => {
       'Nota para Ana',
     );
     expect(screen.queryByText(/Borrador conservado/)).not.toBeInTheDocument();
+    expect(api.streamClinicalTurn).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+    await waitFor(() => expect(api.streamClinicalTurn).toHaveBeenCalledTimes(1));
   });
 
   it('discards the affected work only after the patient change succeeds', async () => {
@@ -400,12 +434,52 @@ describe('assistant patient-context transitions', () => {
       expect(api.setClinicalActivePatient).toHaveBeenCalledWith('a', PATIENT_A.id),
     );
     expect(await screen.findByText(/Borrador conservado sin paciente/)).toBeVisible();
+    const retainedInput = screen.getByRole('textbox', { name: 'Borrador sin paciente' });
+    expect(retainedInput).toHaveValue('Consulta general');
+    expect(retainedInput).toHaveAttribute('placeholder', 'Continúa el borrador sin paciente…');
+    expect(
+      screen.getByText(/^Borrador sin paciente\. Vuelve a este contexto para enviar\.$/),
+    ).toBeVisible();
+    const send = screen.getByRole('button', { name: 'Enviar mensaje' });
+    expect(send).toBeDisabled();
+    fireEvent.click(send);
+    fireEvent.keyDown(retainedInput, { key: 'Enter' });
+    expect(api.streamClinicalTurn).not.toHaveBeenCalled();
+    expect(api.setClinicalActivePatient).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Volver a Sin paciente' }));
     await waitFor(() => expect(api.setClinicalActivePatient).toHaveBeenLastCalledWith('a', null));
     expect(await screen.findByRole('textbox', { name: 'Consulta al asistente' })).toHaveValue(
       'Consulta general',
     );
+    expect(api.streamClinicalTurn).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
+    await waitFor(() => expect(api.streamClinicalTurn).toHaveBeenCalledTimes(1));
+  });
+
+  it('labels retained A work while no patient is active', async () => {
+    renderHarness();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Nota para Ana' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar paciente activo' }));
+    fireEvent.click(within(boundary()).getByRole('button', { name: 'Conservar y cambiar' }));
+
+    await waitFor(() => expect(api.setClinicalActivePatient).toHaveBeenCalledWith('a', null));
+    const retainedInput = await screen.findByRole('textbox', { name: 'Borrador para Ana Pérez' });
+    expect(retainedInput).toHaveValue('Nota para Ana');
+    expect(retainedInput).toHaveAttribute('placeholder', 'Continúa el borrador para Ana Pérez…');
+    expect(
+      screen.getByText(/^Borrador para Ana Pérez\. Vuelve a este contexto para enviar\.$/),
+    ).toBeVisible();
+    const send = screen.getByRole('button', { name: 'Enviar mensaje' });
+    expect(send).toBeDisabled();
+    fireEvent.click(send);
+    fireEvent.keyDown(retainedInput, { key: 'Enter' });
+    expect(api.streamClinicalTurn).not.toHaveBeenCalled();
+    expect(api.setClinicalActivePatient).toHaveBeenCalledTimes(1);
+    expect(patientTrigger()).toHaveTextContent(/Seleccionar paciente/);
   });
 
   it('asks first when removing the active patient with text and an attachment', async () => {
@@ -544,5 +618,167 @@ describe('assistant patient-context transitions', () => {
     expect(
       screen.queryByRole('alertdialog', { name: 'Trabajo sin enviar' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('traps Tab and Shift+Tab inside the decision and starts on the safe choice', async () => {
+    renderHarness();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Nota para Ana' },
+    });
+    await choosePatient(/Bruno Ríos/);
+
+    const dialog = boundary();
+    const remain = within(dialog).getByRole('button', { name: 'Mantener paciente' });
+    const discard = within(dialog).getByRole('button', { name: 'Descartar y cambiar' });
+    expect(remain).toHaveFocus();
+
+    discard.focus();
+    fireEvent.keyDown(discard, { key: 'Tab' });
+    expect(remain).toHaveFocus();
+    fireEvent.keyDown(remain, { key: 'Tab', shiftKey: true });
+    expect(discard).toHaveFocus();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('returns focus to the patient control that initiated the change on Escape', async () => {
+    renderHarness();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Nota para Ana' },
+    });
+    await choosePatient(/Bruno Ríos/);
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('alertdialog', { name: 'Trabajo sin enviar' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(api.setClinicalActivePatient).not.toHaveBeenCalled();
+    expect(composer()).toHaveValue('Nota para Ana');
+    await waitFor(() => expect(patientTrigger()).toHaveFocus());
+  });
+
+  it('describes the target and affected work before changing A to B', async () => {
+    const composerEl = await startHeldTurn('Respuesta en curso');
+    fireEvent.change(composerEl, { target: { value: 'Pendiente para Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    await screen.findByText('Mensajes en cola 1/3');
+
+    fireEvent.change(composerEl, { target: { value: 'Borrador para Ana' } });
+    act(() =>
+      insertContext?.({
+        id: 'context-1',
+        kind: 'drive_selection',
+        sourceId: 'file-1',
+        sourceName: 'Control.md',
+        content: 'Control previo',
+      }),
+    );
+
+    await choosePatient(/Bruno Ríos/);
+
+    const dialog = boundary();
+    expect(within(dialog).queryAllByText(/Bruno Ríos/).length).toBeGreaterThan(0);
+    expect(within(dialog).queryAllByText(/nota|texto|borrador/i).length).toBeGreaterThan(0);
+    expect(within(dialog).queryAllByText(/adjunto|fuente|documento/i).length).toBeGreaterThan(0);
+    expect(within(dialog).queryAllByText(/cola|pendiente/i).length).toBeGreaterThan(0);
+    expect(api.setClinicalActivePatient).not.toHaveBeenCalled();
+  });
+
+  it('discards text, sources and queued work only after patient B is saved', async () => {
+    const composerEl = await startHeldTurn('Respuesta en curso');
+    fireEvent.change(composerEl, { target: { value: 'Pendiente para Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    await screen.findByText('Mensajes en cola 1/3');
+
+    fireEvent.change(composerEl, { target: { value: 'Borrador para Ana' } });
+    act(() =>
+      insertContext?.({
+        id: 'context-1',
+        kind: 'drive_selection',
+        sourceId: 'file-1',
+        sourceName: 'Control.md',
+        content: 'Control previo',
+      }),
+    );
+    expect(await screen.findByText(/Control\.md/)).toBeVisible();
+
+    await choosePatient(/Bruno Ríos/);
+    const sendsBefore = vi.mocked(api.streamClinicalTurn).mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar y cambiar' }));
+
+    await waitFor(() =>
+      expect(api.setClinicalActivePatient).toHaveBeenCalledWith('a', PATIENT_B.id),
+    );
+    await waitFor(() => expect(screen.queryByText('Mensajes en cola 1/3')).not.toBeInTheDocument());
+    expect(vi.mocked(api.streamClinicalTurn).mock.calls.length).toBe(sendsBefore);
+    expect(screen.queryByText(/Control\.md/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('alertdialog', { name: 'Trabajo sin enviar' }),
+    ).not.toBeInTheDocument();
+
+    await choosePatient(/Ana Pérez/);
+    expect(await screen.findByRole('textbox', { name: 'Nota clínica' })).toHaveValue('');
+    expect(screen.queryByText(/Control\.md/)).not.toBeInTheDocument();
+  });
+
+  it('asks before removing patient A with a queued message and keeps the queue on remain', async () => {
+    const composerEl = await startHeldTurn('Respuesta en curso');
+    fireEvent.change(composerEl, { target: { value: 'Pendiente para Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    await screen.findByText('Mensajes en cola 1/3');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar paciente activo' }));
+    expect(boundary()).toBeVisible();
+    expect(api.setClinicalActivePatient).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mantener paciente' }));
+
+    expect(api.setClinicalActivePatient).not.toHaveBeenCalled();
+    expect(screen.getByText('Mensajes en cola 1/3')).toBeVisible();
+    expect(screen.getByText('Pendiente para Ana')).toBeVisible();
+  });
+
+  it('offers a general-origin safe choice and keeps general work on remain', async () => {
+    threadState.a = null;
+    renderHarness();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Consulta al asistente' }), {
+      target: { value: 'Consulta general' },
+    });
+    await choosePatient(/Ana Pérez/);
+
+    const dialog = boundary();
+    expect(within(dialog).queryAllByText(/Ana Pérez/).length).toBeGreaterThan(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: /mantener sin paciente/i }));
+
+    expect(api.setClinicalActivePatient).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('alertdialog', { name: 'Trabajo sin enviar' }),
+    ).not.toBeInTheDocument();
+    expect(composer()).toHaveValue('Consulta general');
+  });
+
+  it('keeps the decision and work recoverable when an upstream guard cancels the transition', async () => {
+    const guard = vi.fn<(continuation: () => void) => void>();
+    renderHarness('/a/a', { guardTransition: guard });
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Nota para Ana' },
+    });
+    await choosePatient(/Bruno Ríos/);
+    expect(boundary()).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conservar y cambiar' }));
+
+    expect(guard).toHaveBeenCalledOnce();
+    expect(boundary()).toBeVisible();
+    expect(api.setClinicalActivePatient).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Conservar y cambiar' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mantener paciente' }));
+    expect(
+      screen.queryByRole('alertdialog', { name: 'Trabajo sin enviar' }),
+    ).not.toBeInTheDocument();
+    expect(composer()).toHaveValue('Nota para Ana');
   });
 });

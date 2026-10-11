@@ -542,6 +542,8 @@ describe('Clinical Assistant Drive transfer', () => {
 
     const editor = await openAssistantMessageDraft();
     fireEvent.change(editor, { target: { value: 'cambio local' } });
+    const patientTrigger = screen.getByRole('button', { name: 'Cambiar paciente activo' });
+    patientTrigger.focus();
     choosePatient('Bruno');
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
 
@@ -549,6 +551,7 @@ describe('Clinical Assistant Drive transfer', () => {
     expect(screen.getByRole('textbox', { name: 'Contenido del documento' })).toHaveValue(
       'cambio local',
     );
+    await waitFor(() => expect(patientTrigger).toHaveFocus());
   });
 
   it('requests browser-native unload confirmation only while the editor is dirty', async () => {

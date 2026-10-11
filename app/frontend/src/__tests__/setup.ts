@@ -39,3 +39,11 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+// jsdom does not implement Element.scrollTo; the transcript follows the latest
+// user turn with it. The stub keeps the scroll-position fallback meaningful.
+if (typeof Element.prototype.scrollTo === 'undefined') {
+  Element.prototype.scrollTo = function scrollTo(this: Element, options?: ScrollToOptions) {
+    if (options && typeof options.top === 'number') this.scrollTop = options.top;
+  } as typeof Element.prototype.scrollTo;
+}

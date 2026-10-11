@@ -63,8 +63,13 @@ use explicit text and existing progress indicators without moving clinical text.
 Full and contextual views consume one attached runtime. Per-thread unsent notes,
 queue and attachments are memory only. Logout clears them; hard reload restores
 only server-persisted clinical work. Return to running detached work reconciles GET.
-Unsent patient-context decisions use the shared modal, default to keeping the patient,
-and stay open on failed changes. Retained input names its original context and blocks
+Unsent patient-context decisions use the shared modal with initial focus on the safe
+choice (`Mantener paciente` / `Mantener sin paciente`), trap Tab and Shift+Tab, and name
+origin, target and the affected text, sources and queue entries before any change. Escape,
+remain and a cancelled upstream guard restore focus to the initiating patient control and
+leave context and all work untouched; a failed patient update keeps the decision open with
+its alert and enabled choices, and preserve/discard commit only after the guarded update
+succeeds. Retained input names its original context and blocks
 sending until restored. Unloaded threads offer loading/retry, never empty-thread starters.
 Unsent memory registers a native unload guard; confirming reload still loses it.
 Queue entries are claimed before dispatch and rejected delivery requires explicit retry.

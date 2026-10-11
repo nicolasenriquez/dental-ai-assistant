@@ -2,16 +2,14 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { VoiceState } from '../../hooks/useVoiceDictation';
-import type { ClinicalPatient, ComposerContextItem } from '../../lib/api';
-import { ClinicalComposer, type ClinicalVoiceControls } from './ClinicalComposer';
+import type { ComposerContextItem } from '../../lib/api';
+import {
+  ClinicalComposer,
+  type ClinicalComposerOrigin,
+  type ClinicalVoiceControls,
+} from './ClinicalComposer';
 
-const patient: ClinicalPatient = {
-  id: 'patient-1',
-  first_name: 'Ana',
-  last_name: 'Pérez',
-  rut_masked: '12.345.•••-6',
-  birth_date: '1990-01-01',
-};
+const patientOrigin: ClinicalComposerOrigin = { label: 'Ana Pérez', retained: false };
 
 const longNote = Array.from(
   { length: 32 },
@@ -52,7 +50,7 @@ function voiceControls(
 function renderComposer(value = '') {
   return render(
     <ClinicalComposer
-      patient={patient}
+      origin={patientOrigin}
       value={value}
       textareaRef={createRef<HTMLTextAreaElement>()}
       onChange={vi.fn()}
@@ -87,7 +85,7 @@ describe('ClinicalComposer', () => {
     const onSubmit = vi.fn();
     render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value="Nota clínica"
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
@@ -118,7 +116,7 @@ describe('ClinicalComposer', () => {
     const onStop = vi.fn();
     render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value="Siguiente nota"
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
@@ -162,12 +160,56 @@ describe('ClinicalComposer', () => {
     );
   });
 
+  it('announces a retained patient origin instead of the active patient', () => {
+    render(
+      <ClinicalComposer
+        origin={{ label: 'Ana Pérez', retained: true }}
+        value="Nota para Ana"
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        primaryAction="send"
+        onPrimaryAction={vi.fn()}
+        voice={voiceControls('idle')}
+      />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Borrador para Ana Pérez' });
+    expect(input).toHaveValue('Nota para Ana');
+    expect(input).toHaveAttribute('placeholder', 'Continúa el borrador para Ana Pérez…');
+    expect(
+      screen.getByText(/^Borrador para Ana Pérez\. Vuelve a este contexto para enviar\.$/),
+    ).toBeVisible();
+  });
+
+  it('keeps retained general work explicitly general', () => {
+    render(
+      <ClinicalComposer
+        origin={{ label: null, retained: true }}
+        value="Consulta general"
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        primaryAction="send"
+        onPrimaryAction={vi.fn()}
+        voice={voiceControls('idle')}
+      />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Borrador sin paciente' });
+    expect(input).toHaveValue('Consulta general');
+    expect(input).toHaveAttribute('placeholder', 'Continúa el borrador sin paciente…');
+    expect(
+      screen.getByText(/^Borrador sin paciente\. Vuelve a este contexto para enviar\.$/),
+    ).toBeVisible();
+  });
+
   it('keeps note editable but locks submit controls during transcription', () => {
     const onChange = vi.fn();
     const onSubmit = vi.fn();
     render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value="Nota existente"
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={onChange}
@@ -206,7 +248,7 @@ describe('ClinicalComposer', () => {
     const onStop = vi.fn();
     render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value="Nota existente"
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
@@ -239,7 +281,7 @@ describe('ClinicalComposer', () => {
     const onSubmit = vi.fn();
     render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value="Nota"
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
@@ -269,7 +311,7 @@ describe('ClinicalComposer', () => {
     const onCancel = vi.fn();
     render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value="Nota"
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
@@ -299,7 +341,7 @@ describe('ClinicalComposer', () => {
     const onSubmit = vi.fn();
     render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value={longNote}
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={vi.fn()}
@@ -346,7 +388,7 @@ describe('ClinicalComposer', () => {
     const onSubmit = vi.fn();
     render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value="Nota clínica con trabajo sin enviar"
         textareaRef={createRef<HTMLTextAreaElement>()}
         onChange={onChange}
@@ -389,7 +431,7 @@ describe('ClinicalComposer', () => {
     const textareaRef = createRef<HTMLTextAreaElement>();
     const { rerender } = render(
       <ClinicalComposer
-        patient={patient}
+        origin={patientOrigin}
         value={longNote}
         textareaRef={textareaRef}
         onChange={onChange}
@@ -406,7 +448,7 @@ describe('ClinicalComposer', () => {
     act(() => {
       rerender(
         <ClinicalComposer
-          patient={patient}
+          origin={patientOrigin}
           value={longNote}
           textareaRef={textareaRef}
           onChange={onChange}

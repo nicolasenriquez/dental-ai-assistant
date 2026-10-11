@@ -33,7 +33,7 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
-import { ClinicalComposer } from './ClinicalComposer';
+import { ClinicalComposer, type ClinicalComposerOrigin } from './ClinicalComposer';
 import { ClinicalPatientPicker, type ClinicalPatientSelectionState } from './ClinicalPatientPicker';
 import { ClinicalTranscript } from './ClinicalTranscript';
 
@@ -55,6 +55,28 @@ interface ClinicalAssistantAreaProps {
 }
 
 type QueuedEntry = ClinicalQueuedEntry;
+
+interface BoundaryDecision {
+  target: string | null;
+  origin: string | null;
+  label: string | null;
+  targetLabel: string;
+  textLength: number;
+  sourceCount: number;
+  queueCount: number;
+}
+
+function describeBoundaryWork(boundary: BoundaryDecision): string {
+  const parts: string[] = [];
+  if (boundary.textLength > 0) parts.push('la nota escrita');
+  if (boundary.sourceCount > 0)
+    parts.push(boundary.sourceCount === 1 ? 'el adjunto' : `${boundary.sourceCount} adjuntos`);
+  if (boundary.queueCount > 0)
+    parts.push(
+      boundary.queueCount === 1 ? '1 mensaje en cola' : `${boundary.queueCount} mensajes en cola`,
+    );
+  return parts.join(', ');
+}
 
 export function ClinicalAssistantArea({
   threadId,
@@ -124,11 +146,8 @@ export function ClinicalAssistantArea({
     },
     [memory, threadId],
   );
-  const [boundary, setBoundary] = useState<{
-    target: string | null;
-    origin: string | null;
-    label: string | null;
-  } | null>(null);
+  const [boundary, setBoundary] = useState<BoundaryDecision | null>(null);
+  const boundaryReturnFocusRef = useRef<HTMLElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const areaRef = useRef<HTMLElement>(null);
   const resumedTargetRef = useRef<string | null>(null);
@@ -153,6 +172,11 @@ export function ClinicalAssistantArea({
   const contextItems = contextByThread[displayKey] ?? [];
   // Work preserved under another context is labelled and cannot be sent.
   const contextMismatch = retained !== undefined && retained.patientId !== workspacePatientId;
+  // What the composer displays may differ from the patient that would receive a send.
+  const composerOrigin: ClinicalComposerOrigin = {
+    label: displayLabel,
+    retained: contextMismatch,
+  };
   const setValue = useCallback(
     (next: string | ((current: string) => string)) => {
       setDraftByThread((current) => ({
@@ -253,7 +277,23 @@ export function ClinicalAssistantArea({
         (hasTextWork && displayPatientId !== patientId) ||
         queued.some((entry) => entry.patientId !== patientId);
       if (conflicts) {
-        setBoundary({ target: patientId, origin: displayPatientId, label: displayLabel });
+        const initiating = document.activeElement;
+        boundaryReturnFocusRef.current =
+          initiating instanceof HTMLElement && initiating !== document.body ? initiating : null;
+        const target = patientId ? patients.find((patient) => patient.id === patientId) : undefined;
+        setBoundary({
+          target: patientId,
+          origin: displayPatientId,
+          label: displayLabel,
+          targetLabel: target
+            ? `${target.first_name} ${target.last_name}`
+            : patientId
+              ? 'el paciente seleccionado'
+              : 'Sin paciente',
+          textLength: value.trim().length,
+          sourceCount: contextItems.length,
+          queueCount: queued.filter((entry) => entry.patientId === displayPatientId).length,
+        });
         return;
       }
       runGuardedPatientChange(patientId);
@@ -265,6 +305,7 @@ export function ClinicalAssistantArea({
       contextItems.length,
       displayPatientId,
       displayLabel,
+      patients,
       queued,
       runGuardedPatientChange,
     ],
@@ -866,21 +907,36 @@ export function ClinicalAssistantArea({
               }}
               onCloseAutoFocus={(event) => {
                 event.preventDefault();
-                textareaRef.current?.focus();
+                const initiating = boundaryReturnFocusRef.current;
+                boundaryReturnFocusRef.current = null;
+                if (initiating?.isConnected) {
+                  initiating.focus();
+                  return;
+                }
+                const patientControl = areaRef.current?.querySelector<HTMLElement>(
+                  '.clinical-patient-trigger',
+                );
+                (patientControl ?? textareaRef.current)?.focus();
               }}
             >
               <AlertDialogTitle>Trabajo sin enviar</AlertDialogTitle>
               <AlertDialogDescription>
-                {boundary?.label
-                  ? `Trabajo sin enviar para ${boundary.label}.`
-                  : 'Trabajo sin enviar sin paciente.'}
+                {boundary
+                  ? `Trabajo sin enviar ${
+                      boundary.label ? `para ${boundary.label}` : 'sin paciente'
+                    }. Cambiar a ${boundary.targetLabel}: descartar elimina ${
+                      describeBoundaryWork(boundary) || 'el trabajo pendiente'
+                    } y conservar lo mantiene ${
+                      boundary.label ? `para ${boundary.label}` : 'sin paciente'
+                    }.`
+                  : ''}
               </AlertDialogDescription>
               <AlertDialogFooter>
                 <AlertDialogCancel
                   disabled={patientSelectionState === 'saving'}
                   onClick={() => resolveBoundary('remain')}
                 >
-                  Mantener paciente
+                  {boundary?.label ? 'Mantener paciente' : 'Mantener sin paciente'}
                 </AlertDialogCancel>
                 <Button
                   type="button"
@@ -899,6 +955,11 @@ export function ClinicalAssistantArea({
                   Descartar y cambiar
                 </Button>
               </AlertDialogFooter>
+              {patientSelectionState === 'saving' && (
+                <p role="status" className="text-muted">
+                  Cambiando el paciente activo…
+                </p>
+              )}
               {patientSelectionError && (
                 <p role="alert" className="text-error">
                   {patientSelectionError}
@@ -907,8 +968,7 @@ export function ClinicalAssistantArea({
             </AlertDialogContent>
           </AlertDialog>
           <ClinicalComposer
-            patient={assistant.thread?.active_patient ?? null}
-            retainedContextLabel={contextMismatch ? (displayLabel ?? 'Sin paciente') : undefined}
+            origin={composerOrigin}
             value={value}
             textareaRef={textareaRef}
             onChange={setValue}
