@@ -169,18 +169,32 @@ async def command(
             # Shared aggregate lock always precedes therapeutic row locks.
             from backend.db import patient_clinical_plans_repo as plans
 
-            plan_id = await conn.fetchval(
-                "SELECT plan_id FROM patient_clinical_plan_items WHERE treatment_id=$1 AND owner_user_id=$2 AND patient_id=$3",
+            association = await conn.fetchrow(
+                """WITH RECURSIVE ancestry AS (
+                    SELECT id,supersedes_id FROM patient_dental_treatments
+                    WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3
+                    UNION
+                    SELECT t.id,t.supersedes_id FROM patient_dental_treatments t
+                    JOIN ancestry a ON t.id=a.supersedes_id
+                    WHERE t.owner_user_id=$2 AND t.patient_id=$3
+                )
+                SELECT i.plan_id,i.id AS item_id FROM patient_clinical_plan_items i
+                JOIN ancestry a ON i.treatment_id=a.id
+                WHERE i.owner_user_id=$2 AND i.patient_id=$3""",
                 identifier,
                 owner,
                 patient,
             )
+            plan_id = association["plan_id"] if association else None
             if plan_id:
                 plan_before = await plans._record(conn, owner, patient, plan_id, lock=True)
                 if body.get("expected_plan_revision") is None:
                     raise ValueError("La corrección requiere la revisión actual del plan")
                 if plan_before["revision"] != body["expected_plan_revision"]:
                     raise TreatmentConflict("revision_conflict", plan_before)
+                linked_item = next(
+                    i for i in plan_before["items"] if i["id"] == str(association["item_id"])
+                )
         if action == "create":
             current = await _insert(conn, owner, patient, body)
             await _revision(conn, owner, patient, None, current, "created")
@@ -238,9 +252,6 @@ async def command(
                         new = await _record(conn, owner, patient, UUID(new["id"]))
                     replacement_snapshot = new
                     if plan_before:
-                        linked_item = next(
-                            i for i in plan_before["items"] if i["treatment_id"] == str(identifier)
-                        )
                         replacement_snapshot = {
                             **new,
                             "execution": {"plan_id": str(plan_id), "stages": linked_item["stages"]},
@@ -250,9 +261,6 @@ async def command(
             current = await _record(conn, owner, patient, identifier)
             prior_snapshot, current_snapshot = before, current
             if plan_before:
-                linked_item = next(
-                    i for i in plan_before["items"] if i["treatment_id"] == str(identifier)
-                )
                 execution = {"plan_id": str(plan_id), "stages": linked_item["stages"]}
                 prior_snapshot = {**before, "execution": execution}
                 current_snapshot = {**current, "execution": execution}
