@@ -5,7 +5,37 @@ import {
   getClinicalPlan,
   getClinicalPlanRevisions,
 } from '../../lib/api';
+import { treatmentAnatomy, treatmentMembers } from '../../lib/treatmentAnatomy';
 import { Button } from '../ui/Button';
+
+function renderPlanItems(items: ClinicalPlan['items']): JSX.Element {
+  return (
+    <ul className="space-y-3">
+      {items.map((item) => (
+        <li key={item.id} className="rounded border border-border p-3">
+          <p>
+            {item.treatment.label_es} · {treatmentAnatomy(item.treatment)}
+          </p>
+          {!item.treatment.arch && <p>{treatmentMembers(item.treatment)}</p>}
+          <p className="whitespace-pre-wrap break-words">{item.treatment.note}</p>
+          <ul>
+            {item.stages.map((stage) => (
+              <li key={stage.id}>
+                {stage.label} ·{' '}
+                {
+                  { pending: 'Pendiente', completed: 'Completada', cancelled: 'Cancelada' }[
+                    stage.status
+                  ]
+                }
+                <p className="whitespace-pre-wrap break-words">{stage.note}</p>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 interface PatientClinicalPlanHistoryProps {
   patientId: string;
@@ -77,25 +107,7 @@ export function PatientClinicalPlanHistory({
           <h4 className="font-semibold">{plan.title || 'Plan sin título'}</h4>
           <p className="whitespace-pre-wrap break-words">{plan.diagnosis}</p>
           <p className="whitespace-pre-wrap break-words">{plan.internal_notes}</p>
-          <ul className="space-y-3">
-            {plan.items.map((item) => (
-              <li key={item.id} className="rounded border border-border p-3">
-                <p>{item.treatment.label_es}</p>
-                <ul>
-                  {item.stages.map((stage) => (
-                    <li key={stage.id}>
-                      {stage.label} ·{' '}
-                      {
-                        { pending: 'Pendiente', completed: 'Completada', cancelled: 'Cancelada' }[
-                          stage.status
-                        ]
-                      }
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
+          {renderPlanItems(plan.items)}
           <h4 className="font-semibold">Revisiones</h4>
           <ul className="space-y-2">
             {revisions.map((entry) => (
@@ -103,6 +115,7 @@ export function PatientClinicalPlanHistory({
                 <p>Revisión {entry.after.revision}</p>
                 <p className="whitespace-pre-wrap break-words">{entry.after.diagnosis}</p>
                 <p className="whitespace-pre-wrap break-words">{entry.after.internal_notes}</p>
+                {renderPlanItems(entry.after.items)}
               </li>
             ))}
           </ul>
