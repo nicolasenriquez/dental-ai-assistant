@@ -193,6 +193,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
   >({});
   const itemsRef = useRef(clinicalState.items);
   itemsRef.current = clinicalState.items;
+  const threadRef = useRef<ClinicalThread | null>(null);
+  threadRef.current = thread;
+  const loadPolicyRef = useRef<'canonical' | 'read-only'>('canonical');
   const artifactSyncStateRef = useRef(artifactSyncState);
   artifactSyncStateRef.current = artifactSyncState;
   const abortRef = useRef<AbortController | null>(null);
@@ -215,74 +218,93 @@ export function useClinicalAssistant(threadId: string | undefined) {
   const recoveredExportsRef = useRef(new Set<string>());
   const patientSwitchItemsRef = useRef<ClinicalPatientSwitchItem[]>([]);
 
-  const load = useCallback(async (): Promise<ClinicalThread | null> => {
-    if (!threadId || threadIdRef.current !== threadId) return null;
-    const seq = ++loadSeqRef.current;
-    const loaded = await getClinicalThread(threadId);
-    if (seq !== loadSeqRef.current || threadIdRef.current !== threadId) return null;
-    setLoadError(null);
-    setThread(loaded);
-    activeTurnRef.current = loaded.active_turn_id;
-    const actions = loaded.actions ?? [];
-    const persisted = hydrateItems({ ...loaded, actions });
-    // ponytail: a reload must not silently replace local edits whose sync is unresolved.
-    const hydrated = persisted.map((item) => {
-      if (item.type !== 'draft') return item;
-      const sync = artifactSyncStateRef.current[item.id];
-      if (sync !== 'saving' && sync !== 'error') return item;
-      const local = itemsRef.current.find(
-        (candidate): candidate is ClinicalDraftItem =>
-          candidate.type === 'draft' && candidate.id === item.id,
+  // ponytail: 'read-only' is the default so retries never schedule export writes.
+  const load = useCallback(
+    async (policy: 'canonical' | 'read-only' = 'read-only'): Promise<ClinicalThread | null> => {
+      if (!threadId || threadIdRef.current !== threadId) return null;
+      const seq = ++loadSeqRef.current;
+      loadPolicyRef.current = policy;
+      let loaded: ClinicalThread;
+      try {
+        loaded = await getClinicalThread(threadId);
+      } catch (caught) {
+        if (seq === loadSeqRef.current && threadIdRef.current === threadId) {
+          setLoadError(
+            threadRef.current?.id === threadId
+              ? 'No pudimos actualizar este hilo clínico.'
+              : 'No pudimos cargar este hilo clínico.',
+          );
+        }
+        throw caught;
+      }
+      if (seq !== loadSeqRef.current || threadIdRef.current !== threadId) return null;
+      setLoadError(null);
+      setThread(loaded);
+      activeTurnRef.current = loaded.active_turn_id;
+      const actions = loaded.actions ?? [];
+      const persisted = hydrateItems({ ...loaded, actions });
+      // ponytail: a reload must not silently replace local edits whose sync is unresolved.
+      const hydrated = persisted.map((item) => {
+        if (item.type !== 'draft') return item;
+        const sync = artifactSyncStateRef.current[item.id];
+        if (sync !== 'saving' && sync !== 'error') return item;
+        const local = itemsRef.current.find(
+          (candidate): candidate is ClinicalDraftItem =>
+            candidate.type === 'draft' && candidate.id === item.id,
+        );
+        if (
+          !local ||
+          (JSON.stringify(local.draft) === JSON.stringify(item.draft) &&
+            local.sourceNote === item.sourceNote)
+        )
+          return item;
+        return {
+          ...item,
+          draft: local.draft,
+          sourceNote: local.sourceNote,
+          edited: JSON.stringify(local.draft) !== JSON.stringify(item.baseline),
+        };
+      });
+      patientSwitchItemsRef.current = patientSwitchItemsRef.current.filter(
+        (item) =>
+          !hydrated.some(
+            (persisted) => persisted.type === 'patient_switch' && persisted.id === item.id,
+          ),
       );
-      if (
-        !local ||
-        (JSON.stringify(local.draft) === JSON.stringify(item.draft) &&
-          local.sourceNote === item.sourceNote)
-      )
-        return item;
-      return {
-        ...item,
-        draft: local.draft,
-        sourceNote: local.sourceNote,
-        edited: JSON.stringify(local.draft) !== JSON.stringify(item.baseline),
-      };
-    });
-    patientSwitchItemsRef.current = patientSwitchItemsRef.current.filter(
-      (item) =>
-        !hydrated.some(
-          (persisted) => persisted.type === 'patient_switch' && persisted.id === item.id,
-        ),
-    );
-    dispatch({ type: 'reset', items: hydrated });
-    setUnverifiedActionId(null);
-    for (const item of patientSwitchItemsRef.current) dispatch({ type: 'append', item });
-    setRuntime(
-      loaded.active_turn_id
-        ? 'streaming'
-        : actions.some((action) => action.status === 'pending')
-          ? 'awaiting_approval'
-          : 'idle',
-    );
-    for (const action of actions) {
-      const exportState = action.drive_export;
-      const evolutionId = action.result_resource_id;
-      if (
-        !evolutionId ||
-        !exportState ||
-        !['pending', 'syncing', 'unknown'].includes(exportState.status)
-      )
-        continue;
-      const recoveryKey = `${loaded.id}:${evolutionId}`;
-      if (recoveredExportsRef.current.has(recoveryKey)) continue;
-      recoveredExportsRef.current.add(recoveryKey);
-      void retryClinicalDriveExport(evolutionId)
-        .then(({ drive_export }) => {
-          dispatch({ type: 'updateDriveExport', evolutionId, driveExport: drive_export });
-        })
-        .catch(() => undefined);
-    }
-    return loaded;
-  }, [threadId]);
+      dispatch({ type: 'reset', items: hydrated });
+      setUnverifiedActionId(null);
+      for (const item of patientSwitchItemsRef.current) dispatch({ type: 'append', item });
+      setRuntime(
+        loaded.active_turn_id
+          ? 'streaming'
+          : actions.some((action) => action.status === 'pending')
+            ? 'awaiting_approval'
+            : 'idle',
+      );
+      if (policy === 'canonical') {
+        for (const action of actions) {
+          const exportState = action.drive_export;
+          const evolutionId = action.result_resource_id;
+          if (
+            !evolutionId ||
+            !exportState ||
+            !['pending', 'syncing', 'unknown'].includes(exportState.status)
+          )
+            continue;
+          const recoveryKey = `${loaded.id}:${evolutionId}`;
+          if (recoveredExportsRef.current.has(recoveryKey)) continue;
+          recoveredExportsRef.current.add(recoveryKey);
+          void retryClinicalDriveExport(evolutionId)
+            .then(({ drive_export }) => {
+              dispatch({ type: 'updateDriveExport', evolutionId, driveExport: drive_export });
+            })
+            .catch(() => undefined);
+        }
+      }
+      return loaded;
+    },
+    [threadId],
+  );
 
   // ponytail: incremental SSE artifacts omit patient metadata; resolve it from the
   // existing owner-scoped directory read, and never overwrite known identity.
@@ -308,7 +330,6 @@ export function useClinicalAssistant(threadId: string | undefined) {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
     threadIdRef.current = threadId;
     setLoadError(null);
     loadSeqRef.current += 1;
@@ -326,11 +347,8 @@ export function useClinicalAssistant(threadId: string | undefined) {
     setRuntime('idle');
     setError(null);
     patientSwitchItemsRef.current = [];
-    void load().catch(() => {
-      if (!cancelled) setLoadError('No pudimos cargar este hilo clínico.');
-    });
+    void load('canonical').catch(() => undefined);
     return () => {
-      cancelled = true;
       threadEpochRef.current += 1;
       threadIdRef.current = undefined;
       loadSeqRef.current += 1;
@@ -344,7 +362,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     const timer = setInterval(() => {
       void getClinicalThread(threadId)
         .then((fresh) => {
-          if (!fresh.active_turn_id) void load();
+          if (!fresh.active_turn_id) void load(loadPolicyRef.current).catch(() => undefined);
         })
         .catch(() => setError('No pudimos actualizar este hilo clínico.'));
     }, 2000);
@@ -817,8 +835,10 @@ export function useClinicalAssistant(threadId: string | undefined) {
         dispatch({ type: 'replaceDraft', itemId: item.id, draft });
         setError(null);
       } catch {
-        if (!persisted) setArtifactSyncState((state) => ({ ...state, [item.id]: 'error' }));
-        setError(safeError(persisted ? 'CLINICAL_MODEL_UNAVAILABLE' : 'EVOLUTION_SAVE_FAILED'));
+        // ponytail: the artifact sync state owns a failed save; only a failed
+        // regeneration needs dock feedback.
+        if (persisted) setError(safeError('CLINICAL_MODEL_UNAVAILABLE'));
+        else setArtifactSyncState((state) => ({ ...state, [item.id]: 'error' }));
         setRuntime('failed');
       } finally {
         busyArtifactsRef.current.delete(item.id);
@@ -912,13 +932,10 @@ export function useClinicalAssistant(threadId: string | undefined) {
         setThread((current) => (current ? { ...current, pending_action: null } : current));
         if (resolvedStatus === 'failed') {
           // The canonical failure updates the artifact timestamp recovery needs.
-          const fresh = await load().catch(() => null);
+          // The artifact owns the failed save; the dock does not duplicate it.
+          await load('canonical').catch(() => null);
           if (threadIdRef.current !== scope) return;
           setRuntime('failed');
-          const canonicalFailure = fresh?.actions?.some(
-            (action) => action.id === item.action.id && action.status === 'failed',
-          );
-          setError(canonicalFailure ? null : safeError('EVOLUTION_SAVE_FAILED'));
           return;
         }
         setRuntime('idle');
@@ -929,7 +946,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         // Reconcile before retrying: the write may have committed or failed canonically.
         let reloaded: ClinicalThread | null = null;
         try {
-          reloaded = await load();
+          reloaded = await load('canonical');
         } catch {
           reloaded = null;
         }
@@ -949,9 +966,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
           itemId: item.id,
           status: unverified ? 'failed' : 'pending',
         });
-        setError(
-          canonical?.status === 'failed' ? null : safeError(code ?? 'EVOLUTION_SAVE_FAILED'),
-        );
+        // ponytail: the artifact owns failed/unverifiable saves; the dock only
+        // prompts a retry while the canonical action is still pending.
+        if (pending) setError(safeError(code ?? 'EVOLUTION_SAVE_FAILED'));
         setRuntime(unverified ? 'failed' : pending ? 'awaiting_approval' : 'failed');
       }
     },
@@ -974,7 +991,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
           expected_artifact_updated_at: artifact.updated_at,
         });
         if (threadIdRef.current !== scope) return false;
-        await load();
+        await load('canonical');
         setError(null);
         setRuntime('idle');
         return true;
@@ -982,7 +999,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
         if (threadIdRef.current !== scope) return false;
         setError(safeError(apiErrorCode(caught) ?? 'CLINICAL_RECOVERY_FAILED'));
         // Authoritative reread; a failed read keeps only the verification path available.
-        await load().catch(() => setUnverifiedActionId(item.action.id));
+        await load('canonical').catch(() => setUnverifiedActionId(item.action.id));
         return false;
       }
     },

@@ -71,6 +71,17 @@ leave context and all work untouched; a failed patient update keeps the decision
 its alert and enabled choices, and preserve/discard commit only after the guarded update
 succeeds. Retained input names its original context and blocks
 sending until restored. Unloaded threads offer loading/retry, never empty-thread starters.
+A failed read keeps content, draft and edit buffers, names its scope (`No pudimos cargar…`
+first load, `No pudimos actualizar…` refresh) and offers one same-thread `Reintentar carga`
+read with no create, approval, recovery or Drive write; a late failure from another thread
+stays silent. Failed or unverifiable saves belong to their artifact, which keeps its status
+and `Verificar estado`; the composer dock repeats retry feedback only while the canonical
+action is still pending, and independent read/turn/queue/source failures keep their own
+owners. The `Ver borrador pendiente` dock is suppressed only while the pending artifact's
+review region is fully measured inside the transcript's own scroll box; offscreen, occluded,
+unmounted, unmeasurable or focused-dock states keep it, and activation scrolls to and focuses
+the exact artifact without preparing, resolving or saving. Escape belongs to the open review
+dialog, which closes itself without closing the contextual Sheet.
 Unsent memory registers a native unload guard; confirming reload still loses it.
 Queue entries are claimed before dispatch and rejected delivery requires explicit retry.
 Unclaimed entries expose a visible `Quitar` named per entry; the claimed entry is not

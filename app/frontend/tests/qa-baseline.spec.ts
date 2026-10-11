@@ -120,6 +120,10 @@ interface QaRouteOptions {
   holdFirstStream?: boolean;
   persistChatStream?: boolean;
   holdClinicalStream?: boolean;
+  /** Consecutive `GET /api/clinical-threads/:id` reads served as 500 before succeeding. */
+  clinicalThreadLoadFailures?: number;
+  /** Consecutive `POST /api/clinical-actions/:id/resolve` requests served as 502 before reconciling. */
+  clinicalResolveFailures?: number;
 }
 
 interface QaRouteControls {
@@ -972,6 +976,7 @@ test('audit fixes: citation traps focus, restores trigger and keeps a 44px close
 
 test('audit fixes: review link focuses its pending artifact and composer still autosizes', async ({ page }) => {
   await installQaRoutes(page);
+  await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto(`/a/${threadId}`);
   const composer = page.getByLabel('Nota clínica');
   await composer.fill('Primera línea\nSegunda línea\nTercera línea');
@@ -983,8 +988,145 @@ test('audit fixes: review link focuses its pending artifact and composer still a
   await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeHidden();
+  // Visible at the follow position: the duplicate dock action is absent.
+  await expect(page.getByRole('button', { name: 'Ver borrador pendiente' })).toHaveCount(0);
+  // Scrolled away: the dock retains the recovery link that focuses the exact artifact.
+  await page.locator('.clinical-transcript').evaluate((element) => {
+    element.scrollTop = 0;
+  });
   await page.getByRole('button', { name: 'Ver borrador pendiente' }).click();
   await expect(page.locator('[data-artifact-id="draft-qa"]')).toBeFocused();
+});
+
+test('review fixes: long full transcript recovers a failed read, an uncertain save and an offscreen review', async ({ page }) => {
+  // StrictMode double-invokes the thread effect in the dev server, as with conversationLoadFailures.
+  await installQaRoutes(page, { clinicalThreadLoadFailures: 2, clinicalResolveFailures: 1 });
+  const mutations = trackQaApiMutations(page);
+  const threadReads: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'GET' &&
+      request.url().includes(`/api/clinical-threads/${threadId}`)
+    ) {
+      threadReads.push(request.url());
+    }
+  });
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await page.goto(`/a/${threadId}`);
+
+  // Failed first read: dedicated feedback and a same-thread retry that issues reads only.
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'No pudimos cargar este hilo clínico.' }),
+  ).toBeVisible();
+  const retryBaseline = mutations.length;
+  await page.getByRole('button', { name: 'Reintentar carga' }).click();
+  await expect(page.getByRole('heading', { name: 'Prepara una evolución clínica' })).toBeVisible();
+  const retryWrites = mutations.slice(retryBaseline);
+  expect(retryWrites).toEqual([]);
+
+  // Prepare the review, then prove recovery from the dock while the destination is offscreen.
+  const transcript = page.locator('.clinical-transcript');
+  await page
+    .getByLabel('Nota clínica')
+    .fill('Nota de flujo combinado que queda fuera de la ventana del transcript.');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await page.getByRole('button', { name: 'Revisar y guardar' }).click();
+  await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Ver borrador pendiente' })).toHaveCount(0);
+  const dockBaseline = mutations.length;
+  await transcript.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  const dock = page.getByRole('button', { name: 'Ver borrador pendiente' });
+  await expect(dock).toBeVisible();
+  await dock.click();
+  await expect(page.locator('[data-artifact-id="draft-qa"]')).toBeFocused();
+  const dockWrites = mutations.slice(dockBaseline);
+  expect(dockWrites).toEqual([]);
+
+  // Uncertain save: the transport fails while the canonical action stays pending, so retry stays at the dock.
+  await page.getByRole('button', { name: 'Confirmar guardado' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Guardar evolución' });
+  const saveBaseline = mutations.length;
+  const readsBaseline = threadReads.length;
+  await dialog.getByRole('button', { name: 'Guardar evolución' }).click();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'No pudimos guardar la evolución.' }),
+  ).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  const uncertainEffects = mutations
+    .slice(saveBaseline)
+    .map((mutation) => `${mutation.method} ${mutation.path}`);
+  expect(uncertainEffects).toEqual([
+    'POST /api/clinical-actions/dddddddd-dddd-4ddd-8ddd-dddddddddddd/resolve',
+  ]);
+  const canonicalReads = threadReads.length - readsBaseline;
+  expect(canonicalReads).toBe(1);
+
+  // Retry reconciles to the canonical action and saves without duplicating preparation or writes.
+  await page.getByRole('button', { name: 'Confirmar guardado' }).click();
+  await page
+    .getByRole('dialog', { name: 'Guardar evolución' })
+    .getByRole('button', { name: 'Guardar evolución' })
+    .click();
+  await expect(page.getByRole('link', { name: /Ver en ficha/ })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  const effects = mutations.map((mutation) => `${mutation.method} ${mutation.path}`);
+  expect(effects.filter((entry) => entry.includes('/resolve'))).toHaveLength(2);
+  expect(effects.filter((entry) => entry.includes('/prepare-save'))).toHaveLength(1);
+  expect(effects.some((entry) => entry.includes('google-drive'))).toBe(false);
+  console.log(
+    '[C3-FULL]',
+    JSON.stringify({
+      retryWrites: retryWrites.length,
+      dockWrites: dockWrites.length,
+      uncertainEffects,
+      canonicalReads,
+      resolveWrites: 2,
+      prepareWrites: 1,
+    }),
+  );
+});
+
+test('review fixes: contextual Sheet recovers a failed read and an offscreen review without writes', async ({ page }) => {
+  // The activation read plus StrictMode-mount reloads of the contextual panel all fail first.
+  await installQaRoutes(page, { clinicalThreadLoadFailures: 3 });
+  const mutations = trackQaApiMutations(page);
+  await page.setViewportSize({ width: 768, height: 500 });
+  await page.goto(`/patients/${patientId}`);
+  await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Asistente clínico' });
+  await expect(
+    sheet.getByRole('alert').filter({ hasText: 'No pudimos cargar este hilo clínico.' }),
+  ).toBeVisible();
+  const retryBaseline = mutations.length;
+  await sheet.getByRole('button', { name: 'Reintentar carga' }).click();
+  await expect(sheet.getByRole('heading', { name: 'Prepara una evolución clínica' })).toBeVisible();
+  expect(mutations.slice(retryBaseline)).toEqual([]);
+
+  await sheet
+    .getByLabel('Nota clínica')
+    .fill('Nota contextual que queda fuera de la ventana del transcript.');
+  await sheet.getByRole('button', { name: 'Enviar mensaje' }).click();
+  await sheet.getByRole('button', { name: 'Revisar y guardar' }).click();
+  await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  const dockBaseline = mutations.length;
+  await sheet.locator('.clinical-transcript').evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  const dock = sheet.getByRole('button', { name: 'Ver borrador pendiente' });
+  await expect(dock).toBeVisible();
+  await dock.click();
+  await expect(sheet.locator('[data-artifact-id="draft-qa"]')).toBeFocused();
+  const dockWrites = mutations.slice(dockBaseline);
+  expect(dockWrites).toEqual([]);
+  await assertNoHorizontalOverflow(page);
+  console.log(
+    '[C3-CONTEXTUAL]',
+    JSON.stringify({ retryWrites: 0, dockWrites: dockWrites.length }),
+  );
 });
 
 test('audit fixes: code and copy survive deferred Prism failure', async ({ page }) => {
@@ -1075,6 +1217,8 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
   let currentConversation = { ...conversation, messages: [...conversation.messages] };
   let streamAttempts = 0;
   let clinicalStreamAttempts = 0;
+  let clinicalThreadLoadAttempts = 0;
+  let clinicalResolveAttempts = 0;
   const cancelledClinicalTurns = new Set<string>();
   let releaseHeldStream: (() => void) | null = null;
   let resolveClinicalStreamEntered: (() => void) | null = null;
@@ -1319,6 +1463,12 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
     if (path === `/api/clinical-threads/${threadId}` && method === 'GET') {
+      clinicalThreadLoadAttempts += 1;
+      if (clinicalThreadLoadAttempts <= (options.clinicalThreadLoadFailures ?? 0)) {
+        allowExpectedResourceFailure(page, 500);
+        await route.fulfill(json({ detail: 'No se pudo cargar el hilo clínico' }, 500));
+        return;
+      }
       await route.fulfill(json(currentClinicalThread));
       return;
     }
@@ -1503,6 +1653,10 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       currentClinicalThread = {
         ...currentClinicalThread,
         pending_action: action,
+        artifacts: (currentClinicalThread.artifacts as Array<Record<string, unknown>>).map(
+          (artifact) =>
+            artifact.id === 'draft-qa' ? { ...artifact, status: 'pending' } : artifact,
+        ),
         actions: [...(currentClinicalThread.actions as Array<Record<string, unknown>>), action],
       };
       await route.fulfill(json(action));
@@ -1512,6 +1666,12 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       path === '/api/clinical-actions/dddddddd-dddd-4ddd-8ddd-dddddddddddd/resolve' &&
       method === 'POST'
     ) {
+      clinicalResolveAttempts += 1;
+      if (clinicalResolveAttempts <= (options.clinicalResolveFailures ?? 0)) {
+        allowExpectedResourceFailure(page, 502);
+        await route.fulfill(json({ detail: 'No se pudo confirmar el guardado' }, 502));
+        return;
+      }
       const resolvedAction = {
         ...(currentClinicalThread.actions as Array<Record<string, unknown>>)[0],
         status: 'approved',
@@ -1522,6 +1682,10 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       currentClinicalThread = {
         ...currentClinicalThread,
         pending_action: null,
+        artifacts: (currentClinicalThread.artifacts as Array<Record<string, unknown>>).map(
+          (artifact) =>
+            artifact.id === 'draft-qa' ? { ...artifact, status: 'approved' } : artifact,
+        ),
         actions: [resolvedAction],
       };
       await route.fulfill(json(resolvedAction));

@@ -9,6 +9,7 @@ import {
   cancelClinicalTurn,
   getClinicalThread,
   prepareClinicalSave,
+  recoverClinicalDraft,
   regenerateClinicalDraft,
   resolveClinicalAction,
   resolveClinicalPatientSwitch,
@@ -27,6 +28,7 @@ vi.mock('../lib/api', async () => {
     cancelClinicalTurn: vi.fn(),
     getClinicalThread: vi.fn(),
     prepareClinicalSave: vi.fn(),
+    recoverClinicalDraft: vi.fn(),
     regenerateClinicalDraft: vi.fn(),
     resolveClinicalAction: vi.fn(),
     retryClinicalDriveExport: vi.fn(),
@@ -516,7 +518,8 @@ describe('clinical redaction and artifact ordering', () => {
       stale: true,
     });
     expect(result.current.artifactSyncState[artifact.id]).toBe('error');
-    expect(result.current.error).toBe('No pudimos guardar la evolución. Tu borrador se conserva.');
+    // The artifact sync state owns the failed save; the dock stays clean.
+    expect(result.current.error).toBeNull();
     await act(async () => {
       expect(await result.current.updateDraftSource(artifact.id, 'corrected')).toBe(true);
     });
@@ -595,7 +598,7 @@ describe('clinical export status reconciliation', () => {
     { transportFails: false, rereadFails: true },
     { transportFails: true, rereadFails: true },
   ])(
-    'deduplicates only verified canonical save failures: %j',
+    'keeps a failed approval owned by its artifact: %j',
     async ({ transportFails, rereadFails }) => {
       const failed: ClinicalPendingAction = { ...action, status: 'failed' };
       vi.mocked(getClinicalThread).mockResolvedValueOnce({
@@ -613,8 +616,15 @@ describe('clinical export status reconciliation', () => {
         await result.current.resolve(result.current.items[0] as ClinicalApprovalItem, 'approve');
       });
       expect(result.current.items[0].status).toBe('failed');
-      expect(result.current.error === null).toBe(!rereadFails);
+      // The artifact renders the failed save once; a failed reconciliation read
+      // is reported by its own read status, never as a second save alert.
+      expect(result.current.error).toBeNull();
+      expect(result.current.unverifiedActionId).toBe(
+        transportFails && rereadFails ? 'action-1' : null,
+      );
       expect(result.current.runtime).toBe('failed');
+      expect(recoverClinicalDraft).not.toHaveBeenCalled();
+      expect(prepareClinicalSave).not.toHaveBeenCalled();
     },
   );
 
@@ -771,6 +781,345 @@ describe('clinical export status reconciliation', () => {
     expect(result.current.items[0]).toMatchObject({
       action: { drive_export: { status: 'failed', error_code: 'DRIVE_UNAVAILABLE' } },
     });
+  });
+});
+
+describe('operation-owned clinical failure feedback', () => {
+  // One save failure produces one presentation: the approval artifact owns
+  // failed and unverified outcomes, the dock keeps unrelated failures and the
+  // retry prompt while the canonical action is still pending.
+  const saveAction: ClinicalPendingAction & { patient: ClinicalPatient } = {
+    id: 'action-1',
+    thread_id: 'thread-1',
+    turn_id: 'turn-1',
+    artifact_id: artifact.id,
+    patient_id: patientA.id,
+    action_type: 'save_evolution',
+    proposal_payload: null,
+    proposal_hash: 'hash',
+    status: 'pending',
+    expires_at: '2026-09-17T12:00:00Z',
+    created_at: '2026-09-17T12:00:00Z',
+    patient: patientA,
+  };
+
+  const pendingThread = (): ClinicalThread => ({
+    ...thread(patientA),
+    artifacts: [artifact],
+    actions: [saveAction],
+  });
+
+  const approvalOf = (result: { current: ReturnType<typeof useClinicalAssistant> }) =>
+    result.current.items.find((item) => item.type === 'approval') as ClinicalApprovalItem;
+
+  beforeEach(() => vi.resetAllMocks());
+
+  it('keeps retry feedback while the canonical approval is still pending', async () => {
+    vi.mocked(getClinicalThread).mockResolvedValue(pendingThread());
+    vi.mocked(resolveClinicalAction).mockRejectedValue(new Error('offline'));
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.resolve(approvalOf(result), 'approve');
+    });
+
+    expect(result.current.items.find((item) => item.type === 'approval')).toMatchObject({
+      status: 'pending',
+    });
+    expect(result.current.error).toBe('No pudimos guardar la evolución. Tu borrador se conserva.');
+    expect(result.current.unverifiedActionId).toBeNull();
+    expect(result.current.runtime).toBe('awaiting_approval');
+  });
+
+  it('reconciles a lost save response to the saved identity without an alert or recovery', async () => {
+    let current = pendingThread();
+    vi.mocked(getClinicalThread).mockImplementation(async () => current);
+    vi.mocked(resolveClinicalAction).mockImplementation(async () => {
+      current = {
+        ...thread(patientA),
+        artifacts: [{ ...artifact, status: 'approved' }],
+        actions: [{ ...saveAction, status: 'approved', result_resource_id: 'evolution-1' }],
+      };
+      throw new Error('network');
+    });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.resolve(approvalOf(result), 'approve');
+    });
+
+    expect(result.current.items.find((item) => item.type === 'approval')).toMatchObject({
+      status: 'completed',
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.unverifiedActionId).toBeNull();
+    expect(recoverClinicalDraft).not.toHaveBeenCalled();
+    expect(prepareClinicalSave).not.toHaveBeenCalled();
+  });
+
+  it('marks an unverifiable outcome for verification without a confirmed-failure alert', async () => {
+    vi.mocked(getClinicalThread)
+      .mockResolvedValueOnce(pendingThread())
+      .mockRejectedValue(new Error('offline'));
+    vi.mocked(resolveClinicalAction).mockRejectedValue(new Error('offline'));
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.resolve(approvalOf(result), 'approve');
+    });
+
+    expect(result.current.items.find((item) => item.type === 'approval')).toMatchObject({
+      status: 'failed',
+    });
+    expect(result.current.unverifiedActionId).toBe('action-1');
+    expect(result.current.error).toBeNull();
+    expect(result.current.runtime).toBe('failed');
+  });
+
+  it('keeps an unrelated dock failure visible when an artifact save also fails', async () => {
+    const failedExport: ClinicalPendingAction = {
+      ...saveAction,
+      status: 'approved',
+      result_resource_id: 'evolution-1',
+      drive_export: { status: 'failed', error_code: 'DRIVE_UNAVAILABLE' },
+    };
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(patientA),
+      artifacts: [artifact],
+      actions: [failedExport],
+    });
+    vi.mocked(retryClinicalDriveExport).mockRejectedValue(new Error('offline'));
+    vi.mocked(updateClinicalArtifact).mockRejectedValue(new Error('offline'));
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.retryDriveExport('evolution-1');
+    });
+    const dockMessage = result.current.error;
+    expect(dockMessage).not.toBeNull();
+
+    vi.useFakeTimers();
+    act(() => result.current.updateDraft(artifact.id, { ...draft, findings: 'editado' }));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+
+    expect(result.current.artifactSyncState[artifact.id]).toBe('error');
+    // Ownership is per operation, not per message text: the unrelated failure stays.
+    expect(result.current.error).toBe(dockMessage);
+  });
+
+  it('recovers a failed save through its canonical action without a duplicate write or approval', async () => {
+    vi.mocked(getClinicalThread).mockResolvedValue({
+      ...thread(patientA),
+      artifacts: [{ ...artifact, status: 'failed' }],
+      actions: [{ ...saveAction, status: 'failed' }],
+    });
+    vi.mocked(recoverClinicalDraft).mockResolvedValue({
+      outcome: 'recovered',
+      thread_id: 'thread-1',
+      artifact_id: artifact.id,
+    });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    await act(async () => {
+      expect(await result.current.recoverDraft(approvalOf(result))).toBe(true);
+    });
+
+    expect(recoverClinicalDraft).toHaveBeenCalledOnce();
+    expect(recoverClinicalDraft).toHaveBeenCalledWith('action-1', {
+      proposal_hash: 'hash',
+      expected_artifact_updated_at: artifact.updated_at,
+    });
+    expect(resolveClinicalAction).not.toHaveBeenCalled();
+    expect(prepareClinicalSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('recoverable clinical thread loading', () => {
+  // Every read retry must stay read-only: no replacement thread, patient change,
+  // submit, approval, draft recovery or export retry.
+  const loadWrites = () =>
+    [
+      setClinicalActivePatient,
+      streamClinicalTurn,
+      resolveClinicalAction,
+      recoverClinicalDraft,
+      retryClinicalDriveExport,
+      prepareClinicalSave,
+      updateClinicalArtifact,
+      regenerateClinicalDraft,
+      cancelClinicalTurn,
+      resolveClinicalPatientSwitch,
+    ] as const;
+
+  const exportAction = (status: 'pending' | 'syncing' | 'unknown'): ClinicalPendingAction => ({
+    id: 'action-1',
+    thread_id: 'thread-1',
+    turn_id: 'turn-1',
+    patient_id: patientA.id,
+    action_type: 'save_evolution',
+    proposal_payload: null,
+    proposal_hash: 'hash',
+    status: 'approved',
+    expires_at: '2026-09-17T12:00:00Z',
+    created_at: '2026-09-17T12:00:00Z',
+    result_resource_id: 'evolution-1',
+    drive_export: { status },
+  });
+
+  beforeEach(() => vi.resetAllMocks());
+
+  it('recovers a transient initial failure with one same-thread read and no writes', async () => {
+    vi.mocked(getClinicalThread)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ ...thread(patientA), artifacts: [artifact] });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() =>
+      expect(result.current.loadError).toBe('No pudimos cargar este hilo clínico.'),
+    );
+    expect(result.current.thread).toBeNull();
+
+    await act(async () => {
+      await result.current.reload();
+    });
+
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.thread?.id).toBe('thread-1');
+    expect(result.current.items).toHaveLength(1);
+    expect(vi.mocked(getClinicalThread).mock.calls.map(([id]) => id)).toEqual([
+      'thread-1',
+      'thread-1',
+    ]);
+    for (const write of loadWrites()) expect(write).not.toHaveBeenCalled();
+  });
+
+  it.each(['pending', 'syncing', 'unknown'] as const)(
+    'hydrates a %s Drive export on retry without retrying the export',
+    async (status) => {
+      vi.mocked(getClinicalThread)
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValue({ ...thread(patientA), actions: [exportAction(status)] });
+      vi.mocked(retryClinicalDriveExport).mockResolvedValue({
+        drive_export: { status },
+      });
+      const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+      await waitFor(() => expect(result.current.loadError).not.toBeNull());
+
+      await act(async () => {
+        await result.current.reload().catch(() => undefined);
+      });
+
+      expect(result.current.items.find((item) => item.type === 'approval')).toMatchObject({
+        action: { drive_export: { status } },
+      });
+      expect(retryClinicalDriveExport).not.toHaveBeenCalled();
+      for (const write of loadWrites()) expect(write).not.toHaveBeenCalled();
+    },
+  );
+
+  it('hydrates an active turn on retry and resumes read-only polling without writes', async () => {
+    vi.mocked(getClinicalThread)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ ...thread(patientA), active_turn_id: 'turn-9' })
+      .mockResolvedValue({ ...thread(patientA), active_turn_id: null });
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.loadError).not.toBeNull());
+
+    vi.useFakeTimers();
+    await act(async () => {
+      await result.current.reload();
+    });
+    expect(result.current.runtime).toBe('streaming');
+    expect(result.current.activeTurnId).toBe('turn-9');
+
+    const readsBeforePolling = vi.mocked(getClinicalThread).mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(vi.mocked(getClinicalThread).mock.calls.length).toBeGreaterThan(readsBeforePolling);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(result.current.runtime).toBe('idle');
+    for (const write of loadWrites()) expect(write).not.toHaveBeenCalled();
+  });
+
+  it('keeps loaded work and reports a failed background read without replacing it', async () => {
+    vi.mocked(getClinicalThread)
+      .mockResolvedValueOnce({ ...thread(patientA), artifacts: [artifact] })
+      .mockRejectedValueOnce(new Error('offline'));
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    // Fake timers keep the edit's autosave pending so this test asserts only the read retry.
+    vi.useFakeTimers();
+    act(() => result.current.updateDraft(artifact.id, { ...draft, context: 'editado localmente' }));
+
+    await act(async () => {
+      await result.current.reload().catch(() => undefined);
+    });
+
+    expect(result.current.thread?.id).toBe('thread-1');
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.items[0]).toMatchObject({
+      draft: { context: 'editado localmente' },
+    });
+    expect(result.current.loadError).not.toBeNull();
+    for (const write of loadWrites()) expect(write).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 403, 404])(
+    'keeps authentication and unavailable handling for status %s',
+    async (status) => {
+      vi.mocked(getClinicalThread).mockRejectedValue(new ApiError(status, { detail: 'x' }));
+      const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+      await waitFor(() =>
+        expect(result.current.loadError).toBe('No pudimos cargar este hilo clínico.'),
+      );
+      expect(result.current.thread).toBeNull();
+
+      vi.useFakeTimers();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6000);
+      });
+      expect(vi.mocked(getClinicalThread)).toHaveBeenCalledTimes(1);
+      vi.useRealTimers();
+
+      await act(async () => {
+        await result.current.reload().catch(() => undefined);
+      });
+      expect(vi.mocked(getClinicalThread).mock.calls.map(([id]) => id)).toEqual([
+        'thread-1',
+        'thread-1',
+      ]);
+      for (const write of loadWrites()) expect(write).not.toHaveBeenCalled();
+    },
+  );
+
+  it('ignores a late load failure from a previously selected thread', async () => {
+    let failFirst!: (error: unknown) => void;
+    const first = new Promise<ClinicalThread>((_resolve, reject) => {
+      failFirst = reject;
+    });
+    vi.mocked(getClinicalThread)
+      .mockImplementationOnce(() => first)
+      .mockResolvedValue({ ...thread(patientB), id: 'thread-2' });
+    const { result, rerender } = renderHook(({ id }) => useClinicalAssistant(id), {
+      initialProps: { id: 'thread-1' },
+    });
+    rerender({ id: 'thread-2' });
+    await waitFor(() => expect(result.current.thread?.id).toBe('thread-2'));
+
+    await act(async () => {
+      failFirst(new Error('offline'));
+    });
+
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.thread?.id).toBe('thread-2');
+    for (const write of loadWrites()) expect(write).not.toHaveBeenCalled();
   });
 });
 

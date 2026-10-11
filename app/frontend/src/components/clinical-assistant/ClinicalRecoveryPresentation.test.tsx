@@ -178,6 +178,8 @@ describe('assistant approval recovery presentation', () => {
     await confirmSave();
 
     const recover = await screen.findByRole('button', { name: 'Recuperar borrador' });
+    // The artifact presents the failure and its recovery once: no dock alert.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     fireEvent.click(recover);
 
     await waitFor(() =>
@@ -232,6 +234,12 @@ describe('assistant approval recovery presentation', () => {
     expect(screen.queryByRole('button', { name: 'Recuperar borrador' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Revisar y guardar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirmar guardado' })).not.toBeInTheDocument();
+    // The read failure keeps its own alert; the unverifiable save never becomes a
+    // second confirmed-failure announcement.
+    expect(screen.getByRole('alert')).toHaveTextContent('No pudimos actualizar este hilo clínico.');
+    expect(
+      screen.queryByText('No pudimos guardar la evolución. Tu borrador se conserva.'),
+    ).not.toBeInTheDocument();
   });
 
   it('hydrates the recovered draft, preserves the old action and prepares a fresh approval', async () => {

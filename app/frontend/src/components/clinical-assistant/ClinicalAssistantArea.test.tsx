@@ -797,3 +797,244 @@ describe('ClinicalAssistantArea queue', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
+
+describe('ClinicalAssistantArea thread loading', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    runtime.value = 'idle';
+    assistantState.thread = createThread(null);
+  });
+
+  it('keeps readable content and reports a failed background read without replacing it', () => {
+    const assistant = {
+      ...createAssistant(),
+      loadError: 'No pudimos actualizar este hilo clínico.',
+      items: [
+        {
+          id: 'm1',
+          turnId: 'turn-1',
+          status: 'completed' as const,
+          createdAt: '2026-01-01T00:00:00Z',
+          type: 'user' as const,
+          content: 'Nota previa conservada',
+        },
+      ],
+    };
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+    expect(screen.getByText('Nota previa conservada')).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(assistant.loadError);
+  });
+});
+
+describe('ClinicalAssistantArea error ownership', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    runtime.value = 'idle';
+    assistantState.thread = createThread(null);
+  });
+
+  it('renders independent failures with identical text at each owner', () => {
+    const message = 'No pudimos guardar estos cambios. Tu contenido sigue aquí.';
+    const draft = {
+      context: 'Control',
+      findings: 'Sin hallazgos nuevos',
+      assessment: 'Estable',
+      treatment: 'Higiene',
+      follow_up: 'Seis meses',
+      review_flags: [],
+    };
+    const assistant = {
+      ...createAssistant(),
+      error: message,
+      artifactSyncState: { 'artifact-1': 'error' as const },
+      items: [
+        {
+          id: 'artifact-1',
+          turnId: 'turn-1',
+          status: 'completed' as const,
+          createdAt: '2026-01-01T00:00:00Z',
+          type: 'draft' as const,
+          artifactStatus: 'draft' as const,
+          draft,
+          baseline: { ...draft },
+          sourceNote: 'Nota clínica',
+          edited: false,
+          stale: false,
+          patientId: 'patient-a',
+          patient: null,
+          evolutionAt: '2026-01-02T00:00:00Z',
+        },
+      ],
+    };
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+    // The artifact status and the dock alert are different operations and both stay,
+    // even when their human-facing text is identical.
+    expect(screen.getByRole('alert')).toHaveTextContent(message);
+    expect(screen.getAllByText(message)).toHaveLength(2);
+  });
+});
+
+describe('ClinicalAssistantArea review recovery visibility', () => {
+  const scrollIntoView = vi.fn();
+  const reviewDraft = {
+    context: 'Control preventivo',
+    findings: 'Sin hallazgos nuevos',
+    assessment: 'Estable',
+    treatment: 'Higiene',
+    follow_up: 'Seis meses',
+    review_flags: [],
+  };
+
+  const artifactItem = () => ({
+    id: 'artifact-1',
+    turnId: 'turn-1',
+    status: 'completed' as const,
+    createdAt: '2026-01-01T00:00:00Z',
+    type: 'draft' as const,
+    artifactStatus: 'draft' as const,
+    draft: reviewDraft,
+    baseline: reviewDraft,
+    sourceNote: 'Nota clínica',
+    edited: false,
+    stale: false,
+    patientId: 'patient-a',
+    patient: null,
+    evolutionAt: '2026-01-02T00:00:00Z',
+  });
+
+  const approvalItem = () => ({
+    id: 'approval-1',
+    turnId: 'turn-1',
+    status: 'pending' as const,
+    createdAt: '2026-01-01T00:01:00Z',
+    type: 'approval' as const,
+    patient: null,
+    action: {
+      id: 'approval-1',
+      thread_id: 'thread-1',
+      turn_id: 'turn-1',
+      artifact_id: 'artifact-1',
+      patient_id: 'patient-a',
+      action_type: 'save_evolution' as const,
+      proposal_payload: null,
+      proposal_hash: 'hash',
+      status: 'pending' as const,
+      expires_at: '2026-01-02T01:00:00Z',
+      created_at: '2026-01-01T00:01:00Z',
+    },
+  });
+
+  const bounds = (top: number, bottom: number): DOMRect =>
+    ({
+      x: 0,
+      y: top,
+      width: 100,
+      height: bottom - top,
+      top,
+      right: 100,
+      bottom,
+      left: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    runtime.value = 'awaiting_approval';
+    assistantState.thread = createThread(null);
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    HTMLDialogElement.prototype.showModal = function showModal() {
+      this.open = true;
+    };
+    HTMLDialogElement.prototype.close = function close() {
+      this.open = false;
+    };
+  });
+
+  const renderPendingReview = () => {
+    const assistant = createAssistant();
+    assistant.items = [artifactItem(), approvalItem()];
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+    return assistant;
+  };
+
+  const transcript = () =>
+    document.querySelector<HTMLElement>('.clinical-transcript') as HTMLElement;
+  const reviewRegion = () =>
+    document.querySelector<HTMLElement>(
+      '[data-artifact-id="artifact-1"] .clinical-artifact-review-actions',
+    ) as HTMLElement;
+  const artifact = () =>
+    document.querySelector<HTMLElement>('[data-artifact-id="artifact-1"]') as HTMLElement;
+  const dockButton = () => screen.queryByRole('button', { name: 'Ver borrador pendiente' });
+
+  const place = (top: number, bottom: number) => {
+    vi.spyOn(transcript(), 'getBoundingClientRect').mockReturnValue(bounds(0, 400));
+    vi.spyOn(reviewRegion(), 'getBoundingClientRect').mockReturnValue(bounds(top, bottom));
+    fireEvent.scroll(transcript());
+  };
+
+  it('suppresses the duplicate dock action while the review destination is visible', () => {
+    renderPendingReview();
+    // Before any observation the safe fallback keeps recovery access.
+    expect(dockButton()).toBeVisible();
+    place(100, 150);
+    expect(dockButton()).not.toBeInTheDocument();
+    // The artifact action, its confirmation and the approval lock remain available.
+    expect(screen.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
+    expect(screen.getByText('Evolución pendiente de revisión')).toBeVisible();
+  });
+
+  it('keeps recovery for an offscreen destination and focuses the exact artifact without writing', () => {
+    const assistant = renderPendingReview();
+    place(900, 950);
+    const dock = screen.getByRole('button', { name: 'Ver borrador pendiente' });
+    fireEvent.click(dock);
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(document.activeElement).toBe(artifact());
+    expect(assistant.prepareDraft).not.toHaveBeenCalled();
+    expect(assistant.resolve).not.toHaveBeenCalled();
+    expect(assistant.recoverDraft).not.toHaveBeenCalled();
+    expect(assistant.backToEdit).not.toHaveBeenCalled();
+  });
+
+  it('keeps recovery when persistent chrome occludes the review region', () => {
+    renderPendingReview();
+    place(380, 430);
+    expect(dockButton()).toBeVisible();
+  });
+
+  it('keeps recovery while the pending artifact is unmounted', () => {
+    const assistant = createAssistant();
+    assistant.items = [approvalItem()];
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+    expect(dockButton()).toBeVisible();
+  });
+
+  it('keeps recovery when the destination cannot be measured', () => {
+    renderPendingReview();
+    expect(transcript()).toBeVisible();
+    expect(dockButton()).toBeVisible();
+  });
+
+  it('retains a focused dock control until focus moves safely', () => {
+    renderPendingReview();
+    screen.getByRole('button', { name: 'Ver borrador pendiente' }).focus();
+    place(100, 150);
+    expect(dockButton()).toBeVisible();
+    act(() => artifact().focus());
+    expect(dockButton()).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(artifact());
+  });
+
+  it('returns modal focus to the artifact while the dock stays suppressed', () => {
+    renderPendingReview();
+    place(100, 150);
+    const trigger = screen.getByRole('button', { name: 'Confirmar guardado' });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Guardar evolución' });
+    fireEvent(dialog, new Event('cancel'));
+    expect(document.activeElement).toBe(trigger);
+    expect(dockButton()).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
+  });
+});

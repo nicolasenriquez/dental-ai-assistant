@@ -327,9 +327,31 @@ describe('ApprovalRequestItem auto-open review controls', () => {
 
     expect(dialog).toHaveAttribute('open');
     fireEvent(dialog, new Event('cancel'));
+    fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(dialog).toHaveAttribute('open');
     expect(within(dialog).getByRole('button', { name: 'Seguir editando' })).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: 'Guardando…' })).toBeDisabled();
+    expect(onResolve).not.toHaveBeenCalled();
+    expect(onBackToEdit).not.toHaveBeenCalled();
+  });
+
+  it('closes its own Escape without leaking the key to an outer shell', () => {
+    const { onResolve, onBackToEdit } = renderApproval({ autoOpen: true, embedded: true });
+    const dialog = screen.getByRole('dialog', { name: 'Guardar evolución' });
+    const outerEscape = vi.fn();
+    const onOuterKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') outerEscape();
+    };
+    window.addEventListener('keydown', onOuterKeyDown);
+    try {
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+    } finally {
+      window.removeEventListener('keydown', onOuterKeyDown);
+    }
+
+    expect(dialog).not.toHaveAttribute('open');
+    expect(screen.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
+    expect(outerEscape).not.toHaveBeenCalled();
     expect(onResolve).not.toHaveBeenCalled();
     expect(onBackToEdit).not.toHaveBeenCalled();
   });

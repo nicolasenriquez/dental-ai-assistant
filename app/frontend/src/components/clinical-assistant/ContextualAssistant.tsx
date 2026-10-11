@@ -32,7 +32,7 @@ export function ContextualAssistant({
     };
   }, [onClose]);
   useEffect(() => {
-    if (shared?.activeThreadId === threadId) void shared.controller.reload();
+    if (shared?.activeThreadId === threadId) void shared.controller.reload().catch(() => undefined);
   }, [shared?.activeThreadId, threadId]);
   if (!shared || shared.activeThreadId !== threadId) return null;
   const content = (
@@ -80,7 +80,14 @@ export function ContextualAssistant({
           if (!open) onClose();
         }}
       >
-        <SheetContent className="contextual-sheet-content p-0" aria-describedby={undefined}>
+        <SheetContent
+          className="contextual-sheet-content p-0"
+          aria-describedby={undefined}
+          onEscapeKeyDown={(event) => {
+            // ponytail: the review modal owns Escape; Radix must not also dismiss the Sheet.
+            if (document.querySelector('dialog[open]')) event.preventDefault();
+          }}
+        >
           {content}
         </SheetContent>
       </Sheet>

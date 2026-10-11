@@ -216,6 +216,14 @@ export function ApprovalRequestItem({
         ref={dialogRef}
         className="clinical-approval-dialog"
         aria-labelledby={`approval-${item.id}`}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return;
+          // ponytail: the review modal owns Escape; outer shells must not also close.
+          // Closing here also survives an outer preventDefault (contextual Sheet).
+          event.stopPropagation();
+          event.preventDefault();
+          if (!committing) closeDialog();
+        }}
         onCancel={(event) => {
           event.preventDefault();
           if (!committing) closeDialog();

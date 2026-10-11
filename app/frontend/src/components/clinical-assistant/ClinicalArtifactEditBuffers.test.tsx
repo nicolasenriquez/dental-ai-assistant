@@ -187,6 +187,8 @@ describe('assistant artifact edit buffers', () => {
     expect(
       await screen.findByText('No pudimos guardar estos cambios. Tu contenido sigue aquí.'),
     ).toBeVisible();
+    // The artifact owns the failed save: no duplicate dock alert.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Recargar hilo de prueba' }));
     await waitFor(() => expect(api.getClinicalThread).toHaveBeenCalledTimes(2));

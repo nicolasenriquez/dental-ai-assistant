@@ -510,6 +510,51 @@ export function ClinicalAssistantArea({
   const pendingApproval = assistant.items.find(
     (item) => item.type === 'approval' && item.status === 'pending',
   );
+  const [reviewDestinationVisible, setReviewDestinationVisible] = useState(false);
+  const reviewDockButtonRef = useRef<HTMLButtonElement>(null);
+  const pendingArtifactId =
+    pendingApproval?.type === 'approval' ? pendingApproval.action.artifact_id : null;
+
+  // ponytail: observe the artifact's review region inside the transcript's own
+  // scroll box, so persistent chrome is already excluded and any uncertain or
+  // unmeasurable geometry keeps the dock. A focused dock control is retained
+  // until focus moves safely, and the region is re-observed when items change.
+  useEffect(() => {
+    const root = areaRef.current;
+    const container = root?.querySelector<HTMLElement>('.clinical-transcript') ?? null;
+    const region = pendingArtifactId
+      ? (root?.querySelector<HTMLElement>(
+          `[data-artifact-id="${pendingArtifactId}"] .clinical-artifact-review-actions`,
+        ) ?? null)
+      : null;
+    if (!root || !container || !region || typeof container.getBoundingClientRect !== 'function') {
+      setReviewDestinationVisible(false);
+      return;
+    }
+    const measure = () => {
+      const viewport = container.getBoundingClientRect();
+      const target = region.getBoundingClientRect();
+      setReviewDestinationVisible(
+        target.height > 0 &&
+          target.top >= viewport.top &&
+          target.bottom <= viewport.bottom &&
+          document.activeElement !== reviewDockButtonRef.current,
+      );
+    };
+    measure();
+    container.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    root.addEventListener('focusout', measure);
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    observer?.observe(container);
+    return () => {
+      container.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+      root.removeEventListener('focusout', measure);
+      observer?.disconnect();
+    };
+  }, [pendingArtifactId, assistant.items]);
+
   const showPendingReview = () => {
     if (pendingApproval?.type !== 'approval') return;
     const artifact = Array.from(
@@ -618,6 +663,22 @@ export function ClinicalAssistantArea({
           />
         }
       />
+      {!threadReady && !assistant.loadError && (
+        <p role="status" className="p-4 text-sm text-muted">
+          Cargando conversación…
+        </p>
+      )}
+      {assistant.loadError && (
+        <div className="clinical-error" role="alert">
+          <p>{assistant.loadError}</p>
+          <Button
+            variant="clinicalSecondary"
+            onClick={() => void assistant.reload().catch(() => undefined)}
+          >
+            Reintentar carga
+          </Button>
+        </div>
+      )}
       <ClinicalTranscript
         threadId={threadId}
         items={assistant.items}
@@ -698,21 +759,7 @@ export function ClinicalAssistantArea({
                 </div>
               }
             />
-          ) : assistant.loadError ? (
-            <div className="clinical-error" role="alert">
-              <p>{assistant.loadError}</p>
-              <Button
-                variant="clinicalSecondary"
-                onClick={() => void assistant.reload().catch(() => undefined)}
-              >
-                Reintentar carga
-              </Button>
-            </div>
-          ) : (
-            <p role="status" className="p-4 text-sm text-muted">
-              Cargando conversación…
-            </p>
-          )
+          ) : null
         }
         onDraftChange={onDraftChange}
         onDraftSourceChange={assistant.updateDraftSource}
@@ -775,7 +822,7 @@ export function ClinicalAssistantArea({
           });
         }}
         onRecoverDraft={(item) => void assistant.recoverDraft(item)}
-        onVerify={() => void assistant.reload()}
+        onVerify={() => void assistant.reload('canonical')}
         unverifiedActionId={assistant.unverifiedActionId}
       />
       {assistant.error && (
@@ -798,8 +845,9 @@ export function ClinicalAssistantArea({
           {assistant.runtime === 'awaiting_approval' && (
             <p className="clinical-composer-lock" role="status">
               Evolución pendiente de revisión
-              {pendingApproval && (
+              {pendingApproval && !reviewDestinationVisible && (
                 <button
+                  ref={reviewDockButtonRef}
                   type="button"
                   className="ml-2 min-h-11 text-primary underline focus-visible:ring-2 focus-visible:ring-primary"
                   onClick={showPendingReview}
