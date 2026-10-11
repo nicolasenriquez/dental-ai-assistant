@@ -68,12 +68,21 @@ and stay open on failed changes. Retained input names its original context and b
 sending until restored. Unloaded threads offer loading/retry, never empty-thread starters.
 Unsent memory registers a native unload guard; confirming reload still loses it.
 Queue entries are claimed before dispatch and rejected delivery requires explicit retry.
+Unclaimed entries expose a visible `Quitar` named per entry; the claimed entry is not
+removable, removal keeps remaining order and drafts, and removing the last entry retires
+the failed-delivery lock.
 Send acceptance is independent of generation success or detaching the SSE subscriber.
 Stop names the current response (`Detener respuesta actual`) and the queue says
 `Cancela sólo la respuesta actual. Hay N mensajes pendientes.`; stopping never pauses
 or erases the queue, and no pause-all behavior exists. The composer summarizes
 `Enter envía · Shift+Enter agrega una línea` through `aria-describedby`, hidden below
-768px so narrow panes keep only the working controls. Under coarse pointers every
+768px viewport and visually hidden under a 640px container. The composer reflows by
+available container width, not the viewport: the textarea keeps a minimum 420px
+writing row and the toolbar wraps below it when the current controls cannot fit
+alongside it within that minimum, measured as a 716px pane wrapping and an 820px
+pane sharing the row.
+Attached sources and every voice state keep the textarea unclamped, the draft intact
+and the required controls visible. Under coarse pointers every
 assistant control reaches 44px through the shared coarse rule, including the header
 action override for Pending and Drive; desktop toolbars keep their compact 40px targets.
 

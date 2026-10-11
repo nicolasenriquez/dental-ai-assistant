@@ -87,10 +87,20 @@ const user = {
   rate_window_resets_at: null,
 };
 
+interface QaDriveFile {
+  id: string;
+  name: string;
+  version: string;
+  mimeType: string;
+  modifiedTime: string;
+  content: string;
+}
+
 interface QaRouteOptions {
   authenticated?: boolean;
   admin?: boolean;
   driveEnabled?: boolean;
+  driveFiles?: QaDriveFile[];
   conversationLoadFailures?: number;
   streamFailuresBeforeSuccess?: number;
   holdFirstStream?: boolean;
@@ -137,24 +147,511 @@ test('review fixes: context decision traps focus and Escape restores only the co
 
 test('review fixes: contextual composer gives writing a full row by pane width', async ({ page }) => {
   await installQaRoutes(page);
-  for (const width of [360, 768, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 1000 });
+  for (const viewport of composerMatrixViewports) {
+    await page.setViewportSize(viewport);
     await page.goto(`/patients/${patientId}`);
     await page.getByRole('button', { name: 'Asistente', exact: true }).click();
     const input = page.getByRole('textbox', { name: 'Nota clínica' });
     await expect(input).toBeVisible();
     await input.fill('Nota clínica suficientemente larga para comprobar el espacio disponible.');
-    const composer = page.getByTestId('clinical-composer');
-    const bounds = await composer.evaluate((node) => {
-      const shell = node.getBoundingClientRect();
-      const input = node.querySelector('textarea')!.getBoundingClientRect();
-      const toolbar = node.querySelector('.clinical-composer-toolbar')!.getBoundingClientRect();
-      return { shellWidth: shell.width, inputWidth: input.width, inputBottom: input.bottom, toolbarTop: toolbar.top, scrollWidth: node.scrollWidth, clientWidth: node.clientWidth };
-    });
+    const bounds = await measureComposer(page);
     expect(bounds.inputWidth).toBeGreaterThan(bounds.shellWidth * 0.75);
     expect(bounds.toolbarTop).toBeGreaterThanOrEqual(bounds.inputBottom);
     expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+    console.log(
+      `[C1-CONTEXTUAL] ${JSON.stringify({
+        viewport: `${viewport.width}x${viewport.height}`,
+        shell: Math.round(bounds.shellWidth),
+        input: `${Math.round(bounds.inputWidth)}x${Math.round(bounds.inputHeight)}`,
+        toolbarRow: bounds.toolbarTop >= bounds.inputBottom ? 'below' : 'shared',
+      })}`,
+    );
   }
+});
+
+test.describe('review fixes: contextual Sheet width ownership', () => {
+  for (const viewport of [
+    { width: 767, height: 1024 },
+    { width: 768, height: 1024 },
+    { width: 1023, height: 768 },
+    { width: 1024, height: 768 },
+  ]) {
+    test(`keeps the 768/1024 contextual composition at ${viewport.width}px`, async ({ page }) => {
+      await installQaRoutes(page);
+      await page.setViewportSize(viewport);
+      await page.goto(`/patients/${patientId}`);
+      const trigger = page.getByRole('button', { name: 'Asistente', exact: true });
+      await trigger.click();
+      await expect(page.getByTestId('clinical-composer')).toBeVisible();
+
+      if (viewport.width < 768) {
+        await expect(page).toHaveURL(new RegExp(`/a/${threadId}`));
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        return;
+      }
+
+      const dialog = page.getByRole('dialog', { name: 'Asistente clínico' });
+      if (viewport.width >= 1024) {
+        await expect(dialog).toHaveCount(0);
+        const panel = page.getByRole('complementary', { name: 'Asistente del paciente' });
+        await expect(panel).toBeVisible();
+        const panelWidth = await panel.evaluate((node) => node.getBoundingClientRect().width);
+        expect(
+          Math.abs(panelWidth - Math.min(Math.max(0.38 * viewport.width, 420), 520)),
+        ).toBeLessThanOrEqual(2);
+        return;
+      }
+
+      await expect(dialog).toBeVisible();
+      const sheetWidth = await dialog.evaluate((node) => node.getBoundingClientRect().width);
+      expect(Math.abs(sheetWidth - Math.min(0.88 * viewport.width, 560))).toBeLessThanOrEqual(2);
+      await expect(dialog.getByRole('button', { name: 'Cerrar' })).toHaveCount(1);
+      expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+      expect(
+        await dialog.evaluate(
+          (node) =>
+            Math.abs(node.getBoundingClientRect().height - window.innerHeight) <= 1 &&
+            Math.abs(node.getBoundingClientRect().top) <= 1,
+        ),
+      ).toBe(true);
+      await assertNoHorizontalOverflow(page);
+      await dialog.hover();
+      await page.mouse.wheel(0, 600);
+      expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
+
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      const note = 'Nota clínica del Sheet contextual.';
+      await input.pressSequentially(note);
+      await expect(input).toHaveValue(note);
+      await input.evaluate((element) => {
+        element.setSelectionRange(5, 12);
+        (element as HTMLElement).dataset.qaSheetMarker = 'kept';
+      });
+      const resizedWidth = viewport.width === 768 ? 1023 : 768;
+      await page.setViewportSize({ width: resizedWidth, height: viewport.height });
+      await expect(dialog).toBeVisible();
+      await expect(input).toHaveValue(note);
+      expect(
+        await input.evaluate((element) => ({
+          start: element.selectionStart,
+          end: element.selectionEnd,
+        })),
+      ).toEqual({ start: 5, end: 12 });
+      expect(await input.evaluate((element) => (element as HTMLElement).dataset.qaSheetMarker)).toBe(
+        'kept',
+      );
+      const resizedSheet = await dialog.evaluate((node) => node.getBoundingClientRect().width);
+      expect(Math.abs(resizedSheet - Math.min(0.88 * resizedWidth, 560))).toBeLessThanOrEqual(2);
+
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+    });
+  }
+
+  test('keeps the default Drive Sheet width at 768px', async ({ page }) => {
+    await installQaRoutes(page, { driveEnabled: true, driveFiles: [qaDriveFile] });
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto(`/a/${threadId}`);
+    await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+    const sheet = page.locator('.drive-sheet-workspace');
+    await expect(sheet).toBeVisible();
+    const width = await sheet.evaluate((node) => node.getBoundingClientRect().width);
+    expect(Math.abs(width - Math.min(0.92 * 768, 460))).toBeLessThanOrEqual(2);
+  });
+});
+
+test.describe('review fixes: individual queue removal', () => {
+  const trackMutations = (page: Page): string[] => {
+    const mutations: string[] = [];
+    page.on('request', (request) => {
+      if (
+        ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method()) &&
+        request.url().includes('/api/')
+      ) {
+        mutations.push(`${request.method()} ${request.url()}`);
+      }
+    });
+    return mutations;
+  };
+
+  test('removes a queued message immediately, by keyboard, with no requests', async ({ page }) => {
+    const controls = await installQaRoutes(page, { holdClinicalStream: true });
+    const mutations = trackMutations(page);
+    try {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/a/${threadId}`);
+      const composer = page.getByRole('textbox', { name: 'Nota clínica' });
+      await composer.fill('Respuesta en curso');
+      await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      for (const message of ['Pendiente uno', 'Pendiente dos']) {
+        await composer.fill(message);
+        await page.getByRole('button', { name: 'Encolar' }).click();
+      }
+      await expect(page.getByText('Mensajes en cola 2/3')).toBeVisible();
+      const remove = page.getByRole('button', {
+        name: 'Quitar mensaje 1 de la cola: Pendiente uno',
+      });
+      await expect(remove).toHaveText('Quitar');
+      await expect(
+        page.getByRole('button', { name: 'Quitar mensaje 2 de la cola: Pendiente dos' }),
+      ).toBeVisible();
+      const before = mutations.length;
+
+      await remove.focus();
+      await remove.press('Enter');
+
+      await expect(page.getByText('Mensajes en cola 1/3')).toBeVisible();
+      await expect(remove).toHaveCount(0);
+      await expect(page.getByText('Pendiente dos')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Detener respuesta' })).toBeVisible();
+      await expect(composer).toBeFocused();
+      expect(mutations.slice(before)).toEqual([]);
+      await assertNoHorizontalOverflow(page);
+      console.log(
+        '[QUEUE-001-FULL]',
+        JSON.stringify({ before, after: mutations.length, count: 'Mensajes en cola 1/3' }),
+      );
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
+
+  test('removes a queued message in the narrow contextual Sheet', async ({ page }) => {
+    const controls = await installQaRoutes(page, { holdClinicalStream: true });
+    const mutations = trackMutations(page);
+    try {
+      await page.setViewportSize({ width: 768, height: 1024 });
+      await page.goto(`/patients/${patientId}`);
+      await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Asistente clínico' });
+      const composer = dialog.getByRole('textbox', { name: 'Nota clínica' });
+      await composer.fill('Consulta contextual');
+      await dialog.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      await composer.fill('Pendiente contextual');
+      await dialog.getByRole('button', { name: 'Encolar' }).click();
+      await expect(dialog.getByText('Mensajes en cola 1/3')).toBeVisible();
+      const remove = dialog.getByRole('button', {
+        name: 'Quitar mensaje 1 de la cola: Pendiente contextual',
+      });
+      await expect(remove).toHaveText('Quitar');
+      const before = mutations.length;
+
+      await remove.click();
+
+      await expect(dialog.getByText(/Mensajes en cola/)).toHaveCount(0);
+      await expect(dialog.getByText('Pendiente contextual')).toHaveCount(0);
+      await expect(composer).toBeFocused();
+      expect(mutations.slice(before)).toEqual([]);
+      await assertNoHorizontalOverflow(page);
+      console.log(
+        '[QUEUE-001-CONTEXTUAL]',
+        JSON.stringify({ before, after: mutations.length, width: 768 }),
+      );
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
+});
+
+const qaDriveFile: QaDriveFile = {
+  id: 'file-qa-informe-v12',
+  name: 'informe_ortodoncia_revision_v12.pdf',
+  version: '12',
+  mimeType: 'application/pdf',
+  modifiedTime: '2026-01-10T12:00:00Z',
+  content: 'Contenido clínico sintético del informe de ortodoncia.',
+};
+
+test('review fixes: full assistant composer keeps its writing row by pane width', async ({ page }) => {
+  await installQaRoutes(page, { driveEnabled: true, driveFiles: [qaDriveFile] });
+  const typedNote = 'Motivo: control preventivo. Hallazgos: sin cambios. Plan: control en seis meses.';
+  const note = `${typedNote}\nSegunda línea del borrador.\nTercera línea del borrador.`;
+  for (const viewport of composerMatrixViewports) {
+    await page.setViewportSize(viewport);
+    await page.goto(`/a/${threadId}`);
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    await expect(input).toBeVisible();
+    await input.pressSequentially(typedNote);
+    await expect(input).toHaveValue(typedNote);
+    await input.fill(note);
+    const idleBounds = await measureComposer(page);
+    console.log(
+      `[C1-IDLE] ${JSON.stringify({
+        viewport: `${viewport.width}x${viewport.height}`,
+        shell: Math.round(idleBounds.shellWidth),
+        input: `${Math.round(idleBounds.inputWidth)}x${Math.round(idleBounds.inputHeight)}`,
+        toolbarRow: idleBounds.toolbarTop >= idleBounds.inputBottom ? 'below' : 'shared',
+      })}`,
+    );
+    await attachQaSource(page, qaDriveFile);
+    await expect(input).toHaveValue(note);
+    const bounds = await measureComposer(page);
+    // Text leads: the writing row keeps a usable width in every pane.
+    expect(bounds.inputWidth).toBeGreaterThanOrEqual(Math.min(420, bounds.shellWidth * 0.9));
+    expect(bounds.inputHeight).toBeLessThanOrEqual(144);
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+    await expect(page.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    console.log(
+      `[C1-MATRIX] ${JSON.stringify({
+        viewport: `${viewport.width}x${viewport.height}`,
+        shell: Math.round(bounds.shellWidth),
+        input: `${Math.round(bounds.inputWidth)}x${Math.round(bounds.inputHeight)}`,
+        toolbarRow: bounds.toolbarTop >= bounds.inputBottom ? 'below' : 'shared',
+        sources: await page.getByRole('button', { name: `Quitar ${qaDriveFile.name}` }).count(),
+        overflow: bounds.scrollWidth - bounds.clientWidth,
+      })}`,
+    );
+  }
+});
+
+test('review fixes: narrow composer keeps an attached source removable with the draft intact', async ({
+  page,
+}) => {
+  await installQaRoutes(page, { driveEnabled: true, driveFiles: [qaDriveFile] });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/a/${threadId}`);
+  const input = page.getByRole('textbox', { name: 'Nota clínica' });
+  const note =
+    'Nota clínica extensa para comprobar el reflujo del compositor con un documento adjunto.\nSegunda línea del borrador.';
+  await input.fill(note);
+
+  await attachQaSource(page, qaDriveFile);
+
+  const remove = page.getByRole('button', { name: `Quitar ${qaDriveFile.name}` });
+  await expect(remove).toBeVisible();
+  const bounds = await measureComposer(page);
+  expect(bounds.inputWidth).toBeGreaterThan(bounds.shellWidth * 0.75);
+  expect(bounds.toolbarTop).toBeGreaterThanOrEqual(bounds.inputBottom);
+  expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+  await expect(input).toHaveValue(note);
+
+  await remove.click();
+  await expect(remove).toHaveCount(0);
+  await expect(input).toHaveValue(note);
+  await assertNoHorizontalOverflow(page);
+});
+
+test('review fixes: composer keeps caret, selection and draft through a pane reflow', async ({
+  page,
+}) => {
+  await installQaRoutes(page, { driveEnabled: true });
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto(`/a/${threadId}`);
+  const input = page.getByRole('textbox', { name: 'Nota clínica' });
+  const note =
+    'Primera línea clínica del borrador.\nSegunda línea clínica del borrador.\nTercera línea clínica del borrador.';
+  await input.fill(note);
+
+  await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+  const separator = page.getByRole('separator', { name: 'Redimensionar Google Drive' });
+  await expect(separator).toBeVisible();
+  await input.evaluate((element) => {
+    element.focus();
+    element.setSelectionRange(4, 31);
+    (element as HTMLElement).dataset.qaReflowMarker = 'kept';
+  });
+  const writeRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/clinical-threads/')) {
+      writeRequests.push(`${request.method()} ${request.url()}`);
+    }
+  });
+
+  const handle = await separator.boundingBox();
+  if (!handle) throw new Error('No se encontró divisor de Drive');
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 500, handle.y + handle.height / 2, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(input).toHaveValue(note);
+  expect(
+    await input.evaluate((element) => ({
+      start: element.selectionStart,
+      end: element.selectionEnd,
+    })),
+  ).toEqual({ start: 4, end: 31 });
+  expect(await input.evaluate((element) => (element as HTMLElement).dataset.qaReflowMarker)).toBe(
+    'kept',
+  );
+  expect(writeRequests).toEqual([]);
+  await assertNoHorizontalOverflow(page);
+});
+
+test.describe('c1 composer voice-state verification', () => {
+  for (const viewport of [
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+  ]) {
+    test(`keeps writing geometry and controls in each voice state at ${viewport.width}x${viewport.height}`, async ({
+      page,
+    }) => {
+      await installQaRoutes(page);
+      const media = await installVoiceMediaMock(page);
+      const transcription = await holdTranscription(page);
+      await page.setViewportSize(viewport);
+      await page.goto(`/a/${threadId}`);
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      const seed = 'Nota clínica base para dictado.';
+      await input.fill(seed);
+
+      const evidence: Array<Record<string, unknown>> = [];
+      const record = async (state: string) => {
+        const bounds = await measureComposer(page);
+        expect(bounds.inputWidth).toBeGreaterThanOrEqual(Math.min(420, bounds.shellWidth * 0.9));
+        expect(bounds.inputHeight).toBeLessThanOrEqual(144);
+        expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+        expect(await input.inputValue()).toContain(seed);
+        await assertNoHorizontalOverflow(page);
+        evidence.push({
+          state,
+          shell: Math.round(bounds.shellWidth),
+          input: `${Math.round(bounds.inputWidth)}x${Math.round(bounds.inputHeight)}`,
+          toolbarRow: bounds.toolbarTop >= bounds.inputBottom ? 'below' : 'shared',
+          controls: await page
+            .locator('.clinical-composer-toolbar button')
+            .evaluateAll((nodes) =>
+              nodes.map((node) => node.getAttribute('aria-label') ?? node.textContent?.trim()),
+            ),
+        });
+      };
+
+      await record('idle');
+
+      await media.setMode('pending');
+      await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+      await expect(page.getByText('Solicitando acceso al micrófono…')).toBeVisible();
+      await record('requesting_permission');
+      await page.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(page.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
+
+      await media.setMode('grant');
+      await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+      await expect(page.getByText('Grabando')).toBeVisible();
+      await input.pressSequentially(' Texto tecleado mientras graba.');
+      await record('recording');
+      await page.setViewportSize({ width: viewport.width - 30, height: viewport.height });
+      await expect(page.getByText('Grabando')).toBeVisible();
+      await record('recording-reflow');
+
+      await page.getByRole('button', { name: 'Detener grabación' }).click();
+      await expect(page.getByText('Finalizando grabación…')).toBeVisible();
+      await record('stopping');
+
+      await media.releaseRecorder();
+      await expect(page.getByText('Transcribiendo dictado…')).toBeVisible();
+      await expect(input).toHaveAttribute('aria-busy', 'true');
+      await record('transcribing');
+
+      transcription.release();
+      await expect(page.getByText('Dictado añadido')).toBeVisible();
+      await expect(input).toHaveValue(/Texto dictado QA\./);
+      await record('success');
+      await expect(page.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
+
+      await media.setMode('deny');
+      await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+      await expect(page.locator('.voice-composer-status[role="alert"]')).toContainText(
+        'El navegador no permitió usar el micrófono.',
+      );
+      await record('error');
+      await page.getByRole('button', { name: 'Descartar' }).click();
+      await expect(page.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
+
+      await media.setMode('grant');
+      await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+      await expect(page.getByText('Grabando')).toBeVisible();
+      await page.getByRole('button', { name: 'Cancelar dictado' }).click();
+      await expect(page.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
+      await record('cancelled');
+      await expect(input).toHaveValue(/Texto dictado QA\./);
+
+      console.log(
+        `[C1-VOICE] ${JSON.stringify({
+          viewport: `${viewport.width}x${viewport.height}`,
+          reflowWidth: viewport.width - 30,
+          evidence,
+        })}`,
+      );
+    });
+  }
+});
+
+test.describe('coarse pointer clinical composer', () => {
+  test.use({ hasTouch: true });
+
+  test('keeps narrow composer controls at the 44px coarse target contract', async ({ page }) => {
+    const controls = await installQaRoutes(page, { holdClinicalStream: true });
+    try {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/a/${threadId}`);
+      await page.getByRole('textbox', { name: 'Nota clínica' }).fill('Nota clínica táctil.');
+      expect(await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)).toBe(true);
+
+      for (const name of ['Iniciar dictado', 'Enviar mensaje']) {
+        const box = await page.getByRole('button', { name }).boundingBox();
+        expect(box, name).not.toBeNull();
+        expect(box?.width ?? 0, name).toBeGreaterThanOrEqual(44);
+        expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(44);
+      }
+
+      await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      const stop = page.getByRole('button', { name: 'Detener respuesta' });
+      await expect(stop).toBeVisible();
+      const stopBox = await stop.boundingBox();
+      expect(stopBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+      expect(stopBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await assertNoHorizontalOverflow(page);
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
+
+  test('keeps the contextual Sheet close target at the 44px coarse contract', async ({ page }) => {
+    await installQaRoutes(page);
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto(`/patients/${patientId}`);
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    const close = page
+      .getByRole('dialog', { name: 'Asistente clínico' })
+      .getByRole('button', { name: 'Cerrar' });
+    const box = await close.boundingBox();
+    if (!box) throw new Error('No se encontró el control de cierre del Sheet');
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    await assertNoHorizontalOverflow(page);
+  });
+
+  test('keeps the queued removal control at the 44px coarse contract', async ({ page }) => {
+    const controls = await installQaRoutes(page, { holdClinicalStream: true });
+    try {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/a/${threadId}`);
+      const composer = page.getByRole('textbox', { name: 'Nota clínica' });
+      await composer.fill('Respuesta táctil');
+      await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      await composer.fill('Pendiente táctil');
+      await page.getByRole('button', { name: 'Encolar' }).click();
+      const remove = page.getByRole('button', {
+        name: 'Quitar mensaje 1 de la cola: Pendiente táctil',
+      });
+      const box = await remove.boundingBox();
+      if (!box) throw new Error('No se encontró el control Quitar de la cola');
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      await assertNoHorizontalOverflow(page);
+      console.log('[QUEUE-001-TOUCH]', JSON.stringify({ width: box.width, height: box.height }));
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
 });
 
 test('review fixes: full assistant preserves snapshots and a continuous artifact heading outline', async ({ page }) => {
@@ -823,7 +1320,19 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       return;
     }
     if (path.startsWith('/api/google-drive/files')) {
-      await route.fulfill(json({ files: [], next_page_token: null }));
+      const fileId = decodeURIComponent(path.slice('/api/google-drive/files/'.length));
+      const driveFile = options.driveFiles?.find((candidate) => candidate.id === fileId);
+      if (method === 'GET' && driveFile) {
+        const { content, ...metadata } = driveFile;
+        await route.fulfill(json({ ...metadata, content }));
+        return;
+      }
+      await route.fulfill(
+        json({
+          files: (options.driveFiles ?? []).map(({ content: _content, ...metadata }) => metadata),
+          next_page_token: null,
+        }),
+      );
       return;
     }
     if (path === '/api/google-drive/oauth/start' && method === 'POST') {
@@ -941,6 +1450,141 @@ async function auditDialog(
       .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
       .toBe(true);
   }
+}
+
+async function measureComposer(page: Page): Promise<{
+  shellWidth: number;
+  inputWidth: number;
+  inputHeight: number;
+  inputBottom: number;
+  toolbarTop: number;
+  scrollWidth: number;
+  clientWidth: number;
+}> {
+  const composer = page.getByTestId('clinical-composer');
+  await expect(composer).toBeVisible();
+  return composer.evaluate((node) => {
+    const shell = node.getBoundingClientRect();
+    const input = node.querySelector('textarea')!.getBoundingClientRect();
+    const toolbar = node.querySelector('.clinical-composer-toolbar')!.getBoundingClientRect();
+    return {
+      shellWidth: shell.width,
+      inputWidth: input.width,
+      inputHeight: input.height,
+      inputBottom: input.bottom,
+      toolbarTop: toolbar.top,
+      scrollWidth: node.scrollWidth,
+      clientWidth: node.clientWidth,
+    };
+  });
+}
+
+const composerMatrixViewports = [
+  { width: 1440, height: 900 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 1024 },
+  { width: 390, height: 844 },
+  { width: 360, height: 800 },
+];
+
+async function attachQaSource(page: Page, file: QaDriveFile): Promise<void> {
+  await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+  await page.getByRole('tab', { name: 'Documentos' }).click();
+  await page.getByRole('button', { name: `Abrir ${file.name}` }).click();
+  await page.getByRole('button', { name: 'Adjuntar documento al mensaje' }).click();
+  await expect(page.getByRole('button', { name: `Quitar ${file.name}` })).toBeVisible();
+}
+
+interface QaVoiceControls {
+  setMode: (mode: 'pending' | 'grant' | 'deny') => Promise<void>;
+  releaseRecorder: () => Promise<void>;
+}
+
+interface QaVoiceWindow {
+  __qaVoice: {
+    mode: string;
+    setMode: (mode: string) => void;
+    release: () => void;
+  };
+}
+
+async function installVoiceMediaMock(page: Page): Promise<QaVoiceControls> {
+  await page.addInitScript(() => {
+    const voice = {
+      mode: 'grant',
+      recorder: null as null | { __release?: () => void },
+      setMode(next: string) {
+        voice.mode = next;
+      },
+      release() {
+        const recorder = voice.recorder;
+        voice.recorder = null;
+        recorder?.__release?.();
+      },
+    };
+    Object.defineProperty(window, '__qaVoice', { value: voice, configurable: true });
+    const track = () => ({ kind: 'audio', enabled: true, stop() {}, onended: null });
+    class QaMediaRecorder {
+      state: 'inactive' | 'recording' = 'inactive';
+      mimeType: string;
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      constructor(_stream: unknown, options?: { mimeType?: string }) {
+        this.mimeType = options?.mimeType ?? 'audio/webm';
+        voice.recorder = this as unknown as { __release?: () => void };
+      }
+      static isTypeSupported() {
+        return true;
+      }
+      start() {
+        this.state = 'recording';
+      }
+      stop() {
+        this.state = 'inactive';
+        voice.recorder = this as unknown as { __release?: () => void };
+        (this as unknown as { __release?: () => void }).__release = () => {
+          this.ondataavailable?.({
+            data: new Blob([new Uint8Array([1, 2, 3])], { type: this.mimeType }),
+          });
+          this.onstop?.();
+        };
+      }
+    }
+    Object.defineProperty(window, 'MediaRecorder', { value: QaMediaRecorder, configurable: true });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: () => {
+          const current = (window as unknown as QaVoiceWindow).__qaVoice;
+          if (current.mode === 'pending') return new Promise(() => {});
+          if (current.mode === 'deny') {
+            return Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
+          }
+          return Promise.resolve({ getTracks: () => [track()] });
+        },
+      },
+    });
+  });
+  return {
+    setMode: (mode) =>
+      page.evaluate(
+        (next) => (window as unknown as QaVoiceWindow).__qaVoice.setMode(next),
+        mode,
+      ),
+    releaseRecorder: () =>
+      page.evaluate(() => (window as unknown as QaVoiceWindow).__qaVoice.release()),
+  };
+}
+
+async function holdTranscription(page: Page): Promise<{ release: () => void }> {
+  let release: (() => void) | null = null;
+  await page.route('**/api/transcriptions', async (route) => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await route.fulfill(json({ text: 'Texto dictado QA.' }));
+  });
+  return { release: () => release?.() };
 }
 
 async function assertNoHorizontalOverflow(page: Page): Promise<void> {

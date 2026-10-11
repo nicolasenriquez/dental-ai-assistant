@@ -3226,8 +3226,8 @@ body,
 }
 
 .clinical-composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -3262,6 +3262,8 @@ body,
 }
 
 .clinical-composer-toolbar {
+  flex: 0 0 auto;
+  margin-left: auto;
   justify-content: flex-end;
   gap: 8px;
 }
@@ -3281,12 +3283,8 @@ body,
 }
 
 @container clinical-composer-pane (max-width: 640px) {
-  .clinical-composer {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .clinical-composer-toolbar {
-    grid-column: 1 / -1;
+    flex: 0 0 100%;
     flex-wrap: wrap;
   }
 
@@ -3304,7 +3302,7 @@ body,
 }
 
 .clinical-composer.is-voice-active .clinical-composer-toolbar {
-  grid-column: 1 / -1;
+  flex: 0 0 100%;
   flex-wrap: wrap;
 }
 
@@ -3562,6 +3560,7 @@ body,
 .clinical-composer-input {
   display: block;
   width: 100%;
+  flex: 1 1 420px;
   min-height: 42px;
   max-height: 144px;
   border: 0;
@@ -6770,6 +6769,10 @@ body,
   flex-direction: column;
   gap: 10px;
   height: 100dvh;
+}
+
+.contextual-sheet-content {
+  width: min(88vw, 560px);
 }
 
 .drive-sheet-workspace {

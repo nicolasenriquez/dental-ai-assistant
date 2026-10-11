@@ -550,4 +550,250 @@ describe('ClinicalAssistantArea queue', () => {
     await waitFor(() => expect(assistantState.setActivePatient).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
+
+  it('removes only the selected unclaimed entry with distinct visible controls', () => {
+    const assistant = createAssistant();
+    let insertContext: ((item: import('../../lib/api').ComposerContextItem) => void) | undefined;
+    render(
+      <ClinicalAssistantArea
+        threadId="thread-1"
+        assistant={assistant}
+        onComposerInsertReady={(insert) => {
+          insertContext = insert;
+        }}
+      />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    for (const message of ['Primero', 'Segundo', 'Tercero']) {
+      fireEvent.change(composer, { target: { value: message } });
+      fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    }
+    fireEvent.change(composer, { target: { value: 'Borrador actual' } });
+    act(() => {
+      insertContext?.({
+        id: 'context-remove',
+        kind: 'drive_selection',
+        sourceId: 'drive-1',
+        sourceName: 'Actual.md',
+        content: 'Adjunto actual',
+      });
+    });
+
+    const queue = within(document.querySelector('.clinical-queue') as HTMLElement);
+    expect(
+      queue.getAllByRole('button', { name: /^Quitar mensaje/ }).map((button) => button.textContent),
+    ).toEqual(['Quitar', 'Quitar', 'Quitar']);
+    expect(
+      queue.getByRole('button', { name: 'Quitar mensaje 2 de la cola: Segundo' }),
+    ).toBeVisible();
+    expect(
+      queue.getByRole('button', { name: 'Quitar mensaje 3 de la cola: Tercero' }),
+    ).toBeVisible();
+
+    fireEvent.click(queue.getByRole('button', { name: 'Quitar mensaje 2 de la cola: Segundo' }));
+
+    expect(screen.getByText('Mensajes en cola 2/3')).toBeVisible();
+    expect(queue.queryByRole('button', { name: /Segundo/ })).not.toBeInTheDocument();
+    expect(
+      [...document.querySelectorAll('.clinical-queue-item')].map(
+        (row) => row.querySelector('span')?.textContent,
+      ),
+    ).toEqual(['Primero', 'Tercero']);
+    expect(composer).toHaveValue('Borrador actual');
+    expect(screen.getByRole('group', { name: 'Documentos adjuntos' })).toHaveTextContent(
+      'Actual.md',
+    );
+    expect(send).not.toHaveBeenCalled();
+    expect(assistant.stop).not.toHaveBeenCalled();
+    expect(composer).toHaveFocus();
+  });
+
+  it('keeps the active response running when an entry is removed during streaming', () => {
+    const assistant = createAssistant();
+    render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    for (const message of ['Mientras uno', 'Mientras dos']) {
+      fireEvent.change(composer, { target: { value: message } });
+      fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    }
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Quitar mensaje 1 de la cola: Mientras uno' }),
+    );
+
+    expect(assistant.stop).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.getByText('Mensajes en cola 1/3')).toBeVisible();
+    expect(screen.getByText('Mientras dos')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Detener respuesta actual' }));
+    expect(assistant.stop).toHaveBeenCalledOnce();
+  });
+
+  it('never dispatches an entry removed before its claim', async () => {
+    const view = render(
+      <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    fireEvent.change(composer, { target: { value: 'Se queda' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    fireEvent.change(composer, { target: { value: 'Se quita' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar mensaje 1 de la cola: Se queda' }));
+
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    expect(send).toHaveBeenCalledWith('Se quita', []);
+    expect(screen.queryByText('Se queda')).not.toBeInTheDocument();
+  });
+
+  it('keeps a claimed entry non-removable until its delivery resolves', async () => {
+    let resolve!: (accepted: boolean) => void;
+    send.mockReturnValueOnce(
+      new Promise<boolean>((done) => {
+        resolve = done;
+      }),
+    );
+    const view = render(
+      <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    fireEvent.change(composer, { target: { value: 'En vuelo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+
+    expect(
+      screen.queryByRole('button', { name: 'Quitar mensaje 1 de la cola: En vuelo' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('En vuelo')).not.toBeInTheDocument();
+
+    await act(async () => resolve(false));
+    expect(screen.getByText('En vuelo')).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Quitar mensaje 1 de la cola: En vuelo' }),
+    ).toBeVisible();
+  });
+
+  it('retires the failed-delivery lock when the final entry is removed', async () => {
+    let resolve!: (accepted: boolean) => void;
+    send.mockReturnValueOnce(
+      new Promise<boolean>((done) => {
+        resolve = done;
+      }),
+    );
+    const view = render(
+      <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    fireEvent.change(composer, { target: { value: 'Fallida' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    await act(async () => resolve(false));
+    expect(screen.getByRole('button', { name: 'Reintentar cola' })).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent('No pudimos enviar el mensaje en cola.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar mensaje 1 de la cola: Fallida' }));
+
+    expect(screen.queryByRole('button', { name: 'Reintentar cola' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Mensajes en cola/)).not.toBeInTheDocument();
+
+    runtime.value = 'streaming';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    fireEvent.change(composer, { target: { value: 'Nueva' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    expect(send).toHaveBeenLastCalledWith('Nueva', []);
+  });
+
+  it('does not leak a late delivery result into another thread of the same area', async () => {
+    let resolve!: (accepted: boolean) => void;
+    send.mockReturnValueOnce(
+      new Promise<boolean>((done) => {
+        resolve = done;
+      }),
+    );
+    const view = render(
+      <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Consulta al asistente' });
+    fireEvent.change(composer, { target: { value: 'Hilo uno' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+
+    assistantState.thread = { ...createThread(null), id: 'thread-2' };
+    runtime.value = 'streaming';
+    view.rerender(<ClinicalAssistantArea threadId="thread-2" assistant={createAssistant()} />);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Consulta al asistente' }), {
+      target: { value: 'Hilo dos' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-2" assistant={createAssistant()} />);
+
+    await act(async () => resolve(false));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reintentar cola' })).not.toBeInTheDocument();
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    expect(send).toHaveBeenLastCalledWith('Hilo dos', []);
+  });
+
+  it('does not resurrect a discarded origin entry when its delivery resolves late', async () => {
+    const patientA: ClinicalPatient = {
+      id: 'patient-1',
+      first_name: 'Ana',
+      last_name: 'Pérez',
+      rut_masked: '••••',
+    };
+    const patientB: ClinicalPatient = {
+      id: 'patient-2',
+      first_name: 'Bruno',
+      last_name: 'Ríos',
+      rut_masked: '••••',
+    };
+    vi.mocked(getPatients).mockResolvedValue([
+      { ...patientA, birth_date: '1990-01-01', last_evolution_at: null },
+      { ...patientB, birth_date: '1991-01-01', last_evolution_at: null },
+    ]);
+    assistantState.thread = createThread(patientA);
+    let resolve!: (accepted: boolean) => void;
+    send.mockReturnValueOnce(
+      new Promise<boolean>((done) => {
+        resolve = done;
+      }),
+    );
+    const view = render(
+      <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />,
+    );
+    const composer = screen.getByRole('textbox', { name: 'Nota clínica' });
+    fireEvent.change(composer, { target: { value: 'En vuelo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    fireEvent.change(composer, { target: { value: 'En cola' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    runtime.value = 'idle';
+    view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar paciente activo' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Bruno Ríos/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar y cambiar' }));
+
+    await waitFor(() => expect(assistantState.setActivePatient).toHaveBeenCalledWith('patient-2'));
+    await waitFor(() => expect(screen.queryByText('En cola')).not.toBeInTheDocument());
+    await act(async () => resolve(false));
+
+    expect(screen.queryByText('En vuelo')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reintentar cola' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });

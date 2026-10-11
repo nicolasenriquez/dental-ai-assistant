@@ -82,16 +82,12 @@ export function ClinicalComposer({
       }}
     >
       {retainedContextLabel && (
-        <p className="col-span-full text-xs text-muted">
+        <p className="w-full text-xs text-muted">
           Borrador para {retainedContextLabel}. Vuelve a este contexto para enviar.
         </p>
       )}
       {contextItems.length > 0 && (
-        <div
-          className="col-span-full flex w-full flex-wrap gap-2"
-          role="group"
-          aria-label="Documentos adjuntos"
-        >
+        <div className="flex w-full flex-wrap gap-2" role="group" aria-label="Documentos adjuntos">
           {contextItems.map((item) => (
             <span
               key={item.id}

@@ -95,7 +95,14 @@ export function ClinicalAssistantArea({
   const [autoOpenApprovalId, setAutoOpenApprovalId] = useState<string | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [queueDeliveryFailed, setQueueDeliveryFailed] = useState(false);
-  const queueClaimRef = useRef<string | null>(null);
+  const queueClaimRef = useRef<{ id: string; patientId: string | null } | null>(null);
+  const [queueClaimRevision, setQueueClaimRevision] = useState(0);
+  const releaseQueueClaim = useCallback(() => {
+    queueClaimRef.current = null;
+    setQueueClaimRevision((revision) => revision + 1);
+  }, []);
+  const threadIdRef = useRef(threadId);
+  threadIdRef.current = threadId;
   const contextByThread = memory?.attachments ?? localContexts;
   const setContextByThread = memory?.setAttachments ?? setLocalContexts;
   const retainedByThread = memory?.retained ?? localRetained;
@@ -227,8 +234,9 @@ export function ClinicalAssistantArea({
       setDraftByThread((current) => ({ ...current, [key]: '' }));
       setContextByThread((current) => ({ ...current, [key]: [] }));
       updateQueue((current) => current.filter((entry) => entry.patientId !== patientId));
+      if (queueClaimRef.current?.patientId === patientId) releaseQueueClaim();
     },
-    [threadId, setDraftByThread, setContextByThread, updateQueue],
+    [threadId, setDraftByThread, setContextByThread, updateQueue, releaseQueueClaim],
   );
 
   // A retained slot that is emptied stops being the displayed context.
@@ -356,18 +364,24 @@ export function ClinicalAssistantArea({
       next.patientId !== patientId
     )
       return;
-    queueClaimRef.current = next.id;
+    const claimThreadId = threadId;
+    queueClaimRef.current = { id: next.id, patientId: next.patientId };
     updateQueue((current) => current.filter((item) => item.id !== next.id));
     void assistant.send(next.content, next.contextItems).then((accepted) => {
-      queueClaimRef.current = null;
-      if (!accepted) {
-        setQueueDeliveryFailed(true);
-        setQueueError('No pudimos enviar el mensaje en cola. Reintenta cuando vuelva la conexión.');
-      }
+      const ownsClaim = queueClaimRef.current?.id === next.id;
+      // A discarded origin entry must not be resurrected by its late delivery.
+      if (!ownsClaim) return;
+      releaseQueueClaim();
       // Idempotent removal: a fast resolve must not resurrect the claimed entry.
       updateQueue((current) =>
         accepted ? current.filter((item) => item.id !== next.id) : [next, ...current],
       );
+      // Feedback belongs to the claiming scope, never to the thread now on screen.
+      if (claimThreadId !== threadIdRef.current) return;
+      if (!accepted) {
+        setQueueDeliveryFailed(true);
+        setQueueError('No pudimos enviar el mensaje en cola. Reintenta cuando vuelva la conexión.');
+      }
     });
   }, [
     assistant.runtime,
@@ -379,6 +393,7 @@ export function ClinicalAssistantArea({
     threadId,
     updateQueue,
     voiceInFlight,
+    queueClaimRevision,
   ]);
 
   const send = () => {
@@ -440,6 +455,15 @@ export function ClinicalAssistantArea({
     const entryKey = clinicalContextKey(threadId, entry.patientId);
     setContextByThread((current) => ({ ...current, [entryKey]: entry.contextItems }));
     updateQueue((current) => current.filter((item) => item.id !== entry.id));
+    textareaRef.current?.focus();
+  };
+  const removeQueued = (entry: QueuedEntry) => {
+    const remaining = queued.filter((item) => item.id !== entry.id);
+    updateQueue((current) => current.filter((item) => item.id !== entry.id));
+    if (remaining.length === 0) {
+      setQueueDeliveryFailed(false);
+      setQueueError(null);
+    }
     textareaRef.current?.focus();
   };
   const pendingApproval = assistant.items.find(
@@ -773,7 +797,7 @@ export function ClinicalAssistantArea({
                   Reintentar cola
                 </button>
               )}
-              {queued.map((entry) => (
+              {queued.map((entry, index) => (
                 <div key={entry.id} className="clinical-queue-item">
                   <span>{entry.content}</span>
                   <small>{entry.patientName}</small>
@@ -783,12 +807,10 @@ export function ClinicalAssistantArea({
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        updateQueue((current) => current.filter((item) => item.id !== entry.id))
-                      }
-                      aria-label="Quitar mensaje de la cola"
+                      onClick={() => removeQueued(entry)}
+                      aria-label={`Quitar mensaje ${index + 1} de la cola: ${entry.content}`}
                     >
-                      ×
+                      Quitar
                     </button>
                   </div>
                 </div>

@@ -80,7 +80,7 @@ export function ContextualAssistant({
           if (!open) onClose();
         }}
       >
-        <SheetContent className="w-[min(88vw,560px)] p-0" aria-describedby={undefined}>
+        <SheetContent className="contextual-sheet-content p-0" aria-describedby={undefined}>
           {content}
         </SheetContent>
       </Sheet>

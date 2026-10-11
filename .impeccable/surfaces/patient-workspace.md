@@ -108,7 +108,9 @@ stays the primary header action. Groups use spacing and separators, not nested c
 
 Contextual Assistant is a nonmodal desktop panel >=1024px, modal right Sheet from
 768px to 1023px, and the full Assistant route below 768px. Panel width is
-`clamp(420px,38vw,520px)`; Sheet width `min(88vw,560px)`. Drive is available only
+`clamp(420px,38vw,520px)`; Sheet width `min(88vw,560px)`, owned by the contextual
+caller while the shared Drive/profile Sheet keeps its `min(460px,92vw)` default.
+Drive is available only
 in the full Assistant. Escape closes contextual UI and restores the trigger.
 The Sheet has one visible title and one close control. Evolution fields stack by
 their own container width rather than the browser viewport.

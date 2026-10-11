@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ClinicalPatient } from '../../lib/api';
-import { ClinicalComposer } from './ClinicalComposer';
+import type { VoiceState } from '../../hooks/useVoiceDictation';
+import type { ClinicalPatient, ComposerContextItem } from '../../lib/api';
+import { ClinicalComposer, type ClinicalVoiceControls } from './ClinicalComposer';
 
 const patient: ClinicalPatient = {
   id: 'patient-1',
@@ -11,6 +12,42 @@ const patient: ClinicalPatient = {
   rut_masked: '12.345.•••-6',
   birth_date: '1990-01-01',
 };
+
+const longNote = Array.from(
+  { length: 32 },
+  (_, index) => `Línea ${index + 1}: hallazgo clínico sin cambios.`,
+).join('\n');
+
+const attachedSources: ComposerContextItem[] = [
+  'informe_ortodoncia_revision_v12.pdf',
+  'informe_ortodoncia_revision_v13.pdf',
+  'radiografía_panorámica_2026.png',
+  'consentimiento_informado.pdf',
+  'laboratorio_provisional.pdf',
+].map((sourceName, index) => ({
+  id: `source-${index + 1}`,
+  kind: 'drive_selection',
+  sourceId: `file-${index + 1}`,
+  sourceName,
+  content: `Contenido sintético ${index + 1}`,
+}));
+
+function voiceControls(
+  state: VoiceState,
+  overrides: Partial<ClinicalVoiceControls> = {},
+): ClinicalVoiceControls {
+  return {
+    state,
+    elapsed: 0,
+    error: null,
+    canRetry: false,
+    onStart: vi.fn(),
+    onStop: vi.fn(),
+    onCancel: vi.fn(),
+    onRetry: vi.fn(),
+    ...overrides,
+  };
+}
 
 function renderComposer(value = '') {
   return render(
@@ -255,5 +292,138 @@ describe('ClinicalComposer', () => {
     fireEvent.keyDown(stop, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Detener respuesta' })).not.toBeInTheDocument();
+  });
+
+  it('keeps long text, removable sources and every required control usable together', () => {
+    const onRemoveContext = vi.fn();
+    const onSubmit = vi.fn();
+    render(
+      <ClinicalComposer
+        patient={patient}
+        value={longNote}
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onSubmit={onSubmit}
+        primaryAction="send"
+        onPrimaryAction={onSubmit}
+        queueAvailable
+        onQueue={onSubmit}
+        contextItems={attachedSources}
+        onRemoveContext={onRemoveContext}
+        voice={voiceControls('idle')}
+      />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Nota clínica' });
+    expect(input).toHaveValue(longNote);
+    for (const source of attachedSources) {
+      expect(screen.getByRole('button', { name: `Quitar ${source.sourceName}` })).toBeVisible();
+    }
+
+    const removed = attachedSources[3];
+    fireEvent.click(screen.getByRole('button', { name: `Quitar ${removed.sourceName}` }));
+    expect(onRemoveContext).toHaveBeenCalledTimes(1);
+    expect(onRemoveContext).toHaveBeenCalledWith(removed.id);
+
+    expect(input).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Encolar' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Iniciar dictado' })).toBeEnabled();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  const remainingVoiceStates: VoiceState[] = [
+    'requesting_permission',
+    'stopping',
+    'success',
+    'cancelled',
+    'error',
+  ];
+
+  it.each(remainingVoiceStates)('keeps the composer operable in the %s voice state', (state) => {
+    const onChange = vi.fn();
+    const onSubmit = vi.fn();
+    render(
+      <ClinicalComposer
+        patient={patient}
+        value="Nota clínica con trabajo sin enviar"
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={onChange}
+        onSubmit={onSubmit}
+        primaryAction="send"
+        onPrimaryAction={onSubmit}
+        voice={voiceControls(state, {
+          elapsed: state === 'stopping' ? 9_000 : 0,
+          error: state === 'error' ? 'No se pudo transcribir el audio.' : null,
+          canRetry: state === 'error',
+        })}
+      />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Nota clínica' });
+    expect(input).toBeEnabled();
+    fireEvent.change(input, { target: { value: 'Nota clínica editada' } });
+    expect(onChange).toHaveBeenCalledWith('Nota clínica editada');
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    if (state === 'requesting_permission') {
+      expect(screen.getByRole('button', { name: 'Cancelar' })).toBeVisible();
+    } else if (state === 'stopping') {
+      expect(screen.getByText('Finalizando grabación…')).toBeVisible();
+    } else if (state === 'success') {
+      expect(screen.getByText('Dictado añadido')).toBeVisible();
+    } else if (state === 'cancelled') {
+      expect(screen.getByRole('button', { name: 'Iniciar dictado' })).toBeVisible();
+    } else {
+      expect(screen.getByRole('alert')).toHaveTextContent('No se pudo transcribir el audio.');
+      expect(screen.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Descartar' })).toBeVisible();
+    }
+  });
+
+  it('preserves the caret, selection and draft while the composer rerenders for a reflow', () => {
+    const onChange = vi.fn();
+    const onSubmit = vi.fn();
+    const recording = voiceControls('recording');
+    const textareaRef = createRef<HTMLTextAreaElement>();
+    const { rerender } = render(
+      <ClinicalComposer
+        patient={patient}
+        value={longNote}
+        textareaRef={textareaRef}
+        onChange={onChange}
+        onSubmit={onSubmit}
+        primaryAction="send"
+        onPrimaryAction={onSubmit}
+        voice={recording}
+      />,
+    );
+    const input = screen.getByRole('textbox', { name: 'Nota clínica' }) as HTMLTextAreaElement;
+    input.focus();
+    input.setSelectionRange(5, 24);
+
+    act(() => {
+      rerender(
+        <ClinicalComposer
+          patient={patient}
+          value={longNote}
+          textareaRef={textareaRef}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          primaryAction="send"
+          onPrimaryAction={onSubmit}
+          voice={voiceControls('transcribing')}
+        />,
+      );
+    });
+
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(5);
+    expect(input.selectionEnd).toBe(24);
+    expect(input).toHaveValue(longNote);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(recording.onCancel).not.toHaveBeenCalled();
   });
 });
