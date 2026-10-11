@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-10",
+  "phase": "Independent observations before reading historical audit conclusions",
+  "findings": [
+    {
+      "id": "SHADCN-001",
+      "observation": "Unsent synthetic note survived Sheet close/reopen; removing patient then rendered same text as general with Send enabled and no context decision. Served build observation only.",
+      "evidence": "17-context-change-with-unsent.jpg"
+    },
+    {
+      "id": "SHADCN-002",
+      "observation": "Contextual desktop and Sheet show outer and inner Asistente clínico headings at h2 plus empty-state h2.",
+      "evidence": "16-contextual-tablet.jpg"
+    },
+    {
+      "id": "SHADCN-003",
+      "observation": "At effective 768x1024 Sheet outer width is 460px, not the min(88vw,560px) surface contract.",
+      "evidence": "16-contextual-tablet-geometry.json"
+    },
+    {
+      "id": "SHADCN-004",
+      "observation": "Expanded sidebar and Assistant header each expose Pending destination.",
+      "evidence": "01-assistant-desktop.jpg"
+    },
+    {
+      "id": "SHADCN-005",
+      "observation": "Served assets index-hMjYLKeb.js/index-BzakEpcP.css differ from local dist asset filenames. Runtime symptoms cannot be attributed to current source."
+    }
+  ],
+  "excluded": [
+    "Offscreen Drive and mobile-sidebar sliver were transient/inconsistent captures, not stable defects.",
+    "Cropped screenshot capture caused responsive state changes; cropped contextual screenshots are invalid evidence."
+  ],
+  "limits": [
+    "No clinical turn/approval/export write or provider generation tested.",
+    "No mock network capability used.",
+    "Dark incumbent theme only."
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "nodes": [
+    {
+      "class": "workspace-row",
+      "display": "flex",
+      "flex": "1 1 0%",
+      "minWidth": "auto",
+      "rect": {
+        "bottom": 899.9999389648438,
+        "height": 899.9999389648438,
+        "left": 259.9999694824219,
+        "right": 1439.9998474121094,
+        "top": 0,
+        "width": 1179.9998779296875,
+        "x": 259.9999694824219,
+        "y": 0
+      },
+      "width": "1180px"
+    },
+    {
+      "class": "workspace-resizable",
+      "display": "flex",
+      "flex": "1 1 0%",
+      "minWidth": "auto",
+      "rect": {
+        "bottom": 899.9999389648438,
+        "height": 899.9999389648438,
+        "left": 259.9999694824219,
+        "right": 1439.9998474121094,
+        "top": 0,
+        "width": 1179.9998779296875,
+        "x": 259.9999694824219,
+        "y": 0
+      },
+      "width": "1180px"
+    },
+    {
+      "class": "workspace-panel-main",
+      "display": "flex",
+      "flex": "1 1 auto",
+      "minWidth": "0px",
+      "rect": {
+        "bottom": 899.9999389648438,
+        "height": 899.9999389648438,
+        "left": 259.9999694824219,
+        "right": 1053.4090270996094,
+        "top": 0,
+        "width": 793.4090576171875,
+        "x": 259.9999694824219,
+        "y": 0
+      },
+      "width": "793.409px"
+    },
+    {
+      "class": "workspace-panel-accessory",
+      "display": "flex",
+      "flex": "1 1 auto",
+      "minWidth": "0px",
+      "rect": {
+        "bottom": 899.9999389648438,
+        "height": 899.9999389648438,
+        "left": 1065.4071044921875,
+        "right": 1439.9998779296875,
+        "top": 0,
+        "width": 374.5927734375,
+        "x": 1065.4071044921875,
+        "y": 0
+      },
+      "width": "374.593px"
+    },
+    {
+      "class": "drive-workspace",
+      "display": "flex",
+      "flex": "0 1 auto",
+      "minWidth": "auto",
+      "rect": {
+        "bottom": 899.9999389648438,
+        "height": 899.9999389648438,
+        "left": 1065.4071044921875,
+        "right": 1439.9998779296875,
+        "top": 0,
+        "width": 374.5927734375,
+        "x": 1065.4071044921875,
+        "y": 0
+      },
+      "width": "374.593px"
+    }
+  ],
+  "viewport": {
+    "height": 900,
+    "width": 1440
+  }
+}

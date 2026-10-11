@@ -1,0 +1,32 @@
+{
+  "dialog": {
+    "bottom": 1024.848388671875,
+    "height": 1024.848388671875,
+    "left": 308.4848327636719,
+    "right": 768.4848022460938,
+    "top": 0,
+    "width": 459.9999694824219,
+    "x": 308.4848327636719,
+    "y": 0
+  },
+  "headings": [
+    "Asistente clínico",
+    "Asistente clínico",
+    "Prepara una evolución clínica"
+  ],
+  "route": "/patients/69d83fe1-dcbd-4ca8-b946-ba7941b0c5cf",
+  "textarea": {
+    "bottom": 961.893856048584,
+    "height": 41.998104095458984,
+    "left": 361.6855773925781,
+    "right": 601.2499542236328,
+    "top": 919.895751953125,
+    "width": 239.5643768310547,
+    "x": 361.6855773925781,
+    "y": 919.895751953125
+  },
+  "viewport": {
+    "height": 1025,
+    "width": 768
+  }
+}

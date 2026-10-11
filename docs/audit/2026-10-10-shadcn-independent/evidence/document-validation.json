@@ -1,0 +1,30 @@
+{
+  "original_spec_files_preserved": [
+    "openspec\\changes\\refine-clinical-assistant-ux\\specs\\conversational-runtime\\spec.md",
+    "openspec\\changes\\refine-clinical-assistant-ux\\.openspec.yaml",
+    "openspec\\changes\\refine-clinical-assistant-ux\\specs\\clinical-agentic-feedback\\spec.md",
+    "openspec\\changes\\refine-clinical-assistant-ux\\design.md",
+    "openspec\\changes\\refine-clinical-assistant-ux\\specs\\clinical-workspace-discovery\\spec.md",
+    "openspec\\changes\\refine-clinical-assistant-ux\\proposal.md",
+    "openspec\\changes\\refine-clinical-assistant-ux\\tasks.md"
+  ],
+  "original_task_count": 41,
+  "original_task_text_and_status_preserved": true,
+  "added_task_ids": [
+    "1.4",
+    "5.6"
+  ],
+  "added_requirement_count": 2,
+  "added_scenario_count": 5,
+  "local_markdown_links_verified": 14,
+  "application_files_modified": [],
+  "changed_spec_files": [
+    "openspec/changes/refine-clinical-assistant-ux/design.md",
+    "openspec/changes/refine-clinical-assistant-ux/proposal.md",
+    "openspec/changes/refine-clinical-assistant-ux/specs/clinical-agentic-feedback/spec.md",
+    "openspec/changes/refine-clinical-assistant-ux/specs/conversational-runtime/spec.md",
+    "openspec/changes/refine-clinical-assistant-ux/tasks.md"
+  ],
+  "remaining_original_requirements_and_scenarios_preserved": true,
+  "scope": "Documentation only; not runtime implementation validation"
+}

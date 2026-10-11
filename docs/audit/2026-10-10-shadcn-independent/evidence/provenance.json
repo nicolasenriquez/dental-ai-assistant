@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-10",
+  "timezone": "America/Santiago",
+  "source_head": "98d0a105b0f2c00884f65bb1fe66e5685d3ec390",
+  "reference_checkout_head": "c2a67849be260701852b0977ba15eb5f3a0ce2a4",
+  "base_url": "http://localhost:8000",
+  "served_js": "index-hMjYLKeb.js",
+  "served_css": "index-BzakEpcP.css",
+  "served_js_utf8_text_sha256": "07C571F3473E4A565B2DAF6F0F052DBED3DA7CBF02CC0183077B68865B6B06BC",
+  "hash_method": "SHA256 of UTF8 encoding of Invoke-WebRequest Content, not a source-revision proof",
+  "local_dist_assets": ["index-DRDYVL-j.js", "index-C5tUUKOI.js", "index-Cxj8-c6C.css"],
+  "source_served_equality": "NOT VERIFIED; filenames differ",
+  "environment": "Existing authenticated native Codex browser; existing application and data, explicitly named UAT patient for contextual evidence; no network fixtures",
+  "runtime_mutation_limits": "No turn submission, generation, approval, clinical save, export retry, OAuth, deletion or microphone permission. Existing context acquisition and patient removal can update thread metadata. Synthetic unsent text cleared.",
+  "nominal_viewports": ["1440x900", "768x1024", "390x844"],
+  "effective_observed_viewports": ["1309x818 initial", "1440x900", "768x1023", "768x1025", "390x843", "1025x768"],
+  "tool_limitations": ["bunx shadcn info/docs failed with EPERM accessing temporary directory; no package installation", "Some early cropped captures changed or disagreed with responsive state and are excluded", "No physical-device, assistive-technology, zoom200%, reduced-motion or provider completion proof"],
+  "git_baseline": ["Existing deletions of .agents/skills/animate/RECIPES.md and SKILL.md"],
+  "concurrent_index_change": "During execution an external actor staged the existing skill deletions and newly created audit files. This agent did not stage that set. Only its own privacy-exposing 05-drive-tablet.jpg capture was removed from the index after deleting that local capture. Other index content was preserved."
+}
