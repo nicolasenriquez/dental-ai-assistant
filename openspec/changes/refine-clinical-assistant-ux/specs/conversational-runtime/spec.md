@@ -1,5 +1,20 @@
 ## ADDED Requirements
 
+### Requirement: Contextual Assistant Sheet width ownership
+The contextual Assistant SHALL retain its established tablet Sheet border-box width of `min(88vw,560px)` independently of the shared primitive's Drive-specific default styling. Its existing caller SHALL own this layout locally, without changing other Sheet consumers, modal naming/focus, local scrolling, required controls, runtime state or breakpoint policy. The correction SHALL reuse the allowlisted Radix Sheet and introduce no dependency or persistence change.
+
+#### Scenario: Tablet contextual Sheet follows its established formula
+- **WHEN** the contextual Assistant opens at 768 or 1023 CSS px viewport width
+- **THEN** its settled dialog border-box width equals `min(88vw,560px)` within 2 CSS px, all required controls remain reachable, and the shared Drive width does not override the contextual caller
+
+#### Scenario: Contextual mode changes across its boundaries
+- **WHEN** the viewport crosses 767/768 or 1023/1024 CSS px while existing unsent work is present
+- **THEN** the incumbent full-route, modal Sheet and nonmodal panel policy remains intact, with named modal/focus containment and return, deliberate local scrolling and preserved text/caret/context/queue/voice/runtime state; layout reflow alone neither submits nor cancels clinical work
+
+#### Scenario: Other Sheet consumers retain their geometry
+- **WHEN** Drive or the professional-profile Sheet renders after the contextual layout refinement
+- **THEN** each retains its incumbent width, named title, close/focus and scroll behavior, and the contextual sizing rule does not enlarge or restyle those consumers
+
 ### Requirement: Pane-aware clinical writing layout
 The clinical composer SHALL adapt to its available container width in full, contextual and Sheet compositions. When input and controls cannot share a usable writing row, the textarea SHALL occupy an independent row across the available inner writing width and controls SHALL wrap below it. Required voice, execution, send/queue and source-removal actions SHALL remain usable without horizontal page overflow, preserving the existing autosize, keyboard, caret, voice, Stop and queue contracts.
 

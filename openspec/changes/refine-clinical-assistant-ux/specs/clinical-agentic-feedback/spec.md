@@ -1,5 +1,16 @@
 ## ADDED Requirements
 
+### Requirement: Single contextual Assistant shell title
+The contextual Assistant SHALL expose its outer h2 or SheetTitle as the sole visible `Asistente clínico` shell heading. The embedded header SHALL NOT repeat that title, and its empty-state heading SHALL be one level below the contextual shell heading. Patient identity, required controls, existing region names, modal accessible naming, artifact hierarchy and full/manual compositions SHALL remain intact. This is local composition, not a new runtime or clinical workflow.
+
+#### Scenario: Empty contextual panel or Sheet
+- **WHEN** a successfully loaded empty thread renders in the desktop contextual panel or tablet Sheet
+- **THEN** one visible `Asistente clínico` shell heading is h2 and the empty-state heading is h3, without a duplicate visible or compensating hidden shell heading; the Sheet remains named by its title and keeps one close control and its incumbent Escape/focus-return behavior
+
+#### Scenario: Full and populated compositions retain their hierarchy
+- **WHEN** the full Assistant, a populated contextual transcript or manual review renders after this refinement
+- **THEN** full Assistant retains h1 with empty-state h2 where applicable, contextual artifacts retain h3 with field h4, manual headings follow their actual parent, and patient controls/text/context/edit buffers and exact destinations remain unchanged without induced turn submission or export
+
 ### Requirement: Recoverable clinical thread loading
 The Assistant SHALL distinguish loading, successfully loaded empty, successfully loaded populated and failed thread reads. First-load failure SHALL show a dedicated Spanish error and a same-thread read retry instead of successful-empty starters. The retry SHALL preserve authenticated unsent work and artifact edit buffers, use canonical hydration, and perform no create/acquire, patient-change, submit, approval, recovery or Drive-export write. It SHALL remain scoped to thread and request generation and preserve existing authentication and inaccessible-resource handling.
 
