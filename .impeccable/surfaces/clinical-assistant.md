@@ -47,7 +47,10 @@ Long evolutions expose a sticky native section selector and semantic section hea
 artifact headings follow their containing section — full Assistant h2 with h3 fields,
 contextual h3 with h4 fields, manual review one level under its own section — with one
 artifact representation and no wrapper headings added to force the hierarchy;
-clinical text remains expanded. C1 field editors autosize between 180px and 480px,
+clinical text remains expanded. The contextual panel/Sheet keeps its outer
+`Asistente clínico` title as the only shell heading: the embedded header omits that
+exact repetition while keeping patient identity, navigation and controls, and the
+contextual empty-state heading is h3, while the full route keeps h1 with empty h2. C1 field editors autosize between 180px and 480px,
 with 16px input text. Section title and explicit Editar share a row, followed by
 full clinical text and one separator. Footer reflows by artifact width.
 Drive filenames wrap in full across Notes, Documents and Quick Access. Collection
@@ -62,7 +65,10 @@ panes place utilities on a third row. Search focus surrounds the rounded patient
 search row, including its icon, and remains visible after automatic focus.
 The empty-state title is a section heading. Preparing an evolution is the primary
 starter; starters still only prefill editable, unsent text. Consulted evolutions
-show date and time using the shared clinical formatter to distinguish same-day records.
+show date and time using the shared clinical formatter to distinguish same-day records;
+when two results display the same minute, each gets a visible ordinal within the
+unchanged list (`Ver evolución 1 del …`) while unique rows, payload order, exact
+destinations and the formatter value stay unchanged.
 Only a focused composer in a mobile viewport <=600px high limits the visual name
 to two lines; masked RUT stays visible and the full name returns on blur.
 Drive Notes are general sources, Documents are patient-bound. Desktop header
