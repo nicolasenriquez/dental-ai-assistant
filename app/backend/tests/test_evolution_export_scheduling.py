@@ -5,7 +5,9 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
+from starlette.requests import Request
 
+from backend import config
 from backend.clinical_assistant import service as clinical_service
 from backend.clinical_assistant.schemas import ActionResolutionRequest
 from backend.evolution_exports import service
@@ -110,11 +112,13 @@ async def test_approval_success_schedules_export_but_decline_does_not(
         return {"status": "approved", "result": {"id": EVOLUTION_ID}}
 
     monkeypatch.setattr(clinical_service, "resolve_action", resolve)
+    monkeypatch.setattr(config, "APP_ORIGINS", ["https://testserver"])
+    http_request = Request({"type": "http", "headers": [(b"origin", b"https://testserver")]})
     background_tasks = _BackgroundTasks()
     request = ActionResolutionRequest(decision="approve", proposal_hash="a" * 64)
 
     result = await clinical_assistant.resolve_action(
-        ACTION_ID, request, background_tasks, {"id": OWNER_ID}
+        ACTION_ID, request, http_request, background_tasks, {"id": OWNER_ID}
     )
 
     assert result["status"] == "approved"
@@ -126,7 +130,7 @@ async def test_approval_success_schedules_export_but_decline_does_not(
     monkeypatch.setattr(clinical_service, "resolve_action", decline)
     declined_tasks = _BackgroundTasks()
     declined = await clinical_assistant.resolve_action(
-        ACTION_ID, request, declined_tasks, {"id": OWNER_ID}
+        ACTION_ID, request, http_request, declined_tasks, {"id": OWNER_ID}
     )
 
     assert declined["status"] == "declined"

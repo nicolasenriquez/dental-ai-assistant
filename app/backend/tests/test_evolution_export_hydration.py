@@ -61,7 +61,8 @@ async def test_thread_hydration_adds_owner_scoped_sanitized_export_without_side_
     }
     export_calls: list[tuple[UUID, UUID]] = []
 
-    async def get_thread(owner: UUID, thread: UUID):
+    async def get_thread(owner: UUID, thread: UUID, *, read_only: bool = False):
+        assert not read_only
         assert (owner, thread) == (OWNER, THREAD)
         return stored
 
@@ -100,7 +101,7 @@ async def test_live_approval_returns_same_optional_export_state(monkeypatch) -> 
 
     action = _action()
 
-    async def resolve(*_args):
+    async def resolve(*_args, **_kwargs):
         return dict(action)
 
     async def get_export(owner: UUID, evolution: UUID):

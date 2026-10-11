@@ -28,6 +28,7 @@ from .schemas import (
     ClinicalContextItem,
     ClinicalDraft,
     ClinicalThreadResponse,
+    DiscardArtifactRequest,
     PatientSwitchResolution,
     PrepareSaveRequest,
     RecoverDraftRequest,
@@ -62,6 +63,10 @@ RecoveryIneligibleError = repository.RecoveryIneligibleError
 RecoveryStaleError = repository.RecoveryStaleError
 RecoveryConflictError = repository.RecoveryConflictError
 RecoveryBusyError = repository.RecoveryBusyError
+DiscardStaleError = repository.DiscardStaleError
+DiscardIneligibleError = repository.DiscardIneligibleError
+DiscardIdempotencyConflictError = repository.DiscardIdempotencyConflictError
+DismissalBusyError = repository.DismissalBusyError
 ClinicalGenerationDisabledError = clinical_evolutions.ClinicalGenerationDisabledError
 EmptyClinicalDraftError = clinical_evolutions.EmptyClinicalDraftError
 ClinicalGenerationError = clinical_evolutions.ClinicalGenerationError
@@ -151,8 +156,10 @@ async def rename_thread(owner: UUID, thread: UUID, title: str) -> ClinicalThread
     return await get_thread_response(owner, thread)
 
 
-async def get_thread_response(owner: UUID, thread: UUID) -> ClinicalThreadResponse | None:
-    stored = await repository.get_thread(owner, thread)
+async def get_thread_response(
+    owner: UUID, thread: UUID, *, read_only: bool = False
+) -> ClinicalThreadResponse | None:
+    stored = await repository.get_thread(owner, thread, read_only=read_only)
     if stored is None:
         return None
     if stored.get("active_patient_id"):
@@ -219,16 +226,51 @@ async def set_active_patient(
 
 
 async def resolve_action(
-    owner: UUID, action_id: UUID, decision: str, proposal_hash: str
+    owner: UUID,
+    action_id: UUID,
+    decision: str,
+    proposal_hash: str,
+    *,
+    expected_patient_id: UUID | None = None,
+    expected_thread_id: UUID | None = None,
+    expected_artifact_id: UUID | None = None,
+    expected_artifact_updated_at: datetime | None = None,
 ) -> dict[str, Any]:
     result = cast(
-        dict[str, Any], await repository.resolve_action(owner, action_id, decision, proposal_hash)
+        dict[str, Any],
+        await repository.resolve_action(
+            owner,
+            action_id,
+            decision,
+            proposal_hash,
+            expected_patient_id=expected_patient_id,
+            expected_thread_id=expected_thread_id,
+            expected_artifact_id=expected_artifact_id,
+            expected_artifact_updated_at=expected_artifact_updated_at,
+        ),
     )
     resource_id = result.get("result_resource_id")
     if result.get("status") == "approved" and resource_id:
         export = await evolution_exports_repo.get_export(owner, resource_id)
         result["drive_export"] = drive_export_state(export) if export else None
     return result
+
+
+async def discard_artifact(
+    owner: UUID, thread: UUID, artifact: UUID, request: DiscardArtifactRequest
+) -> dict[str, Any]:
+    """Discard one recoverable draft; the receipt binds the session owner."""
+    return cast(
+        dict[str, Any],
+        await repository.discard_artifact(
+            owner,
+            thread,
+            artifact,
+            operation_id=request.operation_id,
+            expected_patient_id=request.expected_patient_id,
+            expected_artifact_updated_at=request.expected_artifact_updated_at,
+        ),
+    )
 
 
 async def return_to_editing(owner: UUID, action_id: UUID) -> dict[str, Any]:

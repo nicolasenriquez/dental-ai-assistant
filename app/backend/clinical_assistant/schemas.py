@@ -6,7 +6,14 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from backend.services.clinical_evolutions import ClinicalDraft
 
@@ -111,6 +118,46 @@ class ActionResolutionRequest(BaseModel):
 
     decision: Literal["approve", "decline"]
     proposal_hash: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+    expected_patient_id: UUID | None = None
+    expected_thread_id: UUID | None = None
+    expected_artifact_id: UUID | None = None
+    expected_artifact_updated_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_expected_identity_bundle(self) -> ActionResolutionRequest:
+        bundle = (
+            self.expected_patient_id,
+            self.expected_thread_id,
+            self.expected_artifact_id,
+            self.expected_artifact_updated_at,
+        )
+        if any(value is not None for value in bundle) and not all(
+            value is not None for value in bundle
+        ):
+            raise ValueError("expected identity bundle must be complete")
+        if self.expected_artifact_updated_at is not None and (
+            self.expected_artifact_updated_at.tzinfo is None
+            or self.expected_artifact_updated_at.utcoffset() is None
+        ):
+            raise ValueError("expected_artifact_updated_at debe incluir zona horaria")
+        return self
+
+
+class DiscardArtifactRequest(BaseModel):
+    """Client-asserted intent only: the actor and receipt come from the session."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation_id: UUID
+    expected_patient_id: UUID
+    expected_artifact_updated_at: datetime
+
+    @field_validator("expected_artifact_updated_at")
+    @classmethod
+    def validate_expected_artifact_updated_at(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("expected_artifact_updated_at debe incluir zona horaria")
+        return value
 
 
 class RecoverDraftRequest(BaseModel):
@@ -163,6 +210,7 @@ class ClinicalPendingAction(BaseModel):
     expires_at: datetime
     created_at: datetime
     resolved_at: datetime | None = None
+    resolved_by: UUID | None = None
     result_resource_id: UUID | None = None
     patient: SafePatient | None = None
     drive_export: DriveExportState | None = None
@@ -183,6 +231,9 @@ class ClinicalTurnArtifact(BaseModel):
     created_at: datetime
     updated_at: datetime
     resolved_at: datetime | None = None
+    discard_operation_id: UUID | None = None
+    discarded_by: UUID | None = None
+    discard_expected_updated_at: datetime | None = None
     patient: SafePatient | None = None
 
 

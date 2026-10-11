@@ -45,8 +45,10 @@ def _require_same_origin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Invalid origin")
 
 
-async def _response(owner: UUID, thread_id: UUID) -> ClinicalThreadResponse:
-    thread = await service.get_thread_response(owner, thread_id)
+async def _response(
+    owner: UUID, thread_id: UUID, *, read_only: bool = False
+) -> ClinicalThreadResponse:
+    thread = await service.get_thread_response(owner, thread_id, read_only=read_only)
     if thread is None:
         raise HTTPException(status_code=404, detail="Hilo clínico no encontrado")
     return thread
@@ -127,9 +129,11 @@ async def list_threads(user: dict[str, Any] = Depends(get_current_user)) -> list
 
 @router.get("/clinical-threads/{thread_id}", response_model=ClinicalThreadResponse)
 async def get_thread(
-    thread_id: UUID, user: dict[str, Any] = Depends(get_current_user)
+    thread_id: UUID,
+    read_only: bool = False,
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> ClinicalThreadResponse:
-    return await _response(_user_id(user), thread_id)
+    return await _response(_user_id(user), thread_id, read_only=read_only)
 
 
 @router.patch("/clinical-threads/{thread_id}", response_model=ClinicalThreadResponse)
@@ -278,14 +282,23 @@ async def regenerate_draft(
 async def resolve_action(
     action_id: UUID,
     request: ActionResolutionRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    _require_same_origin(http_request)
     try:
         result = cast(
             dict[str, Any],
             await service.resolve_action(
-                _user_id(user), action_id, request.decision, request.proposal_hash
+                _user_id(user),
+                action_id,
+                request.decision,
+                request.proposal_hash,
+                expected_patient_id=request.expected_patient_id,
+                expected_thread_id=request.expected_thread_id,
+                expected_artifact_id=request.expected_artifact_id,
+                expected_artifact_updated_at=request.expected_artifact_updated_at,
             ),
         )
         if result.get("status") == "expired":
@@ -306,6 +319,8 @@ async def resolve_action(
         return result
     except LookupError:
         raise HTTPException(status_code=404, detail="Acción no encontrada") from None
+    except service.DismissalBusyError:
+        raise HTTPException(status_code=409, detail={"code": "CLINICAL_DISMISSAL_BUSY"}) from None
     except service.ActionExpiredError:
         raise HTTPException(status_code=410, detail={"code": "ACTION_EXPIRED"}) from None
     except service.ProposalStaleError:
