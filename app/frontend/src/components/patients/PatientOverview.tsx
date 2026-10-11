@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClinicalPendingWork } from '../../hooks/useClinicalPendingWork';
 import type { EvolutionSummary, PendingWorkItem } from '../../lib/api';
 import { formatClinicalDateShort } from '../../lib/clinicalDate';
+import { ClinicalPendingWork } from '../clinical-assistant/ClinicalPendingWork';
 import { Button, buttonVariants } from '../ui/Button';
 
 export function PatientOverview({
@@ -19,13 +20,16 @@ export function PatientOverview({
   const approval = useClinicalPendingWork(patientId, 'approval_required', 1);
   const draft = useClinicalPendingWork(patientId, 'recoverable_draft', 1);
   const drive = useClinicalPendingWork(patientId, 'drive_export_failed', 1);
+  const [inlineKind, setInlineKind] = useState<PendingWorkItem['kind'] | null>(null);
+  const [countRevision, setCountRevision] = useState(0);
+  const inlineTriggerRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
-    if (revision) {
+    if (revision || countRevision > 0) {
       void approval.refresh();
       void draft.refresh();
       void drive.refresh();
     }
-  }, [revision]);
+  }, [revision, countRevision]);
   const href = (item: PendingWorkItem): string =>
     item.action.kind === 'retry_drive_export' && !item.action.thread_id
       ? `/patients/${patientId}/evolutions/${item.action.evolution_id}`
@@ -61,12 +65,19 @@ export function PatientOverview({
         {
           title: 'Trabajo clínico pendiente',
           rows: [
-            { label: 'Por revisar', result: approval, action: 'Revisar', primary: true },
+            {
+              label: 'Por revisar',
+              result: approval,
+              action: 'Revisar',
+              primary: true,
+              kind: 'approval_required' as const,
+            },
             {
               label: 'Borradores recuperables',
               result: draft,
               action: 'Continuar trabajo',
               primary: false,
+              kind: 'recoverable_draft' as const,
             },
           ],
         },
@@ -78,6 +89,7 @@ export function PatientOverview({
               result: drive,
               action: 'Recuperar sincronización',
               primary: false,
+              kind: 'drive_export_failed' as const,
             },
           ],
         },
@@ -85,7 +97,7 @@ export function PatientOverview({
         <section key={title} aria-label={title} className="space-y-2 border-t border-border pt-4">
           <h3 className="text-sm font-medium text-muted">{title}</h3>
           <dl className="space-y-2 text-sm">
-            {rows.map(({ label, result, action, primary }) => (
+            {rows.map(({ label, result, action, primary, kind }) => (
               <div
                 key={label}
                 className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
@@ -112,14 +124,26 @@ export function PatientOverview({
                   </dd>
                 </div>
                 {!result.loading && !result.error && result.page?.items[0] && (
-                  <Link
-                    className={buttonVariants({
-                      variant: primary ? 'clinical' : 'clinicalSecondary',
-                    })}
-                    to={href(result.page.items[0])}
-                  >
-                    {action}
-                  </Link>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Link
+                      className={buttonVariants({
+                        variant: primary ? 'clinical' : 'clinicalSecondary',
+                      })}
+                      to={href(result.page.items[0])}
+                    >
+                      {action}
+                    </Link>
+                    <Button
+                      variant="clinicalSecondary"
+                      aria-pressed={inlineKind === kind}
+                      onClick={(event) => {
+                        inlineTriggerRef.current = event.currentTarget;
+                        setInlineKind(inlineKind === kind ? null : kind);
+                      }}
+                    >
+                      Ver pendientes
+                    </Button>
+                  </span>
                 )}
               </div>
             ))}
@@ -131,6 +155,17 @@ export function PatientOverview({
           )}
         </section>
       ))}
+      {inlineKind && (
+        <ClinicalPendingWork
+          patientId={patientId}
+          kind={inlineKind}
+          onClose={() => {
+            setInlineKind(null);
+            inlineTriggerRef.current?.focus();
+          }}
+          onDismissed={() => setCountRevision((value) => value + 1)}
+        />
+      )}
       <div className="flex flex-wrap gap-2">
         <Button
           variant="clinicalSecondary"

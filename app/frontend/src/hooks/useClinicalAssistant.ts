@@ -910,11 +910,26 @@ export function useClinicalAssistant(threadId: string | undefined) {
       const scope = threadIdRef.current;
       setRuntime('saving');
       dispatch({ type: 'resolveApproval', itemId: item.id, status: 'running' });
+      // ponytail: the bundle is sent only when the live thread already has the
+      // artifact snapshot; legacy callers keep the optional four-argument shape.
+      const linkedArtifact = threadRef.current?.artifacts.find(
+        (artifact) => artifact.id === item.action.artifact_id,
+      );
+      const expected =
+        decision === 'decline' && linkedArtifact && item.action.artifact_id
+          ? {
+              expected_patient_id: item.action.patient_id,
+              expected_thread_id: item.action.thread_id,
+              expected_artifact_id: item.action.artifact_id,
+              expected_artifact_updated_at: linkedArtifact.updated_at,
+            }
+          : undefined;
       try {
         const result = await resolveClinicalAction(
           item.action.id,
           decision,
           item.action.proposal_hash,
+          expected,
         );
         if (threadIdRef.current !== scope) return;
         const resolvedStatus: ClinicalItemStatus =

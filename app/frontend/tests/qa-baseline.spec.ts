@@ -140,7 +140,9 @@ interface QaRuntimeDiagnostics {
 
 const qaRuntimeDiagnostics = new WeakMap<Page, QaRuntimeDiagnostics>();
 
-test('review fixes: context decision traps focus and Escape restores the patient control', async ({ page }) => {
+test('review fixes: context decision traps focus and Escape restores the patient control', async ({
+  page,
+}) => {
   await installQaRoutes(page);
   await page.setViewportSize({ width: 834, height: 1000 });
   await page.goto(`/patients/${patientId}`);
@@ -379,7 +381,9 @@ test.describe('review fixes: context decision browser verification', () => {
   });
 });
 
-test('review fixes: contextual composer gives writing a full row by pane width', async ({ page }) => {
+test('review fixes: contextual composer gives writing a full row by pane width', async ({
+  page,
+}) => {
   await installQaRoutes(page);
   for (const viewport of composerMatrixViewports) {
     await page.setViewportSize(viewport);
@@ -471,9 +475,9 @@ test.describe('review fixes: contextual Sheet width ownership', () => {
           end: element.selectionEnd,
         })),
       ).toEqual({ start: 5, end: 12 });
-      expect(await input.evaluate((element) => (element as HTMLElement).dataset.qaSheetMarker)).toBe(
-        'kept',
-      );
+      expect(
+        await input.evaluate((element) => (element as HTMLElement).dataset.qaSheetMarker),
+      ).toBe('kept');
       const resizedSheet = await dialog.evaluate((node) => node.getBoundingClientRect().width);
       expect(Math.abs(resizedSheet - Math.min(0.88 * resizedWidth, 560))).toBeLessThanOrEqual(2);
 
@@ -599,9 +603,12 @@ const qaDriveFile: QaDriveFile = {
   content: 'Contenido clínico sintético del informe de ortodoncia.',
 };
 
-test('review fixes: full assistant composer keeps its writing row by pane width', async ({ page }) => {
+test('review fixes: full assistant composer keeps its writing row by pane width', async ({
+  page,
+}) => {
   await installQaRoutes(page, { driveEnabled: true, driveFiles: [qaDriveFile] });
-  const typedNote = 'Motivo: control preventivo. Hallazgos: sin cambios. Plan: control en seis meses.';
+  const typedNote =
+    'Motivo: control preventivo. Hallazgos: sin cambios. Plan: control en seis meses.';
   const note = `${typedNote}\nSegunda línea del borrador.\nTercera línea del borrador.`;
   for (const viewport of composerMatrixViewports) {
     await page.setViewportSize(viewport);
@@ -888,7 +895,9 @@ test.describe('coarse pointer clinical composer', () => {
   });
 });
 
-test('review fixes: full assistant preserves snapshots and a continuous artifact heading outline', async ({ page }) => {
+test('review fixes: full assistant preserves snapshots and a continuous artifact heading outline', async ({
+  page,
+}) => {
   await installQaRoutes(page, { driveEnabled: true });
   await page.goto(`/a/${threadId}`);
   await expect(page.getByRole('heading', { name: 'Prepara una evolución clínica' })).toBeVisible();
@@ -896,12 +905,18 @@ test('review fixes: full assistant preserves snapshots and a continuous artifact
   await page.getByRole('textbox', { name: 'Nota clínica' }).fill('Nota clínica QA.');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   const transcript = page.getByRole('log', { name: 'Transcripción clínica' });
-  await expect(transcript.getByRole('heading', { name: 'Evolución clínica', level: 3 })).toBeVisible();
-  const levels = await transcript.locator('h2, h3, h4').evaluateAll((headings) => headings.map((heading) => Number(heading.tagName.slice(1))));
+  await expect(
+    transcript.getByRole('heading', { name: 'Evolución clínica', level: 3 }),
+  ).toBeVisible();
+  const levels = await transcript
+    .locator('h2, h3, h4')
+    .evaluateAll((headings) => headings.map((heading) => Number(heading.tagName.slice(1))));
   expect(levels).toEqual([2, 3, 4, 4, 4, 4, 4]);
 });
 
-test('audit fixes: primary action states keep readable contrast and visible focus', async ({ page }) => {
+test('audit fixes: primary action states keep readable contrast and visible focus', async ({
+  page,
+}) => {
   await installQaRoutes(page);
   await page.goto('/patients');
   const action = page.getByRole('button', { name: 'Nuevo paciente' });
@@ -916,35 +931,58 @@ test('audit fixes: primary action states keep readable contrast and visible focu
       return { background: style.backgroundColor, color: style.color, outline: style.outlineWidth };
     });
     const luminance = (color: string): number => {
-      const channels = color.match(/\d+/g)!.slice(0, 3).map((channel) => {
-        const value = Number(channel) / 255;
-        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-      });
+      const channels = color
+        .match(/\d+/g)!
+        .slice(0, 3)
+        .map((channel) => {
+          const value = Number(channel) / 255;
+          return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        });
       return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
     };
     const foreground = luminance(colors.color);
     const background = luminance(colors.background);
-    expect((Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)).toBeGreaterThanOrEqual(4.5);
+    expect(
+      (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+    ).toBeGreaterThanOrEqual(4.5);
     if (state === 'focus') expect(colors.outline).toBe('2px');
   }
 });
 
-test('audit fixes: citation traps focus, restores trigger and keeps a 44px close target', async ({ page }) => {
+test('audit fixes: citation traps focus, restores trigger and keeps a 44px close target', async ({
+  page,
+}) => {
   await installQaRoutes(page);
-  await page.route(`**/api/conversations/${conversationId}`, (route) => route.fulfill(json({
-    ...conversation,
-    messages: [{
-      ...conversation.messages[0],
-      sources: [{
-        chunk_id: 'citation-qa', video_id: videoId,
-        video_title: 'Una cita con título largo para comprobar el reflujo en pantalla estrecha',
-        video_url: video.url, start_seconds: 12, end_seconds: 18, snippet: 'Extracto QA',
-      }],
-    }],
-  })));
-  await page.route('https://www.youtube.com/embed/**', (route) => route.fulfill({
-    contentType: 'text/html', body: '<button>Reproducir</button>',
-  }));
+  await page.route(`**/api/conversations/${conversationId}`, (route) =>
+    route.fulfill(
+      json({
+        ...conversation,
+        messages: [
+          {
+            ...conversation.messages[0],
+            sources: [
+              {
+                chunk_id: 'citation-qa',
+                video_id: videoId,
+                video_title:
+                  'Una cita con título largo para comprobar el reflujo en pantalla estrecha',
+                video_url: video.url,
+                start_seconds: 12,
+                end_seconds: 18,
+                snippet: 'Extracto QA',
+              },
+            ],
+          },
+        ],
+      }),
+    ),
+  );
+  await page.route('https://www.youtube.com/embed/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<button>Reproducir</button>',
+    }),
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/c/${conversationId}`);
   const trigger = page.locator('.citation-chip');
@@ -960,7 +998,9 @@ test('audit fixes: citation traps focus, restores trigger and keeps a 44px close
   await page.keyboard.press('Tab');
   await expect(close).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(page.frameLocator('iframe').getByRole('button', { name: 'Reproducir' })).toBeFocused();
+  await expect(
+    page.frameLocator('iframe').getByRole('button', { name: 'Reproducir' }),
+  ).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Abrir en YouTube' })).toBeFocused();
   await assertNoHorizontalOverflow(page);
@@ -974,7 +1014,9 @@ test('audit fixes: citation traps focus, restores trigger and keeps a 44px close
   await expect(trigger).toBeFocused();
 });
 
-test('audit fixes: review link focuses its pending artifact and composer still autosizes', async ({ page }) => {
+test('audit fixes: review link focuses its pending artifact and composer still autosizes', async ({
+  page,
+}) => {
   await installQaRoutes(page);
   await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto(`/a/${threadId}`);
@@ -982,7 +1024,9 @@ test('audit fixes: review link focuses its pending artifact and composer still a
   await composer.fill('Primera línea\nSegunda línea\nTercera línea');
   const height = await composer.evaluate((element) => element.getBoundingClientRect().height);
   expect(height).toBeGreaterThan(24);
-  expect(await composer.evaluate((element) => getComputedStyle(element).transitionProperty)).not.toContain('height');
+  expect(
+    await composer.evaluate((element) => getComputedStyle(element).transitionProperty),
+  ).not.toContain('height');
   await page.getByRole('button', { name: 'Enviar mensaje' }).click();
   await page.getByRole('button', { name: 'Revisar y guardar' }).click();
   await expect(page.getByRole('dialog', { name: 'Guardar evolución' })).toBeVisible();
@@ -998,16 +1042,15 @@ test('audit fixes: review link focuses its pending artifact and composer still a
   await expect(page.locator('[data-artifact-id="draft-qa"]')).toBeFocused();
 });
 
-test('review fixes: long full transcript recovers a failed read, an uncertain save and an offscreen review', async ({ page }) => {
+test('review fixes: long full transcript recovers a failed read, an uncertain save and an offscreen review', async ({
+  page,
+}) => {
   // StrictMode double-invokes the thread effect in the dev server, as with conversationLoadFailures.
   await installQaRoutes(page, { clinicalThreadLoadFailures: 2, clinicalResolveFailures: 1 });
   const mutations = trackQaApiMutations(page);
   const threadReads: string[] = [];
   page.on('request', (request) => {
-    if (
-      request.method() === 'GET' &&
-      request.url().includes(`/api/clinical-threads/${threadId}`)
-    ) {
+    if (request.method() === 'GET' && request.url().includes(`/api/clinical-threads/${threadId}`)) {
       threadReads.push(request.url());
     }
   });
@@ -1089,7 +1132,9 @@ test('review fixes: long full transcript recovers a failed read, an uncertain sa
   );
 });
 
-test('review fixes: contextual Sheet recovers a failed read and an offscreen review without writes', async ({ page }) => {
+test('review fixes: contextual Sheet recovers a failed read and an offscreen review without writes', async ({
+  page,
+}) => {
   // The activation read plus StrictMode-mount reloads of the contextual panel all fail first.
   await installQaRoutes(page, { clinicalThreadLoadFailures: 3 });
   const mutations = trackQaApiMutations(page);
@@ -1123,10 +1168,7 @@ test('review fixes: contextual Sheet recovers a failed read and an offscreen rev
   const dockWrites = mutations.slice(dockBaseline);
   expect(dockWrites).toEqual([]);
   await assertNoHorizontalOverflow(page);
-  console.log(
-    '[C3-CONTEXTUAL]',
-    JSON.stringify({ retryWrites: 0, dockWrites: dockWrites.length }),
-  );
+  console.log('[C3-CONTEXTUAL]', JSON.stringify({ retryWrites: 0, dockWrites: dockWrites.length }));
 });
 
 test('audit fixes: code and copy survive deferred Prism failure', async ({ page }) => {
@@ -1134,10 +1176,14 @@ test('audit fixes: code and copy survive deferred Prism failure', async ({ page 
   let hydrated = false;
   await page.route(`**/api/conversations/${conversationId}`, (route) => {
     hydrated = true;
-    return route.fulfill(json({
-      ...conversation,
-      messages: [{ ...conversation.messages[0], content: '```javascript\nconst answer = 42;\n```' }],
-    }));
+    return route.fulfill(
+      json({
+        ...conversation,
+        messages: [
+          { ...conversation.messages[0], content: '```javascript\nconst answer = 42;\n```' },
+        ],
+      }),
+    );
   });
   let attempts = 0;
   let deferredUrl = '';
@@ -1153,11 +1199,15 @@ test('audit fixes: code and copy survive deferred Prism failure', async ({ page 
     else await route.continue();
   });
   await page.goto(`/c/${conversationId}`);
-  await expect(page.getByRole('status').filter({ hasText: 'Resaltado no disponible' })).toBeVisible();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Resaltado no disponible' }),
+  ).toBeVisible();
   await expect(page.locator('.code-block-wrapper code')).toHaveText('const answer = 42;');
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: 'Copy', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('const answer = 42;');
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe('const answer = 42;');
   const diagnostics = qaRuntimeDiagnostics.get(page)!;
   const expectedFailure = diagnostics.errors.indexOf(`requestfailed: GET ${deferredUrl}`);
   expect(expectedFailure).toBeGreaterThanOrEqual(0);
@@ -1974,10 +2024,7 @@ async function installVoiceMediaMock(page: Page): Promise<QaVoiceControls> {
   });
   return {
     setMode: (mode) =>
-      page.evaluate(
-        (next) => (window as unknown as QaVoiceWindow).__qaVoice.setMode(next),
-        mode,
-      ),
+      page.evaluate((next) => (window as unknown as QaVoiceWindow).__qaVoice.setMode(next), mode),
     releaseRecorder: () =>
       page.evaluate(() => (window as unknown as QaVoiceWindow).__qaVoice.release()),
   };
@@ -2058,7 +2105,9 @@ test.afterEach(async ({ page }, testInfo) => {
   expect(diagnostics.unexpectedApiRequests).toEqual([]);
 });
 
-test('patient polish keeps mobile navigation clear and header actions aligned', async ({ page }) => {
+test('patient polish keeps mobile navigation clear and header actions aligned', async ({
+  page,
+}) => {
   await installQaRoutes(page);
   await page.route('**/api/clinical-pending-work?**', (route) =>
     route.fulfill(json({ items: [], total: 0, next_cursor: null })),
@@ -2076,24 +2125,32 @@ test('patient polish keeps mobile navigation clear and header actions aligned', 
     if (width >= 768) continue;
     const main = page.locator('#main-content > main');
     const navigation = page.getByRole('button', { name: 'Abrir navegación', exact: true });
-    await main.evaluate((element) => { element.scrollTop = 36; });
+    await main.evaluate((element) => {
+      element.scrollTop = 36;
+    });
     const mainBox = (await main.boundingBox())!;
     const navigationBox = (await navigation.boundingBox())!;
     expect(mainBox.y).toBeGreaterThanOrEqual(navigationBox.y + navigationBox.height);
     const primary = (await actions.getByRole('link', { name: /Nueva evolución/ }).boundingBox())!;
     const edit = (await actions.getByRole('button', { name: 'Editar paciente' }).boundingBox())!;
-    const assistant = (await actions.getByRole('button', { name: 'Asistente', exact: true }).boundingBox())!;
+    const assistant = (await actions
+      .getByRole('button', { name: 'Asistente', exact: true })
+      .boundingBox())!;
     expect(edit.y).toBeCloseTo(assistant.y, 0);
     expect(primary.y + primary.height).toBeLessThanOrEqual(edit.y);
     expect(primary.width).toBeGreaterThan(edit.width);
     const tabs = page.getByRole('tablist', { name: 'Secciones del paciente' });
     const summary = (await tabs.getByRole('tab', { name: 'Resumen', exact: true }).boundingBox())!;
     const info = (await tabs.getByRole('tab', { name: 'Información', exact: true }).boundingBox())!;
-    const activity = (await tabs.getByRole('tab', { name: 'Actividad', exact: true }).boundingBox())!;
+    const activity = (await tabs
+      .getByRole('tab', { name: 'Actividad', exact: true })
+      .boundingBox())!;
     expect(summary.y).toBeCloseTo(info.y, 0);
     expect(summary.width).toBeCloseTo(info.width, 0);
     expect(activity.y).toBeGreaterThan(summary.y);
-    await main.evaluate((element) => { element.scrollTop = 0; });
+    await main.evaluate((element) => {
+      element.scrollTop = 0;
+    });
   }
 });
 
@@ -2158,7 +2215,9 @@ test('patients, patient detail, and new evolution preserve dialog contracts', as
   await expect(page.getByRole('link', { name: /Ana Pérez/ })).toBeVisible();
   await captureView(page, 'qa-patients');
 
-  await page.getByRole('textbox', { name: 'Buscar por nombre, teléfono o RUT' }).fill('sin resultado');
+  await page
+    .getByRole('textbox', { name: 'Buscar por nombre, teléfono o RUT' })
+    .fill('sin resultado');
   await expect(page.getByText(/No encontramos pacientes/)).toBeVisible();
   await page.getByRole('button', { name: 'Limpiar búsqueda' }).click();
   await expect(page.getByRole('link', { name: /Ana Pérez/ })).toBeVisible();
@@ -2663,7 +2722,11 @@ test('canonical protected views remain usable at every baseline viewport', async
   }
 });
 
-function qaPendingDriveRow(id: string, evolutionId: string, owner: typeof patient): PendingWorkItem {
+function qaPendingDriveRow(
+  id: string,
+  evolutionId: string,
+  owner: typeof patient,
+): PendingWorkItem {
   return {
     id,
     kind: 'drive_export_failed',
@@ -2688,6 +2751,7 @@ function qaPendingDraftRow(id: string, owner: typeof patient): PendingWorkItem {
     },
     updated_at: '2026-10-01T12:00:00Z',
     action: { kind: 'continue_draft', artifact_id: `artifact-${id}`, thread_id: threadId },
+    summary: `Borrador ${id}`,
   };
 }
 
@@ -2702,7 +2766,10 @@ interface QaPendingWindowFixture {
 }
 
 /** Serves a two-page pending window and records the read/retry request sequence. */
-async function installPendingWindow(page: Page, fixture: QaPendingWindowFixture): Promise<string[]> {
+async function installPendingWindow(
+  page: Page,
+  fixture: QaPendingWindowFixture,
+): Promise<string[]> {
   const requests: string[] = [];
   await page.route('**/api/clinical-pending-work**', async (route) => {
     const cursor = new URL(route.request().url()).searchParams.get('cursor');
@@ -2861,10 +2928,7 @@ test('pending reads for a previous patient scope cannot replace the current one'
 
   await page.goto(`/patients/${patientId}`);
   await expect(page.getByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
-  await page
-    .locator('#main-content')
-    .getByRole('link', { name: 'Pacientes', exact: true })
-    .click();
+  await page.locator('#main-content').getByRole('link', { name: 'Pacientes', exact: true }).click();
   await page.getByRole('link', { name: /Bruno Ríos/ }).click();
   const summary = page.getByRole('region', { name: 'Resumen del paciente' });
   await expect(summary.locator('dd[aria-live="polite"]')).toHaveText(['7', '7', '7']);
@@ -2872,4 +2936,366 @@ test('pending reads for a previous patient scope cannot replace the current one'
   releaseHeld?.();
   await expect.poll(() => settledStale).toBe(3);
   await expect(summary.locator('dd[aria-live="polite"]')).toHaveText(['7', '7', '7']);
+});
+
+function qaPendingApprovalRow(
+  id: string,
+  actionId: string,
+  owner: typeof patient,
+): PendingWorkItem {
+  return {
+    id,
+    kind: 'approval_required',
+    patient: {
+      id: owner.id,
+      display_name: `${owner.first_name} ${owner.last_name}`,
+      rut_masked: owner.rut_masked,
+    },
+    updated_at: '2026-10-01T12:00:00Z',
+    action: { kind: 'review_approval', action_id: actionId, thread_id: threadId },
+    summary: `Revisión ${id}`,
+  };
+}
+
+function qaThreadArtifact(
+  id: string,
+  status: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id,
+    owner_user_id: '55555555-5555-4555-8555-555555555555',
+    thread_id: threadId,
+    turn_id: 'turn-qa',
+    patient_id: patientId,
+    artifact_type: 'clinical_draft',
+    status,
+    source_note: 'Nota clínica QA.',
+    generated_draft: draft,
+    draft,
+    evolution_at: '2026-10-01T12:00:00.123456Z',
+    created_at: '2026-10-01T11:00:00.123456Z',
+    updated_at: '2026-10-01T12:00:00.123456Z',
+    ...overrides,
+  };
+}
+
+interface QaDismissalFixture {
+  pending: () => PendingWorkItem[];
+  thread: () => Record<string, unknown>;
+  discardStatus?: () => number;
+  resolveStatus?: () => number;
+  onDiscard?: (body: Record<string, unknown>) => void;
+  onResolve?: (body: Record<string, unknown>) => void;
+}
+
+/** Serves the pending window plus the read-only thread, discard and decline commands. */
+async function installQaDismissal(
+  page: Page,
+  fixture: QaDismissalFixture,
+): Promise<{
+  reads: Array<{ readOnly: boolean }>;
+  posts: Array<{ path: 'discard' | 'resolve'; body: Record<string, unknown> }>;
+}> {
+  const reads: Array<{ readOnly: boolean }> = [];
+  const posts: Array<{ path: 'discard' | 'resolve'; body: Record<string, unknown> }> = [];
+  await page.route('**/api/clinical-pending-work**', async (route) => {
+    const items = fixture.pending();
+    await route.fulfill(json({ items, total: items.length, next_cursor: null }));
+  });
+  await page.route(`**/api/clinical-threads/${threadId}**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (
+      url.pathname !== `/api/clinical-threads/${threadId}` ||
+      route.request().method() !== 'GET'
+    ) {
+      await route.fallback();
+      return;
+    }
+    reads.push({ readOnly: url.searchParams.get('read_only') === 'true' });
+    await route.fulfill(json(fixture.thread()));
+  });
+  await page.route('**/api/clinical-threads/*/artifacts/*/discard', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    posts.push({ path: 'discard', body });
+    fixture.onDiscard?.(body);
+    const status = fixture.discardStatus?.() ?? 200;
+    if (status !== 200) {
+      allowExpectedResourceFailure(page, status);
+      await route.fulfill(json({ detail: 'Error QA' }, status));
+      return;
+    }
+    await route.fulfill(
+      json({
+        outcome: 'discarded',
+        thread_id: threadId,
+        patient_id: patientId,
+        artifact_id: 'artifact-draft:a',
+        artifact_status: 'discarded',
+        operation_id: body.operation_id,
+        discarded_by: '55555555-5555-4555-8555-555555555555',
+        resolved_at: '2026-10-01T12:05:00.123456Z',
+        expected_artifact_updated_at: body.expected_artifact_updated_at,
+        updated_at: '2026-10-01T12:05:00.123456Z',
+      }),
+    );
+  });
+  await page.route('**/api/clinical-actions/*/resolve', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    posts.push({ path: 'resolve', body });
+    fixture.onResolve?.(body);
+    const status = fixture.resolveStatus?.() ?? 200;
+    if (status !== 200) {
+      allowExpectedResourceFailure(page, status);
+      await route.fulfill(json({ detail: 'Error QA' }, status));
+      return;
+    }
+    await route.fulfill(
+      json({
+        id: 'action-qa',
+        thread_id: threadId,
+        turn_id: 'turn-qa',
+        artifact_id: 'artifact-review:a',
+        patient_id: patientId,
+        action_type: 'save_evolution',
+        proposal_payload: null,
+        proposal_hash: 'a'.repeat(64),
+        status: 'declined',
+        expires_at: '2026-10-01T13:00:00Z',
+        created_at: '2026-10-01T12:00:00Z',
+        resolved_at: '2026-10-01T12:05:00.123456Z',
+        resolved_by: '55555555-5555-4555-8555-555555555555',
+        result_resource_id: null,
+      }),
+    );
+  });
+  return { reads, posts };
+}
+
+test('pending dismissal confirms one draft discard with a canonical read, Escape cancellation and focus fallback', async ({
+  page,
+}) => {
+  await installQaRoutes(page);
+  let rows = [qaPendingDraftRow('draft:a', patient), qaPendingDraftRow('draft:b', patient)];
+  const harness = await installQaDismissal(page, {
+    pending: () => rows,
+    thread: () => ({
+      ...clinicalThread,
+      artifacts: [
+        qaThreadArtifact('artifact-draft:a', 'draft'),
+        qaThreadArtifact('artifact-draft:b', 'draft'),
+      ],
+      actions: [],
+    }),
+    onDiscard: () => {
+      rows = [qaPendingDraftRow('draft:b', patient)];
+    },
+  });
+  await page.goto('/assistant?view=pending');
+  await expect(page.getByText('Borrador draft:a')).toBeVisible();
+
+  const first = page.locator('article').filter({ hasText: 'Borrador draft:a' });
+  await first.getByRole('button', { name: 'Descartar' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Ana Pérez');
+  await expect(dialog).toContainText('Dejará de estar disponible para revisión o continuación');
+  await expect(dialog).toContainText('no se modifican');
+  expect(harness.reads).toEqual([{ readOnly: true }]);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  expect(harness.posts).toHaveLength(0);
+
+  await first.getByRole('button', { name: 'Descartar' }).click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Descartar' }).click();
+  await expect(page.getByText('Borrador draft:a')).toHaveCount(0);
+  await expect(page.getByText('Borrador draft:b')).toBeVisible();
+  expect(harness.posts).toHaveLength(1);
+  expect(harness.posts[0].path).toBe('discard');
+  expect(harness.posts[0].body).toMatchObject({
+    expected_patient_id: patientId,
+    expected_artifact_updated_at: '2026-10-01T12:00:00.123456Z',
+  });
+  expect(String(harness.posts[0].body.operation_id)).toMatch(/^[0-9a-f-]{36}$/);
+  await expect(
+    page
+      .locator('article')
+      .filter({ hasText: 'Borrador draft:b' })
+      .getByRole('link', { name: 'Continuar' }),
+  ).toBeFocused();
+  expect(harness.reads).toEqual([{ readOnly: true }, { readOnly: true }]);
+});
+
+test('pending dismissal reconciles a lost response through the stored receipt without a second write', async ({
+  page,
+}) => {
+  await installQaRoutes(page);
+  let rows = [qaPendingDraftRow('draft:a', patient)];
+  let operationId: string | null = null;
+  let discarded = false;
+  const harness = await installQaDismissal(page, {
+    pending: () => rows,
+    thread: () => ({
+      ...clinicalThread,
+      artifacts: [
+        qaThreadArtifact(
+          'artifact-draft:a',
+          discarded ? 'discarded' : 'draft',
+          operationId
+            ? {
+                discard_operation_id: operationId,
+                discarded_by: '55555555-5555-4555-8555-555555555555',
+                discard_expected_updated_at: '2026-10-01T12:00:00.123456Z',
+                resolved_at: '2026-10-01T12:05:00.123456Z',
+              }
+            : {},
+        ),
+      ],
+      actions: [],
+    }),
+    discardStatus: () => 500,
+    onDiscard: (body) => {
+      operationId = String(body.operation_id);
+      discarded = true;
+      rows = [];
+    },
+  });
+  await page.goto('/assistant?view=pending');
+  await page
+    .locator('article')
+    .filter({ hasText: 'Borrador draft:a' })
+    .getByRole('button', { name: 'Descartar' })
+    .click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Descartar' }).click();
+  await expect(page.getByText('No pudimos confirmar si el descarte se completó.')).toBeVisible();
+  expect(harness.posts).toHaveLength(1);
+  await page.getByRole('button', { name: 'Verificar estado' }).click();
+  await expect(page.getByText('Borrador draft:a')).toHaveCount(0);
+  expect(harness.posts).toHaveLength(1);
+  expect(harness.reads).toEqual([{ readOnly: true }, { readOnly: true }]);
+});
+
+test('pending approval decline sends the expected identity bundle and removes the row only after confirmation', async ({
+  page,
+}) => {
+  await installQaRoutes(page);
+  let rows = [qaPendingApprovalRow('review:a', 'action-qa', patient)];
+  const harness = await installQaDismissal(page, {
+    pending: () => rows,
+    thread: () => ({
+      ...clinicalThread,
+      artifacts: [qaThreadArtifact('artifact-review:a', 'pending')],
+      actions: [
+        {
+          id: 'action-qa',
+          thread_id: threadId,
+          turn_id: 'turn-qa',
+          artifact_id: 'artifact-review:a',
+          patient_id: patientId,
+          action_type: 'save_evolution',
+          proposal_payload: null,
+          proposal_hash: 'a'.repeat(64),
+          status: 'pending',
+          expires_at: '2026-10-01T13:00:00Z',
+          created_at: '2026-10-01T12:00:00Z',
+          resolved_at: null,
+          result_resource_id: null,
+        },
+      ],
+    }),
+    onResolve: () => {
+      rows = [];
+    },
+  });
+  await page.goto('/assistant?view=pending');
+  const row = page.locator('article').filter({ hasText: 'Evolución lista para revisión' });
+  await row.getByRole('button', { name: 'Descartar' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('Ana Pérez');
+  await expect(dialog).toContainText('Evolución lista para revisión');
+  await dialog.getByRole('button', { name: 'Descartar' }).click();
+  await expect(page.getByText('Evolución lista para revisión')).toHaveCount(0);
+  expect(harness.posts).toHaveLength(1);
+  expect(harness.posts[0]).toMatchObject({
+    path: 'resolve',
+    body: {
+      decision: 'decline',
+      proposal_hash: 'a'.repeat(64),
+      expected_patient_id: patientId,
+      expected_thread_id: threadId,
+      expected_artifact_id: 'artifact-review:a',
+      expected_artifact_updated_at: '2026-10-01T12:00:00.123456Z',
+    },
+  });
+});
+
+test('patient summary opens the inline pending list with API total, exact links and focus return', async ({
+  page,
+}) => {
+  await installQaRoutes(page);
+  await page.route('**/api/clinical-pending-work**', async (route) => {
+    const kind = new URL(route.request().url()).searchParams.get('kind') ?? 'approval_required';
+    const items =
+      kind === 'approval_required'
+        ? [qaPendingApprovalRow('review:a', 'action-qa', patient)]
+        : kind === 'recoverable_draft'
+          ? [qaPendingDraftRow('draft:a', patient)]
+          : [];
+    await route.fulfill(json({ items, total: items.length, next_cursor: null }));
+  });
+  await page.goto(`/patients/${patientId}`);
+  const summary = page.getByRole('region', { name: 'Resumen del paciente' });
+  const trigger = summary.getByRole('button', { name: 'Ver pendientes' }).first();
+  await trigger.click();
+  const inline = summary.getByRole('region', { name: 'Trabajo pendiente' });
+  await expect(inline).toBeVisible();
+  await expect(inline).toContainText('1 pendiente');
+  await expect(inline.getByRole('link', { name: 'Revisar' })).toHaveAttribute(
+    'href',
+    `/a/${threadId}#approval=action-qa`,
+  );
+  await inline.getByRole('button', { name: 'Cerrar' }).click();
+  await expect(inline).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test.describe('pending dismissal coarse pointer and zoom', () => {
+  test.use({ hasTouch: true });
+
+  test('keeps confirmation targets reachable under coarse pointer and 200% zoom', async ({
+    page,
+  }) => {
+    await installQaRoutes(page);
+    await installQaDismissal(page, {
+      pending: () => [qaPendingDraftRow('draft:a', patient)],
+      thread: () => ({
+        ...clinicalThread,
+        artifacts: [qaThreadArtifact('artifact-draft:a', 'draft')],
+        actions: [],
+      }),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/assistant?view=pending');
+    expect(await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)).toBe(true);
+    await page.getByRole('button', { name: 'Descartar' }).click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    for (const name of ['Mantener', 'Descartar']) {
+      const box = await dialog.getByRole('button', { name }).boundingBox();
+      expect(box, name).not.toBeNull();
+      expect(box?.width ?? 0, name).toBeGreaterThanOrEqual(44);
+      expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(44);
+    }
+    await assertNoHorizontalOverflow(page);
+    console.log('[PENDING-DISMISSAL-TOUCH]', JSON.stringify({ viewport: '390x844' }));
+
+    // 200% zoom proxy: the CSS viewport halves and the dialog stays reachable.
+    await page.setViewportSize({ width: 720, height: 500 });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Mantener' })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  });
 });

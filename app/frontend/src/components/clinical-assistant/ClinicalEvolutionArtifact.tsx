@@ -140,6 +140,7 @@ function isLocked(item: ClinicalDraftItem, approval?: ClinicalApprovalItem): boo
     item.artifactStatus === 'pending' ||
     item.artifactStatus === 'approved' ||
     item.artifactStatus === 'declined' ||
+    item.artifactStatus === 'discarded' ||
     item.artifactStatus === 'failed'
   );
 }
@@ -317,6 +318,9 @@ export function ClinicalEvolutionArtifact({
   const resourceId = approval?.action.result_resource_id ?? result?.evolutionId ?? null;
   const resourcePatientId = approval?.action.patient_id ?? result?.patientId ?? item.patientId;
   const terminalApproval = approval?.status === 'declined' || approval?.status === 'failed';
+  // Discarded is a closed artifact: read-only content, no prepare/edit/recovery
+  // controls and no fabricated approval.
+  const terminalArtifact = terminalApproval || item.artifactStatus === 'discarded';
   const clinicalContent = composeClinicalDraft(item.draft);
   const showOverflow = stage !== 'saving';
   const driveExport = approval?.action.drive_export ?? null;
@@ -348,14 +352,15 @@ export function ClinicalEvolutionArtifact({
         onSourceChange={onSourceChange}
         onEvolutionAtChange={onEvolutionAtChange}
         onRegenerate={onRegenerate}
-        onPrepare={approval || terminalApproval ? undefined : onPrepare}
+        onPrepare={approval || terminalArtifact ? undefined : onPrepare}
         preparing={preparing}
         lifecycleStage={stage}
-        showAssistantActions={stage === 'draft' && !terminalApproval}
+        lifecycleLabel={item.artifactStatus === 'discarded' ? 'Descartado' : undefined}
+        showAssistantActions={stage === 'draft' && !terminalArtifact}
         syncState={syncState}
         onRetrySync={onRetrySync}
         footerAccessory={
-          stage === 'draft' && !terminalApproval && showOverflow ? (
+          stage === 'draft' && !terminalArtifact && showOverflow ? (
             <ArtifactOverflow
               content={clinicalContent}
               onSaveToDrive={onSaveToDrive}

@@ -215,6 +215,7 @@ export interface ClinicalPendingAction {
   expires_at: string;
   created_at: string;
   resolved_at?: string | null;
+  resolved_by?: string | null;
   result_resource_id?: string | null;
   patient?: ClinicalPatient | null;
   drive_export?: DriveExportState | null;
@@ -227,7 +228,7 @@ export interface ClinicalTurnArtifact {
   turn_id: string;
   patient_id: string;
   artifact_type: 'clinical_draft';
-  status: 'draft' | 'stale' | 'pending' | 'approved' | 'declined' | 'failed';
+  status: 'draft' | 'stale' | 'pending' | 'approved' | 'declined' | 'failed' | 'discarded';
   source_note: string;
   generated_draft: ClinicalDraft;
   draft: ClinicalDraft;
@@ -235,7 +236,32 @@ export interface ClinicalTurnArtifact {
   created_at: string;
   updated_at: string;
   resolved_at?: string | null;
+  discard_operation_id?: string | null;
+  discarded_by?: string | null;
+  discard_expected_updated_at?: string | null;
   patient?: ClinicalPatient | null;
+}
+
+/** Complete-or-absent snapshot a decline caller asserts before the terminal write. */
+export interface ClinicalExpectedIdentity {
+  expected_patient_id: string;
+  expected_thread_id: string;
+  expected_artifact_id: string;
+  expected_artifact_updated_at: string;
+}
+
+/** Stored artifact-discard receipt returned by the dedicated command. */
+export interface ClinicalDiscardReceipt {
+  outcome: 'discarded';
+  thread_id: string;
+  patient_id: string;
+  artifact_id: string;
+  artifact_status: 'discarded';
+  operation_id: string;
+  discarded_by: string;
+  resolved_at: string;
+  expected_artifact_updated_at: string;
+  updated_at: string;
 }
 
 export interface ClinicalThread {
@@ -564,7 +590,8 @@ export const acquireClinicalThread = () =>
     body: '{}',
   });
 export const getClinicalThreads = () => request<ClinicalThreadSummary[]>('/clinical-threads');
-export const getClinicalThread = (id: string) => request<ClinicalThread>(`/clinical-threads/${id}`);
+export const getClinicalThread = (id: string, options?: { readOnly?: boolean }) =>
+  request<ClinicalThread>(`/clinical-threads/${id}${options?.readOnly ? '?read_only=true' : ''}`);
 export const renameClinicalThread = (id: string, title: string) =>
   request<ClinicalThread>(`/clinical-threads/${id}`, {
     method: 'PATCH',
@@ -645,11 +672,28 @@ export const resolveClinicalAction = (
   actionId: string,
   decision: 'approve' | 'decline',
   proposalHash: string,
+  expected?: ClinicalExpectedIdentity,
 ) =>
   request<ClinicalPendingAction & { result?: EvolutionDetail }>(
     `/clinical-actions/${actionId}/resolve`,
-    { method: 'POST', body: JSON.stringify({ decision, proposal_hash: proposalHash }) },
+    {
+      method: 'POST',
+      body: JSON.stringify({ decision, proposal_hash: proposalHash, ...expected }),
+    },
   );
+export const discardClinicalArtifact = (
+  threadId: string,
+  artifactId: string,
+  body: {
+    operation_id: string;
+    expected_patient_id: string;
+    expected_artifact_updated_at: string;
+  },
+) =>
+  request<ClinicalDiscardReceipt>(`/clinical-threads/${threadId}/artifacts/${artifactId}/discard`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 export const returnClinicalActionToEditing = (actionId: string) =>
   request<{ id: string; thread_id: string; artifact_id: string | null }>(
     `/clinical-actions/${actionId}/return-to-editing`,

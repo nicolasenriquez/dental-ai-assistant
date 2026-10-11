@@ -90,6 +90,24 @@ Pending kind is `approval_required`, `recoverable_draft` or `drive_export_failed
 Omission retains mixed-kind behavior. Filter applies before count/cursor; limit defaults
 to 20, range 1–50. Patient ownership remains 404. Opening pending UI never acquires a thread.
 
+### Pending dismissal
+
+| Method/path | Request | Response |
+| --- | --- | --- |
+| POST `/api/clinical-actions/{action_id}/resolve` | `decision=decline` + `proposal_hash`; optional complete-or-absent expected identity bundle `{expected_patient_id,expected_thread_id,expected_artifact_id,expected_artifact_updated_at}` | Existing action response with `resolved_by`/`resolved_at`; linked pending artifact becomes `declined` |
+| POST `/api/clinical-threads/{thread_id}/artifacts/{artifact_id}/discard` | `{operation_id,expected_patient_id,expected_artifact_updated_at}` | Stored receipt `{outcome:'discarded',thread_id,patient_id,artifact_id,artifact_status:'discarded',operation_id,discarded_by,resolved_at,expected_artifact_updated_at,updated_at}` |
+| GET `/api/clinical-threads/{thread_id}?read_only=true` | None | Existing thread plus action `resolved_by` and nullable artifact receipt fields; read-only repeatable-read snapshot with no stale-turn/expiry cleanup or provider work |
+
+Both dismissal commands require the authenticated session and same-origin request; the client
+supplies intent only and never the actor. Bundles are complete or absent, never partial, and
+timestamps preserve database microseconds. 404 covers inaccessible/crossed resources without
+disclosure; 409 `CLINICAL_DISCARD_STALE`, `CLINICAL_DISCARD_INELIGIBLE`,
+`CLINICAL_DISCARD_IDEMPOTENCY_CONFLICT` and `CLINICAL_DISMISSAL_BUSY` are stable conflicts;
+`ACTION_EXPIRED` remains 410. A matching retry returns its original receipt without a second
+write; discarded work never returns to recoverable/approval-required work, and discard creates
+no action, clinical message, saved evolution or Drive export. Approved ficha data, historical
+activity, original Drive documents and unrelated pending work stay intact.
+
 ### Notes and conditions
 
 Prefix `/api/patients`. Bodies reject unknown fields. Actor IDs come from authenticated

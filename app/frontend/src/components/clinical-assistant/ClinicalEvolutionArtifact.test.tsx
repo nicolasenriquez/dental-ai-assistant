@@ -328,4 +328,22 @@ describe('ClinicalEvolutionArtifact', () => {
       journal: { period_type: 'weekly', period_key: '2026-W37', journal_part: 2 },
     });
   });
+
+  it('closes a discarded artifact without editing, preparation or recovery controls', () => {
+    const onPrepare = vi.fn();
+    renderArtifact(
+      draftItem({ artifactStatus: 'discarded' }),
+      undefined,
+      onPrepare,
+      undefined,
+      patient,
+    );
+
+    expect(screen.getByText('Descartado')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Revisar y guardar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Regenerar' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Más acciones de la evolución')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cambiar fecha y hora' })).not.toBeInTheDocument();
+    expect(onPrepare).not.toHaveBeenCalled();
+  });
 });

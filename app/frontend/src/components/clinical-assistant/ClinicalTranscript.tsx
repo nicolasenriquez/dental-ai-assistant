@@ -45,6 +45,8 @@ function effectiveApproval(
         left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
     );
   if (candidates.length === 0) return undefined;
+  // Discarded work is closed: no pending review, failure recovery or retry control.
+  if (item.artifactStatus === 'discarded') return undefined;
   const pending = candidates.filter((candidate) => candidate.status === 'pending');
   if (pending.length > 0) return pending[pending.length - 1];
   if (item.artifactStatus === 'draft' || item.artifactStatus === 'stale') return undefined;

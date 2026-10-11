@@ -116,3 +116,19 @@ observations. New and resumed artifacts use the same review action. Narrow heade
 separate navigation from utilities; the resumed prompt has no growing vertical basis.
 Drive patient selection returns to the requested section. Attaching content names the
 next message; mobile returns to the composer without discarding the document buffer.
+
+The pending list is shared by the global `/assistant?view=pending` view and the patient
+summary: `Ver pendientes` mounts it inline with patient/kind scope, API-backed total and
+exact `Revisar`/`Continuar` links. `Descartar` first reads the canonical thread read-only,
+then confirms patient, exact work and consequences in the shared modal with `Mantener` as
+the safe initial choice; Escape cancels, focus returns to the initiating control and one
+resource-scoped lock prevents duplicates. Approval rejection reuses decline with the
+complete expected-identity bundle; a recoverable draft uses the dedicated discard command
+with one operation UUID retained across uncertain retries. Rows are removed only after a
+confirmed response or stored receipt plus an authoritative fresh-cursor refresh; a lost
+response keeps the row with `Verificar estado`/`Reintentar`, a matching receipt confirms,
+another actor's approval is reported as saved, and absence alone never proves dismissal.
+Discarded artifacts render closed and read-only (`Descartado`) with no prepare, edit,
+recovery or approval controls. A confirmed dismissal with a failed refresh keeps the last
+complete window and its read alert; patient counts refresh through the existing revision
+callback, and under coarse pointers the confirmation controls reach 44px.
