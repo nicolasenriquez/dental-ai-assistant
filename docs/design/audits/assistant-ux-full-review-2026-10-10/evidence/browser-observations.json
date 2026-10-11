@@ -1,0 +1,54 @@
+{
+  "singleContext": true,
+  "guard": {
+    "focusAfterOpen": "Quitar paciente activo",
+    "nextTab": "Ver pendientes"
+  },
+  "approval": {
+    "escapeReturnsFocus": "Confirmar guardado",
+    "resolveOnEscape": false
+  },
+  "queue": {
+    "capacity": 3,
+    "fourthDraftPreserved": true,
+    "stopDispatchesNext": true,
+    "realProvider": false
+  },
+  "continuity": {
+    "fieldEditorAcrossThreads": true,
+    "contextualToFullDraft": true
+  },
+  "save": {
+    "failureRecovered": true,
+    "successfulResolve": "prepared ACTION_A -> confirmed -> Guardada en ficha, synthetic API only (41)",
+    "savedStatus": "injected state only",
+    "firstPrepareResolve": "inconclusive ACTION_B fixture identity mismatch (16)"
+  },
+  "mobile": {
+    "driveEscapeFocus": "Abrir Google Drive",
+    "patientEntry": "full route",
+    "shiftEnter": "newline without submit"
+  },
+  "exclusions": [
+    "microphone permission",
+    "screen reader",
+    "coarse pointer",
+    "physical device",
+    "200 percent zoom",
+    "real DB persistence",
+    "real Drive export",
+    "provider latency"
+  ],
+  "transientScreenshots": [
+    "22-mobile-queue-cap",
+    "27-assistant-768",
+    "28-assistant-1024"
+  ],
+  "authoritativeResponsive": [
+    "23-mobile-queue-after-stop",
+    "26-assistant-360",
+    "37-assistant-768-settled",
+    "38-assistant-1024-settled"
+  ],
+  "artifactApply": "PATCH local -> Cambios guardados (40)"
+}

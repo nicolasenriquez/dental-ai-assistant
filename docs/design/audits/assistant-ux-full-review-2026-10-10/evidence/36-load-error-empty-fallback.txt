@@ -1,0 +1,61 @@
+- link "Saltar al contenido principal":
+  - /url: "#main-content"
+- complementary:
+  - link:
+    - /url: /patients
+    - generic: Dental AI Assistant
+  - button [expanded]:
+  - navigation:
+    - link:
+      - /url: /patients
+      - generic: Pacientes
+    - link:
+      - /url: /assistant
+      - generic: Asistente
+    - link:
+      - /url: /chat
+      - generic: Chat
+  - button [pressed]: Conversaciones
+  - button: Pendientes
+  - button:
+    - text: Nueva conversación
+  - region:
+    - button:
+      - generic: Buscar
+      - generic: Ctrl K
+    - region:
+      - button [expanded]:
+        - generic: Ayer
+        - generic: "2"
+      - button:
+        - generic: Auditoría sintética
+        - generic: 09 oct 26 · 00:00
+      - button:
+      - button:
+        - generic: Segunda conversación sintética
+        - generic: 09 oct 26 · 00:00
+      - button:
+  - button:
+    - generic: audit@example.invalid
+- button "Abrir navegación":
+- main:
+  - heading "Asistente" [level=1]
+  - button "Seleccionar paciente":
+    - strong: Seleccionar paciente
+  - link "Ver pendientes":
+    - /url: /assistant?view=pending
+    - text: Pendientes
+  - button "Abrir Google Drive":
+    - generic: Google Drive
+  - log "Transcripción clínica":
+    - heading "¿Qué necesitas hacer?" [level=2]
+    - paragraph: Selecciona un paciente para consultar su ficha o preparar una evolución. También puedes hacer una consulta general.
+    - button "Seleccionar paciente"
+    - button "Escribir consulta general"
+  - alert: No pudimos cargar este hilo clínico.
+  - textbox "Consulta al asistente":
+    - /placeholder: Escribe una consulta general…
+  - status:
+    - button "Iniciar dictado":
+      - text: Dictar
+  - button "Enviar mensaje" [disabled]:

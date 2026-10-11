@@ -1,0 +1,62 @@
+[
+  {
+    "antipattern": "side-tab",
+    "name": "Side-tab accent border",
+    "description": "Thick colored border on one side of a card — the most recognizable tell of AI-generated UIs. Use a subtler accent or remove it entirely.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "C:\\Users\\nenri\\OneDrive\\Desktop\\proyectos\\pry-ai-evaluator\\ai-tutor\\app\\frontend\\src\\styles\\globals.css",
+    "line": 1449,
+    "snippet": "border-left: 3px solid var(--accent)"
+  },
+  {
+    "antipattern": "side-tab",
+    "name": "Side-tab accent border",
+    "description": "Thick colored border on one side of a card — the most recognizable tell of AI-generated UIs. Use a subtler accent or remove it entirely.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "C:\\Users\\nenri\\OneDrive\\Desktop\\proyectos\\pry-ai-evaluator\\ai-tutor\\app\\frontend\\src\\styles\\globals.css",
+    "line": 3145,
+    "snippet": "border-left: 2px solid var(--success)"
+  },
+  {
+    "antipattern": "overused-font",
+    "name": "Overused font",
+    "description": "Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, and Space Grotesk are used on so many sites they no longer feel distinctive. Each new wave of AI-generated UIs converges on the same handful of faces. Choose a face that gives your interface personality.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "C:\\Users\\nenri\\OneDrive\\Desktop\\proyectos\\pry-ai-evaluator\\ai-tutor\\app\\frontend\\src\\styles\\globals.css",
+    "line": 213,
+    "snippet": "font-family: \"Inter"
+  },
+  {
+    "antipattern": "overused-font",
+    "name": "Overused font",
+    "description": "Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, and Space Grotesk are used on so many sites they no longer feel distinctive. Each new wave of AI-generated UIs converges on the same handful of faces. Choose a face that gives your interface personality.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "C:\\Users\\nenri\\OneDrive\\Desktop\\proyectos\\pry-ai-evaluator\\ai-tutor\\app\\frontend\\src\\styles\\globals.css",
+    "line": 723,
+    "snippet": "font-family: Inter"
+  },
+  {
+    "antipattern": "bounce-easing",
+    "name": "Bounce or elastic easing",
+    "description": "Bounce and elastic easing feel dated and tacky. Real objects decelerate smoothly — use exponential easing (ease-out-quart/quint/expo) instead.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "C:\\Users\\nenri\\OneDrive\\Desktop\\proyectos\\pry-ai-evaluator\\ai-tutor\\app\\frontend\\src\\styles\\globals.css",
+    "line": 1976,
+    "snippet": "animation: clinical-dot-bounce"
+  },
+  {
+    "antipattern": "layout-transition",
+    "name": "Layout property animation",
+    "description": "Animating width, height, padding, or margin causes layout thrash and janky performance. Use transform and opacity instead, or grid-template-rows for height animations.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "C:\\Users\\nenri\\OneDrive\\Desktop\\proyectos\\pry-ai-evaluator\\ai-tutor\\app\\frontend\\src\\styles\\globals.css",
+    "line": 4946,
+    "snippet": "transition: width"
+  }
+]

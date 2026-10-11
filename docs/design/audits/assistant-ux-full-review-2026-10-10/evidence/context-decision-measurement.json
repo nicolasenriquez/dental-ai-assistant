@@ -1,0 +1,12 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "buttonHeight": 21,
+  "firstTwoGap": 0,
+  "ariaModal": null,
+  "ariaDescribedby": null,
+  "focus": "Quitar paciente activo",
+  "finePointer": true
+}

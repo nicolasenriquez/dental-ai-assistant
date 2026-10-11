@@ -18,11 +18,11 @@ The system SHALL support diagnosis notes owned by the patient with an optional t
 - **THEN** the server returns404 and persists no note, link, revision or command receipt.
 
 ### Requirement: N2 Source composer and templates
-The diagnosis compositor SHALL start open, append independently authored Spanish field templates without overwriting text, show the current optional tooth candidate, and save only on Guardar. D04 source tooth-hover changes SHALL update the displayed candidate and binding checkbox; existing-note edits SHALL preserve saved associations.
+The existing dental clinical-note composer SHALL use free text without template controls, remain editable in the shared rail/Sheet and save only on Guardar. It SHALL show its optional tooth candidate without retargeting typed work on passive hover. Before typing, chart hover SHALL update the candidate according to the existing binding rules; deliberate chart activation SHALL remain able to change a new note's candidate while writing. Existing-note edits SHALL preserve saved associations. This requirement records the current PRODUCT.md and 7 October surface behavior rather than restoring the retired mirrored templates.
 
 #### Scenario: Template and hover selection
-- **WHEN** text already exists, a Caries template is selected and tooth17 is hovered
-- **THEN** the template appends after an empty line, the visible binding candidate becomes17 and no note is persisted until Guardar captures the displayed association.
+- **WHEN** a new note already contains typed text and tooth17 is passively hovered
+- **THEN** no template is offered or appended, the existing note candidate remains unchanged and no note is persisted; explicit tooth activation can deliberately change the candidate before Guardar
 
 #### Scenario: Failed save
 - **WHEN** note creation fails or its committed response is lost
@@ -55,7 +55,7 @@ Owned notes SHALL support body-only edit with revision conflict recovery and con
 - **THEN** one commits and the other receives409 with the latest authorized snapshot and preserved local text, requiring explicit reconciliation before retry.
 
 ### Requirement: N5 Separate candidate selection from note highlighting
-The composer SHALL preserve the last valid chart tooth candidate when pointerleave clears highlighting. Card/condition-row hover SHALL change highlighting only. Binding SHALL re-enable when the chart candidate changes, and SHALL remain unchecked when the same candidate is revisited. The exact state and source layout SHALL follow design.md appendix C; no hover SHALL write or relink an existing note.
+The composer SHALL preserve the last valid chart tooth candidate when pointerleave clears highlighting. Card/condition-row hover SHALL change highlighting only. Chart hover SHALL update a new note candidate only before typing, while explicit chart activation SHALL be able to deliberately change the candidate during writing under N2. Binding SHALL re-enable when an eligible chart candidate changes, and SHALL remain unchecked when the same candidate is revisited. The current shared rail/Sheet state and available-width layout SHALL remain intact; no hover SHALL write or relink an existing note.
 
 #### Scenario: Unbind and leave
 - **WHEN** tooth16 is hovered, binding is unchecked and the pointer leaves then revisits16

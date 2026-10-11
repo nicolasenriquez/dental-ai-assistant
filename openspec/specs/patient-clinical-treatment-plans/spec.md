@@ -7,15 +7,19 @@ Provide owner-scoped, explicit, staged clinical treatment planning for patients.
 ## Requirements
 
 ### Requirement: P1 Atomic draft plan authoring
-The clinician SHALL create and resume patient-owned draft plans, add variant-aware planned procedures with one initial execution stage, order items, and edit/add pending stages while the reference permits editing; completed stages remain immutable. A treatment SHALL belong to at most one plan item. Titles, notes, anatomy and stages SHALL follow design.md limits.
+New clinical plan creation SHALL remain retired with HTTP410, and the patient workspace SHALL NOT expose creation or authoring controls. Stored plans, items, stages and revisions SHALL remain readable through authorized historical links. Existing item/stage/update commands SHALL retain their currently implemented owner, revision, replay and atomicity protections without a new blanket mutation freeze. A treatment SHALL belong to at most one plan item. Existing title, note, anatomy and stage validation limits SHALL remain unchanged.
 
 #### Scenario: Add scoped procedure
 - **WHEN** a bridge variant and valid teeth/roles are saved into a draft plan
 - **THEN** the treatment, members, plan item, initial stage, aggregate revision and command receipt commit together or none commit.
 
 #### Scenario: Reload draft
-- **WHEN** a saved plan is reopened after browser reload
-- **THEN** its item order, variants, anatomical scope, notes and stages are unchanged and no new plan is created.
+- **WHEN** a stored draft plan is opened through a legacy link after browser reload
+- **THEN** its saved item order, variants, anatomy, notes and stages are shown read-only, no plan is created and no clinical write occurs merely from opening history
+
+#### Scenario: Creation is retired
+- **WHEN** a client requests new plan creation
+- **THEN** the existing HTTP410 retirement response remains and no plan, item, receipt or revision is created
 
 ### Requirement: P2 Explicit clinical confirmation and acceptance
 Plans SHALL transition draft→pending through Confirmar and pending→active through Registrar aceptación; pending→draft SHALL allow revision before reconfirmation. Acceptance SHALL record actor/time and optional note as a clinician-entered event without claiming financial approval or consent signature. Clinical corrections SHALL preserve history without inventing extra plan transitions.
@@ -78,8 +82,12 @@ All linked item/stage transitions SHALL serialize through the owning plan revisi
 - **THEN** its stored receipt returns before current-revision validation and progress/history do not increment again.
 
 ### Requirement: P6 Guarded accessible clinical plan UI
-Planificación and Planes SHALL remain within the patient workspace, use authorized deep links, guarded dirty navigation, explicit Spanish states/actions and contextual anatomical previews. General notes remain their existing resource; D04 dental diagnosis/treatment/plan notes SHALL use the mirrored editable compositor and linked feed.
+Stored plan links SHALL remain within the patient workspace as explicitly historical read-only evidence, without Planificación/Planes as daily authoring modes. Authorized exact links, dirty navigation guards for other active work, Spanish status/history, anatomical evidence and accessible destination focus SHALL remain available. General notes SHALL retain their own resource and the existing dental clinical-note composer/feed SHALL remain available in its supported contexts. This UI policy SHALL NOT freeze all legacy plan mutation APIs or erase stored data.
 
 #### Scenario: Switch patient with unsaved plan item
-- **WHEN** the clinician requests another patient or clinical mode while a plan item draft is dirty
-- **THEN** save/discard/remain protection runs and no plan UUID, tooth selection or note leaks into the other patient.
+- **WHEN** navigation from a legacy plan view encounters retained dirty work from an existing supported workflow
+- **THEN** the existing save/discard/remain guard protects that work and no plan UUID, tooth selection or note leaks into the other patient; no new plan editor is introduced
+
+#### Scenario: Historical plan destination
+- **WHEN** an authorized legacy plan URL opens
+- **THEN** the exact plan and revisions are labelled as historical read-only evidence, focus reaches the destination once, and no create/edit/execute controls or write requests are produced by this historical UI

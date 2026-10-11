@@ -1,0 +1,21 @@
+{
+  "applicationDiff": [],
+  "liveObservedAssets": [
+    "index-hMjYLKeb.js",
+    "index-BzakEpcP.css"
+  ],
+  "dist": [
+    {
+      "Path": "C:\\Users\\nenri\\OneDrive\\Desktop\\proyectos\\pry-ai-evaluator\\ai-tutor\\app\\frontend\\dist\\assets\\index-DRDYVL-j.js",
+      "Hash": "1ACEBD3F8CCE415EC372096C4550DBC167287AC9098B6EB981B9A8B2EF13220F"
+    },
+    {
+      "Path": "C:\\Users\\nenri\\OneDrive\\Desktop\\proyectos\\pry-ai-evaluator\\ai-tutor\\app\\frontend\\dist\\assets\\index-Cxj8-c6C.css",
+      "Hash": "C6348F789396A6552876A9F2A61C15469F0F8E7A363697ADC5D4922BBC547704"
+    }
+  ],
+  "head": "4957faf3ca38079ac0745f0b234e8ef9bd69b5ad",
+  "rebuiltInThisRun": false,
+  "applicationStagedDiff": [],
+  "branch": "feat/ai-assisted-evolutions"
+}

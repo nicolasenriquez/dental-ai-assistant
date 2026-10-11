@@ -1,0 +1,40 @@
+- link "Saltar al contenido principal":
+  - /url: "#main-content"
+- complementary:
+  - link "Dental AI Assistant":
+    - /url: /patients
+    - generic: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]:
+  - navigation "Navegación principal":
+    - link "Pacientes":
+      - /url: /patients
+      - generic: Pacientes
+    - link "Asistente":
+      - /url: /assistant
+      - generic: Asistente
+    - link "Chat":
+      - /url: /chat
+      - generic: Chat
+  - button "Abrir menú de usuario para audit@example.invalid":
+    - generic: audit@example.invalid
+- main:
+  - link "‹ Volver a Ana Prueba sintética":
+    - /url: /patients/22222222-2222-4222-8222-222222222222
+  - heading "Nueva evolución dental" [level=1]
+  - strong: Ana Prueba sintética
+  - generic: 36 años
+  - generic: ·
+  - generic: Nacimiento 01/01/1990
+  - generic: ·
+  - generic: RUT ••.•••.•••-•
+  - generic: 10 oct 2026 · 20:10
+  - button "Cambiar fecha y hora"
+  - list "Progreso de la evolución":
+    - listitem: 1. Capturar
+    - listitem: 2. Revisar
+    - listitem: 3. Confirmar
+  - status: Este paciente aún no tiene evoluciones.
+  - heading "REGISTRO CLÍNICO INICIAL" [level=2]
+  - paragraph: Escribe la nota. La IA crea un borrador para revisar.
+  - textbox "Nota clínica" [active]
+  - button "Generar borrador con IA" [disabled]

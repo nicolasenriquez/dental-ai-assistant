@@ -1,0 +1,33 @@
+{
+  "head": "4957faf3ca38079ac0745f0b234e8ef9bd69b5ad",
+  "required_reports_present": true,
+  "application_unstaged_diff": [],
+  "application_staged_diff": [],
+  "authority_unstaged_diff": [],
+  "outside_status_added": [
+    "?? app/frontend/tests/__snapshots__/clinical-assistant.spec.ts-snapshots/drive-conflict-desktop-clinical-linux.png",
+    "?? app/frontend/tests/__snapshots__/clinical-assistant.spec.ts-snapshots/drive-error-desktop-clinical-linux.png",
+    "?? app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/qa-admin-qa-baseline-linux.png",
+    "?? app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/qa-clinical-empty-qa-baseline-linux.png",
+    "?? app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/qa-login-mobile-qa-baseline-linux.png",
+    "?? app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/qa-login-qa-baseline-linux.png",
+    "?? app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/qa-not-found-qa-baseline-linux.png",
+    "?? app/frontend/tests/__snapshots__/qa-baseline.spec.ts-snapshots/qa-signup-qa-baseline-linux.png",
+    "?? openspec/changes/harden-clinical-workspace-continuity/evidence/release-gates/database-gates-result.json",
+    "?? openspec/changes/harden-clinical-workspace-continuity/evidence/release-gates/database-gates.junit.xml",
+    "?? openspec/changes/harden-clinical-workspace-continuity/evidence/release-gates/database-gates.log",
+    "?? openspec/changes/harden-clinical-workspace-continuity/evidence/release-gates/run-database-gates.sh"
+  ],
+  "outside_status_removed": [],
+  "external_additions_observed": "New Linux snapshots and release-gates results appeared outside this audit during the run. They were not produced or modified by this task and were preserved.",
+  "missing_local_markdown_links": [],
+  "jpeg_count": 42,
+  "invalid_jpeg_headers": [],
+  "score_weighted": 75.9,
+  "score_rounded": 76,
+  "application_tests_run": false,
+  "real_clinical_or_drive_writes": false,
+  "no_open_spec_created_by_this_run": true,
+  "phase_7_stopped": true,
+  "limits": "Git status equality is not a content hash of pre-existing dirty files; no changes to those files were performed."
+}

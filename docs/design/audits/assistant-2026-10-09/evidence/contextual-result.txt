@@ -1,1 +1,0 @@
-{"patient":"Ana Prueba sintética\n••.•••.•••-•","draft":""}

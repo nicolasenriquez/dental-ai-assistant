@@ -1,0 +1,152 @@
+[
+  {
+    "scenario": "artifact",
+    "path": "/api/auth/config",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/auth/me",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/google-drive/status",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/patients",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads/11111111-1111-4111-8111-111111111111",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads/11111111-1111-4111-8111-111111111111/artifacts/artifact-1",
+    "method": "PATCH"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads/11111111-1111-4111-8111-111111111111/prepare-save",
+    "method": "POST"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-actions/34343434-3434-4343-8343-343434343434/resolve",
+    "method": "POST"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads",
+    "method": "GET"
+  },
+  {
+    "scenario": "saved",
+    "path": "/api/auth/config",
+    "method": "GET"
+  },
+  {
+    "scenario": "saved",
+    "path": "/api/auth/me",
+    "method": "GET"
+  },
+  {
+    "scenario": "saved",
+    "path": "/api/google-drive/status",
+    "method": "GET"
+  },
+  {
+    "scenario": "saved",
+    "path": "/api/clinical-threads",
+    "method": "GET"
+  },
+  {
+    "scenario": "saved",
+    "path": "/api/patients",
+    "method": "GET"
+  },
+  {
+    "scenario": "saved",
+    "path": "/api/clinical-threads/11111111-1111-4111-8111-111111111111",
+    "method": "GET"
+  },
+  {
+    "scenario": "saved",
+    "path": "/api/clinical-pending-work",
+    "method": "GET"
+  },
+  {
+    "scenario": "pending",
+    "path": "/api/auth/config",
+    "method": "GET"
+  },
+  {
+    "scenario": "pending",
+    "path": "/api/auth/me",
+    "method": "GET"
+  },
+  {
+    "scenario": "pending",
+    "path": "/api/google-drive/status",
+    "method": "GET"
+  },
+  {
+    "scenario": "pending",
+    "path": "/api/clinical-threads",
+    "method": "GET"
+  },
+  {
+    "scenario": "pending",
+    "path": "/api/clinical-pending-work",
+    "method": "GET"
+  },
+  {
+    "scenario": "pending",
+    "path": "/api/clinical-pending-work",
+    "method": "GET"
+  },
+  {
+    "scenario": "pending",
+    "path": "/api/clinical/evolutions/45454545-4545-4454-8454-454545454545/drive-export/retry",
+    "method": "POST"
+  },
+  {
+    "scenario": "pending",
+    "path": "/api/clinical-pending-work",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads/acquire",
+    "method": "POST"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/patients",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads/11111111-1111-4111-8111-111111111111",
+    "method": "GET"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads/11111111-1111-4111-8111-111111111111/turns",
+    "method": "POST"
+  },
+  {
+    "scenario": "artifact",
+    "path": "/api/clinical-threads",
+    "method": "GET"
+  }
+]

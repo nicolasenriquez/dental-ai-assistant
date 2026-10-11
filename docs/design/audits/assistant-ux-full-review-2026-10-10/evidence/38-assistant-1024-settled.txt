@@ -1,0 +1,61 @@
+- link "Saltar al contenido principal":
+  - /url: "#main-content"
+- complementary:
+  - link "Dental AI Assistant":
+    - /url: /patients
+    - generic: Dental AI Assistant
+  - button "Colapsar navegación" [expanded]:
+  - navigation "Navegación principal":
+    - link "Pacientes":
+      - /url: /patients
+      - generic: Pacientes
+    - link "Asistente":
+      - /url: /assistant
+      - generic: Asistente
+    - link "Chat":
+      - /url: /chat
+      - generic: Chat
+  - group "Vista del asistente":
+    - button "Conversaciones" [pressed]
+    - button "Pendientes"
+  - button "Nueva conversación":
+    - text: Nueva conversación
+  - region "Hilos del asistente clínico":
+    - button "Buscar en conversaciones":
+      - generic: Buscar
+      - generic: Ctrl K
+    - region "Ayer":
+      - button "Ayer 2" [expanded]:
+        - generic: Ayer
+        - generic: "2"
+      - button "Auditoría sintética":
+        - generic: Auditoría sintética
+        - generic: 09 oct 26 · 00:00
+      - button "Acciones para Auditoría sintética":
+      - button "Segunda conversación sintética":
+        - generic: Segunda conversación sintética
+        - generic: 09 oct 26 · 00:00
+      - button "Acciones para Segunda conversación sintética":
+  - button "Abrir menú de usuario para audit@example.invalid":
+    - generic: audit@example.invalid
+- main:
+  - heading "Auditoría sintética" [level=1]
+  - button "Seleccionar paciente":
+    - strong: Seleccionar paciente
+  - link "Ver pendientes":
+    - /url: /assistant?view=pending
+    - text: Pendientes
+  - button "Abrir Google Drive":
+    - generic: Google Drive
+  - log "Transcripción clínica":
+    - heading "¿Qué necesitas hacer?" [level=2]
+    - paragraph: Selecciona un paciente para consultar su ficha o preparar una evolución. También puedes hacer una consulta general.
+    - button "Seleccionar paciente"
+    - button "Escribir consulta general"
+  - textbox "Consulta al asistente":
+    - /placeholder: Escribe una consulta general…
+  - paragraph: Enter envía · Shift+Enter agrega una línea
+  - status:
+    - button "Iniciar dictado":
+      - text: Dictar
+  - button "Enviar mensaje" [disabled]:

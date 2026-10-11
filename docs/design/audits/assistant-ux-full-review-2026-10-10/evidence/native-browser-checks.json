@@ -1,0 +1,457 @@
+[
+  {
+    "name": "05-context-guard",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Quitar paciente activo",
+      "tag": "BUTTON"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "06-retained-context",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "07-artifact-current",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "08-artifact-edit-evidence",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Hallazgos",
+      "tag": "TEXTAREA"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "09-editor-restored",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Hallazgos",
+      "tag": "TEXTAREA"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "10-approval-dialog",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BUTTON"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "11-approval-dismissed",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BUTTON"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "12-save-failure",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "13-draft-recovered",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "14-drive-note-preview",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "15-document-attached",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Abrir Google Drive",
+      "tag": "BUTTON"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "16-saved-drive-separate",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Evolución clínica",
+      "tag": "ARTICLE"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "17-saved-ui-drive-separate",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "18-pending-empty",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "19-pending-categories",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "20-pending-after-retry",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "21-stream-queue-full",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Nota clínica",
+      "tag": "TEXTAREA"
+    },
+    "height": 900,
+    "reduced": false,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "22-mobile-queue-cap",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BUTTON"
+    },
+    "height": 844,
+    "reduced": false,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "23-mobile-queue-after-stop",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 844,
+    "reduced": false,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "24-mobile-drive-overlay",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Cerrar",
+      "tag": "BUTTON"
+    },
+    "height": 844,
+    "reduced": false,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "25-mobile-drive-no-patient",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BUTTON"
+    },
+    "height": 844,
+    "reduced": false,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "26-assistant-360",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Abrir Google Drive",
+      "tag": "BUTTON"
+    },
+    "height": 800,
+    "reduced": false,
+    "scrollWidth": 360,
+    "width": 360
+  },
+  {
+    "name": "27-assistant-768",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Abrir Google Drive",
+      "tag": "BUTTON"
+    },
+    "height": 1024,
+    "reduced": false,
+    "scrollWidth": 768,
+    "width": 768
+  },
+  {
+    "name": "28-assistant-1024",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Abrir Google Drive",
+      "tag": "BUTTON"
+    },
+    "height": 768,
+    "reduced": false,
+    "scrollWidth": 1024,
+    "width": 1024
+  },
+  {
+    "name": "29-patient-contextual-desktop",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "H2"
+    },
+    "height": 768,
+    "reduced": false,
+    "scrollWidth": 1024,
+    "width": 1024
+  },
+  {
+    "name": "30-contextual-composer-narrow",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Nota clínica",
+      "tag": "TEXTAREA"
+    },
+    "height": 768,
+    "reduced": false,
+    "scrollWidth": 1024,
+    "width": 1024
+  },
+  {
+    "name": "31-full-assistant-context-retained",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 768,
+    "reduced": false,
+    "scrollWidth": 1024,
+    "width": 1024
+  },
+  {
+    "name": "32-contextual-tablet",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Cambiar paciente activo",
+      "tag": "BUTTON"
+    },
+    "height": 1024,
+    "reduced": false,
+    "scrollWidth": 768,
+    "width": 768
+  },
+  {
+    "name": "33-new-evolution-entry",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Nota clínica",
+      "tag": "TEXTAREA"
+    },
+    "height": 1024,
+    "reduced": false,
+    "scrollWidth": 768,
+    "width": 768
+  },
+  {
+    "name": "34-mobile-patient-assistant-route",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 844,
+    "reduced": false,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "35-mobile-context-decision",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": "Quitar paciente activo",
+      "tag": "BUTTON"
+    },
+    "height": 844,
+    "reduced": false,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "36-load-error-empty-fallback",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 844,
+    "reduced": false,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "37-assistant-768-settled",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 1024,
+    "reduced": false,
+    "scrollWidth": 768,
+    "width": 768
+  },
+  {
+    "name": "38-assistant-1024-settled",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BODY"
+    },
+    "height": 768,
+    "reduced": false,
+    "scrollWidth": 1024,
+    "width": 1024
+  },
+  {
+    "name": "39-drive-journals-empty",
+    "coarse": false,
+    "dpr": 1.0000000298023224,
+    "focus": {
+      "label": null,
+      "tag": "BUTTON"
+    },
+    "height": 768,
+    "reduced": false,
+    "scrollWidth": 1024,
+    "width": 1024
+  }
+]

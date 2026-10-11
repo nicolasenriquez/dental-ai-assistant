@@ -1,0 +1,127 @@
+- link "Saltar al contenido principal":
+  - /url: "#main-content"
+- complementary:
+  - link:
+    - /url: /patients
+    - generic: Dental AI Assistant
+  - button [expanded]:
+  - navigation:
+    - link:
+      - /url: /patients
+      - generic: Pacientes
+    - link:
+      - /url: /assistant
+      - generic: Asistente
+    - link:
+      - /url: /chat
+      - generic: Chat
+  - button [pressed]: Conversaciones
+  - button: Pendientes
+  - button:
+    - text: Nueva conversación
+  - region:
+    - button:
+      - generic: Buscar
+      - generic: Ctrl K
+    - region:
+      - button [expanded]:
+        - generic: Ayer
+        - generic: "2"
+      - button:
+        - generic: Auditoría sintética
+        - generic: 09 oct 26 · 00:00
+        - status
+      - button:
+      - button:
+        - generic: Segunda conversación sintética
+        - generic: 09 oct 26 · 00:00
+      - button:
+  - button:
+    - generic: audit@example.invalid
+- button "Abrir navegación":
+- main:
+  - link "‹ Volver a ficha":
+    - /url: /patients/22222222-2222-4222-8222-222222222222
+  - heading "Auditoría sintética" [level=1]
+  - button "Cambiar paciente activo":
+    - generic "Ana Prueba sintética":
+      - strong: Ana Prueba sintética
+      - generic: ••.•••.•••-•
+  - button "Quitar paciente activo":
+  - link "Ver pendientes":
+    - /url: /assistant?view=pending
+    - text: Pendientes
+  - button "Abrir Google Drive":
+    - generic: Google Drive
+  - log "Transcripción clínica":
+    - article "Evolución clínica":
+      - heading "Evolución clínica" [level=3]
+      - generic: Ana Prueba sintética
+      - generic: ·
+      - generic: ••.•••.•••-•
+      - generic: ·
+      - time: 09 oct 2026
+      - button "Cambiar fecha y hora":
+      - generic: Borrador
+      - heading "Motivo / contexto" [level=4]
+      - button "Editar Motivo / contexto":
+        - generic: Editar
+      - paragraph: Control sintético.
+      - heading "Hallazgos" [level=4]
+      - button "Editar Hallazgos":
+        - generic: Editar
+      - paragraph: Sin hallazgos nuevos.
+      - heading "Diagnóstico / impresión clínica" [level=4]
+      - button "Editar Diagnóstico / impresión clínica":
+        - generic: Editar
+      - paragraph: Salud periodontal estable.
+      - heading "Tratamiento / conducta" [level=4]
+      - button "Editar Tratamiento / conducta":
+        - generic: Editar
+      - paragraph: Mantener higiene.
+      - heading "Seguimiento" [level=4]
+      - button "Editar Seguimiento":
+        - generic: Editar
+      - paragraph: Control en seis meses.
+      - generic: Fuente · Nota clínica
+      - button "Ver evidencia":
+        - text: Ver evidencia
+      - status:
+        - generic: Borrador editable · aún no guardado
+      - button "Copiar":
+        - text: Copiar
+      - generic "Más acciones de la evolución":
+      - button "Revisar y guardar"
+    - article "Tú":
+      - generic: Tú
+      - generic: Primer turno sintético.
+    - status: Preparando respuesta clínica
+    - generic: Trabajando
+    - generic: · 40204 s
+    - generic: Preparando respuesta clínica
+  - alert: Ya tienes 3 mensajes pendientes.
+  - generic "Mensajes en cola":
+    - strong: Mensajes en cola 3/3
+    - paragraph:
+      - text: Cancela sólo la respuesta actual.
+      - strong: Hay 3 mensajes pendientes.
+    - generic: Cola sintética uno.
+    - generic: Ana Prueba sintética
+    - button "Editar"
+    - button "Quitar mensaje de la cola": ×
+    - generic: Cola sintética dos.
+    - generic: Ana Prueba sintética
+    - button "Editar"
+    - button "Quitar mensaje de la cola": ×
+    - generic: Cola sintética tres.
+    - generic: Ana Prueba sintética
+    - button "Editar"
+    - button "Quitar mensaje de la cola": ×
+  - textbox "Nota clínica":
+    - /placeholder: Escribe o dicta la nota clínica…
+    - text: Cuarto borrador conservado.
+  - status:
+    - button "Iniciar dictado":
+      - text: Dictar
+  - button "Encolar" [active]
+  - button "Detener respuesta actual":

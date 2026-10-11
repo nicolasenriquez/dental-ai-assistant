@@ -1,0 +1,85 @@
+- link:
+  - /url: "#main-content"
+  - text: Saltar al contenido principal
+- complementary:
+  - link:
+    - /url: /patients
+    - generic: Dental AI Assistant
+  - button [expanded]:
+  - navigation:
+    - link:
+      - /url: /patients
+      - generic: Pacientes
+    - link:
+      - /url: /assistant
+      - generic: Asistente
+    - link:
+      - /url: /chat
+      - generic: Chat
+  - button [pressed]: Conversaciones
+  - button: Pendientes
+  - button:
+    - text: Nueva conversación
+  - region:
+    - button:
+      - generic: Buscar
+      - generic: Ctrl K
+    - region:
+      - button [expanded]:
+        - generic: Ayer
+        - generic: "2"
+      - button:
+        - generic: Auditoría sintética
+        - generic: 09 oct 26 · 00:00
+      - button:
+      - button:
+        - generic: Segunda conversación sintética
+        - generic: 09 oct 26 · 00:00
+      - button:
+  - button:
+    - generic: audit@example.invalid
+- button:
+- main:
+  - heading [level=1]: Auditoría sintética
+  - button:
+    - strong: Seleccionar paciente
+  - link:
+    - /url: /assistant?view=pending
+    - text: Pendientes
+  - button [expanded]:
+    - generic: Google Drive
+  - log:
+    - heading [level=2]: ¿Qué necesitas hacer?
+    - paragraph: Selecciona un paciente para consultar su ficha o preparar una evolución. También puedes hacer una consulta general.
+    - button: Seleccionar paciente
+    - button: Escribir consulta general
+  - textbox:
+    - /placeholder: Escribe una consulta general…
+  - status:
+    - button "Iniciar dictado":
+      - text: Dictar
+  - button [disabled]:
+- dialog "Google Drive":
+  - heading "Google Drive" [level=2]
+  - paragraph: Conectado
+  - region "Espacio de documentos de Google Drive":
+    - tablist "Secciones de Google Drive":
+      - tab "Notas" [selected]
+      - tab "Documentos"
+      - tab "Diarios"
+    - tabpanel "Notas":
+      - generic: Buscar notas
+      - searchbox "Buscar notas"
+      - button "Abrir desde Drive"
+      - generic "Contexto del workspace":
+        - generic: Fuentes generales
+        - generic: ›
+        - strong: Notas
+      - heading "Todas las fuentes" [level=2]
+      - list:
+        - button "Documento sintético.txt TXT Editable 9 oct 2026":
+          - strong: Documento sintético.txt
+          - generic: TXT
+          - generic: Editable
+          - time: 9 oct 2026
+  - button "Cerrar" [active]:
