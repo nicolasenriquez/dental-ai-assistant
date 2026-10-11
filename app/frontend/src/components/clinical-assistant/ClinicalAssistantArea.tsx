@@ -618,6 +618,10 @@ export function ClinicalAssistantArea({
     target.focus({ preventScroll: true });
   }, [assistant.items, resumeTarget?.id, resumeTarget?.kind, threadId]);
 
+  const threadTitle = assistant.thread?.title ?? 'Asistente';
+  // ponytail: the contextual shell already exposes "Asistente clínico"; don't repeat it.
+  const headerTitle = embedded && threadTitle === 'Asistente clínico' ? undefined : threadTitle;
+
   return (
     <Root
       role={embedded ? 'region' : undefined}
@@ -627,7 +631,7 @@ export function ClinicalAssistantArea({
       data-patient-active={!!activePatient}
     >
       <WorkspaceHeader
-        title={assistant.thread?.title ?? 'Asistente'}
+        title={headerTitle}
         headingLevel={embedded ? 2 : 1}
         navigation={
           returnToFicha && activePatient ? (
@@ -710,7 +714,7 @@ export function ClinicalAssistantArea({
           threadReady ? (
             <EmptyState
               className="clinical-empty-state"
-              headingLevel={2}
+              headingLevel={embedded ? 3 : 2}
               icon={<Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />}
               title={activePatient ? 'Prepara una evolución clínica' : '¿Qué necesitas hacer?'}
               description={

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 interface WorkspaceHeaderProps {
-  title: string;
+  title?: string;
   description?: string;
   workspaceContext?: ReactNode;
   actions?: ReactNode;
@@ -22,7 +22,7 @@ export function WorkspaceHeader({
     <header className="workspace-header">
       <div className="workspace-header__copy">
         {navigation}
-        <Heading>{title}</Heading>
+        {title && <Heading>{title}</Heading>}
         {description && <span>{description}</span>}
       </div>
       {workspaceContext && <div className="workspace-header__context">{workspaceContext}</div>}

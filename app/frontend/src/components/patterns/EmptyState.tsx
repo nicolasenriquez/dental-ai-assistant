@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn';
 interface EmptyStateProps {
   icon?: ReactNode;
   title: string;
-  headingLevel?: 1 | 2;
+  headingLevel?: 1 | 2 | 3;
   description?: ReactNode;
   action?: ReactNode;
   className?: string;
@@ -18,7 +18,7 @@ export function EmptyState({
   action,
   className,
 }: EmptyStateProps): JSX.Element {
-  const Heading = headingLevel === 2 ? 'h2' : 'h1';
+  const Heading = headingLevel === 3 ? 'h3' : headingLevel === 2 ? 'h2' : 'h1';
   return (
     <section className={cn('chat-empty-state', className)}>
       {icon}
