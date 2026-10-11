@@ -30,6 +30,29 @@ The clinical composer SHALL adapt to its available container width in full, cont
 - **WHEN** pane width changes while text, selection, a removable source, queued work or any voice lifecycle state is present
 - **THEN** reflow preserves that work and selection, keeps relevant voice/Stop/cancel controls accessible, and neither submits nor cancels runtime work
 
+### Requirement: Individual unsent queue removal
+The Assistant SHALL expose visible `Quitar` controls with distinct accessible names for individual unclaimed queued messages. Removal SHALL use the existing stable-ID queue and preserve remaining order, attachments, composer drafts and artifact buffers. The dispatcher claim is the boundary after which removal is unavailable; removal SHALL NOT cancel an active turn or call clinical/provider endpoints. Queue callbacks SHALL retain original thread/patient ownership and not resurrect removed entries. Bulk clearing is outside this requirement.
+
+#### Scenario: Remove one queued entry
+- **WHEN** the clinician removes an unclaimed entry while other messages and attachments are queued
+- **THEN** only that ID disappears, the counter updates immediately, remaining entries retain their order/context, and unrelated drafts and sources remain intact
+
+#### Scenario: Active response continues
+- **WHEN** an entry is removed while a response is streaming or stopping
+- **THEN** the active turn continues under its existing Stop semantics and no cancel, submit, patient-change or export request is made by removal
+
+#### Scenario: Dispatcher races with removal
+- **WHEN** dispatch and individual removal compete for the same entry
+- **THEN** removal before claim prevents send and later resurrection; claim first makes the entry non-removable and exposes truthful delivery state without pretending to cancel already-started work
+
+#### Scenario: Failed queued delivery and explicit removal
+- **WHEN** send rejects a claimed entry, the original entry is restored once and the clinician removes it or retries remaining work
+- **THEN** restoration retains original identity/order/context, retry requires canonical same-thread reconciliation, removing the final entry clears only obsolete queue failure feedback/lock, and no removed entry is dispatched again
+
+#### Scenario: Thread or patient changes during completion
+- **WHEN** queue delivery completes after a thread/patient transition or Area unmount
+- **THEN** it cannot restore, remove, unlock or dispatch work in the new scope, retained original-context entries remain isolated, and claimed delivery is reconciled rather than silently cancelled
+
 ### Requirement: Accessible unsent-work context decision
 The existing original-context unsent-work decision SHALL use one focus-managed modal alert dialog with a linked name and description identifying the origin, requested target and affected unsent text, attached sources and queue entries. It SHALL offer safe remain, preserve-and-change and explicit discard-and-change choices, with initial focus on remain and a visually distinct destructive choice. It SHALL preserve the incumbent context guard and successful-transition commit semantics.
 
@@ -85,7 +108,9 @@ The full and contextual Assistant SHALL keep the focused writing position and re
 
 #### Scenario: Compact header with a long patient identity
 - **WHEN** the full Assistant renders the independent audit's long authorized patient identity at 390×900 with Drive disconnected, and the same identity is checked in narrow full/contextual compositions
-- **THEN** the patient/header region between the banner and transcript occupies less height than its measured 237.58 px audit baseline at 390×900, without merely hiding or moving its content into the transcript; complete identity remains readable inline or through visible keyboard/touch disclosure, navigation and required controls remain reachable with existing coarse-pointer targets, and reflow/disclosure preserves focus, work, context and runtime state without a new clinical/provider request
+- **THEN** the patient/header region between the banner and transcript occupies less height than its measured 237.58 px audit baseline at 390×900 and measures at most 213.58 CSS px after C7, meeting the approved minimum 24 CSS px reduction against that historical fixture, without merely hiding or moving its content into the transcript; measure from banner border-box bottom to transcript border-box top before and after with matched identity, font, viewport, banner/work/disclosure state, and recheck after C7; complete identity remains readable inline or through visible keyboard/touch disclosure, patient selection remains a separate guarded action, navigation and required composer controls/caret remain reachable with existing coarse-pointer targets, and reflow/disclosure preserves focus, work, context and runtime state without a new clinical/provider request
+
+PMAX-004 acceptance note: the user approved this target, based on the existing `spacing.xl` interval, without claiming experimentally validated feasibility. Record C0 before/after measurements separately; an already-satisfied target needs regression proof, not another correction. If the target cannot be achieved without sacrificing complete identity access, separate guarded patient selection, focus/work/caret continuity, required actions or existing 44 px coarse-pointer targets, stop the correction and request a revised acceptance decision rather than weaken those guarantees.
 
 ### Requirement: Viewport-bounded clinical context modal
 The unsent-work context modal SHALL fit the usable viewport and expose its complete patient/target/consequence description and all permitted choices through contained scrolling and wrapping actions. Its portaled controls SHALL satisfy the existing 44 px coarse-pointer target contract independently of clinical-area ancestry. Layout changes and long pending/error feedback SHALL preserve the existing safe initial focus, modal focus management, return focus and transition commit policy.

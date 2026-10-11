@@ -27,6 +27,65 @@ The pending-work list SHALL preserve the successfully opened pagination depth, r
 - **WHEN** old refresh/load-more responses complete after patient, kind, limit or request generation changes
 - **THEN** old results cannot replace or append to the current scope, and pending totals and action IDs remain API-backed
 
+### Requirement: Patient-scoped pending evolution dismissal
+The existing pending-work list SHALL offer exact-resource `Descartar` for eligible pending evolution approvals and recoverable draft/stale artifacts from patient summary and global views. The server SHALL authorize owner/patient/thread/action/artifact relationships, current state/hash/version, absence of incompatible approved results and exclusion of unsafe active turns. Approval rejection SHALL reuse decline with existing action audit; standalone draft discard SHALL be logical, terminal and auditable with a stable operation identity, actor and timestamp, without inventing an approval. Confirmation and canonical reconciliation SHALL precede removal or success claims. Approved ficha data, historical activity, original Drive documents, export state, active turns and unrelated work SHALL remain intact. PENDING-001's localized backend/status/receipt exception is approved for planning; implementation remains separately authorized.
+
+#### Scenario: Patient summary opens individual pending work
+- **WHEN** the clinician chooses `Ver pendientes` for patient A's review or recoverable-draft count
+- **THEN** the existing pending list shows that patient and kind with API-backed total and exact `Revisar`/`Continuar` targets, without exposing another patient's items or adding discard controls to approved history
+
+#### Scenario: Confirm an eligible pending approval
+- **WHEN** a canonical owned thread read matches the selected action, thread, artifact, patient and current proposal_hash and the clinician confirms `Descartar`
+- **THEN** server guards verify the selected relationships, hash, current artifact version and safe state, exactly that action and linked pending artifact become declined atomically, and the row is removed only after confirmation with existing resolver/time traceability, without evolution persistence or Drive export
+
+#### Scenario: Cancel an accessible confirmation
+- **WHEN** the clinician opens the consequence confirmation, uses keyboard/touch, presses Escape or chooses the safe cancel action
+- **THEN** patient and exact selected work are identified, focus is contained and returned safely, and cancellation performs no write or loss of local work
+
+#### Scenario: Draft dismissal does not emulate approval or deletion
+- **WHEN** the clinician discards standalone recoverable draft work
+- **THEN** the dedicated artifact command retires that work logically without creating an approval, deleting a thread, clearing clinical content or invoking return-to-editing/recover-draft
+
+#### Scenario: Discard an eligible recoverable draft
+- **WHEN** the clinician confirms a draft/stale artifact with a new operation ID and current canonical version and the server verifies all identities with no active turn, associated pending approval or approved result
+- **THEN** only that artifact becomes discarded, its payload and unrelated buffers/history remain intact, and the canonical response contains the stored operation, actor and resolution timestamp
+
+#### Scenario: Approved history and Drive work are protected
+- **WHEN** discard targets an already-approved action/artifact, a saved evolution, a Drive export failure or an original Drive document
+- **THEN** server-side eligibility prevents clinical discard of those resources, frontend offers no destructive action for them, and saved history, export status and Drive files remain unchanged
+
+#### Scenario: Wrong owner or patient identity
+- **WHEN** a forged request targets another owner's work or mismatches the selected patient/thread/action/artifact relationship
+- **THEN** server-boundary checks reject the unauthorized or inconsistent resource without mutation or disclosure, regardless of frontend visibility, and no state is published in the current patient's view
+
+#### Scenario: Duplicate execution or changed state
+- **WHEN** confirmation is clicked twice or edit/prepare/approve/recover/expiry or an active turn changes eligibility between read and resolution
+- **THEN** one resource-scoped operation runs, atomic state/version checks prevent invalid transitions, matching committed decline/hash or draft operation/identity/input returns its original receipt without mutation, different intents or reused cross-resource keys conflict, and approved work remains protected
+
+#### Scenario: Lost response or failed canonical read
+- **WHEN** either dismissal response is lost or network/canonical reconciliation fails
+- **THEN** the row stays available with operation-specific uncertainty or failure, absence from a page alone is not success, and a read-only canonical receipt/state check confirms declined, discarded, approved, still eligible or unavailable state before a same-intent retry
+
+#### Scenario: Refresh counts without losing the pending window
+- **WHEN** confirmed dismissal removes a row on a later page or completes after the patient/kind scope changes
+- **THEN** fresh-cursor C4 refresh updates list, filters, total and patient/global counts through authoritative reads while preserving opened depth, reading anchor and safe focus; late results cannot alter a new scope, and refresh failure preserves the last complete window with truthful stale feedback
+
+#### Scenario: Full-precision version changes before confirmation
+- **WHEN** an edit or regeneration changes the selected draft's canonical version after it was read for confirmation
+- **THEN** dismissal reports stale conflict without losing the newer content, version precision is preserved, and the clinician must review the current resource before a new intent
+
+#### Scenario: Delayed writer cannot reactivate discarded work
+- **WHEN** an old worker, upsert, edit, preparation, recovery or status callback arrives after confirmed discard
+- **THEN** the terminal artifact and its payload/receipt remain unchanged, it cannot return to recoverable or approval-required work, and no saved evolution or export is created from that callback
+
+#### Scenario: Canonical dismissal reconciliation is read-only
+- **WHEN** the client requests canonical identity or receipt state for dismissal while stale turns or expired approvals exist
+- **THEN** the explicit read-only read performs no cleanup, preparation, approval, recovery or export write, retains stored receipt precision and actor/time, and absence or expiry alone does not prove dismissal
+
+#### Scenario: Existing data and clients remain compatible
+- **WHEN** the localized schema/backend change is rolled out with older artifact rows and legacy approval callers
+- **THEN** existing statuses, payloads, approval semantics and history remain intact, legacy decline remains server-authorized, new discarded receipts are complete and unique for the owner, and rollback never reopens discarded work or destroys audit evidence
+
 ### Requirement: Visibility-aware pending navigation
 The full Assistant SHALL suppress its redundant header `Pendientes` entry only while an equivalent direct sidebar destination is visibly usable. When that destination is absent, hidden or unavailable, the existing header entry SHALL remain directly accessible. Layout changes SHALL preserve a usable destination and keyboard focus without introducing routes or changing contextual navigation.
 
