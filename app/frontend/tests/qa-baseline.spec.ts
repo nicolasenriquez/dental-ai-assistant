@@ -112,6 +112,64 @@ interface QaRuntimeDiagnostics {
 
 const qaRuntimeDiagnostics = new WeakMap<Page, QaRuntimeDiagnostics>();
 
+test('review fixes: context decision traps focus and Escape restores only the composer', async ({ page }) => {
+  await installQaRoutes(page);
+  await page.setViewportSize({ width: 834, height: 1000 });
+  await page.goto(`/patients/${patientId}`);
+  await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+  const input = page.getByRole('textbox', { name: 'Nota clínica' });
+  await input.fill('Nota sin enviar');
+  await page.getByRole('button', { name: 'Quitar paciente activo' }).click();
+  const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+  await expect(decision).toBeVisible();
+  const remain = decision.getByRole('button', { name: 'Mantener paciente' });
+  await expect(remain).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(decision.getByRole('button', { name: 'Descartar y cambiar' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(remain).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(decision).toHaveCount(0);
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue('Nota sin enviar');
+  await expect(page.getByRole('heading', { name: 'Asistente clínico', exact: true })).toBeVisible();
+});
+
+test('review fixes: contextual composer gives writing a full row by pane width', async ({ page }) => {
+  await installQaRoutes(page);
+  for (const width of [360, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(`/patients/${patientId}`);
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    await expect(input).toBeVisible();
+    await input.fill('Nota clínica suficientemente larga para comprobar el espacio disponible.');
+    const composer = page.getByTestId('clinical-composer');
+    const bounds = await composer.evaluate((node) => {
+      const shell = node.getBoundingClientRect();
+      const input = node.querySelector('textarea')!.getBoundingClientRect();
+      const toolbar = node.querySelector('.clinical-composer-toolbar')!.getBoundingClientRect();
+      return { shellWidth: shell.width, inputWidth: input.width, inputBottom: input.bottom, toolbarTop: toolbar.top, scrollWidth: node.scrollWidth, clientWidth: node.clientWidth };
+    });
+    expect(bounds.inputWidth).toBeGreaterThan(bounds.shellWidth * 0.75);
+    expect(bounds.toolbarTop).toBeGreaterThanOrEqual(bounds.inputBottom);
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+  }
+});
+
+test('review fixes: full assistant preserves snapshots and a continuous artifact heading outline', async ({ page }) => {
+  await installQaRoutes(page, { driveEnabled: true });
+  await page.goto(`/a/${threadId}`);
+  await expect(page.getByRole('heading', { name: 'Prepara una evolución clínica' })).toBeVisible();
+  await captureView(page, 'qa-clinical-empty');
+  await page.getByRole('textbox', { name: 'Nota clínica' }).fill('Nota clínica QA.');
+  await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+  const transcript = page.getByRole('log', { name: 'Transcripción clínica' });
+  await expect(transcript.getByRole('heading', { name: 'Evolución clínica', level: 3 })).toBeVisible();
+  const levels = await transcript.locator('h2, h3, h4').evaluateAll((headings) => headings.map((heading) => Number(heading.tagName.slice(1))));
+  expect(levels).toEqual([2, 3, 4, 4, 4, 4, 4]);
+});
+
 test('audit fixes: primary action states keep readable contrast and visible focus', async ({ page }) => {
   await installQaRoutes(page);
   await page.goto('/patients');
@@ -521,6 +579,14 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
     }
     if (path === '/api/clinical-threads/acquire' && method === 'POST') {
       await route.fulfill(json({ thread: currentClinicalThread, reused: false }, 201));
+      return;
+    }
+    if (path === '/api/clinical-threads/open-context' && method === 'POST') {
+      await route.fulfill(json({ resolution: 'reused', thread: currentClinicalThread }));
+      return;
+    }
+    if (path === '/api/clinical-pending-work' && method === 'GET') {
+      await route.fulfill(json({ items: [], total: 0, next_cursor: null }));
       return;
     }
     if (path === `/api/clinical-threads/${threadId}` && method === 'GET') {

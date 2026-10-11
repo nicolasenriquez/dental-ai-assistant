@@ -206,6 +206,7 @@ export function ClinicalTranscript({
       aria-label="Transcripción clínica"
       aria-busy={busy}
     >
+      <h2 className="sr-only">Transcripción clínica</h2>
       {items.length === 0 && !activeTurn && emptyState ? (
         emptyState
       ) : (

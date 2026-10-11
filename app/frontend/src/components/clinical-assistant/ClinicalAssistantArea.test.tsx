@@ -33,6 +33,7 @@ function createAssistant(): ClinicalAssistantController {
     runtime: runtime.value,
     activeTurnId: runtime.value === 'streaming' || runtime.value === 'stopping' ? 'turn-1' : null,
     error: null,
+    loadError: null,
     unverifiedActionId: null,
     send,
     stop: vi.fn(),
@@ -79,6 +80,36 @@ describe('ClinicalAssistantArea queue', () => {
     runtime.value = 'streaming';
     assistantState.thread = createThread(null);
     vi.mocked(getPatients).mockResolvedValue([]);
+  });
+
+  it('keeps unloaded threads out of the actionable empty state and offers load retry', async () => {
+    runtime.value = 'idle';
+    assistantState.thread = null;
+    const assistant = createAssistant();
+    assistant.loadError = 'No pudimos cargar este hilo clínico.';
+    const view = render(<ClinicalAssistantArea threadId="thread-1" assistant={assistant} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(assistant.loadError);
+    expect(document.querySelector('.clinical-empty-actions')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Seleccionar paciente' })).toBeDisabled();
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Nota conservada' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar carga' }));
+    await waitFor(() => expect(assistant.reload).toHaveBeenCalledOnce());
+    view.rerender(
+      <ClinicalAssistantArea
+        threadId="thread-1"
+        assistant={{ ...assistant, thread: createThread(null), loadError: null }}
+      />,
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(document.querySelector('.clinical-empty-actions')).toBeVisible();
+    expect(screen.getByRole('textbox')).toHaveValue('Nota conservada');
+    expect(
+      screen.getByRole('heading', { name: 'Transcripción clínica', level: 2 }),
+    ).toBeInTheDocument();
   });
 
   it('preserves text, attachments and queue order when editing conflicts', async () => {

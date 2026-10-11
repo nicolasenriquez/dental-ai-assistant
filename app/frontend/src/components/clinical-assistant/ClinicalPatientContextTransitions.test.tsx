@@ -204,7 +204,7 @@ function renderHarness(entry = '/a/a'): void {
 }
 
 const composer = (): HTMLElement =>
-  screen.getByRole('textbox', { name: /Nota clínica|Consulta al asistente/ });
+  screen.getByRole('textbox', { name: /Nota clínica|Consulta al asistente|Borrador para/ });
 
 const boundary = (): HTMLElement => screen.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
 
@@ -256,6 +256,8 @@ describe('assistant patient-context transitions', () => {
     await choosePatient(/Bruno Ríos/);
 
     expect(boundary()).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Mantener paciente' })).toHaveFocus();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(api.setClinicalActivePatient).not.toHaveBeenCalled();
   });
 
@@ -273,6 +275,32 @@ describe('assistant patient-context transitions', () => {
     expect(
       screen.queryByRole('alertdialog', { name: 'Trabajo sin enviar' }),
     ).not.toBeInTheDocument();
+    await waitFor(() => expect(composer()).toHaveFocus());
+  });
+
+  it('keeps the context decision locked until the patient change finishes', async () => {
+    let finish!: (value: ClinicalThread) => void;
+    vi.mocked(api.setClinicalActivePatient).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    renderHarness();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Nota para Ana' },
+    });
+    await choosePatient(/Bruno Ríos/);
+    fireEvent.click(screen.getByRole('button', { name: 'Conservar y cambiar' }));
+    for (const button of within(boundary()).getAllByRole('button')) expect(button).toBeDisabled();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(boundary()).toBeVisible();
+    expect(api.setClinicalActivePatient).toHaveBeenCalledOnce();
+    await act(async () => {
+      finish(clinicalThread('a', PATIENT_B));
+    });
+    expect(await screen.findByRole('textbox', { name: 'Borrador para Ana Pérez' })).toHaveValue(
+      'Nota para Ana',
+    );
   });
 
   it('preserve keeps the work labelled to A and blocks sending under B', async () => {
@@ -288,6 +316,9 @@ describe('assistant patient-context transitions', () => {
       expect(api.setClinicalActivePatient).toHaveBeenCalledWith('a', PATIENT_B.id),
     );
     expect(await screen.findByText(/Borrador conservado para Ana Pérez/)).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Borrador para Ana Pérez' })).toHaveValue(
+      'Nota para Ana',
+    );
     expect(composer()).toHaveValue('Nota para Ana');
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     expect(send).toBeDisabled();
@@ -347,6 +378,8 @@ describe('assistant patient-context transitions', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'No pudimos cambiar el paciente activo.',
     );
+    expect(within(boundary()).getByRole('alert')).toHaveTextContent('No pudimos cambiar');
+    fireEvent.click(screen.getByRole('button', { name: 'Mantener paciente' }));
     expect(composer()).toHaveValue('Nota para Ana');
     expect(api.streamClinicalTurn).not.toHaveBeenCalled();
   });

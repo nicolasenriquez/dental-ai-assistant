@@ -3222,6 +3222,7 @@ body,
   left: auto;
   flex: none;
   background: transparent;
+  container: clinical-composer-pane / inline-size;
 }
 
 .clinical-composer {
@@ -3276,6 +3277,25 @@ body,
 @media (max-width: 767px) {
   .clinical-composer-keys {
     display: none;
+  }
+}
+
+@container clinical-composer-pane (max-width: 640px) {
+  .clinical-composer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .clinical-composer-toolbar {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
+
+  .clinical-composer-keys {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 }
 

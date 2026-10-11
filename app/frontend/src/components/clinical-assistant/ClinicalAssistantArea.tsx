@@ -25,6 +25,14 @@ import { WorkspaceHeader } from '../WorkspaceHeader';
 import { composeClinicalDraft } from '../clinical/evolutionFields';
 import { EmptyState } from '../patterns/EmptyState';
 import { Button } from '../ui/Button';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import { ClinicalComposer } from './ClinicalComposer';
 import { ClinicalPatientPicker, type ClinicalPatientSelectionState } from './ClinicalPatientPicker';
 import { ClinicalTranscript } from './ClinicalTranscript';
@@ -123,6 +131,7 @@ export function ClinicalAssistantArea({
   const patientChangeRequestRef = useRef(0);
   const lastPatientChangeRef = useRef<string | null | undefined>(undefined);
   const activePatient = assistant.thread?.active_patient ?? null;
+  const threadReady = assistant.thread?.id === threadId;
   const workspacePatientId = activePatient?.id ?? null;
   const retained = retainedByThread[threadId];
   const displayPatientId = retained ? retained.patientId : workspacePatientId;
@@ -230,7 +239,7 @@ export function ClinicalAssistantArea({
 
   const requestPatientChange = useCallback(
     (patientId: string | null) => {
-      if (patientSelectionState === 'saving') return;
+      if (!threadReady || patientSelectionState === 'saving') return;
       const hasTextWork = value.trim().length > 0 || contextItems.length > 0;
       const conflicts =
         (hasTextWork && displayPatientId !== patientId) ||
@@ -243,6 +252,7 @@ export function ClinicalAssistantArea({
     },
     [
       patientSelectionState,
+      threadReady,
       value,
       contextItems.length,
       displayPatientId,
@@ -337,6 +347,7 @@ export function ClinicalAssistantArea({
     const patientId = assistant.thread?.active_patient?.id ?? null;
     const next = queued[0];
     if (
+      !threadReady ||
       assistant.runtime !== 'idle' ||
       voiceInFlight ||
       queueDeliveryFailed ||
@@ -363,6 +374,7 @@ export function ClinicalAssistantArea({
     assistant.send,
     assistant.thread?.active_patient?.id,
     queued,
+    threadReady,
     queueDeliveryFailed,
     threadId,
     updateQueue,
@@ -370,7 +382,7 @@ export function ClinicalAssistantArea({
   ]);
 
   const send = () => {
-    if (!value.trim() || voiceInFlight || contextMismatch) return;
+    if (!threadReady || !value.trim() || voiceInFlight || contextMismatch) return;
     const instruction = value.trim();
     if (assistant.runtime === 'saving' || assistant.runtime === 'awaiting_approval') return;
     if (queueAvailable) {
@@ -535,7 +547,7 @@ export function ClinicalAssistantArea({
             selectionState={patientSelectionState}
             selectionError={patientSelectionError}
             onRetryPatientChange={retryPatientChange}
-            disabled={voiceInFlight}
+            disabled={!threadReady || voiceInFlight}
             open={patientPickerOpen ?? localPatientPickerOpen}
             onOpenChange={onPatientPickerOpenChange ?? setLocalPatientPickerOpen}
           />
@@ -547,79 +559,95 @@ export function ClinicalAssistantArea({
         activeTurn={activeTurn}
         busy={queueAvailable || assistant.runtime === 'saving'}
         emptyState={
-          <EmptyState
-            className="clinical-empty-state"
-            headingLevel={2}
-            icon={<Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />}
-            title={activePatient ? 'Prepara una evolución clínica' : '¿Qué necesitas hacer?'}
-            description={
-              activePatient
-                ? 'Escribe o dicta la nota; revisarás el borrador antes de guardarlo.'
-                : 'Selecciona un paciente para consultar su ficha o preparar una evolución. También puedes hacer una consulta general.'
-            }
-            action={
-              <div className="clinical-empty-actions">
-                {!activePatient && (
-                  <Button
-                    type="button"
-                    variant="clinical"
-                    onClick={() => (onPatientPickerOpenChange ?? setLocalPatientPickerOpen)(true)}
-                  >
-                    Seleccionar paciente
-                  </Button>
-                )}
-                {activePatient && (
-                  <>
+          threadReady ? (
+            <EmptyState
+              className="clinical-empty-state"
+              headingLevel={2}
+              icon={<Stethoscope size={36} strokeWidth={1.5} aria-hidden="true" />}
+              title={activePatient ? 'Prepara una evolución clínica' : '¿Qué necesitas hacer?'}
+              description={
+                activePatient
+                  ? 'Escribe o dicta la nota; revisarás el borrador antes de guardarlo.'
+                  : 'Selecciona un paciente para consultar su ficha o preparar una evolución. También puedes hacer una consulta general.'
+              }
+              action={
+                <div className="clinical-empty-actions">
+                  {!activePatient && (
                     <Button
                       type="button"
                       variant="clinical"
-                      disabled={
-                        !!value.trim() ||
-                        assistant.runtime !== 'idle' ||
-                        voiceInFlight ||
-                        contextItems.length > 0 ||
-                        queued.length > 0
-                      }
-                      onClick={() => {
-                        if (!value.trim() && assistant.runtime === 'idle') {
-                          setValue('Quiero preparar una evolución con mi nota clínica.');
-                          textareaRef.current?.focus();
-                        }
-                      }}
+                      onClick={() => (onPatientPickerOpenChange ?? setLocalPatientPickerOpen)(true)}
                     >
-                      Preparar evolución
+                      Seleccionar paciente
                     </Button>
-                    <Button
-                      type="button"
-                      variant="clinicalSecondary"
-                      disabled={
-                        !!value.trim() ||
-                        assistant.runtime !== 'idle' ||
-                        voiceInFlight ||
-                        contextItems.length > 0 ||
-                        queued.length > 0
-                      }
-                      onClick={() => {
-                        if (!value.trim() && assistant.runtime === 'idle') {
-                          setValue('Consulta las evoluciones anteriores de este paciente.');
-                          textareaRef.current?.focus();
+                  )}
+                  {activePatient && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="clinical"
+                        disabled={
+                          !!value.trim() ||
+                          assistant.runtime !== 'idle' ||
+                          voiceInFlight ||
+                          contextItems.length > 0 ||
+                          queued.length > 0
                         }
-                      }}
-                    >
-                      Consultar evoluciones
-                    </Button>
-                  </>
-                )}
-                <Button
-                  type="button"
-                  variant="clinicalSecondary"
-                  onClick={() => textareaRef.current?.focus()}
-                >
-                  {activePatient ? 'Escribir nota clínica' : 'Escribir consulta general'}
-                </Button>
-              </div>
-            }
-          />
+                        onClick={() => {
+                          if (!value.trim() && assistant.runtime === 'idle') {
+                            setValue('Quiero preparar una evolución con mi nota clínica.');
+                            textareaRef.current?.focus();
+                          }
+                        }}
+                      >
+                        Preparar evolución
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="clinicalSecondary"
+                        disabled={
+                          !!value.trim() ||
+                          assistant.runtime !== 'idle' ||
+                          voiceInFlight ||
+                          contextItems.length > 0 ||
+                          queued.length > 0
+                        }
+                        onClick={() => {
+                          if (!value.trim() && assistant.runtime === 'idle') {
+                            setValue('Consulta las evoluciones anteriores de este paciente.');
+                            textareaRef.current?.focus();
+                          }
+                        }}
+                      >
+                        Consultar evoluciones
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    type="button"
+                    variant="clinicalSecondary"
+                    onClick={() => textareaRef.current?.focus()}
+                  >
+                    {activePatient ? 'Escribir nota clínica' : 'Escribir consulta general'}
+                  </Button>
+                </div>
+              }
+            />
+          ) : assistant.loadError ? (
+            <div className="clinical-error" role="alert">
+              <p>{assistant.loadError}</p>
+              <Button
+                variant="clinicalSecondary"
+                onClick={() => void assistant.reload().catch(() => undefined)}
+              >
+                Reintentar carga
+              </Button>
+            </div>
+          ) : (
+            <p role="status" className="p-4 text-sm text-muted">
+              Cargando conversación…
+            </p>
+          )
         }
         onDraftChange={onDraftChange}
         onDraftSourceChange={assistant.updateDraftSource}
@@ -802,30 +830,63 @@ export function ClinicalAssistantArea({
               </button>
             </div>
           )}
-          {boundary && (
-            <div
+          <AlertDialog
+            open={boundary !== null}
+            onOpenChange={(open) => {
+              if (!open && patientSelectionState !== 'saving') resolveBoundary('remain');
+            }}
+          >
+            <AlertDialogContent
               role="alertdialog"
-              aria-label="Trabajo sin enviar"
-              className="clinical-context-boundary"
+              onEscapeKeyDown={(event) => {
+                event.stopPropagation();
+                if (patientSelectionState === 'saving') event.preventDefault();
+              }}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                textareaRef.current?.focus();
+              }}
             >
-              <p>
-                {boundary.label
+              <AlertDialogTitle>Trabajo sin enviar</AlertDialogTitle>
+              <AlertDialogDescription>
+                {boundary?.label
                   ? `Trabajo sin enviar para ${boundary.label}.`
                   : 'Trabajo sin enviar sin paciente.'}
-              </p>
-              <button type="button" onClick={() => resolveBoundary('remain')}>
-                Mantener paciente
-              </button>
-              <button type="button" onClick={() => resolveBoundary('preserve')}>
-                Conservar y cambiar
-              </button>
-              <button type="button" onClick={() => resolveBoundary('discard')}>
-                Descartar y cambiar
-              </button>
-            </div>
-          )}
+              </AlertDialogDescription>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={patientSelectionState === 'saving'}
+                  onClick={() => resolveBoundary('remain')}
+                >
+                  Mantener paciente
+                </AlertDialogCancel>
+                <Button
+                  type="button"
+                  variant="clinical"
+                  disabled={patientSelectionState === 'saving'}
+                  onClick={() => resolveBoundary('preserve')}
+                >
+                  Conservar y cambiar
+                </Button>
+                <Button
+                  type="button"
+                  variant="clinicalSecondary"
+                  disabled={patientSelectionState === 'saving'}
+                  onClick={() => resolveBoundary('discard')}
+                >
+                  Descartar y cambiar
+                </Button>
+              </AlertDialogFooter>
+              {patientSelectionError && (
+                <p role="alert" className="text-error">
+                  {patientSelectionError}
+                </p>
+              )}
+            </AlertDialogContent>
+          </AlertDialog>
           <ClinicalComposer
             patient={assistant.thread?.active_patient ?? null}
+            retainedContextLabel={contextMismatch ? (displayLabel ?? 'Sin paciente') : undefined}
             value={value}
             textareaRef={textareaRef}
             onChange={setValue}
@@ -862,6 +923,7 @@ export function ClinicalAssistantArea({
               onRetry: voice.retry,
             }}
             submitDisabled={
+              !threadReady ||
               voiceInFlight ||
               contextMismatch ||
               assistant.runtime === 'saving' ||

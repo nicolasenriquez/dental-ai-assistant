@@ -33,6 +33,7 @@
     - text: ""
   - button "Abrir Google Drive"
   - log "Transcripción clínica":
+    - heading "Transcripción clínica" [level=2]
     - heading "Prepara una evolución clínica" [level=2]
     - paragraph: Escribe o dicta la nota; revisarás el borrador antes de guardarlo.
     - button "Preparar evolución"

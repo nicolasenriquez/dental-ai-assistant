@@ -186,6 +186,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   );
   const [runtime, setRuntime] = useState<ClinicalRuntime>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [unverifiedActionId, setUnverifiedActionId] = useState<string | null>(null);
   const [artifactSyncState, setArtifactSyncState] = useState<
     Record<string, 'idle' | 'saving' | 'saved' | 'error'>
@@ -219,6 +220,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     const seq = ++loadSeqRef.current;
     const loaded = await getClinicalThread(threadId);
     if (seq !== loadSeqRef.current || threadIdRef.current !== threadId) return null;
+    setLoadError(null);
     setThread(loaded);
     activeTurnRef.current = loaded.active_turn_id;
     const actions = loaded.actions ?? [];
@@ -308,6 +310,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
   useEffect(() => {
     let cancelled = false;
     threadIdRef.current = threadId;
+    setLoadError(null);
     loadSeqRef.current += 1;
     activePatientRequestSeqRef.current += 1;
     if (!threadId) {
@@ -324,7 +327,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     setError(null);
     patientSwitchItemsRef.current = [];
     void load().catch(() => {
-      if (!cancelled) setError('No pudimos cargar este hilo clínico.');
+      if (!cancelled) setLoadError('No pudimos cargar este hilo clínico.');
     });
     return () => {
       cancelled = true;
@@ -909,9 +912,13 @@ export function useClinicalAssistant(threadId: string | undefined) {
         setThread((current) => (current ? { ...current, pending_action: null } : current));
         if (resolvedStatus === 'failed') {
           // The canonical failure updates the artifact timestamp recovery needs.
-          await load().catch(() => undefined);
+          const fresh = await load().catch(() => null);
+          if (threadIdRef.current !== scope) return;
           setRuntime('failed');
-          setError(safeError('EVOLUTION_SAVE_FAILED'));
+          const canonicalFailure = fresh?.actions?.some(
+            (action) => action.id === item.action.id && action.status === 'failed',
+          );
+          setError(canonicalFailure ? null : safeError('EVOLUTION_SAVE_FAILED'));
           return;
         }
         setRuntime('idle');
@@ -942,7 +949,9 @@ export function useClinicalAssistant(threadId: string | undefined) {
           itemId: item.id,
           status: unverified ? 'failed' : 'pending',
         });
-        setError(safeError(code ?? 'EVOLUTION_SAVE_FAILED'));
+        setError(
+          canonical?.status === 'failed' ? null : safeError(code ?? 'EVOLUTION_SAVE_FAILED'),
+        );
         setRuntime(unverified ? 'failed' : pending ? 'awaiting_approval' : 'failed');
       }
     },
@@ -1171,6 +1180,7 @@ export function useClinicalAssistant(threadId: string | undefined) {
     runtime,
     activeTurnId,
     error,
+    loadError,
     unverifiedActionId,
     send,
     stop,

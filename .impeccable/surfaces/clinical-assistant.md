@@ -63,6 +63,9 @@ use explicit text and existing progress indicators without moving clinical text.
 Full and contextual views consume one attached runtime. Per-thread unsent notes,
 queue and attachments are memory only. Logout clears them; hard reload restores
 only server-persisted clinical work. Return to running detached work reconciles GET.
+Unsent patient-context decisions use the shared modal, default to keeping the patient,
+and stay open on failed changes. Retained input names its original context and blocks
+sending until restored. Unloaded threads offer loading/retry, never empty-thread starters.
 Unsent memory registers a native unload guard; confirming reload still loses it.
 Queue entries are claimed before dispatch and rejected delivery requires explicit retry.
 Send acceptance is independent of generation success or detaching the SSE subscriber.

@@ -572,6 +572,52 @@ describe('clinical export status reconciliation', () => {
 
   beforeEach(() => vi.resetAllMocks());
 
+  it('separates initial load failure from operation errors and clears it on retry', async () => {
+    vi.mocked(getClinicalThread)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(thread(patientA));
+    const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+    await waitFor(() =>
+      expect(result.current.loadError).toBe('No pudimos cargar este hilo clínico.'),
+    );
+    expect(result.current.thread).toBeNull();
+    expect(result.current.error).toBeNull();
+    await act(async () => {
+      await result.current.reload();
+    });
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.thread?.id).toBe('thread-1');
+  });
+
+  it.each([
+    { transportFails: false, rereadFails: false },
+    { transportFails: true, rereadFails: false },
+    { transportFails: false, rereadFails: true },
+    { transportFails: true, rereadFails: true },
+  ])(
+    'deduplicates only verified canonical save failures: %j',
+    async ({ transportFails, rereadFails }) => {
+      const failed: ClinicalPendingAction = { ...action, status: 'failed' };
+      vi.mocked(getClinicalThread).mockResolvedValueOnce({
+        ...thread(patientA),
+        actions: [action],
+      });
+      if (rereadFails) vi.mocked(getClinicalThread).mockRejectedValue(new Error('offline'));
+      else
+        vi.mocked(getClinicalThread).mockResolvedValue({ ...thread(patientA), actions: [failed] });
+      if (transportFails) vi.mocked(resolveClinicalAction).mockRejectedValue(new Error('offline'));
+      else vi.mocked(resolveClinicalAction).mockResolvedValue(failed);
+      const { result } = renderHook(() => useClinicalAssistant('thread-1'));
+      await waitFor(() => expect(result.current.items).toHaveLength(1));
+      await act(async () => {
+        await result.current.resolve(result.current.items[0] as ClinicalApprovalItem, 'approve');
+      });
+      expect(result.current.items[0].status).toBe('failed');
+      expect(result.current.error === null).toBe(!rereadFails);
+      expect(result.current.runtime).toBe('failed');
+    },
+  );
+
   it.each([false, true])('prepares in the current thread (failure: %s)', async (fails) => {
     vi.mocked(getClinicalThread).mockResolvedValue({ ...thread(patientA), artifacts: [artifact] });
     vi.mocked(updateClinicalArtifact).mockResolvedValue(artifact);

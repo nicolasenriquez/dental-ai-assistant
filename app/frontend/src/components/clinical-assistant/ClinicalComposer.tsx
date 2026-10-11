@@ -20,6 +20,7 @@ export interface ClinicalVoiceControls {
 
 interface ClinicalComposerProps {
   patient: ClinicalPatient | null;
+  retainedContextLabel?: string;
   value: string;
   textareaRef: RefObject<HTMLTextAreaElement>;
   onChange: (value: string) => void;
@@ -36,6 +37,7 @@ interface ClinicalComposerProps {
 
 export function ClinicalComposer({
   patient,
+  retainedContextLabel,
   value,
   textareaRef,
   onChange,
@@ -79,6 +81,11 @@ export function ClinicalComposer({
         }
       }}
     >
+      {retainedContextLabel && (
+        <p className="col-span-full text-xs text-muted">
+          Borrador para {retainedContextLabel}. Vuelve a este contexto para enviar.
+        </p>
+      )}
       {contextItems.length > 0 && (
         <div
           className="col-span-full flex w-full flex-wrap gap-2"
@@ -112,9 +119,21 @@ export function ClinicalComposer({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         rows={1}
-        aria-label={patient ? 'Nota clínica' : 'Consulta al asistente'}
+        aria-label={
+          retainedContextLabel
+            ? `Borrador para ${retainedContextLabel}`
+            : patient
+              ? 'Nota clínica'
+              : 'Consulta al asistente'
+        }
         aria-describedby="clinical-composer-keys"
-        placeholder={patient ? 'Escribe o dicta la nota clínica…' : 'Escribe una consulta general…'}
+        placeholder={
+          retainedContextLabel
+            ? `Continúa el borrador para ${retainedContextLabel}…`
+            : patient
+              ? 'Escribe o dicta la nota clínica…'
+              : 'Escribe una consulta general…'
+        }
         className="chat-composer-input clinical-composer-input"
         aria-busy={voice.state === 'transcribing'}
       />
