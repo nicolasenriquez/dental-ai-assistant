@@ -30,6 +30,25 @@ const attachedSources: ComposerContextItem[] = [
   content: `Contenido sintético ${index + 1}`,
 }));
 
+const suffixOnlySources: ComposerContextItem[] = ['revision_v12.pdf', 'revision_v13.pdf'].map(
+  (suffix, index) => ({
+    id: `source-suffix-${index + 12}`,
+    kind: 'drive_selection' as const,
+    sourceId: `file-suffix-${index + 12}`,
+    sourceName: `informe_consolidado_ortodoncia_paciente_qa_2026_seguimiento_trimestral_${suffix}`,
+    content: `Contenido sintético ${index + 1}`,
+  }),
+);
+
+const acceptedLimitUnbrokenName = 'evaluacion_clinica_extensa_'.repeat(20).slice(0, 500);
+const acceptedLimitSource: ComposerContextItem = {
+  id: 'source-limit',
+  kind: 'drive_selection',
+  sourceId: 'file-limit',
+  sourceName: acceptedLimitUnbrokenName,
+  content: 'Contenido sintético del documento extenso.',
+};
+
 function voiceControls(
   state: VoiceState,
   overrides: Partial<ClinicalVoiceControls> = {},
@@ -373,6 +392,36 @@ describe('ClinicalComposer', () => {
     expect(screen.getByRole('button', { name: 'Iniciar dictado' })).toBeEnabled();
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps suffix-only and accepted-limit source names complete with their exact removal actions', () => {
+    const onRemoveContext = vi.fn();
+    render(
+      <ClinicalComposer
+        origin={patientOrigin}
+        value=""
+        textareaRef={createRef<HTMLTextAreaElement>()}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        primaryAction="send"
+        onPrimaryAction={vi.fn()}
+        contextItems={[...suffixOnlySources, acceptedLimitSource]}
+        onRemoveContext={onRemoveContext}
+        voice={voiceControls('idle')}
+      />,
+    );
+
+    expect(acceptedLimitSource.sourceName).toHaveLength(500);
+    for (const source of [...suffixOnlySources, acceptedLimitSource]) {
+      expect(screen.getByText(`${source.sourceName} · Google Drive`)).toBeVisible();
+      expect(screen.getByRole('button', { name: `Quitar ${source.sourceName}` })).toBeVisible();
+    }
+
+    fireEvent.click(
+      screen.getByRole('button', { name: `Quitar ${suffixOnlySources[1].sourceName}` }),
+    );
+    expect(onRemoveContext).toHaveBeenCalledTimes(1);
+    expect(onRemoveContext).toHaveBeenCalledWith(suffixOnlySources[1].id);
   });
 
   const remainingVoiceStates: VoiceState[] = [

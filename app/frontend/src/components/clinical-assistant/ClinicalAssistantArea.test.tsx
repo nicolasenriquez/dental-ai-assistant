@@ -1260,3 +1260,68 @@ describe('ClinicalAssistantArea pending navigation availability', () => {
     expect(screen.queryByRole('link', { name: 'Ver pendientes' })).not.toBeInTheDocument();
   });
 });
+
+describe('ClinicalAssistantArea visible-height continuity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    send.mockResolvedValue(true);
+    runtime.value = 'streaming';
+    assistantState.thread = createThread({
+      id: 'patient-1',
+      first_name: 'Paciente sintética Alejandra',
+      last_name: 'Apellido compuesto de prueba extensa',
+      rut_masked: '••••',
+    });
+    vi.mocked(getPatients).mockResolvedValue([]);
+  });
+
+  it('keeps draft, caret, selection, five sources and three queued entries through a viewport-height change', async () => {
+    let insert: ((item: import('../../lib/api').ComposerContextItem) => void) | undefined;
+    render(
+      <ClinicalAssistantArea
+        threadId="thread-1"
+        assistant={createAssistant()}
+        embedded
+        onComposerInsertReady={(callback) => {
+          insert = callback;
+        }}
+      />,
+    );
+    await waitFor(() => expect(getPatients).toHaveBeenCalled());
+    const composer = screen.getByRole('textbox', { name: 'Nota clínica' }) as HTMLTextAreaElement;
+    for (const message of ['Pendiente uno', 'Pendiente dos', 'Pendiente tres']) {
+      fireEvent.change(composer, { target: { value: message } });
+      fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    }
+    for (let index = 0; index < 5; index += 1) {
+      act(() =>
+        insert?.({
+          id: `source-${index}`,
+          kind: 'drive_selection' as const,
+          sourceId: `file-${index}`,
+          sourceName: `informe_ortodoncia_revision_v1${index}.pdf`,
+          content: `Contenido ${index}`,
+        }),
+      );
+    }
+    const note = 'Nota extensa.\nSegunda línea.\nTercera línea.';
+    fireEvent.change(composer, { target: { value: note } });
+    composer.focus();
+    composer.setSelectionRange(4, 20);
+
+    act(() => {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 420 });
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(composer).toHaveValue(note);
+    expect({ start: composer.selectionStart, end: composer.selectionEnd }).toEqual({
+      start: 4,
+      end: 20,
+    });
+    expect(screen.getByText('Mensajes en cola 3/3')).toBeVisible();
+    expect(screen.getAllByRole('button', { name: /^Quitar informe_ortodoncia/ })).toHaveLength(5);
+    expect(screen.getByRole('button', { name: 'Detener respuesta actual' })).toBeVisible();
+    expect(send).not.toHaveBeenCalled();
+  });
+});
