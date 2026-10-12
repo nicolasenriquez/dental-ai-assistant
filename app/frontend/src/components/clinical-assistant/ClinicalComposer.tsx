@@ -118,11 +118,12 @@ export function ClinicalComposer({
           {contextItems.map((item) => (
             <span
               key={item.id}
-              className="inline-flex max-w-full items-center gap-2 rounded-md bg-surface-raised px-2 py-1 text-xs text-muted"
+              className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md bg-surface-raised px-2 py-1 text-xs text-muted"
             >
-              <span className="truncate">{item.sourceName} · Google Drive</span>
+              <span className="min-w-0 break-words">{item.sourceName} · Google Drive</span>
               <button
                 type="button"
+                className="shrink-0"
                 aria-label={`Quitar ${item.sourceName}`}
                 onClick={() => onRemoveContext?.(item.id)}
               >

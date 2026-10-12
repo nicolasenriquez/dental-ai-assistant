@@ -110,11 +110,15 @@ interface QaRouteOptions {
   authenticated?: boolean;
   admin?: boolean;
   driveEnabled?: boolean;
+  /** Auth-config `drive_enabled` when the Drive status should still be disconnected. */
+  driveConfigured?: boolean;
   driveFiles?: QaDriveFile[];
   /** Patient directory for `GET /api/patients` and picker search. Defaults to [patient]. */
   patients?: (typeof patient)[];
   /** Consecutive `PATCH active-patient` requests served as 500 before the change succeeds. */
   patientChangeFailures?: number;
+  /** Hold the first `PATCH active-patient` request until `releaseHeldPatientChange`. */
+  holdPatientChange?: boolean;
   conversationLoadFailures?: number;
   streamFailuresBeforeSuccess?: number;
   holdFirstStream?: boolean;
@@ -128,11 +132,15 @@ interface QaRouteOptions {
   clinicalMessages?: Array<Record<string, unknown>>;
   /** Clinical thread title; defaults to the shared fixture title. */
   clinicalThreadTitle?: string;
+  /** Active patient rendered in the clinical thread header; defaults to the shared fixture. */
+  clinicalPatient?: typeof patient;
 }
 
 interface QaRouteControls {
   releaseHeldStream: () => void;
   clinicalStreamEntered: Promise<void>;
+  releaseHeldPatientChange: () => void;
+  patientChangeHeld: Promise<void>;
 }
 
 interface QaRuntimeDiagnostics {
@@ -1445,6 +1453,11 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
   let clinicalResolveAttempts = 0;
   const cancelledClinicalTurns = new Set<string>();
   let releaseHeldStream: (() => void) | null = null;
+  let releaseHeldPatientChange: (() => void) | null = null;
+  let resolvePatientChangeHeld: (() => void) | null = null;
+  const patientChangeHeld = new Promise<void>((resolve) => {
+    resolvePatientChangeHeld = resolve;
+  });
   let resolveClinicalStreamEntered: (() => void) | null = null;
   const clinicalStreamEntered = new Promise<void>((resolve) => {
     resolveClinicalStreamEntered = resolve;
@@ -1452,6 +1465,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
   let currentClinicalThread: Record<string, unknown> = {
     ...clinicalThread,
     title: options.clinicalThreadTitle ?? clinicalThread.title,
+    active_patient: options.clinicalPatient ?? clinicalThread.active_patient,
     messages: options.clinicalMessages ?? [],
     artifacts: [],
     actions: [],
@@ -1468,7 +1482,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
         json({
           mode: 'local',
           google_client_id: null,
-          drive_enabled: options.driveEnabled ?? false,
+          drive_enabled: options.driveConfigured ?? options.driveEnabled ?? false,
           drive_auto_onboard: false,
         }),
       );
@@ -1705,6 +1719,12 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
         return;
       }
       const body = request.postDataJSON() as { patient_id?: string | null };
+      if (options.holdPatientChange && releaseHeldPatientChange === null) {
+        resolvePatientChangeHeld?.();
+        await new Promise<void>((resolve) => {
+          releaseHeldPatientChange = resolve;
+        });
+      }
       currentClinicalThread = {
         ...currentClinicalThread,
         active_patient: directory.find((candidate) => candidate.id === body.patient_id) ?? null,
@@ -1983,6 +2003,8 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
   return {
     releaseHeldStream: () => releaseHeldStream?.(),
     clinicalStreamEntered,
+    releaseHeldPatientChange: () => releaseHeldPatientChange?.(),
+    patientChangeHeld,
   };
 }
 
@@ -2121,8 +2143,10 @@ const composerMatrixViewports = [
 
 async function attachQaSource(page: Page, file: QaDriveFile): Promise<void> {
   await page.getByRole('button', { name: 'Abrir Google Drive' }).click();
+  const back = page.getByRole('button', { name: 'Volver', exact: true });
+  if (await back.isVisible().catch(() => false)) await back.click();
   await page.getByRole('tab', { name: 'Documentos' }).click();
-  await page.getByRole('button', { name: `Abrir ${file.name}` }).click();
+  await page.getByRole('button', { name: `Abrir ${file.name}`, exact: true }).click();
   await page.getByRole('button', { name: 'Adjuntar documento al mensaje' }).click();
   await expect(page.getByRole('button', { name: `Quitar ${file.name}` })).toBeVisible();
 }
@@ -3481,5 +3505,1399 @@ test.describe('pending dismissal coarse pointer and zoom', () => {
     await assertNoHorizontalOverflow(page);
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
+  });
+});
+
+const longIdentityPatient = {
+  ...patient,
+  first_name: 'Paciente sintética Alejandra',
+  last_name: 'Apellido compuesto de prueba extensa',
+};
+
+const heightTranscriptMessages = [
+  'Control preventivo con antecedentes de ortodoncia y sensibilidad reportada.',
+  'Hallazgos sin cambios respecto de la última evolución registrada en ficha.',
+  'Plan: mantener higiene, control en seis meses y reevaluar sensibilidad.',
+  'Indicaciones entregadas por escrito y confirmadas con la paciente.',
+].map((content, index) => ({
+  id: `height-message-${index}`,
+  thread_id: threadId,
+  turn_id: `height-turn-${index}`,
+  role: 'assistant',
+  content,
+  created_at: '2026-10-10T12:00:00Z',
+}));
+
+const qaHeightDriveFiles: QaDriveFile[] = Array.from({ length: 5 }, (_, index) => ({
+  id: `file-qa-height-${index}`,
+  name: `informe_ortodoncia_revision_v1${index}.pdf`,
+  version: `1${index}`,
+  mimeType: 'application/pdf',
+  modifiedTime: '2026-01-10T12:00:00Z',
+  content: `Contenido clínico sintético del informe ${index + 1}.`,
+}));
+
+interface UsableHeightGeometry {
+  viewportHeight: number;
+  rootBottom: number;
+  transcriptTop: number;
+  transcriptBottom: number;
+  transcriptScrollHeight: number;
+  transcriptClientHeight: number;
+  composerTop: number;
+  composerBottom: number;
+  inputBottom: number;
+  toolbarBottom: number;
+  pageScrollTop: number;
+}
+
+async function measureUsableHeight(page: Page, root: Locator): Promise<UsableHeightGeometry> {
+  return root.evaluate((node) => {
+    const box = (element: Element | null) => (element ? element.getBoundingClientRect() : null);
+    const transcript = node.querySelector('.clinical-transcript');
+    const composer = node.querySelector('.clinical-composer');
+    const rootRect = node.getBoundingClientRect();
+    return {
+      viewportHeight: window.innerHeight,
+      rootBottom: rootRect.bottom,
+      transcriptTop: box(transcript)?.top ?? 0,
+      transcriptBottom: box(transcript)?.bottom ?? 0,
+      transcriptScrollHeight: transcript?.scrollHeight ?? 0,
+      transcriptClientHeight: transcript?.clientHeight ?? 0,
+      composerTop: box(composer)?.top ?? 0,
+      composerBottom: box(composer)?.bottom ?? 0,
+      inputBottom: box(node.querySelector('textarea'))?.bottom ?? 0,
+      toolbarBottom: box(node.querySelector('.clinical-composer-toolbar'))?.bottom ?? 0,
+      pageScrollTop: document.scrollingElement?.scrollTop ?? 0,
+    };
+  });
+}
+
+interface UsableDockGeometry {
+  overflowY: string;
+  scrollHeight: number;
+  clientHeight: number;
+  scrollTop: number;
+}
+
+async function measureComposerDock(page: Page, root: Locator): Promise<UsableDockGeometry | null> {
+  return root.evaluate((node) => {
+    const element = node.querySelector<HTMLElement>('.clinical-composer-dock');
+    if (!element) return null;
+    return {
+      overflowY: getComputedStyle(element).overflowY,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+      scrollTop: element.scrollTop,
+    };
+  });
+}
+
+test.describe('C6 DE01 visible-height continuity', () => {
+  test('software-keyboard height change keeps the writing position and controls reachable', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveEnabled: true, clinicalMessages: heightTranscriptMessages });
+    const mutations = trackQaApiMutations(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/a/${threadId}`);
+    const area = page.locator('.clinical-assistant-area');
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    const note = 'Motivo: control preventivo.\nHallazgos: sin cambios.\nPlan: control en seis meses.';
+    await input.fill(note);
+    await input.evaluate((element) => {
+      element.focus();
+      element.setSelectionRange(4, 28);
+    });
+    const baseline = await measureUsableHeight(page, area);
+    expect(baseline.composerBottom).toBeLessThanOrEqual(baseline.viewportHeight);
+
+    // ponytail: emulated keyboard viewport; the physical software keyboard stays an open device gate.
+    await page.setViewportSize({ width: 390, height: 420 });
+    const shrunk = await measureUsableHeight(page, area);
+    expect(shrunk.inputBottom).toBeLessThanOrEqual(shrunk.viewportHeight);
+    expect(shrunk.toolbarBottom).toBeLessThanOrEqual(shrunk.viewportHeight);
+    expect(shrunk.transcriptScrollHeight).toBeGreaterThan(shrunk.transcriptClientHeight);
+    expect(shrunk.pageScrollTop).toBe(0);
+    expect(await input.inputValue()).toBe(note);
+    expect(
+      await input.evaluate((element) => ({
+        start: element.selectionStart,
+        end: element.selectionEnd,
+      })),
+    ).toEqual({ start: 4, end: 28 });
+    await expect(page.getByRole('button', { name: 'Enviar mensaje' })).toBeVisible();
+
+    const writesAfterLoad = mutations.length;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const restored = await measureUsableHeight(page, area);
+    expect(restored.composerBottom).toBeLessThanOrEqual(restored.viewportHeight);
+    expect(await input.inputValue()).toBe(note);
+    expect(mutations).toHaveLength(writesAfterLoad);
+    console.log('[DE01-KEYBOARD]', JSON.stringify({ baseline, shrunk, restored }));
+  });
+
+  test('short landscape and contextual Sheet keep the note and controls reachable', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, {
+      driveEnabled: true,
+      clinicalPatient: longIdentityPatient,
+      clinicalMessages: heightTranscriptMessages,
+    });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto(`/a/${threadId}`);
+    const area = page.locator('.clinical-assistant-area');
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    const note = 'Nota en horizontal corto.\nSegunda línea del borrador clínico.';
+    await input.fill(note);
+    const landscape = await measureUsableHeight(page, area);
+    expect(landscape.composerBottom).toBeLessThanOrEqual(landscape.viewportHeight);
+    expect(landscape.inputBottom).toBeLessThanOrEqual(landscape.viewportHeight);
+    expect(landscape.transcriptScrollHeight).toBeGreaterThanOrEqual(
+      landscape.transcriptClientHeight,
+    );
+    expect(landscape.pageScrollTop).toBe(0);
+    expect(await input.inputValue()).toBe(note);
+    await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toContainText(
+      'Apellido compuesto de prueba extensa',
+    );
+    await assertNoHorizontalOverflow(page);
+    console.log('[DE01-LANDSCAPE]', JSON.stringify({ landscape }));
+
+    await page.setViewportSize({ width: 768, height: 500 });
+    await page.goto(`/patients/${patientId}`);
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Asistente clínico' });
+    const sheetInput = dialog.getByRole('textbox', { name: 'Nota clínica' });
+    await sheetInput.fill(note);
+    const sheet = await measureUsableHeight(page, dialog);
+    expect(sheet.composerBottom).toBeLessThanOrEqual(sheet.viewportHeight);
+    expect(sheet.inputBottom).toBeLessThanOrEqual(sheet.viewportHeight);
+    expect(sheet.pageScrollTop).toBe(0);
+    expect(await sheetInput.inputValue()).toBe(note);
+    await expect(dialog.getByRole('button', { name: /^Cerrar/ })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    console.log('[DE01-SHEET]', JSON.stringify({ sheet }));
+  });
+
+  test('five sources and three queued entries stay reachable at constrained height', async ({
+    page,
+  }) => {
+    const controls = await installQaRoutes(page, {
+      driveEnabled: true,
+      driveFiles: qaHeightDriveFiles,
+      holdClinicalStream: true,
+      clinicalMessages: heightTranscriptMessages,
+    });
+    const mutations = trackQaApiMutations(page);
+    try {
+      await page.setViewportSize({ width: 390, height: 700 });
+      await page.goto(`/a/${threadId}`);
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      await input.fill('Nota inicial para abrir la respuesta.');
+      await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      for (const message of ['Pendiente uno', 'Pendiente dos', 'Pendiente tres']) {
+        await input.fill(message);
+        await page.getByRole('button', { name: 'Encolar' }).click();
+      }
+      await expect(page.getByText('Mensajes en cola 3/3')).toBeVisible();
+      for (const file of qaHeightDriveFiles) await attachQaSource(page, file);
+      const note =
+        'Nota extensa con cinco documentos adjuntos y tres mensajes en cola.\nSegunda línea del borrador.\nTercera línea del borrador.';
+      await input.fill(note);
+      const writesAfterSetup = mutations.length;
+
+      await page.setViewportSize({ width: 390, height: 480 });
+      const area = page.locator('.clinical-assistant-area');
+      const constrained = await measureUsableHeight(page, area);
+      console.log('[DE01-SOURCES-QUEUE]', JSON.stringify({ constrained }));
+      for (const file of qaHeightDriveFiles) {
+        const remove = page.getByRole('button', { name: `Quitar ${file.name}` });
+        await remove.scrollIntoViewIfNeeded();
+        const box = await remove.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+        expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(constrained.viewportHeight);
+      }
+      const queueSummary = page.getByText('Mensajes en cola 3/3');
+      await queueSummary.scrollIntoViewIfNeeded();
+      await expect(queueSummary).toBeVisible();
+      await input.scrollIntoViewIfNeeded();
+      const reachableInput = await input.boundingBox();
+      expect(reachableInput).not.toBeNull();
+      expect(reachableInput?.y ?? -1).toBeGreaterThanOrEqual(0);
+      expect((reachableInput?.y ?? 0) + (reachableInput?.height ?? 0)).toBeLessThanOrEqual(
+        constrained.viewportHeight,
+      );
+      const stopControl = page.getByRole('button', { name: 'Detener respuesta' });
+      await stopControl.scrollIntoViewIfNeeded();
+      const reachableStop = await stopControl.boundingBox();
+      expect(reachableStop).not.toBeNull();
+      expect(reachableStop?.y ?? -1).toBeGreaterThanOrEqual(0);
+      expect((reachableStop?.y ?? 0) + (reachableStop?.height ?? 0)).toBeLessThanOrEqual(
+        constrained.viewportHeight,
+      );
+      expect(constrained.pageScrollTop).toBe(0);
+      expect(
+        await page.evaluate(() => ({
+          scrollTop: document.scrollingElement?.scrollTop ?? 0,
+          scrollY: window.scrollY,
+        })),
+      ).toEqual({ scrollTop: 0, scrollY: 0 });
+      // ponytail: bounded local scrolling must own this, not the app's main region.
+      const scrollOwner = await area.evaluate((node) => {
+        const input = node.querySelector('textarea');
+        for (let el: HTMLElement | null = input?.parentElement ?? null; el; el = el.parentElement) {
+          const style = getComputedStyle(el);
+          if (
+            (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+            el.scrollHeight > el.clientHeight + 1
+          ) {
+            return {
+              className: el.className,
+              scrollTop: el.scrollTop,
+              scrollHeight: el.scrollHeight,
+              clientHeight: el.clientHeight,
+            };
+          }
+          if (el === node) break;
+        }
+        return null;
+      });
+      const mainScrollTop = await page.locator('.main-area').evaluate((element) => element.scrollTop);
+      expect(mainScrollTop).toBe(0);
+      expect(scrollOwner).not.toBeNull();
+      await page.getByRole('button', { name: 'Encolar' }).click();
+      await expect(page.getByRole('alert')).toContainText('Ya tienes 3 mensajes pendientes.');
+      await expect(page.getByText('Mensajes en cola 3/3')).toBeVisible();
+      expect(await input.inputValue()).toBe(note);
+      expect(mutations).toHaveLength(writesAfterSetup);
+      console.log(
+        '[DE01-SOURCES-QUEUE-REACHABLE]',
+        JSON.stringify({ scrollOwner, mainScrollTop }),
+      );
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
+
+  test('Stop and mocked voice stay reachable at constrained height', async ({ page }) => {
+    const controls = await installQaRoutes(page, {
+      driveEnabled: true,
+      holdClinicalStream: true,
+      clinicalMessages: heightTranscriptMessages,
+    });
+    const media = await installVoiceMediaMock(page);
+    try {
+      await page.setViewportSize({ width: 390, height: 600 });
+      await page.goto(`/a/${threadId}`);
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      await input.fill('Nota inicial para abrir la respuesta.');
+      await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      const note = 'Nota con dictado en curso.\nSegunda línea del borrador.';
+      await input.fill(note);
+      await media.setMode('grant');
+      await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+      await expect(page.getByText('Grabando')).toBeVisible();
+
+      await page.setViewportSize({ width: 390, height: 420 });
+      const area = page.locator('.clinical-assistant-area');
+      const constrained = await measureUsableHeight(page, area);
+      expect(constrained.inputBottom).toBeLessThanOrEqual(constrained.viewportHeight);
+      expect(constrained.toolbarBottom).toBeLessThanOrEqual(constrained.viewportHeight);
+      for (const name of ['Detener respuesta actual', 'Cancelar dictado']) {
+        const control = page.getByRole('button', { name });
+        await expect(control).toBeVisible();
+        const box = await control.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+        expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(constrained.viewportHeight);
+      }
+      await expect(page.getByText('Grabando')).toBeVisible();
+      expect(constrained.pageScrollTop).toBe(0);
+      expect(await input.inputValue()).toBe(note);
+      await page.setViewportSize({ width: 390, height: 600 });
+      expect(await input.inputValue()).toBe(note);
+      console.log('[DE01-VOICE-STOP]', JSON.stringify({ constrained }));
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
+
+  test('PMAX-004 long identity at 390x900 records the banner-to-transcript baseline', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, {
+      driveConfigured: true,
+      clinicalPatient: longIdentityPatient,
+      clinicalMessages: heightTranscriptMessages,
+    });
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/a/${threadId}`);
+    await expect(page.getByRole('log', { name: 'Transcripción clínica' })).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const measurement = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector(selector);
+        return element ? element.getBoundingClientRect() : null;
+      };
+      const banner = box('.drive-bootstrap-banner');
+      const transcript = box('.clinical-transcript');
+      const identity = box('button[aria-label="Cambiar paciente activo"]');
+      return {
+        bannerBottom: banner?.bottom ?? 0,
+        transcriptTop: transcript?.top ?? 0,
+        regionHeight: (transcript?.top ?? 0) - (banner?.bottom ?? 0),
+        identityHeight: identity?.height ?? 0,
+      };
+    });
+    console.log(
+      '[PMAX-004-BASELINE]',
+      JSON.stringify({ ...measurement, historical: 237.58, target: 213.58 }),
+    );
+    // The approved acceptance recovers at least 24 CSS px against the 237.58 px historical fixture.
+    expect(measurement.regionHeight).toBeLessThanOrEqual(213.58);
+    await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toContainText(
+      'Apellido compuesto de prueba extensa',
+    );
+  });
+
+  test('desktop, tablet, mobile and 200% zoom keep the populated composer locally scroll-owned', async ({
+    page,
+  }) => {
+    const controls = await installQaRoutes(page, {
+      driveEnabled: true,
+      driveFiles: qaHeightDriveFiles,
+      holdClinicalStream: true,
+      clinicalMessages: heightTranscriptMessages,
+      clinicalPatient: longIdentityPatient,
+    });
+    const mutations = trackQaApiMutations(page);
+    const note =
+      'Nota de verificación DE01 con cinco documentos y tres pendientes.\nSegunda línea del borrador.\nTercera línea del borrador.';
+    try {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/a/${threadId}`);
+      const area = page.locator('.clinical-assistant-area');
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      await input.fill('Abre la respuesta.');
+      await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      for (const queuedNote of ['Pendiente uno', 'Pendiente dos', 'Pendiente tres']) {
+        await input.fill(queuedNote);
+        await page.getByRole('button', { name: 'Encolar' }).click();
+      }
+      for (const file of qaHeightDriveFiles) await attachQaSource(page, file);
+      await input.fill(note);
+      await input.evaluate((element) => {
+        element.focus();
+        element.setSelectionRange(4, 28);
+      });
+      const writesAfterSetup = mutations.length;
+
+      for (const viewport of [
+        { width: 1440, height: 900 },
+        { width: 1024, height: 768 },
+        { width: 768, height: 1024 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(viewport);
+        const dock = await measureComposerDock(page, area);
+        expect(dock?.overflowY).toBe('auto');
+        await input.scrollIntoViewIfNeeded();
+        const geometry = await measureUsableHeight(page, area);
+        await expect(input).toBeVisible();
+        expect(await input.inputValue()).toBe(note);
+        expect(
+          await input.evaluate((element) => ({
+            start: element.selectionStart,
+            end: element.selectionEnd,
+          })),
+        ).toEqual({ start: 4, end: 28 });
+        expect(geometry.transcriptScrollHeight).toBeGreaterThanOrEqual(
+          geometry.transcriptClientHeight,
+        );
+        expect(geometry.inputBottom).toBeLessThanOrEqual(viewport.height);
+        expect(geometry.pageScrollTop).toBe(0);
+        expect(await page.locator('.main-area').evaluate((element) => element.scrollTop)).toBe(0);
+        await assertNoHorizontalOverflow(page);
+        const constrained = Boolean(dock && dock.scrollHeight > dock.clientHeight + 1);
+        if (constrained) {
+          const stop = page.getByRole('button', { name: 'Detener respuesta actual' });
+          await stop.scrollIntoViewIfNeeded();
+          const stopBox = await stop.boundingBox();
+          expect(stopBox).not.toBeNull();
+          // Fractional layout can leave a sub-pixel remainder past the viewport edge.
+          expect((stopBox?.y ?? -1) + (stopBox?.height ?? 0)).toBeLessThanOrEqual(
+            viewport.height + 1,
+          );
+        } else {
+          expect(geometry.toolbarBottom).toBeLessThanOrEqual(viewport.height);
+        }
+        console.log(
+          `[DE01-MATRIX] ${viewport.width}x${viewport.height}`,
+          JSON.stringify({ geometry, dock, constrained }),
+        );
+      }
+
+      expect(mutations).toHaveLength(writesAfterSetup);
+      await input.scrollIntoViewIfNeeded();
+      const stable = await measureUsableHeight(page, area);
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      expect(
+        await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
+      ).toBe(true);
+      const reduced = await measureUsableHeight(page, area);
+      expect(reduced).toEqual(stable);
+      console.log('[DE01-REDUCED-MOTION]', JSON.stringify({ stable, reduced }));
+      expect(await input.inputValue()).toBe(note);
+      await expect(page.getByRole('button', { name: 'Detener respuesta actual' })).toBeVisible();
+
+      const zoom = await page.context().newCDPSession(page);
+      // Model 200% desktop zoom: half-sized CSS viewport with doubled pixel density.
+      await zoom.send('Emulation.setDeviceMetricsOverride', {
+        width: 720,
+        height: 450,
+        deviceScaleFactor: 2,
+        mobile: false,
+      });
+      expect(await page.evaluate(() => ({ width: innerWidth, density: devicePixelRatio }))).toEqual({
+        width: 720,
+        density: 2,
+      });
+      // The `dvh` shell adopts the overridden viewport on a later layout pass than
+      // `innerHeight`; measuring immediately reads the previous 844 px layout.
+      await expect
+        .poll(async () =>
+          page.locator('.app-layout').evaluate((element) => element.getBoundingClientRect().height),
+        )
+        .toBeLessThanOrEqual(450);
+      const zoomBefore = await measureUsableHeight(page, area);
+      const zoomDock = await measureComposerDock(page, area);
+      console.log('[DE01-ZOOM]', JSON.stringify({ zoomBefore, zoomDock }));
+      const zoomConstrained = Boolean(
+        zoomDock && zoomDock.scrollHeight > zoomDock.clientHeight + 1,
+      );
+      if (!zoomConstrained) {
+        expect(zoomBefore.toolbarBottom).toBeLessThanOrEqual(450);
+      }
+      await input.scrollIntoViewIfNeeded();
+      const zoomInput = await measureUsableHeight(page, area);
+      expect(zoomInput.inputBottom).toBeLessThanOrEqual(450);
+      const stop = page.getByRole('button', { name: 'Detener respuesta actual' });
+      await stop.scrollIntoViewIfNeeded();
+      const stopBox = await stop.boundingBox();
+      expect(stopBox).not.toBeNull();
+      expect((stopBox?.y ?? -1) + (stopBox?.height ?? 0)).toBeLessThanOrEqual(450);
+      expect(await input.inputValue()).toBe(note);
+      expect(
+        await input.evaluate((element) => ({
+          start: element.selectionStart,
+          end: element.selectionEnd,
+        })),
+      ).toEqual({ start: 4, end: 28 });
+      expect(zoomInput.pageScrollTop).toBe(0);
+      await assertNoHorizontalOverflow(page);
+      expect(mutations).toHaveLength(writesAfterSetup);
+      console.log('[DE01-ZOOM]', JSON.stringify({ zoomBefore, zoomInput, zoomDock }));
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
+
+  test('contextual assistant keeps 420-520 px panel widths locally scroll-owned', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, {
+      driveEnabled: true,
+      clinicalPatient: longIdentityPatient,
+      clinicalMessages: heightTranscriptMessages,
+    });
+    const mutations = trackQaApiMutations(page);
+    const note =
+      'Nota contextual de verificación DE01.\nSegunda línea del borrador clínico.';
+    for (const viewport of [
+      { width: 1024, height: 520 },
+      { width: 1024, height: 768 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/patients/${patientId}`);
+      await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+      const panel = page.getByRole('complementary', { name: 'Asistente del paciente' });
+      await expect(panel).toBeVisible();
+      const panelBox = await panel.boundingBox();
+      expect(panelBox).not.toBeNull();
+      expect(panelBox?.width ?? 0).toBeGreaterThanOrEqual(419.5);
+      expect(panelBox?.width ?? 0).toBeLessThanOrEqual(520.5);
+      const area = panel.locator('.clinical-assistant-area');
+      const input = panel.getByRole('textbox', { name: 'Nota clínica' });
+      const before = await measureUsableHeight(page, area);
+      await input.fill(note);
+      await input.evaluate((element) => {
+        element.focus();
+        element.setSelectionRange(4, 20);
+      });
+      const afterFill = await measureUsableHeight(page, area);
+      expect(afterFill.pageScrollTop).toBe(before.pageScrollTop);
+      const dock = await measureComposerDock(page, area);
+      expect(dock?.overflowY).toBe('auto');
+      await input.scrollIntoViewIfNeeded();
+      const reachable = await measureUsableHeight(page, area);
+      await expect(input).toBeVisible();
+      expect(reachable.inputBottom).toBeLessThanOrEqual(viewport.height);
+      expect(await input.inputValue()).toBe(note);
+      expect(
+        await input.evaluate((element) => ({
+          start: element.selectionStart,
+          end: element.selectionEnd,
+        })),
+      ).toEqual({ start: 4, end: 20 });
+      await assertNoHorizontalOverflow(page);
+      console.log(
+        `[DE01-CONTEXTUAL] ${viewport.width}x${viewport.height}`,
+        JSON.stringify({ panelWidth: panelBox?.width, before, afterFill, reachable, dock }),
+      );
+    }
+    expect(
+      mutations.filter((mutation) => mutation.path !== '/api/clinical-threads/open-context'),
+    ).toEqual([]);
+  });
+});
+
+// C6 DE02 viewport-bounded clinical context modal. The decision is a portaled
+// AlertDialog; geometry is measured against the viewport and the dialog's own
+// border box, not CSS classes.
+
+function acceptedLimitName(seed: string): string {
+  return seed.repeat(Math.ceil(121 / seed.length)).slice(0, 120).trim();
+}
+
+const limitPatientA = {
+  ...patient,
+  first_name: acceptedLimitName('Alejandra del Carmen de la Fuente '),
+  last_name: acceptedLimitName('Apellido Compuesto Extensamente Descriptivo '),
+};
+
+const limitPatientB = {
+  ...patientB,
+  first_name: acceptedLimitName('Beatriz del Carmen de la Fuente '),
+  last_name: acceptedLimitName('Apellido Compuesto Extensamente Descriptivo '),
+};
+
+interface QaBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface QaDecisionMeasurement {
+  dialog: QaBox | null;
+  choices: Record<string, QaBox | null>;
+  active: { text: string; x: number; y: number; bottom: number; right: number } | null;
+}
+
+async function measureContextDecision(page: Page): Promise<QaDecisionMeasurement> {
+  const dialog = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+  const choices: Record<string, QaBox | null> = {};
+  for (const name of ['Mantener paciente', 'Conservar y cambiar', 'Descartar y cambiar']) {
+    choices[name] = await dialog.getByRole('button', { name }).boundingBox();
+  }
+  const active = await page.evaluate(() => {
+    const element = document.activeElement as HTMLElement | null;
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    return {
+      text: element.textContent?.trim() ?? '',
+      x: rect.x,
+      y: rect.y,
+      bottom: rect.bottom,
+      right: rect.right,
+    };
+  });
+  return { dialog: await dialog.boundingBox(), choices, active };
+}
+
+function expectContextDialogBounded(
+  measurement: QaDecisionMeasurement,
+  viewport: { width: number; height: number },
+  label: string,
+): void {
+  expect(measurement.dialog, `${label} dialog`).not.toBeNull();
+  expect(measurement.dialog?.y ?? -1, `${label} dialog top`).toBeGreaterThanOrEqual(-0.5);
+  expect(
+    (measurement.dialog?.y ?? 0) + (measurement.dialog?.height ?? Number.POSITIVE_INFINITY),
+    `${label} dialog bottom`,
+  ).toBeLessThanOrEqual(viewport.height + 0.5);
+}
+
+async function expectContextChoicesReachable(
+  decision: Locator,
+  viewport: { width: number; height: number },
+  label: string,
+): Promise<void> {
+  const dialogBox = await decision.boundingBox();
+  for (const name of ['Mantener paciente', 'Conservar y cambiar', 'Descartar y cambiar']) {
+    const button = decision.getByRole('button', { name });
+    await button.scrollIntoViewIfNeeded();
+    const box = await button.boundingBox();
+    expect(box, `${label} ${name}`).not.toBeNull();
+    expect(box?.y ?? -1, `${label} ${name} top`).toBeGreaterThanOrEqual(-0.5);
+    expect((box?.y ?? 0) + (box?.height ?? Number.POSITIVE_INFINITY), `${label} ${name} bottom`).toBeLessThanOrEqual(
+      viewport.height + 0.5,
+    );
+    expect(box?.x ?? -1, `${label} ${name} left`).toBeGreaterThanOrEqual(
+      (dialogBox?.x ?? 0) - 0.5,
+    );
+    expect((box?.x ?? 0) + (box?.width ?? Number.POSITIVE_INFINITY), `${label} ${name} right`).toBeLessThanOrEqual(
+      (dialogBox?.x ?? 0) + (dialogBox?.width ?? 0) + 0.5,
+    );
+    expect((box?.y ?? 0) + (box?.height ?? Number.POSITIVE_INFINITY), `${label} ${name} dialog top`).toBeGreaterThanOrEqual(
+      (dialogBox?.y ?? 0) - 0.5,
+    );
+  }
+}
+
+test.describe('C6 DE02 viewport-bounded context modal', () => {
+  test('accepted-limit identities stay bounded in narrow and short layouts', async ({ page }) => {
+    await installQaRoutes(page, {
+      patients: [limitPatientA, limitPatientB],
+      clinicalPatient: limitPatientA,
+    });
+    const mutations = trackQaApiMutations(page);
+    const draftText = 'Borrador sin enviar para la paciente con identidad extensa.';
+
+    for (const viewport of [
+      { width: 320, height: 480 },
+      { width: 390, height: 420 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/a/${threadId}`);
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      await input.fill(draftText);
+      await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
+      await page.getByRole('option', { name: /Beatriz/ }).click();
+      const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+      await expect(decision).toBeVisible();
+      await expect(decision).toContainText(limitPatientA.first_name);
+      await expect(decision).toContainText(limitPatientA.last_name);
+      await expect(decision).toContainText(limitPatientB.first_name);
+      await expect(decision).toContainText(limitPatientB.last_name);
+      const opened = await measureContextDecision(page);
+      console.log(
+        `[DE02-NARROW] ${viewport.width}x${viewport.height}`,
+        JSON.stringify(opened),
+      );
+      expectContextDialogBounded(opened, viewport, 'opened');
+      await expectContextChoicesReachable(decision, viewport, 'opened');
+      expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
+      await assertNoHorizontalOverflow(page);
+
+      await decision.getByRole('button', { name: 'Mantener paciente' }).click();
+      await expect(decision).toHaveCount(0);
+      await expect(input).toHaveValue(draftText);
+    }
+    expect(mutations.filter((mutation) => mutation.path.endsWith('/turns'))).toEqual([]);
+    expect(mutations).toEqual([]);
+  });
+
+  test('growing failure feedback stays bounded through a resize while the decision is open', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, {
+      patients: [limitPatientA, limitPatientB],
+      clinicalPatient: limitPatientA,
+      patientChangeFailures: 1,
+    });
+    const mutations = trackQaApiMutations(page);
+    const draftText = 'Borrador sin enviar antes del intento fallido.';
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/a/${threadId}`);
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    await input.fill(draftText);
+    await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
+    await page.getByRole('option', { name: /Beatriz/ }).click();
+    const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+    await expect(decision).toBeVisible();
+    const writesBefore = mutations.length;
+    await decision.getByRole('button', { name: 'Conservar y cambiar' }).click();
+    await expect(decision.getByRole('alert')).toHaveText('No pudimos cambiar el paciente activo.');
+    expect(mutations.slice(writesBefore)).toEqual([
+      {
+        method: 'PATCH',
+        path: `/api/clinical-threads/${threadId}/active-patient`,
+        body: { patient_id: patientBId },
+      },
+    ]);
+
+    const failed = await measureContextDecision(page);
+    console.log('[DE02-FAILED] 390x844', JSON.stringify(failed));
+    expectContextDialogBounded(failed, { width: 390, height: 844 }, 'failed');
+    await expectContextChoicesReachable(decision, { width: 390, height: 844 }, 'failed');
+
+    for (const viewport of [
+      { width: 320, height: 480 },
+      { width: 390, height: 400 },
+    ]) {
+      await page.setViewportSize(viewport);
+      const resized = await measureContextDecision(page);
+      console.log(`[DE02-RESIZED] ${viewport.width}x${viewport.height}`, JSON.stringify(resized));
+      expectContextDialogBounded(resized, viewport, 'resized');
+      await expectContextChoicesReachable(decision, viewport, 'resized');
+      expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
+    }
+
+    await decision.getByRole('button', { name: 'Mantener paciente' }).click();
+    await expect(decision).toHaveCount(0);
+    await expect(input).toHaveValue(draftText);
+    expect(mutations.slice(writesBefore)).toHaveLength(1);
+  });
+
+  test('returns focus to the invoked choice after a failed change', async ({ page }) => {
+    await installQaRoutes(page, {
+      patients: [limitPatientA, limitPatientB],
+      clinicalPatient: limitPatientA,
+      patientChangeFailures: 1,
+    });
+    const mutations = trackQaApiMutations(page);
+    const draftText = 'Borrador sin enviar tras el fallo de foco.';
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/a/${threadId}`);
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    await input.fill(draftText);
+    await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
+    await page.getByRole('option', { name: /Beatriz/ }).click();
+    const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+    await expect(decision).toBeVisible();
+    const writesBefore = mutations.length;
+    const invoked = decision.getByRole('button', { name: 'Conservar y cambiar' });
+    await invoked.click();
+    await expect(decision.getByRole('alert')).toHaveText('No pudimos cambiar el paciente activo.');
+    console.log(
+      '[DE02-FOCUS]',
+      JSON.stringify({
+        activeClass: await page.evaluate(() => document.activeElement?.className ?? null),
+        invokedFocused: await invoked.evaluate((element) => element === document.activeElement),
+      }),
+    );
+    await expect(invoked).toBeFocused();
+    await decision.getByRole('button', { name: 'Mantener paciente' }).click();
+    await expect(decision).toHaveCount(0);
+    await expect(input).toHaveValue(draftText);
+    expect(mutations.slice(writesBefore)).toHaveLength(1);
+  });
+
+  test('keeps the held saving state bounded, trapped and write-once until the change completes', async ({
+    page,
+  }) => {
+    const controls = await installQaRoutes(page, {
+      patients: [limitPatientA, limitPatientB],
+      clinicalPatient: limitPatientA,
+      holdPatientChange: true,
+    });
+    const mutations = trackQaApiMutations(page);
+    const draftText = 'Borrador conservado durante el cambio pendiente.';
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/a/${threadId}`);
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    await input.fill(draftText);
+    await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
+    await page.getByRole('option', { name: /Beatriz/ }).click();
+    const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+    await expect(decision).toBeVisible();
+    const writesBefore = mutations.length;
+    await decision.getByRole('button', { name: 'Conservar y cambiar' }).click();
+    await controls.patientChangeHeld;
+
+    await expect(decision.getByRole('status')).toHaveText('Cambiando el paciente activo…');
+    for (const name of ['Mantener paciente', 'Conservar y cambiar', 'Descartar y cambiar']) {
+      await expect(decision.getByRole('button', { name })).toBeDisabled();
+    }
+    await expect(page.getByRole('textbox', { name: 'Nota clínica' })).toHaveCount(0);
+    for (let i = 0; i < 3; i += 1) {
+      await page.keyboard.press('Tab');
+    }
+    console.log(
+      '[DE02-PENDING-TRAP]',
+      JSON.stringify(
+        await page.evaluate(() => ({
+          tag: document.activeElement?.tagName ?? null,
+          className: document.activeElement?.className ?? null,
+          inDialog: document.activeElement?.closest('.dialog-content') !== null,
+          inAppLayout: document.activeElement?.closest('.app-layout') !== null,
+        })),
+      ),
+    );
+    expect(
+      await page.evaluate(() => document.activeElement?.closest('.app-layout') === null),
+    ).toBe(true);
+    const pending = await measureContextDecision(page);
+    console.log('[DE02-PENDING] 390x844', JSON.stringify(pending));
+    expectContextDialogBounded(pending, { width: 390, height: 844 }, 'pending');
+    await expectContextChoicesReachable(decision, { width: 390, height: 844 }, 'pending');
+    expect(mutations.slice(writesBefore)).toEqual([
+      {
+        method: 'PATCH',
+        path: `/api/clinical-threads/${threadId}/active-patient`,
+        body: { patient_id: patientBId },
+      },
+    ]);
+
+    await page.setViewportSize({ width: 320, height: 480 });
+    const resized = await measureContextDecision(page);
+    console.log('[DE02-PENDING-RESIZED] 320x480', JSON.stringify(resized));
+    expectContextDialogBounded(resized, { width: 320, height: 480 }, 'pending-resized');
+    await expectContextChoicesReachable(decision, { width: 320, height: 480 }, 'pending-resized');
+    expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
+    expect(mutations.slice(writesBefore)).toHaveLength(1);
+
+    controls.releaseHeldPatientChange();
+    await expect(decision).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toBeFocused();
+    await expect(
+      page.getByText(
+        `Borrador conservado para ${limitPatientA.first_name} ${limitPatientA.last_name}.`,
+      ),
+    ).toBeVisible();
+    expect(mutations.slice(writesBefore)).toHaveLength(1);
+    expect(mutations.filter((mutation) => mutation.path.endsWith('/turns'))).toEqual([]);
+  });
+
+  test('keeps the decision bounded, trapped and discard-free under reduced motion', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await installQaRoutes(page, {
+      patients: [limitPatientA, limitPatientB],
+      clinicalPatient: limitPatientA,
+    });
+    const mutations = trackQaApiMutations(page);
+    const draftText = 'Borrador sin enviar con movimiento reducido.';
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/a/${threadId}`);
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    await input.fill(draftText);
+    await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
+    await page.getByRole('option', { name: /Beatriz/ }).click();
+    const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+    await expect(decision).toBeVisible();
+    expect(
+      await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+    ).toBe(true);
+    const reduced = await measureContextDecision(page);
+    console.log('[DE02-REDUCED] 390x844', JSON.stringify(reduced));
+    expectContextDialogBounded(reduced, { width: 390, height: 844 }, 'reduced');
+    await expectContextChoicesReachable(decision, { width: 390, height: 844 }, 'reduced');
+    await expect(decision.getByRole('button', { name: 'Mantener paciente' })).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(decision).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toBeFocused();
+    await expect(input).toHaveValue(draftText);
+    expect(mutations).toEqual([]);
+  });
+
+  test.describe('portaled targets and 200% zoom', () => {
+    test.use({ hasTouch: true });
+
+    test('keeps the portaled choices at the 44px contract under bounded zoom', async ({ page }) => {
+      await installQaRoutes(page, {
+        patients: [limitPatientA, limitPatientB],
+        clinicalPatient: limitPatientA,
+      });
+      const mutations = trackQaApiMutations(page);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/a/${threadId}`);
+      expect(await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)).toBe(true);
+      await page.getByRole('textbox', { name: 'Nota clínica' }).fill('Nota táctil.');
+      await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
+      await page.getByRole('option', { name: /Beatriz/ }).click();
+      const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+      await expect(decision).toBeVisible();
+      for (const name of ['Mantener paciente', 'Conservar y cambiar', 'Descartar y cambiar']) {
+        const box = await decision.getByRole('button', { name }).boundingBox();
+        expect(box, name).not.toBeNull();
+        expect(box?.width ?? 0, name).toBeGreaterThanOrEqual(44);
+        expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(44);
+      }
+
+      const zoom = await page.context().newCDPSession(page);
+      await zoom.send('Emulation.setDeviceMetricsOverride', {
+        width: 720,
+        height: 450,
+        deviceScaleFactor: 2,
+        mobile: false,
+      });
+      expect(await page.evaluate(() => ({ width: innerWidth, density: devicePixelRatio }))).toEqual(
+        { width: 720, density: 2 },
+      );
+      const zoomed = await measureContextDecision(page);
+      console.log('[DE02-ZOOM] 720x450@2', JSON.stringify(zoomed));
+      expectContextDialogBounded(zoomed, { width: 720, height: 450 }, 'zoom');
+      await expectContextChoicesReachable(decision, { width: 720, height: 450 }, 'zoom');
+      expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
+      expect(mutations).toEqual([]);
+    });
+  });
+});
+
+// C6 DE03 unambiguous attached-source identification. Full-name readability is
+// measured as rendered text geometry (scroll versus client boxes), never by
+// matching classes.
+
+const qaSourcePrefix =
+  'informe_consolidado_ortodoncia_paciente_qa_2026_seguimiento_trimestral_';
+
+const qaSuffixDriveFiles: QaDriveFile[] = ['revision_v12.pdf', 'revision_v13.pdf'].map(
+  (suffix, index) => ({
+    id: `file-qa-suffix-${index + 12}`,
+    name: `${qaSourcePrefix}${suffix}`,
+    version: `${index + 12}`,
+    mimeType: 'application/pdf',
+    modifiedTime: '2026-01-10T12:00:00Z',
+    content: `Contenido clínico sintético ${index + 1}.`,
+  }),
+);
+
+const qaUnbrokenSourceName = 'evaluacion_clinica_extensa_'.repeat(20).slice(0, 500);
+const qaUnbrokenDriveFile: QaDriveFile = {
+  id: 'file-qa-unbroken',
+  name: qaUnbrokenSourceName,
+  version: '1',
+  mimeType: 'application/pdf',
+  modifiedTime: '2026-01-10T12:00:00Z',
+  content: 'Contenido clínico sintético del documento extenso.',
+};
+
+const qaLongDriveFiles: QaDriveFile[] = Array.from({ length: 5 }, (_, index) => ({
+  id: `file-qa-long-${index}`,
+  name: `${qaSourcePrefix}revision_v1${index}.pdf`,
+  version: `1${index}`,
+  mimeType: 'application/pdf',
+  modifiedTime: '2026-01-10T12:00:00Z',
+  content: `Contenido clínico sintético ${index + 1}.`,
+}));
+
+interface QaSourceClip {
+  tag: string;
+  text: string;
+  scrollWidth: number;
+  clientWidth: number;
+  scrollHeight: number;
+  clientHeight: number;
+}
+
+interface QaSourceGroup {
+  names: string[];
+  removeLabels: string[];
+  clipped: QaSourceClip[];
+  groupScrolls: boolean;
+  chipCount: number;
+}
+
+async function measureSourceGroup(page: Page): Promise<QaSourceGroup> {
+  return page.evaluate(() => {
+    const group = document.querySelector('[role="group"][aria-label="Documentos adjuntos"]');
+    if (!(group instanceof HTMLElement)) {
+      return { names: [], removeLabels: [], clipped: [], groupScrolls: false, chipCount: 0 };
+    }
+    const chipElements = Array.from(group.children).filter(
+      (child): child is HTMLElement => child instanceof HTMLElement,
+    );
+    const clipped: QaSourceClip[] = [];
+    for (const chip of chipElements) {
+      for (const element of [chip, ...Array.from(chip.querySelectorAll<HTMLElement>('*'))]) {
+        if (
+          element.scrollWidth > element.clientWidth + 1 ||
+          element.scrollHeight > element.clientHeight + 1
+        ) {
+          clipped.push({
+            tag: element.tagName,
+            text: (element.textContent ?? '').trim().slice(0, 40),
+            scrollWidth: element.scrollWidth,
+            clientWidth: element.clientWidth,
+            scrollHeight: element.scrollHeight,
+            clientHeight: element.clientHeight,
+          });
+        }
+      }
+    }
+    const removeLabels = chipElements.map(
+      (chip) => chip.querySelector('button')?.getAttribute('aria-label') ?? '',
+    );
+    return {
+      names: removeLabels.map((label) => label.replace(/^Quitar /, '')),
+      removeLabels,
+      clipped,
+      groupScrolls: group.scrollWidth > group.clientWidth + 1,
+      chipCount: chipElements.length,
+    };
+  });
+}
+
+test.describe('C6 DE03 distinguishable attached sources', () => {
+  test('two common-prefix suffix sources stay fully named and exactly removable in every layout', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveEnabled: true, driveFiles: qaSuffixDriveFiles });
+    const mutations = trackQaApiMutations(page);
+    const [first, second] = qaSuffixDriveFiles;
+    // The contextual assistant has no Drive toggle, so the sources are attached
+    // in the full route reached through SPA history: a document reload would
+    // drop the shared composer memory that carries the chips to the panel/Sheet.
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto(`/patients/${patientId}`);
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    await expect(
+      page.getByRole('complementary', { name: 'Asistente del paciente' }),
+    ).toBeVisible();
+    await page.getByRole('link', { name: 'Abrir asistente completo' }).click();
+    await expect(page).toHaveURL(new RegExp(`/a/${threadId}`));
+    await attachQaSource(page, first);
+    await attachQaSource(page, second);
+    const writes = mutations.length;
+
+    const collected: Array<{ layout: string; group: QaSourceGroup }> = [];
+    const collect = async (layout: string): Promise<void> => {
+      const group = await measureSourceGroup(page);
+      console.log(`[DE03-SUFFIX] ${layout}`, JSON.stringify(group));
+      collected.push({ layout, group });
+      await assertNoHorizontalOverflow(page);
+    };
+    await page.setViewportSize({ width: 390, height: 844 });
+    await collect('full');
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/patients/${patientId}`));
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    await expect(
+      page.getByRole('complementary', { name: 'Asistente del paciente' }),
+    ).toBeVisible();
+    await collect('panel');
+
+    await page.setViewportSize({ width: 768, height: 500 });
+    await expect(page.getByRole('dialog', { name: 'Asistente clínico' })).toBeVisible();
+    await collect('sheet');
+
+    for (const { layout, group } of collected) {
+      expect(group.chipCount, layout).toBe(2);
+      expect(group.names, layout).toEqual([first.name, second.name]);
+      expect(group.removeLabels, layout).toEqual([`Quitar ${first.name}`, `Quitar ${second.name}`]);
+      expect(group.clipped, layout).toEqual([]);
+    }
+
+    const beforeRemoval = mutations.length;
+    await page.getByRole('button', { name: `Quitar ${first.name}` }).click();
+    const removed = await measureSourceGroup(page);
+    expect(removed.names).toEqual([second.name]);
+    expect(mutations.length).toBe(beforeRemoval);
+    expect(mutations.slice(writes).filter((mutation) => mutation.path.endsWith('/turns'))).toEqual(
+      [],
+    );
+  });
+
+  test('a 500-character unbroken source name stays fully readable and removable', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveEnabled: true, driveFiles: [qaUnbrokenDriveFile] });
+    const mutations = trackQaApiMutations(page);
+    expect(qaUnbrokenDriveFile.name).toHaveLength(500);
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto(`/patients/${patientId}`);
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    await page.getByRole('link', { name: 'Abrir asistente completo' }).click();
+    await expect(page).toHaveURL(new RegExp(`/a/${threadId}`));
+    await attachQaSource(page, qaUnbrokenDriveFile);
+
+    const collected: Array<{ layout: string; group: QaSourceGroup }> = [];
+    const collect = async (layout: string): Promise<void> => {
+      const group = await measureSourceGroup(page);
+      console.log(`[DE03-UNBROKEN] ${layout}`, JSON.stringify(group));
+      collected.push({ layout, group });
+      await assertNoHorizontalOverflow(page);
+    };
+    await page.setViewportSize({ width: 390, height: 844 });
+    await collect('full');
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goBack();
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    await expect(
+      page.getByRole('complementary', { name: 'Asistente del paciente' }),
+    ).toBeVisible();
+    await page.setViewportSize({ width: 768, height: 500 });
+    await expect(page.getByRole('dialog', { name: 'Asistente clínico' })).toBeVisible();
+    await collect('sheet');
+
+    for (const { layout, group } of collected) {
+      expect(group.chipCount, layout).toBe(1);
+      expect(group.names, layout).toEqual([qaUnbrokenDriveFile.name]);
+      expect(group.removeLabels, layout).toEqual([`Quitar ${qaUnbrokenDriveFile.name}`]);
+      expect(group.clipped, layout).toEqual([]);
+    }
+
+    const beforeRemoval = mutations.length;
+    await page.getByRole('button', { name: `Quitar ${qaUnbrokenDriveFile.name}` }).click();
+    await expect(
+      page.getByRole('button', { name: `Quitar ${qaUnbrokenDriveFile.name}` }),
+    ).toHaveCount(0);
+    expect(mutations.length).toBe(beforeRemoval);
+  });
+
+  test('five long sources keep names, work and mocked voice usable together', async ({ page }) => {
+    const controls = await installQaRoutes(page, {
+      driveEnabled: true,
+      driveFiles: qaLongDriveFiles,
+      holdClinicalStream: true,
+    });
+    const mutations = trackQaApiMutations(page);
+    const media = await installVoiceMediaMock(page);
+    const note = 'Nota DE03 con cinco documentos y dictado.\nSegunda línea del borrador.';
+    try {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/a/${threadId}`);
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      await input.fill('Abre la respuesta retenida.');
+      await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      await input.fill('Pendiente en cola.');
+      await page.getByRole('button', { name: 'Encolar' }).click();
+      await expect(page.getByText('Mensajes en cola 1/3')).toBeVisible();
+      for (const file of qaLongDriveFiles) await attachQaSource(page, file);
+      await input.fill(note);
+      await media.setMode('grant');
+      await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+      await expect(page.getByText('Grabando')).toBeVisible();
+      const writesAfterSetup = mutations.length;
+
+      const group = await measureSourceGroup(page);
+      console.log('[DE03-FIVE] 390x844', JSON.stringify(group));
+      expect(group.chipCount).toBe(5);
+      expect(group.names).toEqual(qaLongDriveFiles.map((file) => file.name));
+      expect(group.removeLabels).toEqual(qaLongDriveFiles.map((file) => `Quitar ${file.name}`));
+      expect(group.clipped).toEqual([]);
+      await assertNoHorizontalOverflow(page);
+      expect(await input.inputValue()).toBe(note);
+      expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
+
+      const removed = qaLongDriveFiles[2];
+      await page.getByRole('button', { name: `Quitar ${removed.name}` }).click();
+      await expect(page.getByRole('button', { name: `Quitar ${removed.name}` })).toHaveCount(0);
+      const remaining = await measureSourceGroup(page);
+      expect(remaining.names).toEqual(
+        qaLongDriveFiles.filter((file) => file.id !== removed.id).map((file) => file.name),
+      );
+      expect(mutations.length).toBe(writesAfterSetup);
+      await expect(page.getByText('Grabando')).toBeVisible();
+      expect(await input.inputValue()).toBe(note);
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
+
+  test('five long sources stay readable and reachable across desktop, tablet, short, zoom and reduced motion', async ({
+    page,
+  }) => {
+    const controls = await installQaRoutes(page, {
+      driveEnabled: true,
+      driveFiles: qaLongDriveFiles,
+      holdClinicalStream: true,
+    });
+    const mutations = trackQaApiMutations(page);
+    const providerReads: string[] = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path.startsWith('/api/google-drive')) providerReads.push(`${request.method()} ${path}`);
+    });
+    const media = await installVoiceMediaMock(page);
+    const note = 'Nota DE03 de verificación con cinco documentos.\nSegunda línea del borrador.';
+    try {
+      // Set up at the narrow width: the desktop Drive pane stays open after each
+      // attach, while the narrow overlay closes itself and keeps the sequence simple.
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/a/${threadId}`);
+      const input = page.getByRole('textbox', { name: 'Nota clínica' });
+      await input.fill('Abre la respuesta retenida.');
+      await page.getByRole('button', { name: 'Enviar mensaje' }).click();
+      await controls.clinicalStreamEntered;
+      await input.fill('Pendiente en cola.');
+      await page.getByRole('button', { name: 'Encolar' }).click();
+      await expect(page.getByText('Mensajes en cola 1/3')).toBeVisible();
+      for (const file of qaLongDriveFiles) await attachQaSource(page, file);
+      await input.fill(note);
+      await media.setMode('grant');
+      await page.getByRole('button', { name: 'Iniciar dictado' }).click();
+      await expect(page.getByText('Grabando')).toBeVisible();
+      const writesAfterSetup = mutations.length;
+      const readsAfterSetup = providerReads.length;
+
+      const assertLayout = async (label: string, viewportHeight: number): Promise<void> => {
+        const group = await measureSourceGroup(page);
+        console.log(`[DE03-MATRIX] ${label}`, JSON.stringify(group));
+        expect(group.chipCount, label).toBe(5);
+        expect(group.names, label).toEqual(qaLongDriveFiles.map((file) => file.name));
+        expect(group.removeLabels, label).toEqual(
+          qaLongDriveFiles.map((file) => `Quitar ${file.name}`),
+        );
+        expect(group.clipped, label).toEqual([]);
+        await assertNoHorizontalOverflow(page);
+        await expect(page.getByText('Mensajes en cola 1/3'), label).toBeVisible();
+        await expect(page.getByText('Grabando'), label).toBeVisible();
+        const stop = page.getByRole('button', { name: 'Detener respuesta actual' });
+        await stop.scrollIntoViewIfNeeded();
+        const stopBox = await stop.boundingBox();
+        expect(stopBox, label).not.toBeNull();
+        // Fractional layout can leave a sub-pixel remainder past the viewport edge.
+        expect((stopBox?.y ?? -1) + (stopBox?.height ?? 0), label).toBeLessThanOrEqual(
+          viewportHeight + 1,
+        );
+        expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0), label).toBe(0);
+        expect(await input.inputValue(), label).toBe(note);
+      };
+
+      for (const viewport of [
+        { width: 1440, height: 900 },
+        { width: 768, height: 1024 },
+        { width: 390, height: 400 },
+      ]) {
+        await page.setViewportSize(viewport);
+        await assertLayout(`${viewport.width}x${viewport.height}`, viewport.height);
+      }
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      const stable = await measureSourceGroup(page);
+      await assertLayout('390x844', 844);
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      expect(
+        await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
+      ).toBe(true);
+      const reduced = await measureSourceGroup(page);
+      console.log('[DE03-REDUCED] 390x844', JSON.stringify(reduced));
+      expect(reduced).toEqual(stable);
+
+      const zoom = await page.context().newCDPSession(page);
+      await zoom.send('Emulation.setDeviceMetricsOverride', {
+        width: 720,
+        height: 450,
+        deviceScaleFactor: 2,
+        mobile: false,
+      });
+      expect(await page.evaluate(() => ({ width: innerWidth, density: devicePixelRatio }))).toEqual({
+        width: 720,
+        density: 2,
+      });
+      // The `dvh` shell adopts the overridden viewport one layout pass later.
+      await expect
+        .poll(async () =>
+          page.locator('.app-layout').evaluate((element) => element.getBoundingClientRect().height),
+        )
+        .toBeLessThanOrEqual(450);
+      await assertLayout('zoom 720x450', 450);
+
+      expect(mutations.length).toBe(writesAfterSetup);
+      expect(mutations.slice(writesAfterSetup).filter((entry) => entry.path.endsWith('/turns'))).toEqual(
+        [],
+      );
+      expect(providerReads.length).toBe(readsAfterSetup);
+    } finally {
+      controls.releaseHeldStream();
+    }
+  });
+
+  test.describe('C6 DE03 touch and keyboard removal', () => {
+    test.use({ hasTouch: true });
+
+    test('removes exactly the invoked suffix source by touch and by keyboard', async ({ page }) => {
+      await installQaRoutes(page, { driveEnabled: true, driveFiles: qaSuffixDriveFiles });
+      const mutations = trackQaApiMutations(page);
+      const [first, second] = qaSuffixDriveFiles;
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/a/${threadId}`);
+      expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+      await attachQaSource(page, first);
+      await attachQaSource(page, second);
+      const writesAfterSetup = mutations.length;
+
+      // Touch: the coarse-pointer 44px contract applies to the composer row and
+      // the full name stays both rendered and exposed as the accessible name.
+      for (const file of qaSuffixDriveFiles) {
+        const button = page.getByRole('button', { name: `Quitar ${file.name}` });
+        const box = await button.boundingBox();
+        expect(box, file.name).not.toBeNull();
+        expect(box?.width ?? 0, file.name).toBeGreaterThanOrEqual(44);
+        expect(box?.height ?? 0, file.name).toBeGreaterThanOrEqual(44);
+      }
+      expect((await measureSourceGroup(page)).clipped).toEqual([]);
+      await page.getByRole('button', { name: `Quitar ${first.name}` }).tap();
+      await expect(page.getByRole('button', { name: `Quitar ${first.name}` })).toHaveCount(0);
+      expect((await measureSourceGroup(page)).names).toEqual([second.name]);
+      expect(mutations.length).toBe(writesAfterSetup);
+
+      // Keyboard: re-attach and remove the other source with Enter only.
+      await attachQaSource(page, first);
+      expect((await measureSourceGroup(page)).names).toEqual([second.name, first.name]);
+      const keyboardButton = page.getByRole('button', { name: `Quitar ${second.name}` });
+      await keyboardButton.focus();
+      expect(await keyboardButton.evaluate((element) => document.activeElement === element)).toBe(
+        true,
+      );
+      await page.keyboard.press('Enter');
+      await expect(keyboardButton).toHaveCount(0);
+      expect((await measureSourceGroup(page)).names).toEqual([first.name]);
+      expect(mutations.length).toBe(writesAfterSetup);
+      expect(mutations.filter((entry) => entry.path.endsWith('/turns'))).toEqual([]);
+    });
+  });
+
+  test('a tall expanded source row keeps DE01 reachability and the DE02 decision bounded', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, {
+      driveEnabled: true,
+      driveFiles: qaLongDriveFiles,
+      patients: [patient, patientB],
+    });
+    const mutations = trackQaApiMutations(page);
+    const note = 'Nota DE03 con cinco documentos largos.';
+    await page.setViewportSize({ width: 390, height: 480 });
+    await page.goto(`/a/${threadId}`);
+    const area = page.locator('.clinical-assistant-area');
+    const input = page.getByRole('textbox', { name: 'Nota clínica' });
+    for (const file of qaLongDriveFiles) await attachQaSource(page, file);
+    await input.fill(note);
+    const writesAfterSetup = mutations.length;
+
+    // DE01: the wrapped row stays complete and the composer reaches the window
+    // through the dock's own scroll without moving the page.
+    expect((await measureSourceGroup(page)).clipped).toEqual([]);
+    const dock = await measureComposerDock(page, area);
+    expect(dock?.overflowY).toBe('auto');
+    await input.scrollIntoViewIfNeeded();
+    const geometry = await measureUsableHeight(page, area);
+    console.log('[DE03-TALL] 390x480', JSON.stringify({ dock, geometry }));
+    expect(geometry.inputBottom).toBeLessThanOrEqual(480);
+    expect(geometry.pageScrollTop).toBe(0);
+    await assertNoHorizontalOverflow(page);
+
+    // DE02: the same populated state keeps the decision bounded and recoverable.
+    await page.getByRole('button', { name: 'Cambiar paciente activo' }).click();
+    await page.getByRole('option', { name: /Bruno Ríos/ }).click();
+    const decision = page.getByRole('alertdialog', { name: 'Trabajo sin enviar' });
+    await expect(decision).toBeVisible();
+    const bounds = await measureContextDecision(page);
+    console.log('[DE03-TALL-DECISION] 390x480', JSON.stringify(bounds));
+    expectContextDialogBounded(bounds, { width: 390, height: 480 }, 'DE03 tall');
+    await expectContextChoicesReachable(decision, { width: 390, height: 480 }, 'DE03 tall');
+    await page.keyboard.press('Escape');
+    await expect(decision).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cambiar paciente activo' })).toBeFocused();
+    await expect(input).toHaveValue(note);
+    expect(mutations.length).toBe(writesAfterSetup);
+    expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
   });
 });

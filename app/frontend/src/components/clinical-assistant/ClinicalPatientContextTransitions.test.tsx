@@ -97,6 +97,28 @@ const DIRECTORY: Patient[] = [
   { ...PATIENT_B, last_evolution_at: null },
 ];
 
+function acceptedLimitName(seed: string): string {
+  return seed
+    .repeat(Math.ceil(121 / seed.length))
+    .slice(0, 120)
+    .trim();
+}
+
+const LIMIT_PATIENT_A: ClinicalPatient = {
+  ...PATIENT_A,
+  first_name: acceptedLimitName('Alejandra del Carmen de la Fuente '),
+  last_name: acceptedLimitName('Apellido Compuesto Extensamente Descriptivo '),
+};
+const LIMIT_PATIENT_B: ClinicalPatient = {
+  ...PATIENT_B,
+  first_name: acceptedLimitName('Beatriz del Carmen de la Fuente '),
+  last_name: acceptedLimitName('Apellido Compuesto Extensamente Descriptivo '),
+};
+const LIMIT_DIRECTORY: Patient[] = [
+  { ...LIMIT_PATIENT_A, last_evolution_at: null },
+  { ...LIMIT_PATIENT_B, last_evolution_at: null },
+];
+
 const DRAFT: ClinicalDraft = {
   context: 'Control preventivo.',
   findings: 'Sin hallazgos nuevos.',
@@ -780,5 +802,77 @@ describe('assistant patient-context transitions', () => {
       screen.queryByRole('alertdialog', { name: 'Trabajo sin enviar' }),
     ).not.toBeInTheDocument();
     expect(composer()).toHaveValue('Nota para Ana');
+  });
+
+  it('keeps accepted-limit identities and consequences complete in the decision', async () => {
+    threadState.a = LIMIT_PATIENT_A;
+    vi.mocked(api.getPatients).mockResolvedValue(LIMIT_DIRECTORY);
+    const composerEl = await startHeldTurn('Respuesta en curso');
+    fireEvent.change(composerEl, { target: { value: 'Pendiente para la paciente extensa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Encolar' }));
+    await screen.findByText('Mensajes en cola 1/3');
+    fireEvent.change(composerEl, { target: { value: 'Borrador con identidad extensa' } });
+    act(() =>
+      insertContext?.({
+        id: 'context-limit',
+        kind: 'drive_selection',
+        sourceId: 'file-limit',
+        sourceName: 'Control extenso.md',
+        content: 'Control previo',
+      }),
+    );
+
+    await choosePatient(/Beatriz del Carmen/);
+
+    const text = boundary().textContent ?? '';
+    expect(text).toContain(LIMIT_PATIENT_A.first_name);
+    expect(text).toContain(LIMIT_PATIENT_A.last_name);
+    expect(text).toContain(LIMIT_PATIENT_B.first_name);
+    expect(text).toContain(LIMIT_PATIENT_B.last_name);
+    expect(text).toContain('la nota escrita');
+    expect(text).toContain('el adjunto');
+    expect(text).toContain('1 mensaje en cola');
+    expect(screen.getByRole('button', { name: 'Mantener paciente' })).toHaveFocus();
+    expect(api.setClinicalActivePatient).not.toHaveBeenCalled();
+  });
+
+  it('keeps the pending decision, focus and work through a resize and a failed change', async () => {
+    let reject!: (reason: unknown) => void;
+    vi.mocked(api.setClinicalActivePatient).mockReturnValueOnce(
+      new Promise((_resolve, rejectPromise) => {
+        reject = rejectPromise;
+      }),
+    );
+    renderHarness();
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Nota clínica' }), {
+      target: { value: 'Nota para Ana' },
+    });
+    await choosePatient(/Bruno Ríos/);
+    const preserve = screen.getByRole('button', { name: 'Conservar y cambiar' });
+    preserve.focus();
+    fireEvent.click(preserve);
+    expect(within(boundary()).getByRole('status')).toHaveTextContent(
+      'Cambiando el paciente activo',
+    );
+
+    fireEvent(window, new Event('resize'));
+
+    expect(boundary()).toBeVisible();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(api.setClinicalActivePatient).toHaveBeenCalledOnce();
+    await act(async () => {
+      reject(new Error('boom'));
+    });
+    await waitFor(() =>
+      expect(within(boundary()).getByRole('alert')).toHaveTextContent(
+        'No pudimos cambiar el paciente activo.',
+      ),
+    );
+    const retry = within(boundary()).getByRole('button', { name: 'Conservar y cambiar' });
+    expect(retry).toBeEnabled();
+    expect(retry).toHaveFocus();
+    fireEvent.click(within(boundary()).getByRole('button', { name: 'Mantener paciente' }));
+    expect(composer()).toHaveValue('Nota para Ana');
+    expect(api.streamClinicalTurn).not.toHaveBeenCalled();
   });
 });

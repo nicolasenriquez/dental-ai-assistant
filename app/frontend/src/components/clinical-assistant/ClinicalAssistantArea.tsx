@@ -167,6 +167,7 @@ export function ClinicalAssistantArea({
   );
   const [boundary, setBoundary] = useState<BoundaryDecision | null>(null);
   const boundaryReturnFocusRef = useRef<HTMLElement | null>(null);
+  const boundaryChoiceRef = useRef<HTMLElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const areaRef = useRef<HTMLElement>(null);
   const resumedTargetRef = useRef<string | null>(null);
@@ -338,6 +339,8 @@ export function ClinicalAssistantArea({
         setBoundary(null);
         return;
       }
+      const invoked = document.activeElement;
+      boundaryChoiceRef.current = invoked instanceof HTMLElement ? invoked : null;
       const commit = () => {
         void persistPatientChange(target).then((ok) => {
           if (!ok) return;
@@ -354,6 +357,14 @@ export function ClinicalAssistantArea({
     },
     [boundary, guardTransition, persistPatientChange, setRetainedForThread, clearContextSlot],
   );
+
+  // Chromium drops focus when the choices disable for the saving lock. A failed
+  // change leaves the decision open, so return focus to the invoked choice.
+  useEffect(() => {
+    if (patientSelectionState !== 'error' || boundary === null) return;
+    const invoked = boundaryChoiceRef.current;
+    if (invoked?.isConnected) invoked.focus();
+  }, [patientSelectionState, boundary]);
 
   const restoreLocked =
     voiceInFlight ||
@@ -975,6 +986,7 @@ export function ClinicalAssistantArea({
           >
             <AlertDialogContent
               role="alertdialog"
+              className="max-h-[calc(100dvh-32px)] overflow-y-auto break-words [&>*]:shrink-0"
               onEscapeKeyDown={(event) => {
                 event.stopPropagation();
                 if (patientSelectionState === 'saving') event.preventDefault();
@@ -1005,7 +1017,7 @@ export function ClinicalAssistantArea({
                     }.`
                   : ''}
               </AlertDialogDescription>
-              <AlertDialogFooter>
+              <AlertDialogFooter className="flex-wrap">
                 <AlertDialogCancel
                   disabled={patientSelectionState === 'saving'}
                   onClick={() => resolveBoundary('remain')}

@@ -50,4 +50,19 @@ describe('useAutosizeTextarea', () => {
 
     expect(textarea).toHaveStyle({ height: '72px', overflowY: 'hidden' });
   });
+
+  it('follows a smaller available height cap and returns to content sizing below it', () => {
+    const view = render(<AutosizeHarness value="One line" maxHeight={72} />);
+    const textarea = view.getByRole('textbox');
+
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, value: 220 });
+    view.rerender(<AutosizeHarness value={'One line\nTwo lines\nThree lines'} maxHeight={72} />);
+
+    expect(textarea).toHaveStyle({ height: '72px', overflowY: 'auto' });
+
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, value: 40 });
+    view.rerender(<AutosizeHarness value="Short" maxHeight={72} />);
+
+    expect(textarea).toHaveStyle({ height: '40px', overflowY: 'hidden' });
+  });
 });

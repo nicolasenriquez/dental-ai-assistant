@@ -1845,6 +1845,19 @@ body,
   }
 }
 
+/* ponytail: compact the narrow mobile header; the long-identity header is the
+   transcript's largest fixed cost at phone widths. */
+@media (max-width: 767px) {
+  .clinical-assistant-area .workspace-header {
+    padding-block: 4px;
+    row-gap: 4px;
+  }
+
+  .clinical-assistant-area .clinical-patient-trigger {
+    padding-block: 4px;
+  }
+}
+
 .clinical-empty-state p,
 .clinical-approval > p,
 .clinical-result {
@@ -3224,7 +3237,12 @@ body,
   right: auto;
   bottom: auto;
   left: auto;
-  flex: none;
+  /* ponytail: shrink to the visible clinical height and scroll the queue,
+     sources and composer locally, so the transcript keeps its own scrolling. */
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: transparent;
   container: clinical-composer-pane / inline-size;
 }
