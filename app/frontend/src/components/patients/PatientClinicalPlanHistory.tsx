@@ -53,34 +53,36 @@ export function PatientClinicalPlanHistory({
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
+  // ponytail: one generation owns initial reads and pagination.
+  const generation = useRef(0);
   const destination = useRef<HTMLElement>(null);
   useEffect(() => {
-    let alive = true;
+    const request = ++generation.current;
     setPlan(null);
     setRevisions([]);
     setCursor(null);
     setError(false);
+    setLoading(Boolean(planId));
     if (!planId) return;
-    setLoading(true);
     void Promise.all([
       getClinicalPlan(patientId, planId),
       getClinicalPlanRevisions(patientId, planId),
     ])
       .then(([record, history]) => {
-        if (!alive) return;
+        if (request !== generation.current) return;
         setPlan(record);
         setRevisions(history.items);
         setCursor(history.next_cursor);
         destination.current?.focus();
       })
       .catch(() => {
-        if (alive) setError(true);
+        if (request === generation.current) setError(true);
       })
       .finally(() => {
-        if (alive) setLoading(false);
+        if (request === generation.current) setLoading(false);
       });
     return () => {
-      alive = false;
+      ++generation.current;
     };
   }, [patientId, planId, retry]);
   return (
@@ -124,15 +126,17 @@ export function PatientClinicalPlanHistory({
               variant="clinicalSecondary"
               disabled={loading}
               onClick={async () => {
+                const request = generation.current;
                 setLoading(true);
                 try {
                   const history = await getClinicalPlanRevisions(patientId, plan.id, cursor);
+                  if (request !== generation.current) return;
                   setRevisions((previous) => [...previous, ...history.items]);
                   setCursor(history.next_cursor);
                 } catch {
-                  setError(true);
+                  if (request === generation.current) setError(true);
                 } finally {
-                  setLoading(false);
+                  if (request === generation.current) setLoading(false);
                 }
               }}
             >
