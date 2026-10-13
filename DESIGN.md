@@ -159,6 +159,7 @@ The palette pairs blue signal accents with cool, low-chroma dark surfaces and so
 ### Status
 - **Success Green:** Successful saves and completed actions.
 - **Danger Red / Error Rose:** Destructive or failed states; reserve error rose for softer supporting copy.
+  Clinical discard confirmations and leaving without saving use the secondary button geometry with a danger border and readable error-rose label (`clinicalDanger`); blue remains the save or continue action.
 - **Warning Amber:** Review-needed and caution states; the warning wash and edge form a restrained container.
 
 ### Dental clinical colors

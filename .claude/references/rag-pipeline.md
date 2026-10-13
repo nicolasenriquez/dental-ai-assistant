@@ -11,6 +11,10 @@ runs a multi-round tool loop (`LLM_TOOLS_MAX_PER_TURN=6`). The tools in `rag/too
 `retriever_hybrid` (RRF: tsvector keyword + `pgvector` cosine cast `::vector`, top-5, overfetch ×2, RRF k=60),
 apply a per-video cap (3) and ±1 neighbor expansion, and return a canonical chunk dict.
 
+**Database prerequisite.** Alembic revision `0032` enables `vector` with `CREATE EXTENSION IF NOT EXISTS`.
+The PostgreSQL image must provide pgvector and the migration role must be able to create the extension.
+Downgrading retains this shared type because earlier retrieval code also casts embeddings to `vector`.
+
 **ACL.** Retrieval filters `source_type = ANY($3::text[])` — members get `['youtube','dynamous']`, others
 `['youtube']`. These lists are **hardcoded** in `retriever_hybrid.py` and `tools.py`; a new source type must be
 added in both, plus defense-in-depth in `execute_get_video_transcript`.
