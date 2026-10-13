@@ -92,6 +92,68 @@ describe('ClinicalAssistantArea queue', () => {
     vi.mocked(getPatients).mockResolvedValue([]);
   });
 
+  it.each(['success', 'failure', 'other-focus', 'other-thread'] as const)(
+    'hands focus back only after a successful explicit restore: %s',
+    async (outcome) => {
+      runtime.value = 'idle';
+      const patient: ClinicalPatient = {
+        id: 'patient-1',
+        first_name: 'Ana',
+        last_name: 'Pérez',
+        rut_masked: '••••',
+      };
+      vi.mocked(getPatients).mockResolvedValue([
+        { ...patient, birth_date: '1990-01-01', last_evolution_at: null },
+      ]);
+      assistantState.setActivePatient.mockResolvedValue(undefined);
+      const view = render(
+        <ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />,
+      );
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Borrador general' } });
+      fireEvent.click(screen.getAllByRole('button', { name: 'Seleccionar paciente' })[0]);
+      fireEvent.click(await screen.findByRole('option', { name: /Ana Pérez/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Conservar y cambiar' }));
+      await waitFor(() => expect(assistantState.setActivePatient).toHaveBeenCalledWith(patient.id));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+      assistantState.thread = createThread(patient);
+      view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+      const restore = screen.getByRole('button', { name: 'Volver a Sin paciente' });
+      let finish!: () => void;
+      let fail!: (reason: Error) => void;
+      assistantState.setActivePatient.mockReturnValueOnce(
+        new Promise<void>((resolve, reject) => {
+          finish = resolve;
+          fail = reject;
+        }),
+      );
+      act(() => restore.focus());
+      fireEvent.click(restore);
+      const other = screen.getByRole('button', { name: 'Iniciar dictado' });
+      if (outcome === 'other-focus') act(() => other.focus());
+      if (outcome === 'other-thread') {
+        assistantState.thread = { ...createThread(null), id: 'thread-2' };
+        view.rerender(<ClinicalAssistantArea threadId="thread-2" assistant={createAssistant()} />);
+      }
+      await act(async () => {
+        if (outcome === 'failure') fail(new Error('offline'));
+        else finish();
+      });
+      if (outcome !== 'failure' && outcome !== 'other-thread') {
+        assistantState.thread = createThread(null);
+        view.rerender(<ClinicalAssistantArea threadId="thread-1" assistant={createAssistant()} />);
+      }
+      if (outcome === 'success')
+        await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
+      else if (outcome === 'other-focus') await waitFor(() => expect(other).toHaveFocus());
+      else if (outcome === 'other-thread') expect(screen.getByRole('textbox')).not.toHaveFocus();
+      else expect(restore).toHaveFocus();
+      expect(screen.getByRole('textbox')).toHaveValue(
+        outcome === 'other-thread' ? '' : 'Borrador general',
+      );
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
   it('keeps unloaded threads out of the actionable empty state and offers load retry', async () => {
     runtime.value = 'idle';
     assistantState.thread = null;

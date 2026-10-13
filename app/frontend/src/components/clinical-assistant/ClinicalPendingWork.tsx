@@ -569,7 +569,7 @@ export function ClinicalPendingWork({
             <AlertDialogCancel disabled={dismissing}>Mantener</AlertDialogCancel>
             <Button
               type="button"
-              variant="clinical"
+              variant="clinicalDanger"
               disabled={dismissing}
               onClick={() => {
                 if (intent) void runDismiss(intent);

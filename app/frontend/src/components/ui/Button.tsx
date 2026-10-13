@@ -5,6 +5,7 @@ const VARIANT_CLASSES = {
   primary: 'btn-primary',
   clinical: 'clinical-primary-button',
   clinicalSecondary: 'clinical-secondary-button',
+  clinicalDanger: 'clinical-secondary-button clinical-danger-button',
   drive: 'drive-btn drive-btn-primary',
   driveSecondary: 'drive-btn drive-btn-secondary',
   driveIcon: 'drive-btn drive-btn-icon',

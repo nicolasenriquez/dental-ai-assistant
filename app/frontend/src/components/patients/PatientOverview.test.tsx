@@ -2,11 +2,35 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as api from '../../lib/api';
+import { formatClinicalDateTime } from '../../lib/clinicalDate';
 import { PatientOverview } from './PatientOverview';
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('PatientOverview clinical hierarchy', () => {
+  it('shows the latest evolution time with the original timestamp and exact destination', async () => {
+    vi.spyOn(api, 'getClinicalPendingWork').mockResolvedValue({
+      items: [],
+      total: 0,
+      next_cursor: null,
+    });
+    const evolution = {
+      id: 'e',
+      patient_id: 'p',
+      evolution_at: '2026-10-05T19:38:30Z',
+      created_at: '',
+      preview: '',
+    };
+    render(
+      <MemoryRouter>
+        <PatientOverview patientId="p" evolutions={[evolution]} onAssistant={vi.fn()} />
+      </MemoryRouter>,
+    );
+    const time = screen.getByText(formatClinicalDateTime(evolution.evolution_at));
+    expect(time).toHaveAttribute('datetime', evolution.evolution_at);
+    expect(time.closest('a')).toHaveAttribute('href', '/patients/p/evolutions/e');
+    await waitFor(() => expect(screen.getAllByText('0')).toHaveLength(3));
+  });
   it('keeps API totals beside exact clinical actions and separates failed Drive copies', async () => {
     vi.spyOn(api, 'getClinicalPendingWork').mockImplementation(
       async (_patient, _cursor, options) => {

@@ -1,5 +1,5 @@
 import type { EvolutionDetail as Evolution } from '../lib/api';
-import { formatClinicalDateLong, formatClinicalTime } from '../lib/clinicalDate';
+import { formatClinicalDateTime } from '../lib/clinicalDate';
 import { clinicalFields, parseClinicalText } from './clinical/evolutionFields';
 
 export function EvolutionDetailContent({ evolution }: { evolution: Evolution }) {
@@ -12,8 +12,7 @@ export function EvolutionDetailContent({ evolution }: { evolution: Evolution }) 
         <p>
           Fecha de atención:{' '}
           <time dateTime={evolution.evolution_at}>
-            {formatClinicalDateLong(evolution.evolution_at)} ·{' '}
-            {formatClinicalTime(evolution.evolution_at)}
+            {formatClinicalDateTime(evolution.evolution_at)}
           </time>
         </p>
       </header>

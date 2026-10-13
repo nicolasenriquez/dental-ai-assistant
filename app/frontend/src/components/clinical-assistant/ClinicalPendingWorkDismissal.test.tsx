@@ -150,6 +150,9 @@ it('declines an approval only after a read-only canonical match and confirmed co
   expect(decline).not.toHaveBeenCalled();
   expect(within(dialog).getByText(/Ana Pérez/)).toBeVisible();
   expect(within(dialog).getByText(/no se modifican/)).toBeVisible();
+  expect(within(dialog).getByRole('button', { name: 'Descartar' })).toHaveClass(
+    'clinical-danger-button',
+  );
   fireEvent.click(within(dialog).getByRole('button', { name: 'Descartar' }));
   await waitFor(() => expect(decline).toHaveBeenCalledTimes(1));
   expect(decline).toHaveBeenCalledWith('action-1', 'decline', 'a'.repeat(64), {

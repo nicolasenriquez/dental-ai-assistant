@@ -127,6 +127,20 @@ function renderArtifact(
 }
 
 describe('ClinicalEvolutionArtifact', () => {
+  it.each(['declined', 'failed'] as const)(
+    'labels terminal %s consistently with and without an approval',
+    (status) => {
+      const view = renderArtifact(draftItem({ artifactStatus: status }), approvalItem(status));
+      const label = status === 'declined' ? 'Descartada' : 'No disponible';
+      expect(screen.queryByText('Borrador')).not.toBeInTheDocument();
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+      view.unmount();
+      renderArtifact(draftItem({ artifactStatus: status }));
+      expect(screen.queryByText('Borrador')).not.toBeInTheDocument();
+      expect(screen.getByText(label)).toBeVisible();
+      expect(screen.queryByRole('button', { name: 'Revisar y guardar' })).not.toBeInTheDocument();
+    },
+  );
   it('copies the composed evolution and confirms success only after the clipboard resolves', async () => {
     const descriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     const writeText = vi.fn().mockResolvedValue(undefined);

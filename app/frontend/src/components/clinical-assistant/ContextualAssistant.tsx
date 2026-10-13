@@ -83,6 +83,11 @@ export function ContextualAssistant({
         <SheetContent
           className="contextual-sheet-content p-0"
           aria-describedby={undefined}
+          onCloseAutoFocus={(event) => {
+            if (document.activeElement?.classList.contains('clinical-composer-input')) {
+              event.preventDefault();
+            }
+          }}
           onEscapeKeyDown={(event) => {
             // ponytail: the review modal owns Escape; Radix must not also dismiss the Sheet.
             if (document.querySelector('dialog[open]')) event.preventDefault();

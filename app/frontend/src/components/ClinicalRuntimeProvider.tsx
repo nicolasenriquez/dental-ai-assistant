@@ -1,11 +1,13 @@
 import {
   type Dispatch,
+  type MutableRefObject,
   type ReactNode,
   type SetStateAction,
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { useLocation, useMatch } from 'react-router-dom';
@@ -42,6 +44,18 @@ export interface RetainedContext {
 }
 
 interface ClinicalMemory {
+  composerPositions: MutableRefObject<
+    Record<
+      string,
+      {
+        value: string;
+        start: number;
+        end: number;
+        direction: 'forward' | 'backward' | 'none';
+        focused: boolean;
+      }
+    >
+  >;
   drafts: Record<string, string>;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
   queues: Record<string, ClinicalQueuedEntry[]>;
@@ -75,6 +89,7 @@ export function ClinicalRuntimeProvider({ children }: { children: ReactNode }): 
   const routeThreadId = useMatch('/a/:threadId')?.params.threadId;
   const [activeThreadId, setActiveThreadId] = useState<string | null>(routeThreadId ?? null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const composerPositions = useRef<ClinicalMemory['composerPositions']['current']>({});
   const [queues, setQueues] = useState<Record<string, ClinicalQueuedEntry[]>>({});
   const [attachments, setAttachments] = useState<Record<string, ComposerContextItem[]>>({});
   const [artifactBuffers, setArtifactBuffers] = useState<Record<string, ArtifactEditBuffer>>({});
@@ -123,6 +138,7 @@ export function ClinicalRuntimeProvider({ children }: { children: ReactNode }): 
   return (
     <MemoryContext.Provider
       value={{
+        composerPositions,
         drafts,
         setDrafts,
         queues,

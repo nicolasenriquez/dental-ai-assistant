@@ -1,8 +1,9 @@
 import { Square } from 'lucide-react';
-import { type KeyboardEvent, type RefObject, useState } from 'react';
+import { type KeyboardEvent, type RefObject, useLayoutEffect, useRef, useState } from 'react';
 import { useAutosizeTextarea } from '../../hooks/useAutosizeTextarea';
 import { type VoiceState, isVoiceInFlight } from '../../hooks/useVoiceDictation';
 import type { ComposerContextItem } from '../../lib/api';
+import { useClinicalComposerMemory } from '../ClinicalRuntimeProvider';
 import { ComposerShell } from '../ComposerShell';
 import { VoiceDictationStatus } from '../voice/VoiceDictationStatus';
 
@@ -31,6 +32,7 @@ export interface ClinicalComposerOrigin {
 }
 
 interface ClinicalComposerProps {
+  continuityKey?: string;
   origin: ClinicalComposerOrigin;
   value: string;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -47,6 +49,7 @@ interface ClinicalComposerProps {
 }
 
 export function ClinicalComposer({
+  continuityKey,
   origin,
   value,
   textareaRef,
@@ -62,6 +65,39 @@ export function ClinicalComposer({
   submitDisabled = false,
 }: ClinicalComposerProps) {
   const [focused, setFocused] = useState(false);
+  const positions = useClinicalComposerMemory()?.composerPositions;
+  const hadFocus = useRef(false);
+  const primaryButton = useRef<HTMLButtonElement>(null);
+  const returnFocusAfterStop = useRef(false);
+  useLayoutEffect(() => {
+    const input = textareaRef.current;
+    if (!input || !positions || !continuityKey) return;
+    const saved = positions.current[continuityKey];
+    delete positions.current[continuityKey];
+    if (saved?.value === input.value) {
+      input.setSelectionRange(saved.start, saved.end, saved.direction);
+      if (saved.focused) input.focus();
+    }
+    return () => {
+      positions.current[continuityKey] = {
+        value: input.value,
+        start: input.selectionStart,
+        end: input.selectionEnd,
+        direction: input.selectionDirection,
+        focused: document.activeElement === input || (!input.isConnected && hadFocus.current),
+      };
+    };
+  }, [continuityKey, positions, textareaRef]);
+  useLayoutEffect(() => {
+    if (primaryAction !== 'send' || !returnFocusAfterStop.current) return;
+    returnFocusAfterStop.current = false;
+    if (
+      document.activeElement === document.body ||
+      document.activeElement === primaryButton.current
+    ) {
+      textareaRef.current?.focus();
+    }
+  }, [primaryAction, textareaRef]);
   const voiceInFlight = isVoiceInFlight(voice.state);
   const voiceStatusLayout = voice.state !== 'idle' && voice.state !== 'success';
   const generalOrigin = origin.label === null;
@@ -140,8 +176,14 @@ export function ClinicalComposer({
         onKeyDown={(event) => {
           if (event.key !== 'Escape') onKeyDown(event);
         }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={() => {
+          hadFocus.current = true;
+          setFocused(true);
+        }}
+        onBlur={() => {
+          hadFocus.current = false;
+          setFocused(false);
+        }}
         rows={1}
         aria-label={accessibleName}
         aria-describedby="clinical-composer-keys"
@@ -179,9 +221,13 @@ export function ClinicalComposer({
           )}
           {(!voiceInFlight || primaryAction !== 'send') && (
             <button
+              ref={primaryButton}
               type="button"
               className={`${primaryAction === 'send' ? 'chat-send-button' : 'chat-stop-button'} active:brightness-90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none${primaryAction === 'send' && !value.trim() ? ' is-disabled' : ''}`}
-              onClick={onPrimaryAction}
+              onClick={() => {
+                if (primaryAction === 'stop') returnFocusAfterStop.current = true;
+                onPrimaryAction();
+              }}
               disabled={
                 primaryAction === 'stopping' ||
                 (primaryAction === 'send' && (!value.trim() || submitDisabled || voiceInFlight))

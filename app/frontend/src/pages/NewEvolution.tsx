@@ -9,6 +9,7 @@ import {
   hasClinicalContent as draftHasClinicalContent,
 } from '../components/clinical/evolutionFields';
 import { ClinicalDateField } from '../components/patterns/ClinicalDateField';
+import { Button } from '../components/ui/Button';
 import { useToast } from '../hooks/useToast';
 import {
   ApiError,
@@ -760,16 +761,15 @@ export function NewEvolution() {
               >
                 Continuar editando
               </button>
-              <button
-                type="button"
+              <Button
+                variant="clinicalDanger"
                 onClick={() => {
                   setLeavePromptOpen(false);
                   blocker.proceed?.();
                 }}
-                className="rounded bg-action hover:bg-action-hover px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 Salir sin guardar
-              </button>
+              </Button>
             </div>
           </div>
         </div>

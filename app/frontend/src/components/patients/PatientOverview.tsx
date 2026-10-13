@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useClinicalPendingWork } from '../../hooks/useClinicalPendingWork';
 import type { EvolutionSummary, PendingWorkItem } from '../../lib/api';
-import { formatClinicalDateShort } from '../../lib/clinicalDate';
+import { formatClinicalDateTime } from '../../lib/clinicalDate';
 import { ClinicalPendingWork } from '../clinical-assistant/ClinicalPendingWork';
 import { Button, buttonVariants } from '../ui/Button';
 
@@ -49,7 +49,9 @@ export function PatientOverview({
                 className="text-primary hover:underline"
                 to={`/patients/${patientId}/evolutions/${evolutions[0].id}`}
               >
-                {formatClinicalDateShort(evolutions[0].evolution_at)}
+                <time dateTime={evolutions[0].evolution_at}>
+                  {formatClinicalDateTime(evolutions[0].evolution_at)}
+                </time>
               </Link>
             ) : (
               'Sin evoluciones aprobadas'

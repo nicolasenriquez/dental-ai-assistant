@@ -322,7 +322,16 @@ export function ClinicalEvolutionArtifact({
   const terminalApproval = approval?.status === 'declined' || approval?.status === 'failed';
   // Discarded is a closed artifact: read-only content, no prepare/edit/recovery
   // controls and no fabricated approval.
-  const terminalArtifact = terminalApproval || item.artifactStatus === 'discarded';
+  const terminalStatus = terminalApproval ? approval.status : item.artifactStatus;
+  const terminalArtifact = ['discarded', 'declined', 'failed'].includes(terminalStatus ?? '');
+  const terminalLabel =
+    terminalStatus === 'discarded'
+      ? 'Descartado'
+      : terminalStatus === 'declined'
+        ? 'Descartada'
+        : terminalStatus === 'failed'
+          ? 'No disponible'
+          : undefined;
   const clinicalContent = composeClinicalDraft(item.draft);
   const showOverflow = stage !== 'saving';
   const driveExport = approval?.action.drive_export ?? null;
@@ -358,7 +367,7 @@ export function ClinicalEvolutionArtifact({
         onPrepare={approval || terminalArtifact ? undefined : onPrepare}
         preparing={preparing}
         lifecycleStage={stage}
-        lifecycleLabel={item.artifactStatus === 'discarded' ? 'Descartado' : undefined}
+        lifecycleLabel={terminalLabel}
         showAssistantActions={stage === 'draft' && !terminalArtifact}
         syncState={syncState}
         onRetrySync={onRetrySync}

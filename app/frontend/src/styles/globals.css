@@ -3054,6 +3054,12 @@ body,
   color: var(--text-secondary);
 }
 
+.clinical-danger-button,
+.clinical-danger-button:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--error);
+}
+
 .workspace-header__actions > .clinical-secondary-button {
   display: inline-flex;
   height: 40px;

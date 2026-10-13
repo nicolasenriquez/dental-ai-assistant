@@ -262,14 +262,29 @@ export function ClinicalAssistantArea({
   );
 
   const runGuardedPatientChange = useCallback(
-    (patientId: string | null) => {
-      const change = () =>
-        void persistPatientChange(patientId).then((ok) => {
-          if (ok) setRetainedForThread(null);
+    (patientId: string | null, returnComposerFocus = false) => {
+      const change = () => {
+        const initiating = document.activeElement;
+        const pending = persistPatientChange(patientId);
+        const requestId = patientChangeRequestRef.current;
+        void pending.then((ok) => {
+          if (!ok) return;
+          setRetainedForThread(null);
+          if (returnComposerFocus)
+            requestAnimationFrame(() => {
+              if (
+                threadIdRef.current === threadId &&
+                patientChangeRequestRef.current === requestId &&
+                (document.activeElement === document.body || document.activeElement === initiating)
+              ) {
+                textareaRef.current?.focus();
+              }
+            });
         });
+      };
       guardTransition ? guardTransition(change) : change();
     },
-    [guardTransition, persistPatientChange, setRetainedForThread],
+    [guardTransition, persistPatientChange, setRetainedForThread, threadId],
   );
 
   const clearContextSlot = useCallback(
@@ -290,7 +305,7 @@ export function ClinicalAssistantArea({
   }, [retained, value, contextItems.length, setRetainedForThread]);
 
   const requestPatientChange = useCallback(
-    (patientId: string | null) => {
+    (patientId: string | null, returnComposerFocus = false) => {
       if (!threadReady || patientSelectionState === 'saving') return;
       const hasTextWork = value.trim().length > 0 || contextItems.length > 0;
       const conflicts =
@@ -316,7 +331,7 @@ export function ClinicalAssistantArea({
         });
         return;
       }
-      runGuardedPatientChange(patientId);
+      runGuardedPatientChange(patientId, returnComposerFocus);
     },
     [
       patientSelectionState,
@@ -951,7 +966,7 @@ export function ClinicalAssistantArea({
                     type="button"
                     className="clinical-secondary-button"
                     onClick={() => {
-                      requestPatientChange(queued[0]?.patientId ?? null);
+                      requestPatientChange(queued[0]?.patientId ?? null, true);
                     }}
                     disabled={restoreLocked}
                   >
@@ -972,7 +987,7 @@ export function ClinicalAssistantArea({
                 type="button"
                 className="clinical-secondary-button"
                 disabled={restoreLocked}
-                onClick={() => requestPatientChange(retained.patientId)}
+                onClick={() => requestPatientChange(retained.patientId, true)}
               >
                 Volver a {retained.label ?? 'Sin paciente'}
               </button>
@@ -1034,7 +1049,7 @@ export function ClinicalAssistantArea({
                 </Button>
                 <Button
                   type="button"
-                  variant="clinicalSecondary"
+                  variant="clinicalDanger"
                   disabled={patientSelectionState === 'saving'}
                   onClick={() => resolveBoundary('discard')}
                 >
@@ -1054,6 +1069,7 @@ export function ClinicalAssistantArea({
             </AlertDialogContent>
           </AlertDialog>
           <ClinicalComposer
+            continuityKey={displayKey}
             origin={composerOrigin}
             value={value}
             textareaRef={textareaRef}

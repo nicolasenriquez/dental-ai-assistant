@@ -282,7 +282,10 @@ describe('assistant approval recovery presentation', () => {
 
     renderHarness();
 
-    expect(await screen.findByText('Descartada')).toBeVisible();
+    const labels = await screen.findAllByText('Descartada');
+    expect(labels).toHaveLength(2);
+    for (const label of labels) expect(label).toBeVisible();
+    expect(screen.queryByText('Borrador')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Recuperar borrador' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Verificar estado' })).not.toBeInTheDocument();
   });
