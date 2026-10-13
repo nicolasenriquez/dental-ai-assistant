@@ -1,8 +1,18 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { afterEach, expect, it, vi } from 'vitest';
-import type { ClinicalThreadSummary } from '../../lib/api';
-import { acquireClinicalThread, getClinicalThreads } from '../../lib/api';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect } from 'react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  TransitionGuardProvider,
+  useOptionalTransitionGuard,
+} from '../../hooks/useTransitionGuard';
+import type { ClinicalThread, ClinicalThreadSummary } from '../../lib/api';
+import {
+  acquireClinicalThread,
+  deleteClinicalThread,
+  getClinicalThreads,
+  renameClinicalThread,
+} from '../../lib/api';
 import { ClinicalThreadList } from './ClinicalThreadList';
 
 vi.mock('../../lib/api', () => ({
@@ -317,4 +327,237 @@ it('skips polling ticks while a summary request is in flight', async () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}</span>;
+}
+
+describe('clinical conversation collisions', () => {
+  const collisionTitle = 'Evolución dental';
+  const tiedAt = '2026-10-10T12:00:10.000Z';
+  const sameMinuteLater = '2026-10-10T12:00:50.000Z';
+  const ordinal = (value: number) => `${collisionTitle} · Conversación ${value}`;
+
+  function collidingSummary(
+    id: string,
+    overrides: Partial<ClinicalThreadSummary> = {},
+  ): ClinicalThreadSummary {
+    return {
+      id,
+      title: collisionTitle,
+      active_patient_id: null,
+      active_turn_id: null,
+      updated_at: tiedAt,
+      preview: null,
+      approval_pending: false,
+      ...overrides,
+    };
+  }
+
+  function collisionLabels(): (string | null)[] {
+    return screen
+      .getAllByRole('button', { name: /^Evolución dental/ })
+      .map((row) => row.getAttribute('aria-label'));
+  }
+
+  it('distinguishes rows whose title and displayed minute collide, including exact ties', async () => {
+    vi.mocked(getClinicalThreads).mockResolvedValue([
+      collidingSummary('thread-b', { active_turn_id: 'turn-b' }),
+      collidingSummary('thread-a'),
+      collidingSummary('thread-c', { updated_at: sameMinuteLater, approval_pending: true }),
+    ]);
+
+    render(
+      <MemoryRouter>
+        <ClinicalThreadList activeThreadId="thread-a" />
+      </MemoryRouter>,
+    );
+
+    const rows = await screen.findAllByRole('button', { name: /^Evolución dental/ });
+    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+      ordinal(2),
+      ordinal(1),
+      ordinal(3),
+    ]);
+    expect(rows[0]).toHaveAttribute('aria-busy', 'true');
+    expect(rows[1]).toHaveAttribute('aria-current', 'page');
+    expect(rows[0]).toHaveTextContent('Conversación 2');
+    expect(rows[1]).toHaveTextContent('Conversación 1');
+    expect(rows[2]).toHaveTextContent('Conversación 3');
+    expect(within(rows[2]).getByLabelText('Pendiente de aprobación')).toBeInTheDocument();
+    expect(within(rows[0]).queryByLabelText('Pendiente de aprobación')).not.toBeInTheDocument();
+
+    for (const value of [1, 2, 3]) {
+      expect(screen.getByRole('button', { name: `Acciones para ${ordinal(value)}` })).toBeVisible();
+    }
+  });
+
+  it('keeps collision ordinals across search, refresh and rail reflow', async () => {
+    const page = [
+      collidingSummary('thread-a'),
+      collidingSummary('thread-b'),
+      collidingSummary('thread-c'),
+      collidingSummary('thread-z', { title: 'Consulta única' }),
+    ];
+    vi.mocked(getClinicalThreads).mockResolvedValue(page);
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <ClinicalThreadList />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('button', { name: 'Consulta única' });
+    const initialLabels = collisionLabels();
+    const initialReads = vi.mocked(getClinicalThreads).mock.calls.length;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar en conversaciones' }));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: collisionTitle } });
+    expect(screen.queryByRole('button', { name: 'Consulta única' })).not.toBeInTheDocument();
+    const filteredLabels = collisionLabels();
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
+    expect(screen.getByRole('button', { name: 'Consulta única' })).toBeInTheDocument();
+    const clearedLabels = collisionLabels();
+    expect(vi.mocked(getClinicalThreads).mock.calls.length).toBe(initialReads);
+
+    const readsBeforeRefresh = vi.mocked(getClinicalThreads).mock.calls.length;
+    vi.mocked(getClinicalThreads).mockResolvedValue([...page]);
+    rerender(
+      <MemoryRouter>
+        <ClinicalThreadList refreshKey={1} />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(vi.mocked(getClinicalThreads).mock.calls.length).toBe(readsBeforeRefresh + 1),
+    );
+    expect(screen.getByRole('button', { name: 'Consulta única' })).toBeInTheDocument();
+    const refreshedLabels = collisionLabels();
+
+    rerender(
+      <MemoryRouter>
+        <ClinicalThreadList refreshKey={1} isCollapsed />
+      </MemoryRouter>,
+    );
+    expect(screen.queryAllByRole('button', { name: /^Evolución dental/ })).toHaveLength(0);
+    rerender(
+      <MemoryRouter>
+        <ClinicalThreadList refreshKey={1} />
+      </MemoryRouter>,
+    );
+    const reflowedLabels = collisionLabels();
+
+    expect(filteredLabels).toEqual(initialLabels);
+    expect(clearedLabels).toEqual(initialLabels);
+    expect(refreshedLabels).toEqual(initialLabels);
+    expect(reflowedLabels).toEqual(initialLabels);
+    expect(initialLabels).toEqual([ordinal(1), ordinal(2), ordinal(3)]);
+  });
+
+  it('binds collision labels to exact thread IDs for navigation, rename and delete', async () => {
+    vi.mocked(getClinicalThreads).mockResolvedValue([
+      collidingSummary('thread-b'),
+      collidingSummary('thread-a'),
+      collidingSummary('thread-c'),
+    ]);
+    vi.mocked(renameClinicalThread).mockResolvedValue({} as ClinicalThread);
+    vi.mocked(deleteClinicalThread).mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <ClinicalThreadList />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    const rows = await screen.findAllByRole('button', { name: /^Evolución dental/ });
+    const labelsBeforeActions = rows.map((row) => row.getAttribute('aria-label'));
+    const menuTriggers = screen.getAllByRole('button', { name: /^Acciones para/ });
+
+    fireEvent.click(rows[1]);
+    expect(screen.getByTestId('location')).toHaveTextContent('/a/thread-a');
+
+    fireEvent.click(menuTriggers[1]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Renombrar' }));
+    const renameInput = screen.getByRole('textbox', { name: 'Renombrar conversación' });
+    expect(renameInput).toHaveValue(collisionTitle);
+    fireEvent.change(renameInput, { target: { value: 'Evolución dental renombrada' } });
+    fireEvent.keyDown(renameInput, { key: 'Enter' });
+    await waitFor(() =>
+      expect(renameClinicalThread).toHaveBeenCalledWith('thread-a', 'Evolución dental renombrada'),
+    );
+    await waitFor(() => expect(screen.queryAllByRole('menu')).toHaveLength(0));
+
+    fireEvent.click(menuTriggers[2]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Eliminar' }));
+    const dialog = await screen.findByRole('dialog', { name: '¿Eliminar conversación clínica?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Eliminar' }));
+    await waitFor(() => expect(deleteClinicalThread).toHaveBeenCalledWith('thread-c'));
+
+    expect(labelsBeforeActions).toEqual([ordinal(2), ordinal(1), ordinal(3)]);
+  });
+
+  it('routes collision selection through the transition guard', async () => {
+    vi.mocked(getClinicalThreads).mockResolvedValue([
+      collidingSummary('thread-a'),
+      collidingSummary('thread-b'),
+    ]);
+    let resume: (() => void) | null = null;
+
+    function BlockingGuard() {
+      const guard = useOptionalTransitionGuard();
+      useEffect(() => {
+        return guard?.registerBlocker((continuation) => {
+          resume = continuation;
+          return true;
+        });
+      }, [guard]);
+      return null;
+    }
+
+    render(
+      <MemoryRouter>
+        <TransitionGuardProvider>
+          <BlockingGuard />
+          <ClinicalThreadList />
+          <LocationProbe />
+        </TransitionGuardProvider>
+      </MemoryRouter>,
+    );
+
+    const rows = await screen.findAllByRole('button', { name: /^Evolución dental/ });
+    fireEvent.click(rows[0]);
+    fireEvent.click(rows[1]);
+    expect(screen.getByTestId('location')).toHaveTextContent('/');
+    await act(async () => resume?.());
+    expect(screen.getByTestId('location')).toHaveTextContent('/a/thread-a');
+  });
+
+  it('keeps unique rows unchanged and never exposes previews or raw IDs', async () => {
+    vi.mocked(getClinicalThreads).mockResolvedValue([
+      collidingSummary('thread-a', { preview: 'Contenido clínico confidencial' }),
+      collidingSummary('thread-b', { preview: 'Contenido clínico confidencial' }),
+      collidingSummary('thread-unique', {
+        title: 'Consulta única',
+        preview: 'Nota reservada de la consulta',
+      }),
+    ]);
+
+    render(
+      <MemoryRouter>
+        <ClinicalThreadList />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Consulta única' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Acciones para Consulta única' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: /Consulta única · Conversación/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /thread-/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Contenido clínico confidencial')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nota reservada de la consulta')).not.toBeInTheDocument();
+  });
 });

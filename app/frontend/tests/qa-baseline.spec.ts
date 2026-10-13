@@ -132,6 +132,8 @@ interface QaRouteOptions {
   clinicalMessages?: Array<Record<string, unknown>>;
   /** Clinical thread title; defaults to the shared fixture title. */
   clinicalThreadTitle?: string;
+  /** Clinical thread summaries served by `GET /api/clinical-threads`; defaults to the single shared thread. */
+  clinicalThreadSummaries?: Array<Record<string, unknown>>;
   /** Active patient rendered in the clinical thread header; defaults to the shared fixture. */
   clinicalPatient?: typeof patient;
 }
@@ -1470,6 +1472,7 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
     artifacts: [],
     actions: [],
   };
+  let clinicalSummaries = options.clinicalThreadSummaries ?? null;
 
   await page.route('**/api/**', async (route) => {
     const request = route.request();
@@ -1675,17 +1678,19 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
 
     if (path === '/api/clinical-threads' && method === 'GET') {
       await route.fulfill(
-        json([
-          {
-            id: threadId,
-            title: currentClinicalThread.title,
-            active_patient_id: patientId,
-            active_turn_id: null,
-            updated_at: currentClinicalThread.updated_at,
-            preview: null,
-            approval_pending: (currentClinicalThread.actions as unknown[]).length > 0,
-          },
-        ]),
+        json(
+          clinicalSummaries ?? [
+            {
+              id: threadId,
+              title: currentClinicalThread.title,
+              active_patient_id: patientId,
+              active_turn_id: null,
+              updated_at: currentClinicalThread.updated_at,
+              preview: null,
+              approval_pending: (currentClinicalThread.actions as unknown[]).length > 0,
+            },
+          ],
+        ),
       );
       return;
     }
@@ -1711,6 +1716,15 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
       await route.fulfill(json(currentClinicalThread));
       return;
     }
+    if (
+      method === 'GET' &&
+      /^\/api\/clinical-threads\/[^/]+$/.test(path) &&
+      path !== `/api/clinical-threads/${threadId}`
+    ) {
+      const id = path.split('/').pop() ?? threadId;
+      await route.fulfill(json({ ...currentClinicalThread, id }));
+      return;
+    }
     if (path === `/api/clinical-threads/${threadId}/active-patient` && method === 'PATCH') {
       patientChangeAttempts += 1;
       if (patientChangeAttempts <= (options.patientChangeFailures ?? 0)) {
@@ -1730,6 +1744,27 @@ async function installQaRoutes(page: Page, options: QaRouteOptions = {}): Promis
         active_patient: directory.find((candidate) => candidate.id === body.patient_id) ?? null,
       };
       await route.fulfill(json(currentClinicalThread));
+      return;
+    }
+    if (method === 'PATCH' && /^\/api\/clinical-threads\/[^/]+$/.test(path)) {
+      const id = path.split('/').pop() ?? '';
+      const body = request.postDataJSON() as { title?: string };
+      if (clinicalSummaries) {
+        clinicalSummaries = clinicalSummaries.map((summary) =>
+          summary.id === id ? { ...summary, title: body.title ?? summary.title } : summary,
+        );
+      }
+      await route.fulfill(json({ ...currentClinicalThread, id, title: body.title ?? '' }));
+      return;
+    }
+    if (method === 'DELETE' && /^\/api\/clinical-threads\/[^/]+$/.test(path)) {
+      const id = path.split('/').pop() ?? '';
+      if (clinicalSummaries) {
+        clinicalSummaries = clinicalSummaries.filter((summary) => summary.id !== id);
+      }
+      // ponytail: 200+JSON instead of the API's 204; Playwright/Chromium reports a
+      // fulfilled 204 as requestfailed net::ERR_ABORTED and the QA harness treats that as an error.
+      await route.fulfill(json({ deleted: id }));
       return;
     }
     if (
@@ -4899,5 +4934,230 @@ test.describe('C6 DE03 distinguishable attached sources', () => {
     await expect(input).toHaveValue(note);
     expect(mutations.length).toBe(writesAfterSetup);
     expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
+  });
+});
+
+const collisionThreadTitle = 'Evolución dental';
+const collisionTieAt = '2026-10-10T12:00:10.000Z';
+const collisionSameMinuteAt = '2026-10-10T12:00:50.000Z';
+
+function collisionSummary(
+  id: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id,
+    title: collisionThreadTitle,
+    active_patient_id: patientId,
+    active_turn_id: null,
+    updated_at: collisionTieAt,
+    preview: null,
+    approval_pending: false,
+    ...overrides,
+  };
+}
+
+test.describe('C7 PMAX-002 distinguishable clinical collision rows', () => {
+  test('keeps collision labels visible, accessible and request-free across layouts and zoom', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, {
+      clinicalThreadSummaries: [
+        collisionSummary('thread-b', { active_turn_id: 'turn-b' }),
+        collisionSummary('thread-a'),
+        collisionSummary('thread-c', {
+          updated_at: collisionSameMinuteAt,
+          approval_pending: true,
+          preview: 'Contenido clínico confidencial QA',
+        }),
+      ],
+    });
+    const mutations = trackQaApiMutations(page);
+    const listReads: string[] = [];
+    page.on('request', (request) => {
+      if (
+        request.method() === 'GET' &&
+        new URL(request.url()).pathname === '/api/clinical-threads'
+      ) {
+        listReads.push(new URL(request.url()).pathname);
+      }
+    });
+
+    await page.goto('/a/thread-a');
+    const rows = page.getByRole('button', { name: /^Evolución dental/ });
+    await expect(rows).toHaveCount(3);
+    const readLabels = () =>
+      rows.evaluateAll((elements) => elements.map((element) => element.getAttribute('aria-label')));
+    const expectedLabels = [
+      'Evolución dental · Conversación 2',
+      'Evolución dental · Conversación 1',
+      'Evolución dental · Conversación 3',
+    ];
+    expect(await readLabels()).toEqual(expectedLabels);
+
+    // Active/running/pending states stay attached to their exact ordinal rows.
+    await expect(rows.nth(0)).toHaveAttribute('aria-busy', 'true');
+    await expect(rows.nth(1)).toHaveAttribute('aria-current', 'page');
+    await expect(rows.nth(0)).toContainText('Conversación 2');
+    await expect(rows.nth(1)).toContainText('Conversación 1');
+    await expect(rows.nth(2)).toContainText('Conversación 3');
+    await expect(rows.nth(2).getByLabel('Pendiente de aprobación')).toBeVisible();
+    await expect(rows.nth(0).getByLabel('Pendiente de aprobación')).toHaveCount(0);
+    for (const ordinal of [1, 2, 3]) {
+      await expect(
+        page.getByRole('button', {
+          name: `Acciones para Evolución dental · Conversación ${ordinal}`,
+        }),
+      ).toBeVisible();
+    }
+
+    // No preview content or raw identifier reaches names or tooltips.
+    await expect(page.getByText('Contenido clínico confidencial QA')).toHaveCount(0);
+    expect(await page.locator('[aria-label*="thread-"], [title*="thread-"]').count()).toBe(0);
+
+    // Search and clear filter client-side without renumbering or issuing a read.
+    const readsBeforeSearch = listReads.length;
+    await page.getByRole('button', { name: 'Buscar en conversaciones' }).click();
+    const searchbox = page.getByRole('searchbox');
+    await searchbox.fill('Evolución dental');
+    await expect(rows).toHaveCount(3);
+    expect(await readLabels()).toEqual(expectedLabels);
+    await searchbox.fill('sin coincidencia');
+    await expect(rows).toHaveCount(0);
+    await searchbox.fill('');
+    await expect(rows).toHaveCount(3);
+    expect(await readLabels()).toEqual(expectedLabels);
+    expect(listReads.length).toBe(readsBeforeSearch);
+    expect(mutations).toEqual([]);
+
+    // Keyboard: row focus, menu-trigger handoff and Enter reach the exact destination.
+    await rows.nth(0).focus();
+    await expect(rows.nth(0)).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(
+      page.getByRole('button', { name: 'Acciones para Evolución dental · Conversación 2' }),
+    ).toBeFocused();
+    await rows.nth(0).focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/a\/thread-b$/);
+    await expect(rows).toHaveCount(3);
+    expect(await readLabels()).toEqual(expectedLabels);
+
+    // Desktop, tablet and drawer widths keep the same labels with no page overflow.
+    for (const [width, height] of [
+      [1440, 900],
+      [768, 1024],
+      [390, 844],
+      [360, 800],
+    ] as Array<[number, number]>) {
+      await page.setViewportSize({ width, height });
+      if (width <= 767 && (await page.locator('.sidebar-container.open').count()) === 0) {
+        const navTrigger = page.getByRole('button', { name: 'Abrir navegación' });
+        await expect(navTrigger).toBeVisible();
+        await navTrigger.click();
+      }
+      await expect(rows).toHaveCount(3);
+      expect(await readLabels()).toEqual(expectedLabels);
+      await assertNoHorizontalOverflow(page);
+      console.log(
+        '[PMAX-002-LAYOUT]',
+        JSON.stringify({ width, height, labels: await readLabels() }),
+      );
+    }
+
+    // An unchanged-group refresh (the existing 2s poll) preserves every ordinal.
+    const readsBeforeRefresh = listReads.length;
+    await page.clock.runFor(2100);
+    await expect.poll(() => listReads.length).toBeGreaterThan(readsBeforeRefresh);
+    expect(await readLabels()).toEqual(expectedLabels);
+
+    // 200% desktop zoom proxy: half-sized CSS viewport with doubled density.
+    const zoom = await page.context().newCDPSession(page);
+    await zoom.send('Emulation.setDeviceMetricsOverride', {
+      width: 720,
+      height: 450,
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    expect(await page.evaluate(() => ({ width: innerWidth, density: devicePixelRatio }))).toEqual({
+      width: 720,
+      density: 2,
+    });
+    await expect(rows.nth(0)).toBeVisible();
+    expect(await readLabels()).toEqual(expectedLabels);
+    await assertNoHorizontalOverflow(page);
+
+    expect(mutations).toEqual([]);
+    console.log(
+      '[PMAX-002]',
+      JSON.stringify({ labels: await readLabels(), listReads: listReads.length }),
+    );
+  });
+
+  test('recomputes labels on membership change and sends exact rename/delete identities', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, {
+      clinicalThreadSummaries: [
+        collisionSummary('thread-a'),
+        collisionSummary('thread-b'),
+        collisionSummary('thread-c'),
+      ],
+    });
+    const mutations = trackQaApiMutations(page);
+    await page.goto('/a/thread-a');
+    const collisionRows = page.getByRole('button', {
+      name: /^Evolución dental · Conversación \d$/,
+    });
+    await expect(collisionRows).toHaveCount(3);
+    const readLabels = () =>
+      collisionRows.evaluateAll((elements) =>
+        elements.map((element) => element.getAttribute('aria-label')),
+      );
+    expect(await readLabels()).toEqual([
+      'Evolución dental · Conversación 1',
+      'Evolución dental · Conversación 2',
+      'Evolución dental · Conversación 3',
+    ]);
+
+    // Rename the middle row through the shared menu; the stored title seeds the input.
+    await page
+      .getByRole('button', { name: 'Acciones para Evolución dental · Conversación 2' })
+      .click();
+    await page.getByRole('menuitem', { name: 'Renombrar' }).click();
+    const renameInput = page.getByRole('textbox', { name: 'Renombrar conversación' });
+    await expect(renameInput).toHaveValue('Evolución dental');
+    await renameInput.fill('Evolución dental renombrada');
+    await renameInput.press('Enter');
+    await expect(
+      page.getByRole('button', { name: 'Evolución dental renombrada', exact: true }),
+    ).toBeVisible();
+    await expect(collisionRows).toHaveCount(2);
+    expect(await readLabels()).toEqual([
+      'Evolución dental · Conversación 1',
+      'Evolución dental · Conversación 2',
+    ]);
+    expect(mutations.filter((mutation) => mutation.method === 'PATCH')).toEqual([
+      {
+        method: 'PATCH',
+        path: '/api/clinical-threads/thread-b',
+        body: { title: 'Evolución dental renombrada' },
+      },
+    ]);
+
+    // Delete the remaining collision partner; the survivor drops the ordinal.
+    await page
+      .getByRole('button', { name: 'Acciones para Evolución dental · Conversación 2' })
+      .click();
+    await page.getByRole('menuitem', { name: 'Eliminar' }).click();
+    const dialog = page.getByRole('dialog', { name: '¿Eliminar conversación clínica?' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Eliminar' }).click();
+    await expect(collisionRows).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Evolución dental', exact: true })).toBeVisible();
+    expect(mutations.filter((mutation) => mutation.method === 'DELETE')).toEqual([
+      { method: 'DELETE', path: '/api/clinical-threads/thread-c', body: null },
+    ]);
+    console.log('[PMAX-002-ACTIONS]', JSON.stringify({ mutations }));
   });
 });

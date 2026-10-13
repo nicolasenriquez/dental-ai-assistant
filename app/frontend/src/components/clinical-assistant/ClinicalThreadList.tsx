@@ -1,5 +1,5 @@
 import { SquarePen } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useOptionalTransitionGuard } from '../../hooks/useTransitionGuard';
 import {
@@ -130,6 +130,28 @@ export function ClinicalThreadList({
     const timer = window.setTimeout(() => setStartingThreads(new Set()), 10_000);
     return () => window.clearTimeout(timer);
   }, [startingThreads]);
+
+  // ponytail: collision ordinals are a display label, not identity; sorting opaque IDs
+  // inside the full loaded group keeps them stable across search, refresh and reflow.
+  const collisionLabels = useMemo(() => {
+    const groups = new Map<string, ClinicalThreadSummary[]>();
+    for (const thread of threads) {
+      const key = `${thread.title}\u0000${formatClinicalUpdatedAt(thread.updated_at)}`;
+      const group = groups.get(key);
+      if (group) group.push(thread);
+      else groups.set(key, [thread]);
+    }
+    const labels = new Map<string, string>();
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      [...group]
+        .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+        .forEach((thread, index) => {
+          labels.set(thread.id, `${thread.title} · Conversación ${index + 1}`);
+        });
+    }
+    return labels;
+  }, [threads]);
 
   const hasRunningThread =
     activeTurnRunning ||
@@ -296,6 +318,7 @@ export function ClinicalThreadList({
                 created_at: item.updatedAt,
                 updated_at: item.updatedAt,
               }}
+              presentationLabel={collisionLabels.get(item.id)}
               query={query}
               isActive={Boolean(item.active)}
               isRunning={Boolean(

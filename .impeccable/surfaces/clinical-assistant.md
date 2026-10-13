@@ -68,7 +68,13 @@ starter; starters still only prefill editable, unsent text. Consulted evolutions
 show date and time using the shared clinical formatter to distinguish same-day records;
 when two results display the same minute, each gets a visible ordinal within the
 unchanged list (`Ver evolución 1 del …`) while unique rows, payload order, exact
-destinations and the formatter value stay unchanged.
+destinations and the formatter value stay unchanged. Clinical conversation rows whose
+rendered title and displayed update minute collide get the same presentation-only
+treatment: a visible `Conversación N` ordinal assigned by ascending thread ID over
+the full loaded group before search filtering, carried into the selection and
+row-menu accessible names, recomputed when group membership, title or displayed
+minute changes, and absent for unique rows; stored titles, list order, exact
+destinations, guarded rename/delete and legacy Chat labels stay unchanged.
 Only a focused composer in a mobile viewport <=600px high limits the visual name
 to two lines; masked RUT stays visible and the full name returns on blur.
 Drive Notes are general sources, Documents are patient-bound. Desktop header

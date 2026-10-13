@@ -44,6 +44,7 @@ export interface ConversationRowProps {
   isRunning?: boolean;
   statusLabel?: string;
   secondaryLabel?: string;
+  presentationLabel?: string;
   onSelect: () => void;
   onDeleteRequest: () => void;
   onRename: (title: string) => void;
@@ -109,10 +110,14 @@ export function ConversationRow({
   isRunning = false,
   statusLabel,
   secondaryLabel,
+  presentationLabel,
   onSelect,
   onDeleteRequest,
   onRename,
 }: ConversationRowProps) {
+  // ponytail: an optional presentation label distinguishes clinical collision rows;
+  // the stored title still owns rename seeding/matching.
+  const displayTitle = presentationLabel ?? conversation.title;
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(conversation.title);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -239,24 +244,22 @@ export function ConversationRow({
             event.stopPropagation();
             startRename();
           }}
-          aria-label={conversation.title}
+          aria-label={displayTitle}
           aria-current={isActive ? 'page' : undefined}
           aria-busy={isRunning || runtime?.status === 'running'}
           title={
             isRunning || runtime?.status === 'running'
-              ? `${conversation.title} · Respuesta en progreso`
+              ? `${displayTitle} · Respuesta en progreso`
               : runtime?.status === 'error'
-                ? `${conversation.title} · Error en la respuesta`
-                : conversation.title
+                ? `${displayTitle} · Error en la respuesta`
+                : displayTitle
           }
         >
           <span className="conversation-title-icon" aria-hidden="true">
             <MessageCircle size={16} strokeWidth={1.7} />
           </span>
           <span className="conversation-title-copy">
-            <span className="conversation-title-label">
-              {highlightMatch(conversation.title, query)}
-            </span>
+            <span className="conversation-title-label">{highlightMatch(displayTitle, query)}</span>
             {secondaryLabel && <small>{secondaryLabel}</small>}
           </span>
           {(isRunning || runtime?.status === 'running') && (
@@ -297,7 +300,7 @@ export function ConversationRow({
             event.stopPropagation();
             setMenuOpen((current) => !current);
           }}
-          aria-label={`Acciones para ${conversation.title}`}
+          aria-label={`Acciones para ${displayTitle}`}
           aria-expanded={menuOpen}
           aria-haspopup="menu"
           title="Acciones de conversación"
