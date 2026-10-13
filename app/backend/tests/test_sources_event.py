@@ -8,6 +8,8 @@ test_tools.py. This file now only covers citation-object shape, SSE format,
 and persistence round-trip.
 """
 
+import pytest
+
 
 class TestCitationObjectShape:
     """Tests that verify citation objects have all required SSE fields."""
@@ -721,7 +723,15 @@ class TestRefusalSourcesSuppressionIntegration:
     suppresses sources event → response contains [DONE] but no 'event: sources'.
     """
 
-    async def test_refusal_persists_sources_as_none(self) -> None:
+    @pytest.mark.parametrize(
+        "refusal_text",
+        [
+            "Those topics are not covered in any of the videos.",
+            "No encontré fuentes relevantes en la biblioteca para esta consulta.",
+            "No encontré fuentes pertinentes sobre las reglas del ajedrez medieval islandés en los videos consultados.",
+        ],
+    )
+    async def test_refusal_persists_sources_as_none(self, refusal_text: str) -> None:
         """When LLM refuses, the assistant row persisted to the DB must have
         ``sources=None`` — otherwise reloading the conversation would bring
         the misleading 'Sources (N)' chip back, defeating the SSE-level
@@ -735,7 +745,6 @@ class TestRefusalSourcesSuppressionIntegration:
         from backend.auth.tokens import encode_token
         from backend.main import app
 
-        refusal_text = "Those topics are not covered in any of the videos."
         refusal_chunk = f"data: {json.dumps(refusal_text)}\n\n"
         done_chunk = "data: [DONE]\n\n"
 
@@ -825,7 +834,15 @@ class TestRefusalSourcesSuppressionIntegration:
             f"got {assistant_kwargs['sources']!r}"
         )
 
-    async def test_sources_event_suppressed_on_refusal(self) -> None:
+    @pytest.mark.parametrize(
+        "refusal_text",
+        [
+            "Those topics are not covered in any of the videos.",
+            "No encontré fuentes relevantes en la biblioteca para esta consulta.",
+            "No encontré fuentes pertinentes sobre las reglas del ajedrez medieval islandés en los videos consultados.",
+        ],
+    )
+    async def test_sources_event_suppressed_on_refusal(self, refusal_text: str) -> None:
         """When LLM refuses, the sources SSE event must not be emitted."""
         import json
         from unittest.mock import patch
@@ -835,7 +852,6 @@ class TestRefusalSourcesSuppressionIntegration:
         from backend.auth.tokens import encode_token
         from backend.main import app
 
-        refusal_text = "Those topics are not covered in any of the videos."
         refusal_token = json.dumps(refusal_text)
         refusal_chunk = f"data: {refusal_token}\n\n"
         done_chunk = "data: [DONE]\n\n"

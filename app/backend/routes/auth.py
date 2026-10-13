@@ -242,14 +242,16 @@ async def signup(
         password_hash = await asyncio.to_thread(hash_password, body.password)
         try:
             # Savepoint: a unique-violation rolls back only this inner scope,
-            # leaving the outer transaction healthy for a clean release.
+            # leaving the outer transaction healthy for auditing under the lock.
             async with conn.transaction():
                 user = await users_repo.create_local_user(
                     email=body.email, password_hash=password_hash, conn=conn
                 )
         except asyncpg.UniqueViolationError:
-            # Audit AFTER releasing this connection: never acquire a second
-            # connection while the first is still held.
+            # Commit the audit before releasing the signup advisory lock.
+            await signup_rate_limit.record(
+                conn, ip=ip, email_attempted=body.email, outcome="duplicate"
+            )
             duplicate = True
         else:
             await signup_rate_limit.record(
@@ -257,10 +259,6 @@ async def signup(
             )
 
     if duplicate:
-        async with pool.acquire() as record_conn:
-            await signup_rate_limit.record(
-                record_conn, ip=ip, email_attempted=body.email, outcome="duplicate"
-            )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     assert user is not None

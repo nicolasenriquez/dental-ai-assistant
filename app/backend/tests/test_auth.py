@@ -152,26 +152,37 @@ async def test_duplicate_signup_returns_409(client):
 
 
 async def test_duplicate_signup_never_acquires_nested_connection(client, monkeypatch):
-    """Regression: duplicate signup must release its connection before auditing."""
+    """Audit duplicates after savepoint rollback, before the outer transaction commits."""
     from backend.routes import auth as auth_route
 
     holds = {"n": 0}
+    pending: list[str] = []
+    committed: list[list[str]] = []
 
     class TrackingConn:
+        depth = 0
+
         def transaction(self):
             return self
 
         async def __aenter__(self):
+            self.depth += 1
             return self
 
         async def __aexit__(self, *exc):
+            self.depth -= 1
+            if self.depth == 0 and exc[0] is None:
+                committed.append(pending.copy())
+                pending.clear()
             return False
+
+    connection = TrackingConn()
 
     class TrackingAcquire:
         async def __aenter__(self):
             holds["n"] += 1
             assert holds["n"] == 1, "nested pool acquire while a connection is held"
-            return TrackingConn()
+            return connection
 
         async def __aexit__(self, *exc):
             holds["n"] -= 1
@@ -181,13 +192,21 @@ async def test_duplicate_signup_never_acquires_nested_connection(client, monkeyp
         def acquire(self):
             return TrackingAcquire()
 
+    async def record(conn, ip, email_attempted, outcome):
+        assert conn is connection
+        assert conn.depth == 1, "audit must run inside the outer transaction only"
+        pending.append(outcome)
+
     monkeypatch.setattr(auth_route, "get_pg_pool", lambda: TrackingPool())
+    monkeypatch.setattr(auth_route.signup_rate_limit, "record", record)
 
     creds = {"email": "nested@example.com", "password": "password123"}
     r1 = await client.post("/api/auth/signup", json=creds)
     assert r1.status_code == 201
     r2 = await client.post("/api/auth/signup", json=creds)
     assert r2.status_code == 409
+    assert committed == [["accepted"], ["duplicate"]]
+    assert holds["n"] == 0
 
 
 async def test_signup_rejects_password_over_72_utf8_bytes(client):

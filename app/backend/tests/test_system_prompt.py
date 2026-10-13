@@ -19,6 +19,19 @@ def _blocks_text(blocks: list[dict]) -> str:
 
 
 class TestSystemPromptForbidsRawIds:
+    def test_spanish_refusal_does_not_require_english_and_distinguishes_tool_failure(self) -> None:
+        from backend.routes.messages import _is_refusal
+
+        refusal = "No encontré fuentes relevantes en la biblioteca para esta consulta"
+        assert refusal in SYSTEM_PROMPT_TEMPLATE
+        assert "tool failure is not evidence" in SYSTEM_PROMPT_TEMPLATE.lower()
+        assert _is_refusal(refusal)
+        assert _is_refusal(
+            "No encontré fuentes pertinentes sobre ese tema en los videos consultados."
+        )
+        assert _is_refusal("The video library does not cover that topic")
+        assert not _is_refusal("La búsqueda híbrida combina búsqueda por palabras y vectores.")
+
     def test_template_forbids_raw_ids(self) -> None:
         assert "video IDs" in SYSTEM_PROMPT_TEMPLATE or "video id" in SYSTEM_PROMPT_TEMPLATE.lower()
         assert "title only" in SYSTEM_PROMPT_TEMPLATE.lower()

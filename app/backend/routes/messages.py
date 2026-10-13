@@ -408,8 +408,8 @@ def _is_refusal(text: str) -> bool:
 
     The pattern list is a belt-and-suspenders fallback. The primary
     mechanism is the system prompt instruction in `llm/openrouter.py`
-    telling the model to use the exact phrase "the video library does not
-    cover that topic" when declining. We include that phrase below plus
+    telling the model to use an exact refusal phrase in Spanish or English.
+    We include both phrases below plus
     a curated set of natural refusal phrasings observed across Sonnet 4.6
     and Kimi K2.6 responses during E2E validation (issue #158).
 
@@ -422,6 +422,10 @@ def _is_refusal(text: str) -> bool:
     refusal_patterns = (
         # -- Enforced phrase (system prompt instructs the model to emit this)
         "the video library does not cover that topic",
+        "no encontré fuentes relevantes en la biblioteca para esta consulta",
+        # Spanish refusals can paraphrase the enforced phrase, as English ones do.
+        "no encontré fuentes pertinentes",
+        "no encontré fuentes relevantes",
         # -- Sonnet-era phrasings (existing)
         "not covered in any of the videos",
         "aren't covered in any of the videos",
