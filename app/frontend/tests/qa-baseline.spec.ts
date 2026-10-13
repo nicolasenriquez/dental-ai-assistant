@@ -5161,3 +5161,333 @@ test.describe('C7 PMAX-002 distinguishable clinical collision rows', () => {
     console.log('[PMAX-002-ACTIONS]', JSON.stringify({ mutations }));
   });
 });
+
+interface QaRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+test.describe('C7 PMAX-003 shell and banner coexistence', () => {
+  async function measureShellBanner(page: Page) {
+    return page.evaluate(() => {
+      const rect = (element: Element | null): QaRect | null => {
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, height: box.height };
+      };
+      const banner = document.querySelector('.drive-bootstrap-banner');
+      const trigger = document.querySelector('.hamburger-btn');
+      const connect = banner?.querySelector('button') ?? null;
+      const paragraphs = banner ? Array.from(banner.querySelectorAll('p')) : [];
+      return {
+        trigger: rect(trigger),
+        connect: rect(connect),
+        connectLabel: connect?.textContent?.trim() ?? '',
+        paragraphs: paragraphs.map((paragraph) => ({
+          rect: rect(paragraph),
+          scrollWidth: paragraph.scrollWidth,
+          clientWidth: paragraph.clientWidth,
+          scrollHeight: paragraph.scrollHeight,
+          clientHeight: paragraph.clientHeight,
+        })),
+      };
+    });
+  }
+
+  function rectsIntersect(a: QaRect, b: QaRect): boolean {
+    return (
+      a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+    );
+  }
+
+  async function expectTriggerClearOfBanner(page: Page, context: string): Promise<void> {
+    const measurement = await measureShellBanner(page);
+    console.log('[PMAX-003-GEOMETRY]', JSON.stringify({ context, ...measurement }));
+    const trigger = measurement.trigger;
+    const connect = measurement.connect;
+    expect(trigger, context).not.toBeNull();
+    expect(connect, context).not.toBeNull();
+    if (!trigger || !connect) return;
+    expect(trigger.width, context).toBeGreaterThanOrEqual(44);
+    expect(trigger.height, context).toBeGreaterThanOrEqual(44);
+    for (const paragraph of measurement.paragraphs) {
+      expect(paragraph.rect, context).not.toBeNull();
+      if (!paragraph.rect) continue;
+      expect(rectsIntersect(trigger, paragraph.rect), `${context} trigger x text`).toBe(false);
+      expect(paragraph.scrollWidth, `${context} text horizontal clip`).toBeLessThanOrEqual(
+        paragraph.clientWidth + 1,
+      );
+      expect(paragraph.scrollHeight, `${context} text vertical clip`).toBeLessThanOrEqual(
+        paragraph.clientHeight + 1,
+      );
+    }
+    expect(rectsIntersect(trigger, connect), `${context} trigger x connect`).toBe(false);
+    // The connect control keeps its existing rendered target (41.25 px today: `min-h-11` = 2.75rem
+    // at the 15 px root) and stays inside the viewport; the correction must not shrink or bury it.
+    expect(connect.height, context).toBeGreaterThan(0);
+    const viewport = page.viewportSize();
+    if (viewport) {
+      expect(connect.x, context).toBeGreaterThanOrEqual(0);
+      expect(connect.y, context).toBeGreaterThanOrEqual(0);
+      expect(connect.x + connect.width, context).toBeLessThanOrEqual(viewport.width + 1);
+      expect(connect.y + connect.height, context).toBeLessThanOrEqual(viewport.height + 1);
+    }
+    await assertNoHorizontalOverflow(page);
+  }
+
+  test('keeps the navigation trigger clear of the disconnected banner on Assistant and Pending at narrow widths', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveConfigured: true });
+    const layouts = [
+      { width: 360, height: 800 },
+      { width: 390, height: 844 },
+      { width: 667, height: 390 },
+      { width: 844, height: 390 },
+      { width: 768, height: 1024 },
+      { width: 1440, height: 900 },
+    ];
+    for (const route of ['/assistant', '/assistant?view=pending']) {
+      for (const layout of layouts) {
+        await page.setViewportSize(layout);
+        await page.goto(route);
+        await expect(page.locator('.drive-bootstrap-banner')).toBeVisible();
+        await expect(page.getByText('Google Drive no está conectado')).toBeVisible();
+        await page.evaluate(() => document.fonts.ready);
+        const context = `${route} ${layout.width}x${layout.height}`;
+        if (layout.width > 767) {
+          // Short landscape above the mobile boundary renders no trigger; the banner must
+          // still wrap unclipped without horizontal overflow.
+          const measurement = await measureShellBanner(page);
+          console.log('[PMAX-003-GEOMETRY]', JSON.stringify({ context, ...measurement }));
+          expect(measurement.trigger, context).toBeNull();
+          expect(measurement.connect, `${context} connect`).not.toBeNull();
+          expect(measurement.connect?.height ?? 0, `${context} connect target`).toBeGreaterThan(0);
+          for (const paragraph of measurement.paragraphs) {
+            expect(paragraph.scrollWidth, `${context} text horizontal clip`).toBeLessThanOrEqual(
+              paragraph.clientWidth + 1,
+            );
+            expect(paragraph.scrollHeight, `${context} text vertical clip`).toBeLessThanOrEqual(
+              paragraph.clientHeight + 1,
+            );
+          }
+          await assertNoHorizontalOverflow(page);
+          continue;
+        }
+        await expectTriggerClearOfBanner(page, context);
+      }
+    }
+
+    // Actual 200% desktop zoom: half-sized CSS viewport with doubled density (same model as
+    // the DE01/DE02 zoom checks). 720 CSS px is still below the 768 px mobile boundary, so the
+    // trigger renders and must stay clear of the banner.
+    await page.setViewportSize({ width: 720, height: 450 });
+    const zoom = await page.context().newCDPSession(page);
+    await zoom.send('Emulation.setDeviceMetricsOverride', {
+      width: 720,
+      height: 450,
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    expect(await page.evaluate(() => ({ width: innerWidth, density: devicePixelRatio }))).toEqual({
+      width: 720,
+      density: 2,
+    });
+    await page.goto('/assistant');
+    await expect(page.locator('.drive-bootstrap-banner')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await expectTriggerClearOfBanner(page, '/assistant 720x450@2x zoom');
+  });
+
+  test('keeps the connect handoff, sidebar and viewport changes non-overlapping, focused and write-free', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveConfigured: true });
+    const mutations = trackQaApiMutations(page);
+    let releaseConnect: () => void = () => undefined;
+    const connectHeld = new Promise<void>((resolve) => {
+      releaseConnect = resolve;
+    });
+    await page.route('**/api/google-drive/oauth/start', async (route) => {
+      await connectHeld;
+      allowExpectedResourceFailure(page, 500);
+      await route.fulfill(json({ detail: 'Google Drive no disponible QA' }, 500));
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/assistant');
+    await expect(page.locator('.drive-bootstrap-banner')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await expectTriggerClearOfBanner(page, 'disconnected 390x844');
+    const appOrigin = new URL(page.url()).origin;
+
+    // Keyboard: Tab from the trigger reaches the connect control.
+    const trigger = page.getByRole('button', { name: 'Abrir navegación', exact: true });
+    await trigger.focus();
+    await page.keyboard.press('Tab');
+    const connect = page.getByRole('button', { name: 'Conectar Drive' });
+    await expect(connect).toBeFocused();
+
+    // A reflow while the connect control is focused keeps focus and geometry usable.
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.evaluate(() => document.fonts.ready);
+    await expect(connect).toBeFocused();
+    await expectTriggerClearOfBanner(page, 'disconnected 360x800 focused');
+
+    // Sidebar open/close keeps both controls usable and returns focus to the trigger.
+    await trigger.click();
+    await expect(page.getByRole('button', { name: 'Cerrar navegación' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+    await expect(page.locator('.drive-bootstrap-banner')).toBeVisible();
+    await expectTriggerClearOfBanner(page, 'sidebar closed 360x800');
+
+    // The incumbent connect handoff replaces the shell with its truthful bootstrap surface
+    // while the request is in flight (the `authorizing-drive` status is not an authenticated
+    // shell state), so the banner disappears rather than rendering `Conectando…`.
+    await page.keyboard.press('Tab');
+    await expect(connect).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Loading…')).toBeVisible();
+    await expect(page.locator('.drive-bootstrap-banner')).toHaveCount(0);
+    expect(new URL(page.url()).origin).toBe(appOrigin);
+
+    // The simulated failed handoff returns to the truthful disconnected state without navigation.
+    releaseConnect();
+    await expect(page.locator('.drive-bootstrap-banner')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Conectar Drive' })).toBeEnabled();
+    await expectTriggerClearOfBanner(page, 'returned disconnected 360x800');
+    expect(new URL(page.url()).origin).toBe(appOrigin);
+    expect(
+      mutations.filter((mutation) => mutation.path === '/api/google-drive/oauth/start'),
+    ).toEqual([{ method: 'POST', path: '/api/google-drive/oauth/start', body: null }]);
+    expect(
+      mutations.filter(
+        (mutation) =>
+          mutation.path.includes('/turns') || mutation.path.includes('/drive-export'),
+      ),
+    ).toEqual([]);
+  });
+
+  test('retains navigation and preserved work for shared-shell consumers with the disconnected banner', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveConfigured: true });
+    const mutations = trackQaApiMutations(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    // The Patients directory reserves shell space today; the probe keeps it that way.
+    await page.goto('/patients');
+    await expect(page.getByRole('heading', { name: 'Pacientes', exact: true })).toBeVisible();
+    await expect(page.locator('.drive-bootstrap-banner')).toBeVisible();
+    await expectTriggerClearOfBanner(page, 'patients 390x844');
+
+    // Legacy Chat shares the shell and must stay navigable and editable.
+    await page.goto(`/c/${conversationId}`);
+    await expect(page.locator('.drive-bootstrap-banner')).toBeVisible();
+    await expectTriggerClearOfBanner(page, 'legacy chat 390x844');
+    const question = page.getByLabel('Pregunta sobre la biblioteca de videos');
+    await question.fill('Borrador de chat sin enviar');
+    await page.getByRole('button', { name: 'Abrir navegación', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Cerrar navegación' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(question).toHaveValue('Borrador de chat sin enviar');
+    expect(mutations).toEqual([]);
+
+    // The patient ficha contextual Assistant keeps editing while the banner is present.
+    await page.goto(`/patients/${patientId}`);
+    await page.getByRole('button', { name: 'Asistente', exact: true }).click();
+    const note = page.getByRole('textbox', { name: 'Nota clínica' });
+    await expect(note).toBeVisible();
+    const writesAfterOpen = mutations.length;
+    await note.fill('Nota contextual sin enviar');
+    await expect(page.locator('.drive-bootstrap-banner')).toBeVisible();
+    await expectTriggerClearOfBanner(page, 'ficha contextual 390x844');
+    await expect(note).toHaveValue('Nota contextual sin enviar');
+    expect(mutations.length).toBe(writesAfterOpen);
+  });
+
+  test('keeps the connected shell navigation clear of workspace header content at narrow widths', async ({
+    page,
+  }) => {
+    await installQaRoutes(page, { driveEnabled: true });
+    const mutations = trackQaApiMutations(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/assistant');
+    // Connected Drive removes the banner entirely; the fixed trigger must still clear the
+    // workspace header content that now sits at the top of the shell.
+    await expect(page.locator('.drive-bootstrap-banner')).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    const measurement = await page.evaluate(() => {
+      const trigger = document.querySelector('.hamburger-btn');
+      const triggerBox = trigger?.getBoundingClientRect() ?? null;
+      const overlaps = Array.from(
+        document.querySelectorAll(
+          '.main-area p, .main-area h1, .main-area h2, .main-area h3, .main-area button, .main-area a',
+        ),
+      )
+        .filter((element) => element !== trigger)
+        .map((element) => element.getBoundingClientRect())
+        .filter((box) => box.width > 0 && box.height > 0)
+        .filter(
+          (box) =>
+            triggerBox !== null &&
+            triggerBox.x < box.x + box.width &&
+            box.x < triggerBox.x + triggerBox.width &&
+            triggerBox.y < box.y + box.height &&
+            box.y < triggerBox.y + triggerBox.height,
+        ).length;
+      return {
+        trigger: triggerBox
+          ? {
+              x: triggerBox.x,
+              y: triggerBox.y,
+              width: triggerBox.width,
+              height: triggerBox.height,
+            }
+          : null,
+        overlaps,
+      };
+    });
+    console.log('[PMAX-003-CONNECTED]', JSON.stringify(measurement));
+    expect(measurement.trigger, 'connected trigger').not.toBeNull();
+    expect(measurement.trigger?.width ?? 0, 'connected trigger width').toBeGreaterThanOrEqual(44);
+    expect(measurement.trigger?.height ?? 0, 'connected trigger height').toBeGreaterThanOrEqual(44);
+    expect(measurement.overlaps, 'connected trigger x content').toBe(0);
+    await assertNoHorizontalOverflow(page);
+    expect(
+      mutations.filter(
+        (mutation) =>
+          mutation.path.includes('/oauth/start') ||
+          mutation.path.includes('/turns') ||
+          mutation.path.includes('/drive-export'),
+      ),
+    ).toEqual([]);
+  });
+
+  test.describe('coarse pointer targets', () => {
+    test.use({ hasTouch: true });
+
+    test('keeps the trigger and connect control at their incumbent reachable targets', async ({
+      page,
+    }) => {
+      await installQaRoutes(page, { driveConfigured: true });
+      await page.setViewportSize({ width: 360, height: 800 });
+      await page.goto('/assistant');
+      expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+      await page.evaluate(() => document.fonts.ready);
+      await expectTriggerClearOfBanner(page, 'assistant 360x800 coarse');
+      // The connect control keeps its incumbent 41.25 px rendered target (`min-h-11` at the
+      // 15 px root); coarse emulation must not shrink it and the correction must not bury it.
+      const connectBox = await page.getByRole('button', { name: 'Conectar Drive' }).boundingBox();
+      expect(connectBox?.height ?? 0).toBeGreaterThanOrEqual(41.24);
+      expect(connectBox?.width ?? 0).toBeGreaterThan(0);
+      const triggerBox = await page
+        .getByRole('button', { name: 'Abrir navegación', exact: true })
+        .boundingBox();
+      expect(triggerBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+      expect(triggerBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+    });
+  });
+});

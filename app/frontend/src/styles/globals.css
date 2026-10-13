@@ -5400,6 +5400,14 @@ body,
     padding-left: 72px;
   }
 
+  /* The fixed mobile trigger paints over the in-flow Drive banner unless the
+     banner reserves the same left space the workspace headers already use.
+     The Patients shell keeps its incumbent top reservation instead. */
+  .main-area:not(.patient-shell) .drive-bootstrap-banner,
+  .main-area.workspace-mode .drive-bootstrap-banner {
+    padding-left: 72px;
+  }
+
   .workspace-mode .workspace-panel-main .clinical-assistant-area .workspace-header {
     padding-left: 12px;
   }

@@ -75,6 +75,13 @@ the full loaded group before search filtering, carried into the selection and
 row-menu accessible names, recomputed when group membership, title or displayed
 minute changes, and absent for unique rows; stored titles, list order, exact
 destinations, guarded rename/delete and legacy Chat labels stay unchanged.
+The shared mobile shell keeps the fixed navigation trigger clear of the disconnected
+Drive banner: outside the top-reserved Patients shell the banner reserves the same
+72px left column as the workspace headers, so trigger, complete state text and
+`Conectar Drive` never intersect at 360/390px, short landscape, 200% zoom or
+desktop/tablet. The banner keeps its incumbent copy and rendered connect target, the
+connected state removes it without a new overlap, and responsive changes alone start
+no OAuth handoff, thread acquisition, patient update, turn dispatch or export retry.
 Only a focused composer in a mobile viewport <=600px high limits the visual name
 to two lines; masked RUT stays visible and the full name returns on blur.
 Drive Notes are general sources, Documents are patient-bound. Desktop header
