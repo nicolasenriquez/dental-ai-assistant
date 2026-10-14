@@ -12,6 +12,9 @@ The base patient route defaults to Resumen with four local sections: Resumen,
 Información, Clínica and Actividad. A specific evolution URL selects Clínica >
 Evoluciones inside the same ficha, retaining all four tabs and the selected detail.
 History uses one shared list with date/time and an explicit return on narrow panes.
+Rows with the same displayed local date/minute add a visible and accessible ordinal
+in current history order. The ordinal is list-local, not a persistent record ID;
+exact UUID links, previews and chronological ordering remain unchanged.
 Leaving detail through a tab clears its UUID path; history return uses safe
 `tab=clinical&clinical=evolutions` query state and survives reload.
 Patient identity wraps by available width, including with the Assistant open.
