@@ -70,6 +70,16 @@ export function PatientWorkspace({
   detailError,
   onRetryDetail,
 }: PatientWorkspaceProps) {
+  // ponytail: ordinals distinguish displayed-minute collisions in list order,
+  // not persistent record IDs; recompute when history membership changes.
+  const seen = new Map<string, number>();
+  const labelledEvolutions = evolutions.map((evolution) => {
+    const label = `${formatClinicalDateShort(evolution.evolution_at)} a las ${formatClinicalTime(evolution.evolution_at)}`;
+    const ordinal = (seen.get(label) ?? 0) + 1;
+    seen.set(label, ordinal);
+    return { evolution, label, ordinal };
+  });
+
   return (
     <section
       aria-label="Evoluciones aprobadas"
@@ -89,8 +99,9 @@ export function PatientWorkspace({
             <EmptyHistory patientId={patient.id} />
           ) : (
             <ol className="patient-history-list">
-              {evolutions.map((evolution) => {
+              {labelledEvolutions.map(({ evolution, label, ordinal }) => {
                 const selected = selectedEvolutionId === evolution.id;
+                const coincident = (seen.get(label) ?? 0) > 1;
 
                 return (
                   <li key={evolution.id} className="patient-history-entry">
@@ -98,11 +109,16 @@ export function PatientWorkspace({
                       to={`/patients/${patient.id}/evolutions/${evolution.id}`}
                       aria-current={selected ? 'page' : undefined}
                       className={`patient-history-link${selected ? ' is-selected' : ''}`}
-                      aria-label={`Ver evolución del ${formatClinicalDateShort(evolution.evolution_at)} a las ${formatClinicalTime(evolution.evolution_at)}`}
+                      aria-label={
+                        coincident
+                          ? `Ver evolución ${ordinal} del ${label}`
+                          : `Ver evolución del ${label}`
+                      }
                     >
                       <span className="patient-history-link__marker" aria-hidden="true" />
                       <span className="patient-history-link__copy">
                         <span className="patient-history-link__meta">
+                          {coincident && <span>Evolución {ordinal}</span>}
                           <time dateTime={evolution.evolution_at}>
                             {formatClinicalDateShort(evolution.evolution_at)}
                           </time>
