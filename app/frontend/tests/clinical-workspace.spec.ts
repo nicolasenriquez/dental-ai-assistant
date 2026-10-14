@@ -24,7 +24,11 @@ test('assistant header preserves identity and aligned secondary actions at narro
     const identity = header.getByRole('button', { name: 'Cambiar paciente activo' });
     await expect(identity).toBeVisible();
     await expect(identity).toContainText(patient.rut_masked);
-    await expect(pending).toHaveText('Pendientes');
+    if (width < 768) await expect(pending).toHaveText('Pendientes');
+    else {
+      await expect(pending).toHaveCount(0);
+      await expect(page.locator('#app-sidebar').getByRole('button', { name: 'Pendientes', exact: true })).toBeVisible();
+    }
     const identityBox = (await identity.boundingBox())!;
     const backBox = (await back.boundingBox())!;
     expect(backBox.y).toBeGreaterThanOrEqual(identityBox.y + identityBox.height);
@@ -38,6 +42,7 @@ test('assistant header preserves identity and aligned secondary actions at narro
     await page.screenshot({ path: test.info().outputPath(`assistant-header-${width}.png`), animations: 'disabled' });
   }
   await page.getByRole('textbox', { name: 'Nota clínica' }).fill('Nota aún sin enviar');
+  await page.getByRole('button', { name: 'Colapsar navegación', exact: true }).click();
   await page.getByRole('link', { name: 'Ver pendientes' }).click();
   await expect(page).toHaveURL('/assistant?view=pending');
   await page.goBack();
@@ -243,3 +248,32 @@ for (const width of [834, 1440]) {
     await expect(trigger).toBeFocused();
   });
 }
+
+test('ficha distinguishes coincident history at desktop tablet and mobile without writes', async ({ page }) => {
+  const rows: EvolutionSummary[] = [evolutionId, '55555555-5555-4555-8555-555555555556', '55555555-5555-4555-8555-555555555557'].map((id) => ({
+    id, patient_id: patientId, evolution_at: now, created_at: now, preview: 'Control sin dolor',
+  }));
+  const evidence = await installWorkspace(page, rows);
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/') && request.method() !== 'GET') writes.push(request.method());
+  });
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/patients/${patientId}?tab=clinical&clinical=evolutions`);
+    const links = page.getByRole('link', { name: /^Ver evolución [123] del / });
+    await expect(links).toHaveCount(3);
+    for (let index = 0; index < rows.length; index += 1) {
+      await expect(links.nth(index)).toContainText(`Evolución ${index + 1}`);
+      await expect(links.nth(index)).toHaveAttribute('href', `/patients/${patientId}/evolutions/${rows[index].id}`);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+    await page.screenshot({ path: test.info().outputPath(`history-collision-${width}.png`), animations: 'disabled' });
+    await links.first().click();
+    await expect(page).toHaveURL(`/patients/${patientId}/evolutions/${evolutionId}`);
+    await expect(page.locator('.patient-history-link[aria-current="page"]')).toHaveAttribute('href', `/patients/${patientId}/evolutions/${evolutionId}`);
+    await expect(page.getByRole('heading', { name: 'Evolución dental', exact: true })).toBeVisible();
+  }
+  expect(writes).toEqual([]);
+  expect(evidence.saves()).toBe(0);
+});

@@ -99,6 +99,7 @@ function hydratedArtifact(overrides: Record<string, unknown> = {}): MockArtifact
     created_at: '2026-01-15T12:01:00Z',
     updated_at: '2026-01-15T12:01:00Z',
     resolved_at: null,
+    patient,
     ...overrides,
   };
 }
@@ -398,13 +399,12 @@ async function setupClinicalHarness(
     });
   });
   const drive = await installDriveRoutes(page, options);
+  const loaded = page.waitForResponse(
+    (response) => response.url().endsWith(`/api/clinical-threads/${threadId}`) && response.ok(),
+  );
   await page.goto(`/a/${threadId}`);
-  await expect(
-    page
-      .getByRole('heading', { name: 'Evolución clínica' })
-      .or(page.getByRole('heading', { name: 'Prepara una evolución clínica' }))
-      .or(page.getByRole('heading', { name: '¿Qué necesitas hacer?' })),
-  ).toBeVisible();
+  await loaded;
+  await expect(page.getByTestId('clinical-composer').getByRole('textbox')).toBeVisible();
   const header = page.locator('.workspace-header');
   const driveButton = page.getByRole('button', { name: 'Abrir Google Drive' });
   const [headerBox, driveBox] = await Promise.all([
@@ -563,6 +563,14 @@ for (const viewport of [
       await expect(page.locator('.drive-sheet-content')).toBeVisible();
     }
     if (viewport.name !== 'boundary') {
+      if (viewport.name === 'desktop') {
+        await settleClinicalItem(page, artifact);
+        const copy = await artifact.getByRole('button', { name: 'Copiar', exact: true }).boundingBox();
+        const composer = await page.locator('.clinical-composer-dock').boundingBox();
+        expect(copy).not.toBeNull();
+        expect(composer).not.toBeNull();
+        expect(copy!.y + copy!.height).toBeLessThanOrEqual(composer!.y);
+      }
       await expect(page).toHaveScreenshot(`drive-document-${viewport.name}.png`, {
         animations: 'disabled',
       });
@@ -972,7 +980,8 @@ test('resumes exact review with usable narrow headers and a scrollable confirmat
     }
   }
   await page.setViewportSize({ width: 375, height: 740 });
-  await artifact.getByRole('button', { name: 'Revisar y guardar' }).click();
+  await settleClinicalItem(page, artifact);
+  await artifact.getByRole('button', { name: 'Confirmar guardado' }).click();
   const dialog = page.getByRole('dialog', { name: 'Guardar evolución' });
   await expect(
     dialog.getByRole('region', { name: 'Contenido de la evolución a guardar' }),
@@ -1103,6 +1112,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       created_at: '2026-01-15T12:01:00Z',
       updated_at: '2026-01-15T12:01:00Z',
       resolved_at: null,
+      patient,
     };
     threadState = {
       ...threadState,
@@ -1185,6 +1195,7 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
         created_at: '2026-01-15T12:01:00Z',
         updated_at: '2026-01-15T12:02:00Z',
         resolved_at: null,
+        patient,
       }),
     });
   });
@@ -1218,6 +1229,9 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
     };
     threadState = {
       ...threadState,
+      artifacts: threadState.artifacts.map((artifact) =>
+        artifact.id === body.artifact_id ? { ...artifact, status: 'pending' } : artifact,
+      ),
       actions: [...threadState.actions, action],
       pending_action: action,
       pending_action_patient: patient,
@@ -1251,6 +1265,11 @@ test('clinical assistant preserves the complete two-turn review flow', async ({ 
       ...threadState,
       actions: threadState.actions.map((candidate) =>
         candidate.id === resolvedId ? resolved : candidate,
+      ),
+      artifacts: threadState.artifacts.map((artifact) =>
+        artifact.id === current.artifact_id
+          ? { ...artifact, status: decision === 'decline' ? 'declined' : 'approved' }
+          : artifact,
       ),
       pending_action: null,
       pending_action_patient: null,
@@ -1552,10 +1571,10 @@ test('clinical review exposes primary confirmation and secondary editing actions
   await setupClinicalHarness(page, state);
   const artifact = page.locator('[data-artifact-id="draft-hydrated"]');
   await expect(artifact).toHaveAttribute('data-clinical-stage', 'review');
-  await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toBeVisible();
-  await expect(artifact.getByRole('button', { name: 'Volver a editar' })).toBeVisible();
+  await expect(artifact.getByRole('button', { name: 'Confirmar guardado' })).toBeVisible();
+  await expect(artifact.getByRole('button', { name: 'Seguir editando' })).toBeVisible();
   await expect(artifact.getByRole('button', { name: 'Copiar' })).toBeVisible();
-  await expect(artifact.getByRole('button', { name: 'Confirmar guardado' })).toHaveCount(0);
+  await expect(artifact.getByRole('button', { name: 'Revisar y guardar' })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await expect(page).toHaveScreenshot('assistant-review-desktop.png', {
     animations: 'disabled',
