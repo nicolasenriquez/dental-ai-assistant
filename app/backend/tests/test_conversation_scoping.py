@@ -15,6 +15,7 @@ repository-signature invariant still runs below.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 from uuid import uuid4
@@ -120,6 +121,33 @@ async def _signup_and_get_client(email: str, password: str = "password123") -> A
 # ---------------------------------------------------------------------------
 # GET /api/conversations — user scoping
 # ---------------------------------------------------------------------------
+
+
+async def test_concurrent_acquire_reuses_one_empty_conversation_per_owner() -> None:
+    alice = await _signup_and_get_client("alice@example.com")
+    bob = await _signup_and_get_client("bob@example.com")
+    try:
+        responses = await asyncio.gather(
+            *(
+                client.post("/api/conversations/acquire")
+                for client in (alice, bob)
+                for _ in range(10)
+            )
+        )
+        ids = []
+        for client, group in ((alice, responses[:10]), (bob, responses[10:])):
+            assert all(response.status_code == 200 for response in group)
+            acquired = {response.json()["conversation"]["id"] for response in group}
+            assert len(acquired) == 1
+            assert sum(not response.json()["reused"] for response in group) == 1
+            listed = await client.get("/api/conversations")
+            assert listed.status_code == 200
+            assert {row["id"] for row in listed.json()} == acquired
+            ids.append(acquired.pop())
+        assert ids[0] != ids[1]
+    finally:
+        await alice.aclose()
+        await bob.aclose()
 
 
 async def test_list_conversations_returns_only_own():
