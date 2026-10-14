@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ClinicalPendingAction } from '../lib/api';
 import {
   type ClinicalApprovalItem,
+  type ClinicalDraftItem,
   classifyClinicalDecodeFailure,
   clinicalReducer,
   createClinicalReducerState,
@@ -67,6 +68,122 @@ function event(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('clinical runtime', () => {
+  const fields = {
+    context: 'Control',
+    findings: 'Sin dolor',
+    assessment: '',
+    treatment: '',
+    follow_up: '',
+    review_flags: [],
+  };
+  const liveDraft: ClinicalDraftItem = {
+    id: 'live-draft',
+    turnId: 'turn-1',
+    type: 'draft',
+    status: 'completed',
+    artifactStatus: 'draft',
+    createdAt: '2026-10-01T12:00:00Z',
+    draft: fields,
+    baseline: fields,
+    sourceNote: 'Control',
+    edited: false,
+    stale: false,
+    patientId: 'patient-1',
+    patient: null,
+    evolutionAt: '2026-10-01T12:00:00Z',
+  };
+  const pendingApproval = (): ClinicalApprovalItem => {
+    const pending = action('approval-1', 'turn-1', 'pending');
+    return { ...pending, action: { ...pending.action, artifact_id: liveDraft.id } };
+  };
+
+  it.each(['approved', 'declined', 'failed'] as const)(
+    'keeps the live artifact aligned with an authoritative %s receipt',
+    (status) => {
+      const pending = pendingApproval();
+      let state = createClinicalReducerState([liveDraft, pending]);
+      state = clinicalReducer(state, {
+        type: 'resolveApproval',
+        itemId: pending.id,
+        status: 'running',
+      });
+      expect(state.items[0]).toMatchObject({ artifactStatus: 'pending' });
+      const receipt = { ...pending.action, status };
+      const itemStatus = status === 'approved' ? 'completed' : status;
+      state = clinicalReducer(state, {
+        type: 'resolveApproval',
+        itemId: pending.id,
+        status: itemStatus,
+        action: receipt,
+      });
+      expect(state.items[0]).toMatchObject({ artifactStatus: status, draft: fields });
+      expect(state.items[1]).toMatchObject({ status: itemStatus, action: receipt });
+      const duplicate = clinicalReducer(state, {
+        type: 'resolveApproval',
+        itemId: pending.id,
+        status: 'running',
+      });
+      expect(duplicate).toBe(state);
+    },
+  );
+
+  it.each([
+    { id: 'other-action' },
+    { thread_id: 'other-thread' },
+    { turn_id: 'other-turn' },
+    { patient_id: 'other-patient' },
+    { artifact_id: 'other-artifact' },
+  ])('rejects a receipt with mismatched identity %j', (identity) => {
+    const pending = pendingApproval();
+    const state = createClinicalReducerState([liveDraft, pending]);
+    expect(
+      clinicalReducer(state, {
+        type: 'resolveApproval',
+        itemId: pending.id,
+        status: 'completed',
+        action: { ...pending.action, status: 'approved', ...identity },
+      }),
+    ).toBe(state);
+  });
+
+  it('does not touch sibling, stale, recovered or terminal artifacts with late receipts', () => {
+    const pending = pendingApproval();
+    const protectedDrafts: ClinicalDraftItem[] = [
+      { ...liveDraft, id: 'other-artifact' },
+      { ...liveDraft, turnId: 'other-turn' },
+      { ...liveDraft, patientId: 'other-patient' },
+      { ...liveDraft, artifactStatus: 'stale', stale: true },
+      { ...liveDraft, artifactStatus: 'discarded' },
+      { ...liveDraft, artifactStatus: 'approved' },
+      { ...liveDraft, artifactStatus: 'declined' },
+    ];
+    for (const protectedDraft of protectedDrafts) {
+      const state = clinicalReducer(createClinicalReducerState([protectedDraft, pending]), {
+        type: 'resolveApproval',
+        itemId: pending.id,
+        status: 'completed',
+        action: { ...pending.action, status: 'approved' },
+      });
+      expect(state.items[0]).toBe(protectedDraft);
+    }
+    const recovered = createClinicalReducerState([liveDraft, { ...pending, status: 'failed' }]);
+    expect(
+      clinicalReducer(recovered, {
+        type: 'resolveApproval',
+        itemId: pending.id,
+        status: 'completed',
+        action: { ...pending.action, status: 'approved' },
+      }),
+    ).toBe(recovered);
+    expect(
+      clinicalReducer(createClinicalReducerState([liveDraft]), {
+        type: 'resolveApproval',
+        itemId: 'unknown',
+        status: 'completed',
+      }).items[0],
+    ).toBe(liveDraft);
+  });
+
   it('morphs a running draft activity into the live artifact with the same item id', () => {
     const started = decodeClinicalEvent(
       'item.started',

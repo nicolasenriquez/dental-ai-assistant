@@ -438,13 +438,46 @@ export function clinicalReducer(
   if (action.type === 'upsertApproval')
     return { ...state, items: upsertStreamItem(state.items, action.item) };
   if (action.type === 'resolveApproval') {
+    const approval = state.items.find(
+      (item): item is ClinicalApprovalItem =>
+        item.id === action.itemId && item.type === 'approval' && !terminalStatuses.has(item.status),
+    );
+    if (!approval) return state;
+    const resolved = action.action ?? approval.action;
+    if (
+      resolved.id !== approval.action.id ||
+      resolved.thread_id !== approval.action.thread_id ||
+      resolved.turn_id !== approval.turnId ||
+      resolved.patient_id !== approval.action.patient_id ||
+      resolved.artifact_id !== approval.action.artifact_id
+    )
+      return state;
+    const artifactStatus =
+      action.status === 'running'
+        ? 'pending'
+        : resolved.status === 'approved' ||
+            resolved.status === 'declined' ||
+            resolved.status === 'failed'
+          ? resolved.status
+          : null;
     return {
       ...state,
-      items: state.items.map((item) =>
-        item.id === action.itemId && item.type === 'approval' && !terminalStatuses.has(item.status)
-          ? { ...item, status: action.status, action: action.action ?? item.action }
-          : item,
-      ),
+      items: state.items.map((item) => {
+        if (item.id === approval.id && item.type === 'approval')
+          return { ...item, status: action.status, action: resolved };
+        // Keep the linked live artifact in sync with the receipt. Never reopen
+        // closed work or let a historical action lock a recovered/stale draft.
+        if (
+          artifactStatus &&
+          item.type === 'draft' &&
+          item.id === resolved.artifact_id &&
+          item.turnId === approval.turnId &&
+          item.patientId === resolved.patient_id &&
+          (item.artifactStatus === 'draft' || item.artifactStatus === 'pending')
+        )
+          return { ...item, artifactStatus };
+        return item;
+      }),
     };
   }
   if (action.type === 'updateDriveExport') {
