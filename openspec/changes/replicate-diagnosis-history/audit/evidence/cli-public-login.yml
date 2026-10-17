@@ -1,0 +1,14 @@
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - img "DentalPin" [ref=e7]
+    - heading "DentalPin" [level=1] [ref=e8]
+    - paragraph [ref=e9]: Dental clinic management
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: Email
+      - textbox "Email" [ref=e19]
+    - generic [ref=e22]:
+      - generic [ref=e23]: Password
+      - textbox "Password" [ref=e28]
+    - button "Sign in" [ref=e31]
+  - paragraph [ref=e32]: © 2026 DentalPin

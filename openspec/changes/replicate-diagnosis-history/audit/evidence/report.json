@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-17",
+  "scope": "reference UI audit and target specification only",
+  "reference_runtime": "localhost:3000",
+  "reference_build_commit": "unverified",
+  "native_authenticated_inspection": true,
+  "cli_authenticated_inspection": false,
+  "cli_result": "redirected to login; isolated session closed",
+  "clinical_saves": 0,
+  "confirmed_deletions": 0,
+  "final_native_state": {
+    "diagnosis_visible": true,
+    "open_dialog": false
+  },
+  "target_runtime_available": false,
+  "target_runtime_tests_executed": false,
+  "evidence": [
+    {
+      "file": "01-reference-editor-actions.png",
+      "sha256": "5581ac8dcc4e6b9e3d903001958f920f0787a0eeffb99c44843401cc99b63489",
+      "classification": "reference control crop"
+    },
+    {
+      "file": "02-reference-delete-confirmation-footer.png",
+      "sha256": "2bbabeff68b4f86def4408788ef2fc252e0e27fe04bc47ee08a6888cba4507b7",
+      "classification": "reference control crop"
+    },
+    {
+      "file": "03-reference-surface-modal-unsaved.png",
+      "sha256": "f26801be11663d734da1250e4c1ae0378681c67b3ef1dc19d2123e7ab15ffbae",
+      "classification": "reference control crop"
+    },
+    {
+      "file": "04-reference-history-dates.png",
+      "sha256": "70ce756f78370b9cb7037bed0a108ff7b22f45d351279cde011dbe6f8ed352be",
+      "classification": "reference control crop"
+    },
+    {
+      "file": "05-reference-history-write-controls.png",
+      "sha256": "7abef6875cc6206eb3b334b05cdff9b76ed2afda6eee75415a9dd35abb9489b2",
+      "classification": "reference control crop"
+    },
+    {
+      "file": "cli-public-login.yml",
+      "sha256": "4a4b22c0884ccc8a7fc6a7fde132df431e2cecac8fc577b4a26b62e16295c9a4",
+      "classification": "CLI public/login snapshot"
+    }
+  ]
+}
