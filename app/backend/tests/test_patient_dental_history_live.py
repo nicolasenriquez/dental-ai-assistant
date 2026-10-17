@@ -975,6 +975,38 @@ async def test_history_reads_leave_source_rows_and_receipts_unchanged(history_db
     assert after == before
 
 
+async def test_history_inter_page_late_commit_conflicts_and_leaves_rows_unchanged(history_db):
+    pool, owner, _, patient, _ = history_db
+    async with _client() as client:
+        first = await _create_condition(client, patient, tooth=21)
+        second = await _create_condition(client, patient, tooth=22)
+        await _stamp_condition(pool, first, 1, _moment(date(2026, 4, 1)))
+        await _stamp_condition(pool, second, 1, _moment(date(2026, 4, 2)))
+
+        before = await _rows(pool, owner)
+        assert before
+        page_one = await _events(client, patient, limit=1)
+        assert page_one.status_code == 200, page_one.text
+        cursor = page_one.json()["next_cursor"]
+        page_two = await _events(client, patient, limit=1, cursor=cursor)
+        assert page_two.status_code == 200, page_two.text
+        assert page_two.json()["items"][0]["resource_id"] == str(first)
+
+        # A late commit between pages invalidates the cursor instead of merging pages.
+        late = await _create_condition(client, patient, tooth=23)
+        await _stamp_condition(pool, late, 1, _moment(date(2025, 1, 1)))
+        stale = await _events(client, patient, limit=1, cursor=cursor)
+        assert stale.status_code == 409, stale.text
+        assert stale.json()["detail"]["code"] == "history_changed"
+        fresh = await _events(client, patient, limit=1)
+        assert fresh.status_code == 200, fresh.text
+        assert fresh.json()["epoch"] != page_one.json()["epoch"]
+        after = await _rows(pool, owner)
+    # The only allowed difference is the intentional late commit between the pages.
+    pruned = {key: [row for row in rows if str(late) not in row] for key, rows in after.items()}
+    assert pruned == before
+
+
 async def test_history_hides_foreign_patients_and_their_counts(history_db):
     _, owner, other, patient, foreign = history_db
     theirs = uuid4()
