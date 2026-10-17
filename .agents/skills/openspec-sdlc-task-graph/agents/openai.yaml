@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenSpec SDLC Task Graph"
+  short_description: "Map OpenSpec tasks into safe SDLC waves"
+  default_prompt: "Use $openspec-sdlc-task-graph to map this OpenSpec change into a safe SDLC task graph."

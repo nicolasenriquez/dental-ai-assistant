@@ -1,0 +1,7 @@
+interface:
+  display_name: "Review Findings Fixer"
+  short_description: "Turn review findings into safe fixes"
+  default_prompt: "Use $review-fix to turn these Codex review findings into surgical fixes with evidence."
+
+policy:
+  allow_implicit_invocation: false

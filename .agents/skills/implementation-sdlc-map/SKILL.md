@@ -1,0 +1,280 @@
+---
+name: implementation-sdlc-map
+description: Build a dependency-aware SDLC map from local implementation issues and prepare grouped OpenSpec handoffs.
+argument-hint: [scratch-path]
+disable-model-invocation: true
+---
+
+# Implementation SDLC Map
+
+Build implementation map after `/to-tickets` and before OpenSpec authoring.
+
+Map groups local implementation issues into dependency-ordered SDLC groups.
+Each group becomes an OpenSpec handoff candidate.
+
+## Invocation
+
+Use:
+
+```text
+/implementation-sdlc-map .scratch/<feature-slug>
+```
+
+Argument must point to scratch feature directory containing `issues/`.
+
+Skill writes only:
+
+```text
+.scratch/<feature-slug>/implementation-sdlc-map.md
+```
+
+Source `map.md`, `PRD.md`, issue files, application code, and OpenSpec artifacts
+remain unchanged.
+
+## Workflow
+
+### 1. Resolve source
+
+- Normalize slash and backslash path separators.
+- Accept scratch feature directory or its `issues/` directory.
+- Stop if `issues/` cannot be found.
+- Read repository `AGENTS.md` and `index.md`.
+- Read `.agents/AGENTS.md`, `.agents/CONTEXT.md`, and `.agents/index.md`.
+
+Completion criterion: valid scratch directory and issue directory identified.
+
+### 2. Load context
+
+Read:
+
+- `map.md`, when present.
+- `PRD.md`, when present.
+- Every Markdown file under `issues/`.
+- Existing `implementation-sdlc-map.md`, when present, only to identify its
+  generated state.
+
+Completion criterion: every issue file is loaded and source context is recorded.
+
+### 3. Classify issues
+
+Classify an issue as an implementation issue when it contains:
+
+- `Source:`
+- `## What to build`
+- `## Acceptance criteria`
+
+Classify an issue as a Wayfinder decision when it contains:
+
+- `Type:`
+- `## Question`
+- `## Answer`, `## Work`, or `## Exit evidence`
+
+Implementation graph contains implementation issues only.
+
+Keep referenced Wayfinder decisions as prerequisite context.
+
+Report files that match neither schema as `unclassified`.
+
+Completion criterion: every issue is classified exactly once.
+
+### 4. Parse issue metadata
+
+For each implementation issue, extract:
+
+- numeric issue identity from filename or heading;
+- title;
+- `Status`;
+- `Blocked by`;
+- `Dependency`;
+- `Source`;
+- `OpenSpec`;
+- `Evidence`;
+- acceptance criteria;
+- checked and unchecked criteria.
+
+Assign virtual acceptance identifiers by order without editing source files:
+
+```text
+Issue 18:
+AC 18.1
+AC 18.2
+AC 18.3
+```
+
+Treat `Blocked by` and `Dependency` as dependency fields.
+
+Report aliases and inconsistent field names as metadata drift.
+
+Completion criterion: every implementation issue has normalized metadata and
+acceptance identifiers.
+
+### 5. Build dependency graph
+
+Create edges only from explicit dependency fields.
+
+Do not infer dependencies from numeric adjacency.
+
+Validate:
+
+- missing issue references;
+- self-dependencies;
+- cycles;
+- duplicate dependencies;
+- dependency references to Wayfinder decisions;
+- blockers whose status is not complete.
+
+Calculate:
+
+- completed issues;
+- pending issues;
+- blocked issues;
+- ready frontier;
+- retrospective issues;
+- mixed groups containing completed and pending issues.
+
+Completion criterion: every edge is explicit, valid, or reported as an error.
+
+### 6. Propose SDLC groups
+
+Group issues by:
+
+- shared end-to-end outcome;
+- shared ownership boundary;
+- shared contract or seam;
+- shared validation gate;
+- shared risk and rollback boundary.
+
+Split groups at:
+
+- destructive cleanup;
+- irreversible migration;
+- rollout or cutover;
+- separate human approval;
+- unrelated runtime ownership;
+- group size that exceeds one implementation context.
+
+Each implementation issue belongs to exactly one proposed group.
+
+Each group must contain:
+
+- group ID;
+- proposed OpenSpec change name;
+- member issues;
+- internal dependency order;
+- external blockers;
+- group state;
+- runtime risk profile;
+- required validation gate;
+- recommended OpenSpec status;
+- traceability prefix.
+
+Use this notation:
+
+```text
+Group G1
+Slice S1
+Issue 18
+Acceptance AC 18.1
+```
+
+Completion criterion: every implementation issue belongs to one group or is
+explicitly marked `excluded`, `unclassified`, or `decision-prerequisite`.
+
+### 7. Determine OpenSpec handoff
+
+For every group, classify OpenSpec need:
+
+- `required`: schema, migration, GraphQL, cross-package contract, permissions,
+  ingestion, evidence, rollout, cutover, destructive removal, or architecture.
+- `recommended`: multiple implementation seams, multiple validation gates, or
+  mixed historical and pending work.
+- `not-required`: narrow validation-only or documentation-only work.
+
+For retrospective groups, record existing issue evidence instead of inventing
+new implementation work.
+
+Do not create an OpenSpec change.
+
+Completion criterion: every group has explicit OpenSpec recommendation and
+source issue coverage.
+
+### 8. Write report
+
+Write `.scratch/<feature-slug>/implementation-sdlc-map.md` with this shape:
+
+```md
+# Implementation SDLC Map: <feature-slug>
+
+Status: proposed
+Source: PRD.md
+Generated by: implementation-sdlc-map
+
+## Scope
+
+<what this map covers>
+
+## Issue Inventory
+
+| Issue | Title | Status | Blocked by | Group |
+|---|---|---|---|---|
+
+## Dependency Graph
+
+<ASCII graph showing genuine edges>
+
+## Proposed OpenSpec Groups
+
+### G1 - <group name>
+
+- Change: <change-name>
+- Issues: <issue list>
+- State: retrospective|active|mixed|blocked
+- Blocked by: <groups or None>
+- Slice order: <slice order>
+- OpenSpec: required|recommended|not-required
+- Validation gate: <observable proof>
+- Traceability prefix: `G1`
+
+## Issue Traceability
+
+<derived mapping from issue to group and slice>
+
+## Findings
+
+<metadata drift, missing edges, cycles, stale statuses, or evidence gaps>
+
+## Handoff
+
+<exact OpenSpec command or human decision required>
+```
+
+Completion criterion: report contains complete issue inventory, valid graph,
+group coverage, OpenSpec handoff, and findings.
+
+## Safety Rules
+
+- Preserve source issue files.
+- Preserve existing OpenSpec artifacts.
+- Preserve existing issue statuses.
+- Preserve existing acceptance checkboxes.
+- Treat generated report as planning output.
+- Treat OpenSpec as authority after `Implementation Ready`.
+- Treat linked issues as execution-status mirrors.
+- Re-run map after implementation to detect drift.
+
+## Final Response
+
+Respond in user's language.
+
+Report:
+
+- generated map path;
+- issue count;
+- implementation issue count;
+- Wayfinder issue count;
+- proposed group count;
+- blocked group count;
+- metadata inconsistencies;
+- recommended next OpenSpec action.
+
+Stop after reporting map. Do not implement application code.
