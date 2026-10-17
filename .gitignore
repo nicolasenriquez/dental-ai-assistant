@@ -91,7 +91,8 @@ EXAMPLE-CLAUDE.md
 !.agents/
 .agents/*
 !.agents/skills/
-.agents/skills/*
+# Project-local skills and their supporting files are versioned.
+!.agents/skills/**
 !.agents/skills/verify-dental-assistant/
 !.agents/skills/verify-dental-assistant/**
 !.agents/skills/animate/
