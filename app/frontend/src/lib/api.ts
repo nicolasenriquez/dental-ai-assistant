@@ -1414,6 +1414,93 @@ export function getPatientTreatmentRevisions(
   return request(`/patients/${patientId}/dental-treatments/${id}/revisions?${query}`);
 }
 
+export type DentalHistoryAction = 'created' | 'edited' | 'resolved' | 'corrected' | 'deleted';
+export type DentalHistoryResourceKind = 'condition' | 'procedure';
+export type DentalHistorySnapshot = ConditionSnapshot | PatientTreatment;
+export interface DentalHistoryEvent {
+  event_id: string;
+  resource_kind: DentalHistoryResourceKind;
+  resource_id: string;
+  revision: number;
+  action: DentalHistoryAction;
+  changed_at: string;
+  clinical_date: string;
+  actor: PatientActor;
+  before: DentalHistorySnapshot | null;
+  after: DentalHistorySnapshot;
+}
+export interface DentalHistoryEventsPage {
+  selection: {
+    day: string | null;
+    timezone: 'America/Santiago';
+    start_inclusive: string | null;
+    cutoff_exclusive: string | null;
+  };
+  items: DentalHistoryEvent[];
+  next_cursor: string | null;
+  total_events: number;
+  epoch: string;
+  timezone: 'America/Santiago';
+  read_at: string;
+}
+export interface DentalHistorySnapshotItem {
+  resource_kind: DentalHistoryResourceKind;
+  resource_id: string;
+  revision: number;
+  changed_at: string;
+  snapshot: DentalHistorySnapshot;
+  chart_eligible: boolean;
+}
+export interface DentalHistoryCounts {
+  records: number;
+  findings: number;
+  procedures: number;
+  charted_records: number;
+  affected_teeth: number;
+  affected_arches: number;
+  deleted_records: number;
+}
+export interface DentalHistoryCoverage {
+  state: 'complete' | 'partial';
+  earliest_recorded_at: string | null;
+  warnings: ('missing_initial_revision' | 'orphan_revision')[];
+}
+export interface DentalHistorySnapshotPage {
+  selection: {
+    at: string | null;
+    timezone: 'America/Santiago';
+    cutoff_exclusive: string | null;
+  };
+  items: DentalHistorySnapshotItem[];
+  next_cursor: string | null;
+  epoch: string;
+  read_at: string;
+  counts: DentalHistoryCounts;
+  coverage: DentalHistoryCoverage;
+}
+export function getPatientDentalHistory(
+  patientId: string,
+  options: { dentition: Dentition; day?: string; epoch?: string; cursor?: string; limit?: number },
+): Promise<DentalHistoryEventsPage> {
+  const query = new URLSearchParams({ dentition: options.dentition });
+  if (options.day) query.set('day', options.day);
+  if (options.epoch) query.set('epoch', options.epoch);
+  if (options.cursor) query.set('cursor', options.cursor);
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+  return request(`/patients/${patientId}/dental-history?${query}`);
+}
+export function getPatientDentalHistorySnapshot(
+  patientId: string,
+  options: { dentition: Dentition; at?: string; epoch?: string; cursor?: string; limit?: number },
+): Promise<DentalHistorySnapshotPage> {
+  const query = new URLSearchParams({ dentition: options.dentition });
+  if (options.at) query.set('at', options.at);
+  if (options.epoch) query.set('epoch', options.epoch);
+  if (options.cursor) query.set('cursor', options.cursor);
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+  return request(`/patients/${patientId}/dental-history/snapshot?${query}`);
+}
+
 // Retained for historical activity events.
 export type PlanAction = 'confirm' | 'accept' | 'reopen' | 'close' | 'reactivate' | 'archive';
 

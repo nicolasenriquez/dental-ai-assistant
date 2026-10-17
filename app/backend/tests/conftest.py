@@ -192,6 +192,10 @@ def patch_pg_pool(monkeypatch):
     monkeypatch.setattr(google_drive_repo_mod, "get_pg_pool", getter)
     monkeypatch.setattr(evolution_exports_service, "get_pg_pool", getter)
     monkeypatch.setattr(rate_limit_mod, "get_pg_pool", getter)
+    # The dental-history repository lands with task 2.1; patch its import site once loaded.
+    history_repo = sys.modules.get("backend.db.patient_dental_history_repo")
+    if history_repo is not None:
+        monkeypatch.setattr(history_repo, "get_pg_pool", getter)
 
 
 @pytest.fixture
