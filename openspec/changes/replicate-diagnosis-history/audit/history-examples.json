@@ -1,0 +1,1108 @@
+{
+  "classification": "synthetic contract examples, not runtime evidence",
+  "cases": [
+    {
+      "kind": "condition",
+      "state": "active",
+      "deleted": false,
+      "item_included": true,
+      "chart_eligible": true,
+      "expected_counts": {
+        "records": 1,
+        "findings": 1,
+        "procedures": 0,
+        "charted_records": 1,
+        "affected_teeth": 1,
+        "affected_arches": 0,
+        "deleted_records": 0
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [
+          {
+            "resource_kind": "condition",
+            "resource_id": "00000000-0000-4000-8000-000000000020",
+            "revision": 1,
+            "changed_at": "2026-10-17T15:00:00Z",
+            "snapshot": {
+              "dentition": "permanent",
+              "note": null,
+              "deleted_at": null,
+              "deleted_by_user_id": null,
+              "tooth_fdi": 16,
+              "condition_code": "caries",
+              "surfaces": [
+                "M",
+                "O"
+              ],
+              "status": "active"
+            },
+            "chart_eligible": true
+          }
+        ],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 1,
+          "findings": 1,
+          "procedures": 0,
+          "charted_records": 1,
+          "affected_teeth": 1,
+          "affected_arches": 0,
+          "deleted_records": 0
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": null,
+        "deleted_by_user_id": null,
+        "tooth_fdi": 16,
+        "condition_code": "caries",
+        "surfaces": [
+          "M",
+          "O"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "kind": "condition",
+      "state": "resolved",
+      "deleted": false,
+      "item_included": true,
+      "chart_eligible": false,
+      "expected_counts": {
+        "records": 1,
+        "findings": 1,
+        "procedures": 0,
+        "charted_records": 0,
+        "affected_teeth": 0,
+        "affected_arches": 0,
+        "deleted_records": 0
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [
+          {
+            "resource_kind": "condition",
+            "resource_id": "00000000-0000-4000-8000-000000000021",
+            "revision": 2,
+            "changed_at": "2026-10-17T15:00:00Z",
+            "snapshot": {
+              "dentition": "permanent",
+              "note": null,
+              "deleted_at": null,
+              "deleted_by_user_id": null,
+              "tooth_fdi": 16,
+              "condition_code": "caries",
+              "surfaces": [
+                "M",
+                "O"
+              ],
+              "status": "resolved"
+            },
+            "chart_eligible": false
+          }
+        ],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 1,
+          "findings": 1,
+          "procedures": 0,
+          "charted_records": 0,
+          "affected_teeth": 0,
+          "affected_arches": 0,
+          "deleted_records": 0
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": null,
+        "deleted_by_user_id": null,
+        "tooth_fdi": 16,
+        "condition_code": "caries",
+        "surfaces": [
+          "M",
+          "O"
+        ],
+        "status": "resolved"
+      }
+    },
+    {
+      "kind": "condition",
+      "state": "entered_in_error",
+      "deleted": false,
+      "item_included": true,
+      "chart_eligible": false,
+      "expected_counts": {
+        "records": 1,
+        "findings": 1,
+        "procedures": 0,
+        "charted_records": 0,
+        "affected_teeth": 0,
+        "affected_arches": 0,
+        "deleted_records": 0
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [
+          {
+            "resource_kind": "condition",
+            "resource_id": "00000000-0000-4000-8000-000000000022",
+            "revision": 2,
+            "changed_at": "2026-10-17T15:00:00Z",
+            "snapshot": {
+              "dentition": "permanent",
+              "note": null,
+              "deleted_at": null,
+              "deleted_by_user_id": null,
+              "tooth_fdi": 16,
+              "condition_code": "caries",
+              "surfaces": [
+                "M",
+                "O"
+              ],
+              "status": "entered_in_error"
+            },
+            "chart_eligible": false
+          }
+        ],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 1,
+          "findings": 1,
+          "procedures": 0,
+          "charted_records": 0,
+          "affected_teeth": 0,
+          "affected_arches": 0,
+          "deleted_records": 0
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": null,
+        "deleted_by_user_id": null,
+        "tooth_fdi": 16,
+        "condition_code": "caries",
+        "surfaces": [
+          "M",
+          "O"
+        ],
+        "status": "entered_in_error"
+      }
+    },
+    {
+      "kind": "procedure",
+      "state": "existing",
+      "deleted": false,
+      "item_included": true,
+      "chart_eligible": true,
+      "expected_counts": {
+        "records": 1,
+        "findings": 0,
+        "procedures": 1,
+        "charted_records": 1,
+        "affected_teeth": 1,
+        "affected_arches": 0,
+        "deleted_records": 0
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [
+          {
+            "resource_kind": "procedure",
+            "resource_id": "00000000-0000-4000-8000-000000000023",
+            "revision": 1,
+            "changed_at": "2026-10-17T15:00:00Z",
+            "snapshot": {
+              "dentition": "permanent",
+              "note": null,
+              "deleted_at": null,
+              "deleted_by_user_id": null,
+              "id": "00000000-0000-4000-8000-000000000023",
+              "patient_id": "00000000-0000-4000-8000-000000000099",
+              "variant_id": "REST-COMP",
+              "catalog_version": "dental-clinical-v1",
+              "label_es": "Obturación composite",
+              "clinical_type": "filling_composite",
+              "category_key": "restorative",
+              "scope": "tooth",
+              "arch": null,
+              "teeth": [
+                {
+                  "tooth_fdi": 16,
+                  "role": "tooth",
+                  "surfaces": [
+                    "M",
+                    "O"
+                  ]
+                }
+              ],
+              "provenance": "observed_existing",
+              "state": "existing",
+              "supersedes_id": null,
+              "revision": 1,
+              "created_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "updated_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "created_at": "2026-10-16T15:00:00Z",
+              "updated_at": "2026-10-17T15:00:00Z"
+            },
+            "chart_eligible": true
+          }
+        ],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 1,
+          "findings": 0,
+          "procedures": 1,
+          "charted_records": 1,
+          "affected_teeth": 1,
+          "affected_arches": 0,
+          "deleted_records": 0
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": null,
+        "deleted_by_user_id": null,
+        "id": "00000000-0000-4000-8000-000000000023",
+        "patient_id": "00000000-0000-4000-8000-000000000099",
+        "variant_id": "REST-COMP",
+        "catalog_version": "dental-clinical-v1",
+        "label_es": "Obturación composite",
+        "clinical_type": "filling_composite",
+        "category_key": "restorative",
+        "scope": "tooth",
+        "arch": null,
+        "teeth": [
+          {
+            "tooth_fdi": 16,
+            "role": "tooth",
+            "surfaces": [
+              "M",
+              "O"
+            ]
+          }
+        ],
+        "provenance": "observed_existing",
+        "state": "existing",
+        "supersedes_id": null,
+        "revision": 1,
+        "created_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "updated_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "created_at": "2026-10-16T15:00:00Z",
+        "updated_at": "2026-10-17T15:00:00Z"
+      }
+    },
+    {
+      "kind": "procedure",
+      "state": "planned",
+      "deleted": false,
+      "item_included": true,
+      "chart_eligible": true,
+      "expected_counts": {
+        "records": 1,
+        "findings": 0,
+        "procedures": 1,
+        "charted_records": 1,
+        "affected_teeth": 1,
+        "affected_arches": 0,
+        "deleted_records": 0
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [
+          {
+            "resource_kind": "procedure",
+            "resource_id": "00000000-0000-4000-8000-000000000024",
+            "revision": 1,
+            "changed_at": "2026-10-17T15:00:00Z",
+            "snapshot": {
+              "dentition": "permanent",
+              "note": null,
+              "deleted_at": null,
+              "deleted_by_user_id": null,
+              "id": "00000000-0000-4000-8000-000000000024",
+              "patient_id": "00000000-0000-4000-8000-000000000099",
+              "variant_id": "REST-COMP",
+              "catalog_version": "dental-clinical-v1",
+              "label_es": "Obturación composite",
+              "clinical_type": "filling_composite",
+              "category_key": "restorative",
+              "scope": "tooth",
+              "arch": null,
+              "teeth": [
+                {
+                  "tooth_fdi": 16,
+                  "role": "tooth",
+                  "surfaces": [
+                    "M",
+                    "O"
+                  ]
+                }
+              ],
+              "provenance": "planned_in_clinic",
+              "state": "planned",
+              "supersedes_id": null,
+              "revision": 1,
+              "created_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "updated_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "created_at": "2026-10-16T15:00:00Z",
+              "updated_at": "2026-10-17T15:00:00Z"
+            },
+            "chart_eligible": true
+          }
+        ],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 1,
+          "findings": 0,
+          "procedures": 1,
+          "charted_records": 1,
+          "affected_teeth": 1,
+          "affected_arches": 0,
+          "deleted_records": 0
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": null,
+        "deleted_by_user_id": null,
+        "id": "00000000-0000-4000-8000-000000000024",
+        "patient_id": "00000000-0000-4000-8000-000000000099",
+        "variant_id": "REST-COMP",
+        "catalog_version": "dental-clinical-v1",
+        "label_es": "Obturación composite",
+        "clinical_type": "filling_composite",
+        "category_key": "restorative",
+        "scope": "tooth",
+        "arch": null,
+        "teeth": [
+          {
+            "tooth_fdi": 16,
+            "role": "tooth",
+            "surfaces": [
+              "M",
+              "O"
+            ]
+          }
+        ],
+        "provenance": "planned_in_clinic",
+        "state": "planned",
+        "supersedes_id": null,
+        "revision": 1,
+        "created_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "updated_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "created_at": "2026-10-16T15:00:00Z",
+        "updated_at": "2026-10-17T15:00:00Z"
+      }
+    },
+    {
+      "kind": "procedure",
+      "state": "performed",
+      "deleted": false,
+      "item_included": true,
+      "chart_eligible": true,
+      "expected_counts": {
+        "records": 1,
+        "findings": 0,
+        "procedures": 1,
+        "charted_records": 1,
+        "affected_teeth": 1,
+        "affected_arches": 0,
+        "deleted_records": 0
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [
+          {
+            "resource_kind": "procedure",
+            "resource_id": "00000000-0000-4000-8000-000000000025",
+            "revision": 2,
+            "changed_at": "2026-10-17T15:00:00Z",
+            "snapshot": {
+              "dentition": "permanent",
+              "note": null,
+              "deleted_at": null,
+              "deleted_by_user_id": null,
+              "id": "00000000-0000-4000-8000-000000000025",
+              "patient_id": "00000000-0000-4000-8000-000000000099",
+              "variant_id": "REST-COMP",
+              "catalog_version": "dental-clinical-v1",
+              "label_es": "Obturación composite",
+              "clinical_type": "filling_composite",
+              "category_key": "restorative",
+              "scope": "tooth",
+              "arch": null,
+              "teeth": [
+                {
+                  "tooth_fdi": 16,
+                  "role": "tooth",
+                  "surfaces": [
+                    "M",
+                    "O"
+                  ]
+                }
+              ],
+              "provenance": "planned_in_clinic",
+              "state": "performed",
+              "supersedes_id": null,
+              "revision": 2,
+              "created_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "updated_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "created_at": "2026-10-16T15:00:00Z",
+              "updated_at": "2026-10-17T15:00:00Z"
+            },
+            "chart_eligible": true
+          }
+        ],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 1,
+          "findings": 0,
+          "procedures": 1,
+          "charted_records": 1,
+          "affected_teeth": 1,
+          "affected_arches": 0,
+          "deleted_records": 0
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": null,
+        "deleted_by_user_id": null,
+        "id": "00000000-0000-4000-8000-000000000025",
+        "patient_id": "00000000-0000-4000-8000-000000000099",
+        "variant_id": "REST-COMP",
+        "catalog_version": "dental-clinical-v1",
+        "label_es": "Obturación composite",
+        "clinical_type": "filling_composite",
+        "category_key": "restorative",
+        "scope": "tooth",
+        "arch": null,
+        "teeth": [
+          {
+            "tooth_fdi": 16,
+            "role": "tooth",
+            "surfaces": [
+              "M",
+              "O"
+            ]
+          }
+        ],
+        "provenance": "planned_in_clinic",
+        "state": "performed",
+        "supersedes_id": null,
+        "revision": 2,
+        "created_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "updated_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "created_at": "2026-10-16T15:00:00Z",
+        "updated_at": "2026-10-17T15:00:00Z"
+      }
+    },
+    {
+      "kind": "procedure",
+      "state": "cancelled",
+      "deleted": false,
+      "item_included": true,
+      "chart_eligible": false,
+      "expected_counts": {
+        "records": 1,
+        "findings": 0,
+        "procedures": 1,
+        "charted_records": 0,
+        "affected_teeth": 0,
+        "affected_arches": 0,
+        "deleted_records": 0
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [
+          {
+            "resource_kind": "procedure",
+            "resource_id": "00000000-0000-4000-8000-000000000026",
+            "revision": 2,
+            "changed_at": "2026-10-17T15:00:00Z",
+            "snapshot": {
+              "dentition": "permanent",
+              "note": null,
+              "deleted_at": null,
+              "deleted_by_user_id": null,
+              "id": "00000000-0000-4000-8000-000000000026",
+              "patient_id": "00000000-0000-4000-8000-000000000099",
+              "variant_id": "REST-COMP",
+              "catalog_version": "dental-clinical-v1",
+              "label_es": "Obturación composite",
+              "clinical_type": "filling_composite",
+              "category_key": "restorative",
+              "scope": "tooth",
+              "arch": null,
+              "teeth": [
+                {
+                  "tooth_fdi": 16,
+                  "role": "tooth",
+                  "surfaces": [
+                    "M",
+                    "O"
+                  ]
+                }
+              ],
+              "provenance": "planned_in_clinic",
+              "state": "cancelled",
+              "supersedes_id": null,
+              "revision": 2,
+              "created_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "updated_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "created_at": "2026-10-16T15:00:00Z",
+              "updated_at": "2026-10-17T15:00:00Z"
+            },
+            "chart_eligible": false
+          }
+        ],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 1,
+          "findings": 0,
+          "procedures": 1,
+          "charted_records": 0,
+          "affected_teeth": 0,
+          "affected_arches": 0,
+          "deleted_records": 0
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": null,
+        "deleted_by_user_id": null,
+        "id": "00000000-0000-4000-8000-000000000026",
+        "patient_id": "00000000-0000-4000-8000-000000000099",
+        "variant_id": "REST-COMP",
+        "catalog_version": "dental-clinical-v1",
+        "label_es": "Obturación composite",
+        "clinical_type": "filling_composite",
+        "category_key": "restorative",
+        "scope": "tooth",
+        "arch": null,
+        "teeth": [
+          {
+            "tooth_fdi": 16,
+            "role": "tooth",
+            "surfaces": [
+              "M",
+              "O"
+            ]
+          }
+        ],
+        "provenance": "planned_in_clinic",
+        "state": "cancelled",
+        "supersedes_id": null,
+        "revision": 2,
+        "created_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "updated_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "created_at": "2026-10-16T15:00:00Z",
+        "updated_at": "2026-10-17T15:00:00Z"
+      }
+    },
+    {
+      "kind": "procedure",
+      "state": "entered_in_error",
+      "deleted": false,
+      "item_included": true,
+      "chart_eligible": false,
+      "expected_counts": {
+        "records": 1,
+        "findings": 0,
+        "procedures": 1,
+        "charted_records": 0,
+        "affected_teeth": 0,
+        "affected_arches": 0,
+        "deleted_records": 0
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [
+          {
+            "resource_kind": "procedure",
+            "resource_id": "00000000-0000-4000-8000-000000000027",
+            "revision": 2,
+            "changed_at": "2026-10-17T15:00:00Z",
+            "snapshot": {
+              "dentition": "permanent",
+              "note": null,
+              "deleted_at": null,
+              "deleted_by_user_id": null,
+              "id": "00000000-0000-4000-8000-000000000027",
+              "patient_id": "00000000-0000-4000-8000-000000000099",
+              "variant_id": "REST-COMP",
+              "catalog_version": "dental-clinical-v1",
+              "label_es": "Obturación composite",
+              "clinical_type": "filling_composite",
+              "category_key": "restorative",
+              "scope": "tooth",
+              "arch": null,
+              "teeth": [
+                {
+                  "tooth_fdi": 16,
+                  "role": "tooth",
+                  "surfaces": [
+                    "M",
+                    "O"
+                  ]
+                }
+              ],
+              "provenance": "observed_existing",
+              "state": "entered_in_error",
+              "supersedes_id": null,
+              "revision": 2,
+              "created_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "updated_by": {
+                "user_id": "00000000-0000-4000-8000-000000000002",
+                "display_name": null
+              },
+              "created_at": "2026-10-16T15:00:00Z",
+              "updated_at": "2026-10-17T15:00:00Z"
+            },
+            "chart_eligible": false
+          }
+        ],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 1,
+          "findings": 0,
+          "procedures": 1,
+          "charted_records": 0,
+          "affected_teeth": 0,
+          "affected_arches": 0,
+          "deleted_records": 0
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": null,
+        "deleted_by_user_id": null,
+        "id": "00000000-0000-4000-8000-000000000027",
+        "patient_id": "00000000-0000-4000-8000-000000000099",
+        "variant_id": "REST-COMP",
+        "catalog_version": "dental-clinical-v1",
+        "label_es": "Obturación composite",
+        "clinical_type": "filling_composite",
+        "category_key": "restorative",
+        "scope": "tooth",
+        "arch": null,
+        "teeth": [
+          {
+            "tooth_fdi": 16,
+            "role": "tooth",
+            "surfaces": [
+              "M",
+              "O"
+            ]
+          }
+        ],
+        "provenance": "observed_existing",
+        "state": "entered_in_error",
+        "supersedes_id": null,
+        "revision": 2,
+        "created_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "updated_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "created_at": "2026-10-16T15:00:00Z",
+        "updated_at": "2026-10-17T15:00:00Z"
+      }
+    },
+    {
+      "kind": "condition",
+      "state": "active",
+      "deleted": true,
+      "item_included": false,
+      "chart_eligible": false,
+      "expected_counts": {
+        "records": 0,
+        "findings": 0,
+        "procedures": 0,
+        "charted_records": 0,
+        "affected_teeth": 0,
+        "affected_arches": 0,
+        "deleted_records": 1
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 0,
+          "findings": 0,
+          "procedures": 0,
+          "charted_records": 0,
+          "affected_teeth": 0,
+          "affected_arches": 0,
+          "deleted_records": 1
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": "2026-10-17T15:00:00Z",
+        "deleted_by_user_id": "00000000-0000-4000-8000-000000000002",
+        "tooth_fdi": 16,
+        "condition_code": "caries",
+        "surfaces": [
+          "M",
+          "O"
+        ],
+        "status": "active"
+      }
+    },
+    {
+      "kind": "procedure",
+      "state": "existing",
+      "deleted": true,
+      "item_included": false,
+      "chart_eligible": false,
+      "expected_counts": {
+        "records": 0,
+        "findings": 0,
+        "procedures": 0,
+        "charted_records": 0,
+        "affected_teeth": 0,
+        "affected_arches": 0,
+        "deleted_records": 1
+      },
+      "snapshot_page": {
+        "selection": {
+          "at": null,
+          "timezone": "America/Santiago",
+          "cutoff_exclusive": null
+        },
+        "items": [],
+        "next_cursor": null,
+        "epoch": "synthetic-example-only",
+        "read_at": "2026-10-17T15:00:00Z",
+        "counts": {
+          "records": 0,
+          "findings": 0,
+          "procedures": 0,
+          "charted_records": 0,
+          "affected_teeth": 0,
+          "affected_arches": 0,
+          "deleted_records": 1
+        },
+        "coverage": {
+          "state": "complete",
+          "earliest_recorded_at": null,
+          "warnings": []
+        }
+      },
+      "saved_revision_snapshot": {
+        "dentition": "permanent",
+        "note": null,
+        "deleted_at": "2026-10-17T15:00:00Z",
+        "deleted_by_user_id": "00000000-0000-4000-8000-000000000002",
+        "id": "00000000-0000-4000-8000-000000000029",
+        "patient_id": "00000000-0000-4000-8000-000000000099",
+        "variant_id": "REST-COMP",
+        "catalog_version": "dental-clinical-v1",
+        "label_es": "Obturación composite",
+        "clinical_type": "filling_composite",
+        "category_key": "restorative",
+        "scope": "tooth",
+        "arch": null,
+        "teeth": [
+          {
+            "tooth_fdi": 16,
+            "role": "tooth",
+            "surfaces": [
+              "M",
+              "O"
+            ]
+          }
+        ],
+        "provenance": "observed_existing",
+        "state": "existing",
+        "supersedes_id": null,
+        "revision": 2,
+        "created_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "updated_by": {
+          "user_id": "00000000-0000-4000-8000-000000000002",
+          "display_name": null
+        },
+        "created_at": "2026-10-16T15:00:00Z",
+        "updated_at": "2026-10-17T15:00:00Z"
+      }
+    }
+  ],
+  "empty_snapshot": {
+    "selection": {
+      "at": null,
+      "timezone": "America/Santiago",
+      "cutoff_exclusive": null
+    },
+    "items": [],
+    "next_cursor": null,
+    "epoch": "synthetic-example-only",
+    "read_at": "2026-10-17T15:00:00Z",
+    "counts": {
+      "records": 0,
+      "findings": 0,
+      "procedures": 0,
+      "charted_records": 0,
+      "affected_teeth": 0,
+      "affected_arches": 0,
+      "deleted_records": 0
+    },
+    "coverage": {
+      "state": "complete",
+      "earliest_recorded_at": null,
+      "warnings": []
+    }
+  },
+  "partial_snapshot": {
+    "selection": {
+      "at": null,
+      "timezone": "America/Santiago",
+      "cutoff_exclusive": null
+    },
+    "items": [],
+    "next_cursor": null,
+    "epoch": "synthetic-example-only",
+    "read_at": "2026-10-17T15:00:00Z",
+    "counts": {
+      "records": 0,
+      "findings": 0,
+      "procedures": 0,
+      "charted_records": 0,
+      "affected_teeth": 0,
+      "affected_arches": 0,
+      "deleted_records": 0
+    },
+    "coverage": {
+      "state": "partial",
+      "earliest_recorded_at": null,
+      "warnings": [
+        "missing_initial_revision"
+      ]
+    }
+  },
+  "deletion_event": {
+    "event_id": "00000000-0000-4000-8000-000000000003",
+    "resource_kind": "condition",
+    "resource_id": "00000000-0000-4000-8000-000000000001",
+    "revision": 2,
+    "action": "deleted",
+    "changed_at": "2026-10-17T15:00:00Z",
+    "clinical_date": "2026-10-17",
+    "actor": {
+      "user_id": "00000000-0000-4000-8000-000000000002",
+      "display_name": null
+    },
+    "before": {
+      "dentition": "permanent",
+      "tooth_fdi": 16,
+      "condition_code": "caries",
+      "surfaces": [
+        "M",
+        "O"
+      ],
+      "note": null,
+      "status": "active",
+      "deleted_at": null,
+      "deleted_by_user_id": null
+    },
+    "after": {
+      "dentition": "permanent",
+      "tooth_fdi": 16,
+      "condition_code": "caries",
+      "surfaces": [
+        "M",
+        "O"
+      ],
+      "note": null,
+      "status": "active",
+      "deleted_at": "2026-10-17T15:00:00Z",
+      "deleted_by_user_id": "00000000-0000-4000-8000-000000000002"
+    }
+  },
+  "bridge_expected_counts": {
+    "records": 1,
+    "findings": 0,
+    "procedures": 1,
+    "charted_records": 1,
+    "affected_teeth": 3,
+    "affected_arches": 0,
+    "deleted_records": 0
+  },
+  "whole_arch_expected_counts": {
+    "records": 1,
+    "findings": 0,
+    "procedures": 1,
+    "charted_records": 1,
+    "affected_teeth": 0,
+    "affected_arches": 1,
+    "deleted_records": 0
+  }
+}

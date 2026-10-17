@@ -9,6 +9,62 @@ def consolidated():
     files = sorted((ROOT / "specs").glob("*/spec.md"))
     return "# Consolidated change requirements\n\nGenerated reading copy; capability deltas under specs/ are normative.\n\n" + "\n\n".join("# Capability: " + f.parent.name + "\n\n" + f.read_text(encoding="utf-8").strip() for f in files) + "\n"
 
+def reaches(edges, source, target):
+    pending = [source]
+    visited = set()
+    while pending:
+        current = pending.pop()
+        if current == target:
+            return True
+        if current not in visited:
+            visited.add(current)
+            pending.extend(edges[current])
+    return False
+
+
+def assert_semantic_prerequisites(edges):
+    for before, after in [("1.5", "2.8"), ("2.7", "2.5"), ("2.8", "2.5"),
+                          ("3.2", "3.7"), ("3.3", "3.7"), ("3.6", "3.7"),
+                          ("2.6", "3.7"), ("3.8", "2.4")]:
+        assert reaches(edges, before, after), f"Missing semantic prerequisite: {before} -> {after}"
+
+
+def check_contract_examples():
+    examples = json.loads((ROOT / "audit/history-examples.json").read_text(encoding="utf-8"))
+    cases = examples["cases"]
+    assert len(cases) == 10
+    for case in cases:
+        counts = case["expected_counts"]
+        page = case["snapshot_page"]
+        assert page["counts"] == counts
+        assert len(page["items"]) == int(case["item_included"])
+        if page["items"]:
+            item = page["items"][0]
+            assert item["resource_kind"] == case["kind"]
+            assert item["chart_eligible"] == case["chart_eligible"]
+            assert item["snapshot"]["deleted_at"] is None
+            assert item["snapshot"].get("status", item["snapshot"].get("state")) == case["state"]
+        assert counts["records"] == counts["findings"] + counts["procedures"]
+        if case["deleted"]:
+            assert not case["item_included"] and not case["chart_eligible"]
+            assert counts["records"] == counts["charted_records"] == counts["affected_teeth"] == 0
+            assert counts["deleted_records"] == 1
+        else:
+            drawable = case["state"] in {"active", "existing", "planned", "performed"}
+            assert case["chart_eligible"] == drawable
+            assert counts["charted_records"] == counts["affected_teeth"] == int(drawable)
+            assert counts["records"] == 1 and counts["deleted_records"] == 0
+    assert examples["bridge_expected_counts"]["charted_records"] == 1
+    assert examples["bridge_expected_counts"]["affected_teeth"] == 3
+    assert examples["whole_arch_expected_counts"]["affected_teeth"] == 0
+    assert examples["whole_arch_expected_counts"]["affected_arches"] == 1
+    event = examples["deletion_event"]
+    assert event["action"] == "deleted" and event["after"]["status"] == event["before"]["status"]
+    assert event["after"]["deleted_by_user_id"] == event["actor"]["user_id"]
+    assert examples["empty_snapshot"]["coverage"]["state"] == "complete"
+    assert examples["partial_snapshot"]["coverage"]["state"] == "partial"
+
+
 def main():
     assert (ROOT / "spec.md").read_text(encoding="utf-8") == consolidated(), "Consolidated spec drift"
     text = (ROOT / "tasks.md").read_text(encoding="utf-8")
@@ -36,6 +92,17 @@ def main():
             for upstream in re.findall(r"\d+\.\d+", blocked.group(1)):
                 assert upstream in edges, upstream
                 edges[upstream].add(chain[0])
+    assert_semantic_prerequisites(edges)
+    # Prove the old missing History dependency fails even when the graph stays acyclic.
+    broken = {key: set(value) for key, value in edges.items()}
+    broken["3.2"].discard("1.6")
+    try:
+        assert_semantic_prerequisites(broken)
+    except AssertionError as error:
+        assert "3.2 -> 3.7" in str(error)
+    else:
+        raise AssertionError("Missing-History regression was not detected")
+    check_contract_examples()
     pending = set(ids)
     sorted_ids = []
     while pending:
@@ -56,7 +123,7 @@ def main():
             if target and not (f.parent / target).exists():
                 missing.append(str(f.relative_to(ROOT)) + " -> " + target)
     assert not missing, missing
-    print(json.dumps({"tasks": len(ids), "completed": sum(x == "x" for x, _, _ in tasks), "requirements": len(reqs), "capabilities": 5, "dependency_graph": "acyclic", "execution_membership": "exactly once", "local_links": "resolved", "consolidated_spec": "matches", "topological_order": sorted_ids}, indent=2))
+    print(json.dumps({"tasks": len(ids), "completed": sum(x == "x" for x, _, _ in tasks), "requirements": len(reqs), "capabilities": 5, "dependency_graph": "acyclic", "semantic_prerequisites": "passed", "missing_history_regression": "detected", "contract_examples": "passed", "execution_membership": "exactly once", "local_links": "resolved", "consolidated_spec": "matches", "topological_order": sorted_ids}, indent=2))
 
 if __name__ == "__main__":
     main()

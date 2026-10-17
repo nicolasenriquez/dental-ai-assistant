@@ -1,108 +1,87 @@
 # Explicit deletion from the odontogram
 
-## Decision and meaning
+## Decision and scope
 
-The user's 2026-10-17 instruction replaces new-use "Registrar por error" with **Eliminar**, following DentalPin's current-record interaction. This is a deliberate change to the previous plan and incumbent product/spec requirements. The new action removes a selected saved record from current chart/list and count calculations. It records deletion, not clinical error, cure or resolution.
+The user confirmed that current dental records are demo data and that removal must mean Eliminar, without classifying the entry as human error. This change retires correction mutations outright. It does not need a compatibility bridge for retrying historical correction operations. Existing saved demo evidence remains readable; no reset, receipt migration or snapshot relabelling is required.
 
-Deletion uses a tombstone and an append-only `deleted` revision so History can still reconstruct what existed before removal. It does not physically purge the row, its clinical note, revision snapshots, author attribution or foreign-key references. This distinction is visible in confirmation copy; the product offers no restoration command in this scope. A new clinical record after deletion has a new UUID.
+An owned, non-deleted active or resolved finding is eligible. A procedure is eligible only when provenance is observed_existing, state is existing and no plan item references the procedure or any ancestor through supersedes_id. Other procedure states/provenances and entered_in_error findings are read-only for this action. Resolver remains the action for a condition that is no longer clinically active.
 
-Legacy entered_in_error records, reasons and replacement links retain their original historical meaning. Do not migrate them to deleted, rewrite snapshots or display them as if the user had deleted them. Retire new recording-error mutations and their UI, while preserving exact replay of already committed operation receipts.
+Delete targets one saved resource UUID, not every mark on a tooth. Confirmation uses its saved surfaces and complete bridge/arch membership. A bridge disappears across all members; other resources remain. Removing only one surface is an ordinary explicit edit. An immutable-identity change requires explicit deletion and a separate creation; there is no automatic replacement or two-command transaction.
 
-## Scope of the action
+Deletion sets a tombstone and appends one deleted revision. It does not physically purge the record, members, notes or prior snapshots, and there is no restoration UI. These rules apply to new records after cutover even if demo fixtures are later replaced.
 
-An owned, non-deleted active or resolved finding can be deleted. An owned, non-deleted `observed_existing`/`existing` procedure can be deleted. Planned/performed/cancelled/legacy-error procedures remain read-only under incumbent provenance policy; this feature must not cancel plan work or erase performed evidence. If permission/state changes while open, refresh capability and explain the restriction. History never offers deletion, even in its current-state position.
+## Demo cutover, with no legacy command bridge
 
-Delete targets **one resource ID**, not every condition on a tooth or the currently selected surfaces. Its confirmation names the saved record, FDI/surfaces or full procedure membership. A multi-tooth bridge is one procedure; deleting it removes its mark from all its members. The confirmation lists the entire affected scope. Other findings/procedures on those teeth remain. Whole-arch deletion identifies the arch and never invents FDI zero.
+Default: retain the existing database. This planning work executes no data reset. For future verification, use an isolated scratch Postgres database and synthetic fixtures; a fresh scratch database replaces broken fixtures without touching the user's running database, auth, chat, RAG or Drive records.
 
-Removing only one surface is a normal explicit edit of that record, not this delete command. Marking a real condition as no longer present uses Resolver, not Eliminar. Immutable identity changes no longer invoke a new error/replacement wizard; the clinician explicitly deletes the old record and creates a new record separately. This is not represented as an atomic relocation or automatically retried two-command workflow.
+Both existing correction POST endpoints remain as small authenticated retirement stubs. Validate path UUIDs, session, parent ownership and exact resource ownership; then return HTTP 410 with detail {code: correction_workflow_retired, message: "Este flujo fue retirado. Usa Eliminar desde el registro guardado."}. Do not parse a correction body, look up an operation, replay a receipt or perform a mutation. Previously committed, unknown and mismatched correction payloads all receive 410 after ownership succeeds. Missing/foreign resources remain 404, missing sessions 401 and malformed path UUIDs 422. GET revision/history endpoints remain readable.
 
-## Modal flow and exact copy
+Remove active Registrar por error, correction/replacement wizard and error-based Deshacer callers. Keep stored enums, historical reasons/links and legacy read DTOs. Never reinterpret a legacy entered_in_error revision as deleted. Old correction service/repository mutation functions may be removed once no runtime/test consumer remains; history helpers stay where still used. No production-client continuity is promised for the retired operation.
+
+New delete commands use patient_clinical_commands, whose namespace is (owner_user_id, operation_id). Existing active treatment, note and plan operations already in that table retain their original hash formats and receipts. Retired condition-correction operations belong to their old revision-table namespace; they are not imported or consulted. Reusing an old revision-table operation UUID in the active table has no legacy meaning. Reusing any UUID already in the active table for a different command returns 409 idempotency_conflict. This explicit namespace boundary removes F1 without a second receipt store or compatibility adapter.
+
+Cutover is one coordinated demo-runtime update. Stop old writers, deploy the complete deletion-aware application and migration, then reload browser clients before enabling user interaction. Do not mix an old writer with the new schema/application. Existing plan endpoints are not added to the UI or expanded; their guarded readers/writers remain protected. If actual non-demo clinical data or a live-client continuity requirement is discovered at task 0.2, stop this change for a new migration decision. Do not reset or silently apply demo-only retirement assumptions to it.
+
+## Modal behavior
 
 ```text
-Tooth -> saved-record popover -> Editar condition/procedure
-                                 |
-                              Eliminar
-                                 v
-                 One named destructive confirmation
-                 Cancelar                  Eliminar
-                    |                         |
-             same editor/draft      frozen delete command
-                                      /            \
-                              authoritative      uncertain/conflict
-                                 success         retain + reconcile
-                                    |
-                  refresh current reads/counts, close editor
-                  focus initiating tooth or stable fallback
+Saved record -> Editar -> Eliminar -> one confirmation
+                              Cancelar -> same editor/draft/focus
+                              Eliminar -> frozen command
+                                            success -> refresh + close + Ver historial
+                                            uncertain/conflict -> retain + reconcile
 ```
 
-Every eligible saved-record modal exposes a visible danger-style `Eliminar` separate from `Guardar` and `Cancelar`. No delete action appears in unsaved creation/surface-selection modals. Do not hide it exclusively in the lower record list or require the clinician to open a correction wizard.
+Every eligible saved editor exposes Eliminar separately from Guardar/Cancelar. Unsaved creation/surface pickers and History expose no deletion action. Confirmation starts on Cancelar, suspends the parent trap, consumes Escape and restores the parent draft/focus on cancellation. Backdrop follows the same policy. Busy/uncertain work cannot be dismissed as an uncommitted action. Keep resource name/FDI through exit; successful deletion returns focus to the tooth or stable chart heading.
 
-Confirmation example: `Eliminar Caries de la pieza 16 (M, O)?` Supporting text: `Se quitará del odontograma y de los registros actuales. El historial conservará la eliminación, su autor y fecha. Esta acción no tiene restauración desde la aplicación.` No mandatory reason, no allegation that the original entry was wrong, no misleading statement that all clinical evidence is erased.
+Example title: `¿Eliminar Caries de la pieza 16 (M, O)?`
 
-One confirmation owns focus; initial focus is Cancelar. Escape/backdrop/cancel return to the same editor with its draft, selected surfaces, scroll and trigger focus intact. Avoid a third redundant confirmation and duplicate traps. Retain the resource label/FDI until exit completes. Busy/uncertain requests cannot be dismissed as if nothing happened.
+Copy: `Se quitará del odontograma y de los registros actuales. El historial conservará la eliminación, su autor y fecha. Esta acción no tiene restauración desde la aplicación.` No reason field is shown or required.
 
-If the parent has unsaved edits, the confirmation says `Los cambios sin guardar no se aplicarán si eliminas el registro.` Delete operates on the **last saved record/revision**, not the edited local surfaces/note. Cancel retains those edits. Only an authoritative successful deletion discards the local edit draft. Do not auto-save it before deletion, silently replace it with a correction draft or combine save+delete.
+For a dirty editor add `Los cambios sin guardar no se aplicarán si eliminas el registro.` Confirm deletes the saved base with its reviewed revision, without saving local edits. Cancel retains all edits, scroll and selected context. Only authoritative deletion discards the edit draft.
 
-Success message: `Registro eliminado del odontograma.` Provide `Ver historial`, not an unsupported restore action. If post-write reads fail, say deletion was confirmed but the current view could not refresh, keep the receipt and retry GETs only; do not offer a new delete as the read retry.
+Success: `Registro eliminado del odontograma.` Offer Ver historial, never Deshacer/Restaurar. If deletion committed but refresh failed, retain the receipt, explain the confirmed deletion and retry GET only. An already-deleted conflict says `Este registro ya fue eliminado` after authoritative reconciliation.
 
-## Command Interface and ownership
-
-Use existing patient condition/procedure route/service/repository ownership; do not add SQL to handlers or duplicate persistence into the History reader.
+## HTTP and command identity
 
 ```text
 POST /api/patients/{patient_id}/conditions/{condition_id}/delete
 POST /api/patients/{patient_id}/dental-treatments/{treatment_id}/delete
-
-Body, extra fields forbidden:
-{ operation_id: UUID, expected_revision: integer >= 1 }
-
-HTTP 200 on first success and exact replay, same immutable receipt:
-{ operation_id, resource_kind, resource_id, action: "deleted",
-  revision, revision_id, deleted_at: UTC timestamp, actor }
+Body: {operation_id: UUID, expected_revision: integer >= 1}; forbid extra fields.
+200, first success and exact replay:
+{operation_id: UUID, resource_kind: "condition"|"procedure", resource_id: UUID,
+ action: "deleted", revision: integer >= 2, revision_id: UUID,
+ deleted_at: UTC ISO timestamp, actor: {user_id: UUID, display_name: string|null}}
 ```
 
-No reason field is required. Owner and actor come from the session, never the body. New no-replacement correction commands are not aliases for deletion, because their meaning differs.
+Authority comes from the session/path. Normalize UUIDs with str(UUID(value)), revision as an integer and action as the literal deleted. New-command hash input is exactly {version:1, kind:resource_kind, action:"deleted", patient_id:canonical_UUID, resource_id:canonical_UUID, expected_revision:integer}. Hash UTF-8 json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False) with hashlib.sha256. operation_id selects the receipt and is not part of this hash. Reuse the existing canonical JSON helper, without modifying older command hashes.
 
-Inside one transaction: verify the patient/owner, resolve a matching receipt, lock the resource, recheck the receipt under lock, validate expected revision and capability, advance revision, set deletion metadata, append before/after deletion revision and persist the immutable receipt. Reuse the existing `patient_clinical_commands` operation identity store for both new commands with kind/action/patient/resource/revision in the normalized hash. A receipt-insert race must roll back the whole losing transaction; no partial tombstone or double event.
+Check authorization and source existence before revealing any receipt. In a READ COMMITTED write transaction, take the existing pg_advisory_xact_lock(hashtextextended(owner + "/" + operation_id, 0)) before clinical row locks, then look up the active receipt. Matching hash returns its immutable stored 200 result even after later deletion; mismatching hash returns 409. No new clinical work occurs on replay.
 
-Exact same operation/body returns its committed receipt even if the resource is already deleted. Reusing an operation for another resource/action/revision yields 409 idempotency_conflict. A new operation against a deleted row yields 409 record_deleted with owned read-only metadata. Stale revision yields 409 revision_conflict; do not automatically rebase and delete a newer clinical record. Foreign/unknown resources yield 404; invalid body yields 422. Check ownership on receipt replay too.
+For a new operation, lock the source FOR UPDATE, check deletion/revision/eligibility, increment revision, set the paired deletion metadata and updated actor/time, append before/after deleted revision and insert the receipt in that one transaction. Use one clock_timestamp value for updated_at, deleted_at, revision.changed_at and receipt.deleted_at. Roll back every change if any insert fails. The common operation advisory lock serializes same-operation commands across resources; source row locks serialize distinct-operation edit/resolve/delete races.
 
-Lost response: retain UUID/body and offer identical retry/current-read reconciliation. Do not generate another operation, show false success, revert a possibly committed deletion or dismiss uncertain state. Race with edit/resolve/delete is serialized; only a matching current revision commits. If another delete won, show `Este registro ya fue eliminado` after authoritative reconciliation and disable further writes.
+Error detail is an object with code. Precedence after ownership and active-receipt lookup: record_deleted (409, existing owned tombstone); revision_conflict (409, current owned representation); resource_read_only (409, current owned representation); otherwise commit. Invalid bodies return 422; unauthenticated 401; missing/foreign parent or resource 404. An idempotency_conflict exposes no other command's receipt or content.
 
-## Additive schema and compatibility
+After a definitive stale-revision rejection, preserve the draft and require fresh source review plus explicit confirmation before using a new operation ID. Never rebase deletion automatically. After response loss, retain the original operation/body and retry it identically; a current read alone is not proof that this operation committed. A confirmed command followed by failed reads retries only those reads.
 
-Add nullable `deleted_at TIMESTAMPTZ` and `deleted_by_user_id UUID REFERENCES users(id)` to findings and procedures, with a both-null-or-both-present constraint. `deleted` is a new revision action and a read-model lifecycle marker, **not a new clinical status meaning entered_in_error**. Deletion revision snapshots include deletion metadata. Add any minimal necessary paired integrity/receipt support in a new forward Alembic migration; no snapshot backfill or physical delete.
+## Procedure and note concurrency
 
-Replace the active condition identity unique index predicate with `status='active' AND deleted_at IS NULL`. Adjust duplicate checks, create-idempotency replay, edit/resolve/correction guards, exact reads, all current-list filters, notes-context writes, counts and Activity projection. Deleting an old UUID allows a new UUID with the same clinical key; retrying the old create must never reactivate the tombstone or report it as a fresh current save. Test this race, not only normal delete.
+Delete never acquires a plan aggregate lock. After the operation lock and replay lookup, lock the procedure FOR UPDATE, then read its owned association/ancestry without a plan lock. Check deleted/revision/eligibility in the stated error precedence. A protected-work rejection takes no plan lock and changes no plan state. No delete path may acquire a plan lock after a treatment row lock.
 
-Current list endpoints exclude deleted rows even for their `all` clinical-status filter. Exact owned GET retains a tombstone-aware read-only representation for old links. History carries `deleted` events, actor/time and original snapshots; selection before deletion reconstructs the original, selection after deletion omits it from current marks/list. Never filter historical revisions using the current row's deleted_at, which would erase the past.
+This minimal protocol relies on an inspected current invariant: the only plan-item insertion, patient_clinical_plans_repo._author(add_item), creates a new planned procedure UUID in the same transaction; it cannot attach an existing observed UUID. Existing plan corrections also create a new replacement UUID and do not rewrite item treatment_id. Record that invariant in a source/behavior regression test. If a caller that attaches an existing observed UUID appears, block its use until a shared locking protocol is designed. Do not add such a caller in this change.
 
-Finding/procedure DTOs add nullable deletion metadata. Old legacy snapshots with missing keys mean no deletion was recorded at that revision. `deleted_records` is a separate history count; current `records`, findings/procedures, chart and affected-scope totals exclude tombstones. Timeline event totals include the one deletion revision. The API must make these units explicit.
+Therefore an unlinked eligible observed UUID cannot become plan-linked through an incumbent public command while deletion runs. For linked/protected fixtures, delete versus stage execution/correction always rejects delete; incumbent plan-first writers continue with their existing locks. Verify this concurrently in scratch Postgres, plus an add-item test proving its new UUID cannot be the deletion target. No plan feature is introduced.
 
-## Notes and references
+Procedure-context note creation/edit/delete must authorize, take its operation advisory lock, resolve any exact active receipt, lock the procedure FOR KEY SHARE and check deleted_at before note row locks/writes. For an edit/delete, obtain the immutable procedure ID from the owned saved note, never the body. Hold the procedure lock to transaction end. Delete's FOR UPDATE conflicts with this lock: a note that commits first remains readable; a deletion that commits first causes new contextual note work to fail 409 resource_read_only. Exact prior note receipts may still replay before terminal guards. Delete never locks/updates note rows, avoiding an inverse lock order. General/tooth/other-resource notes keep their existing policy.
 
-Deleting a finding does not delete patient/tooth-scoped clinical notes. They are not owned exclusively by that finding. Deleting a procedure does not cascade-delete its linked notes; retain the procedure tombstone so links do not dangle. Current patient-level notes remain readable with `Procedimiento eliminado` context, but no new note may bind to a deleted procedure and its contextual editor is read-only. Current unbound/other-resource notes keep their existing edit/delete policy.
+## Schema and read changes
 
-Activity adds a deletion action/link without clinical note content in its titles/URLs. Exact receipt/history links remain reachable. Auth and patient ownership do not change. Logs never contain patient identifiers, notes or command snapshots.
+Add deleted_at TIMESTAMPTZ and deleted_by_user_id UUID REFERENCES users(id) to findings/procedures, both null or both non-null. Add deleted to condition and procedure revision action constraints and to the condition revision>1 integrity check. Condition deletion revisions keep legacy operation_id/correction_reason/command_snapshot/replacement fields null, so ck_condition_correction_metadata remains unchanged. The active receipt lives only in patient_clinical_commands. Procedure deletion reason is null. Extend current/revision DTO unions and snapshot whitelists with the paired nullable metadata. Do not remove old enum values or rewrite old snapshots; missing deletion keys mean null.
 
-## Retire recording-error creation safely
+Change the active condition unique predicate and duplicate checks to status='active' AND deleted_at IS NULL. List endpoints, including status=all, exclude tombstones. Exact owned GET returns a read-only tombstone. Prevent edit/resolve/new contextual writes on a tombstone. Old create replay must never repaint one as current; a new same-key record gets a new UUID. Keep all related notes/members/revisions. Procedure notes show Procedimiento eliminado and no contextual write controls. Activity shows one deleted event without note content in titles/URLs.
 
-1. Expand readers to understand nullable deletion markers and deletion revisions before enabling new writes.
-2. Add deletion commands and replace active UI removal controls/after-create undo with the confirmed Eliminar journey.
-3. Current correction endpoints reject **new** operations with HTTP 410 correction_workflow_retired. First resolve authorized exact committed receipts, which still replay unchanged; changed replay remains 409. Preserve legacy correction/replacement reads and exact receipt reconciliation.
-4. Remove active new-use correction/replacement wizard and error-based undo callers after replacement journey tests pass. Do not remove historical enum values, SQL rows or DTO fields.
+The history inclusion/count contract is [history-read-contract.md](history-read-contract.md). Historical queries select deletion state from eligible snapshots, never current-row flags. A deletion-aware reader/guard version is the rollback floor once deletion writes exist; do not run destructive down migrations or roll back to a binary that ignores tombstones. No second snapshot store, generic event bus or compatibility bridge is added.
 
-This is an intentional behavior change for active clients; document it as such. A new deployed writer cannot be rolled back to an old binary that ignores deleted_at: that binary could resurrect tombstones visually or in duplicate checks. Retain a compatible read/guard release as the rollback floor, or stop writes and ship a forward fix. Do not run destructive down migrations or claim arbitrary old-version rollback is safe.
+## Required proof
 
-## Required contract proofs
-
-- Active Caries with saved M/O opens the exact edit modal and exposes Eliminar.
-- Cancellation and Escape perform zero writes and retain dirty local note/surfaces.
-- Confirmation creates one deletion revision/receipt and removes only that UUID's marks/rows/count contribution; another record on the tooth remains.
-- Two identical retries/concurrent confirmations yield one deletion; incompatible replay rolls back.
-- Delete versus edit/resolve and stale/already-deleted responses preserve current data and local recovery.
-- Response loss and confirmed-delete/read failure preserve receipt and use the correct retry method.
-- Before/after historical views, exact links, Activity, related notes and same-key new UUID remain truthful after reload.
-- Foreign access, plan-linked/performed evidence, unsaved modal and History cannot invoke the command.
-- Legacy entered_in_error data is unchanged; no new deletion is labelled or persisted as entered_in_error/corrected.
-- Source visual proof validates only editor/delete-confirm/cancel interaction. Target behavior above requires future fail-first, real-DB and browser evidence; no deletion was executed in this audit.
+Tasks 1.5/3.6 cover atomicity, error precedence, active-table replay collisions, retired correction 410 for prior/new payloads, row races, protected-plan invariants, linked-note locking, exact DTO/action constraints, old-create non-resurrection and unchanged unrelated data. Tasks 1.6/3.7/3.8 cover dirty cancellation, exact Caries/bridge deletion, current/history reload, focus and zero active error-removal callers. These are future implementation gates, not executed proofs in this document.

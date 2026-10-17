@@ -3,17 +3,17 @@
 
 ### Requirement: R1 Explicit error correction distinct from resolution
 **Reason**: The user replaced new recording-error removal/correction with explicit deletion, not entered_in_error.
-**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement evidence and exact committed receipt replay; reject new legacy correction operations with 410.
+**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement read evidence; all legacy correction POST operations return owned 410 without replay under X6 demo cutover.
 
 
 ### Requirement: R2 Atomic correction and protected ownership
 **Reason**: The user replaced new recording-error removal/correction with explicit deletion, not entered_in_error.
-**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement evidence and exact committed receipt replay; reject new legacy correction operations with 410.
+**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement read evidence; all legacy correction POST operations return owned 410 without replay under X6 demo cutover.
 
 
 ### Requirement: R3 Revision and correction retry identity
 **Reason**: The user replaced new recording-error removal/correction with explicit deletion, not entered_in_error.
-**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement evidence and exact committed receipt replay; reject new legacy correction operations with 410.
+**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement read evidence; all legacy correction POST operations return owned 410 without replay under X6 demo cutover.
 
 
 ## MODIFIED Requirements
@@ -67,11 +67,11 @@ The UI SHALL preserve base/local/current snapshots after409, block saving while 
 
 #### Scenario: Deleted or legacy terminal resource
 - **WHEN** the current source is deleted or entered_in_error
-- **THEN** new writes are unavailable, historical evidence remains reachable and any exact already committed operation can reconcile its original receipt before terminal rejection.
+- **THEN** new writes are unavailable, historical evidence remains reachable and an exact already committed active command can reconcile its original receipt before terminal rejection; retired correction POST calls always follow X6.
 
 
 ### Requirement: R9 Safe URL and draft continuity
-Ficha view changes SHALL persist existing tab=clinical, clinical=diagnosis|history|evolutions safe at date/dentition and focused condition UUID regardless of preexisting query parameters. Navigation SHALL preserve supported unrelated safe parameters and existing dirty guards. Clinical text or patient identifiers SHALL NOT enter URL/storage.
+Ficha view changes SHALL persist existing tab=clinical, clinical=diagnosis|history|evolutions with safe at date/dentition and focused condition UUID regardless of preexisting query parameters. Navigation SHALL preserve supported unrelated safe parameters and existing dirty guards. Clinical text or patient identifiers SHALL NOT enter URL/storage.
 
 #### Scenario: Bare ficha to diagnosis and reload
 - **WHEN** a bare ficha opens Clínica/Diagnóstico and a saved record, then reloads

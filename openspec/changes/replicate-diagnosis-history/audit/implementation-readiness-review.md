@@ -1,3 +1,5 @@
+> Historical review of the previous plan (78/100). Superseded after the user confirmed demo-only dental data by [gap-closure.md](gap-closure.md). Its compatibility recommendations are not the current contract.
+
 # Independent implementation-readiness review — 2026-10-17
 
 ## Verdict

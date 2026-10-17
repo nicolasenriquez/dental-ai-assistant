@@ -11,7 +11,7 @@ Scope: Diagnosis and History, including odontogram, saved-record editors, deleti
 | High | Source History opens an editor with enabled Save/Delete. | H4 strictly forbids commands/composers in History; future browser mutation trap required. Do not copy this defect. |
 | High | Source selected Oct 3 while State at displayed 10/2/2026. | H2 requires one America/Santiago date interpretation across labels and cutoff, including DST. |
 | High | A dirty modal could save edited surfaces before deleting, or cancel could lose draft. | Delete saved revision only; explicit unsaved-edit message, cancel preserves draft, no autosave. |
-| High | Old clients/binaries could recreate error-removal or expose deleted records. | X6 retires new legacy operations with 410, preserves exact committed receipts; deletion-aware rollback floor required. |
+| High | Old clients/binaries could recreate error-removal or expose deleted records. | X6 now retires every owned correction POST with 410 without replay under the confirmed demo cutover; active delete receipts retain replay and deletion-aware rollback remains required. |
 | Medium | Source Escape closed the surface picker and disarmed its tool. Nested propagation could discard unrelated state. | Top overlay consumes Escape; nested cancellation returns to preserved parent with one active trap. |
 | Medium | Reference modal reported no aria-modal; visual presence alone does not prove accessible modality. | Target requires semantic dialog, focus ownership, keyboard and screen-reader verification. |
 | Medium | Missing initial revisions and later commits can produce deceptively complete historical pages. | Partial coverage, coverage-aware epochs, explicit stale refresh and no cross-epoch assembly. |
@@ -41,3 +41,5 @@ The target runtime on ports 8000/8001 was unavailable during this audit. No targ
 Every target acceptance case below remains planned until implementation and scoped synthetic-data verification. OpenSpec validation certifies artifact structure, not working UI. Do not mark future tasks complete based on these reference screenshots.
 
 See [acceptance matrix](acceptance-matrix.md), [deletion contract](../deletion-design.md), [tasks](../tasks.md) and [readiness](../readiness.md).
+
+The later [five-gap closure](gap-closure.md) and [history read contract](../history-read-contract.md) record the current design. Reference observations above remain historical visual evidence.

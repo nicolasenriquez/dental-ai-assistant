@@ -15,7 +15,7 @@ Non-goals are the exclusions in proposal.md. In particular, procedure categories
 | Owner | Existing or proposed interface | Responsibility |
 |---|---|---|
 | PatientDetail | existing route/query and transition guard | Clinical navigation, patient identity and existing deep links. |
-| PatientDiagnosis / useDentalWorkspace | existing intent/command interface | Current reads, tools, frozen create/edit/delete operations and conflicts; legacy correction receipts remain recoverable. |
+| PatientDiagnosis / useDentalWorkspace | existing intent/command interface | Current reads, tools, frozen create/edit/delete operations and conflicts; legacy correction revisions remain readable; retired correction POST calls return 410. |
 | PatientOdontogram + presentation registry | existing anatomy/record renderer | Shared FDI, symbols, semantics, previews and read-only inspection. |
 | PatientDentalHistory (new) | patientId, parsed date/dentition, inspection target | Historical composition; no mutable workspace hook. |
 | usePatientDentalHistory (new) | typed read methods and selection state | Read lifecycle, cancellation, pagination, coverage and stale-response rejection. |
@@ -40,7 +40,7 @@ Canonical links:
 /patients/:id?tab=clinical&clinical=history&at=YYYY-MM-DD&dentition=permanent
 ```
 
-An absent `at` means current historical read, labelled "Estado actual". A supplied local date means end-of-day knowledge in America/Santiago, even when it is today. Keep the distinction visible. Unknown dates/future dates/invalid dentition produce a recoverable validation state rather than silently showing current records. Do not interpret incumbent `history=1` plan-evidence links as this new mode.
+An absent `at` means current historical read, labelled "Estado actual". A supplied local date means end-of-day knowledge in America/Santiago, even when it is today. Keep the distinction visible. Malformed or nonexistent dates/future dates/invalid dentition produce a recoverable validation state rather than silently showing current records. Do not interpret incumbent `history=1` plan-evidence links as this new mode.
 
 Retain existing `condition`, `treatment`, `dental_note`, evolution paths and legacy plans links. Switching modes uses the incumbent guard before unmounting dirty editors/composers. A frozen uncertain write is reconciled before the mutable feature is left. Ephemeral armed tools are cleared only after an allowed transition. Browser back/forward, refresh and new-tab arrival must agree with visible mode.
 
@@ -73,12 +73,13 @@ Paths below are relative to the existing `/api` mount. New route file `routes/pa
 
 | Method/path | Query | Result |
 |---|---|---|
-| GET `/patients/{patient_id}/dental-history` | dentition (required), epoch?, cursor?, limit=50 (1..100) | Owned condition/procedure audit events, descending `(changed_at, kind, event_id)`, grouped by clinical date in the client. |
+| GET `/patients/{patient_id}/dental-history` | dentition (required), day? (YYYY-MM-DD), epoch?, cursor?, limit=50 (1..100) | Owned condition/procedure/deletion events, optionally filtered to one clinical day, descending `(changed_at, kind, event_id)`, grouped by clinical date in the client. |
 | GET `/patients/{patient_id}/dental-history/snapshot` | dentition (required), at? (YYYY-MM-DD), epoch?, cursor?, limit=100 (1..100) | Paginated full record snapshots as of date/current state, counts, coverage and the matching dataset epoch. |
 
-History response:
+History response (full schema and cursor binding in [history-read-contract.md](history-read-contract.md)):
 
 ```text
+selection: day|null, timezone, start_inclusive|null, cutoff_exclusive|null
 items[]: event_id, resource_kind(condition|procedure), resource_id,
          revision, action, changed_at(UTC), clinical_date(YYYY-MM-DD),
          actor(user_id, display_name|null), before|null, after
@@ -92,16 +93,16 @@ selection: at|null, timezone, cutoff_exclusive|null
 items[]: resource_kind, resource_id, revision, changed_at, snapshot, chart_eligible
 next_cursor|null, epoch, read_at
 counts: records, findings, procedures, charted_records, affected_teeth, affected_arches, deleted_records
-coverage: complete|partial, earliest_recorded_at|null, warnings[]
+coverage: {state:complete|partial, earliest_recorded_at|null, warnings[]}
 ```
 
-Record/finding/procedure counts include non-deleted reconstructed snapshots in the complete selected dentition/date, not just the first page. Deleted snapshots are audit-only, counted separately in deleted_records and never chart eligible. `charted_records` and affected-tooth/arch counts include only chart-eligible snapshots. Active findings and existing/performed procedures are chart eligible; historical planned evidence is additionally rendered in History with its existing planned mark. Resolved findings and cancelled/entered-in-error procedures remain in the record/audit list, not as active anatomical marks. This History adapter does not change the incumbent daily-Diagnosis filter. Event total counts revisions; record total counts distinct kind/resource identities. A bridge contributes one procedure and each of its unique affected teeth to the eligible tooth total. Whole-arch procedures count in affected_arches, not as tooth zero. Audit-list, record and chart counts have different labels.
+Record/finding/procedure counts include non-deleted reconstructed snapshots in the complete selected dentition/date, not just the first page. Deleted snapshots are excluded from snapshot items, counted separately in deleted_records and returned only by event/exact revision reads. `charted_records` and affected-tooth/arch counts include only chart-eligible snapshots. Active findings and existing/planned/performed procedures are chart eligible in History, including the retained planned mark; all contribute to charted_records and affected-scope totals. Resolved findings and cancelled/entered-in-error procedures remain in the record/audit list, not as active anatomical marks. This History adapter does not change the incumbent daily-Diagnosis filter. Event total counts revisions; record total counts distinct kind/resource identities. A bridge contributes one procedure and each of its unique affected teeth to the eligible tooth total. Whole-arch procedures count in affected_arches, not as tooth zero. Audit-list, record and chart counts have different labels.
 
 Use `Date` validation for day syntax and PostgreSQL timezone-aware cutoffs in parameterized repository queries. The domain owns `HISTORY_TIMEZONE = "America/Santiago"`; no new environment variable is needed. Retain TIMESTAMPTZ and UTC transport. Format all new History labels from the server's clinical date using explicit zone-aware parts; never pass a bare ISO date into `new Date()` for local display. Extend `clinicalDate.ts` with scoped helpers, preserving existing callers' behavior.
 
 #### Read consistency and pagination
 
-Each request executes in a read-only repeatable-read transaction, including parent ownership check, coverage, epoch, data and totals. Build a deterministic epoch from ordered revision IDs plus coverage-relevant missing-initial-revision markers for this owner/patient/dentition; do not use wall-clock max timestamp as the only identity. Pagination binds owner, patient, dentition, date/current selection, ordering and epoch in a validated versioned cursor. The epoch is consistency metadata, not authorization.
+Each request executes in a read-only repeatable-read transaction, including parent ownership check, coverage, epoch, data and totals. Build a deterministic epoch from ordered revision IDs plus coverage-relevant missing-initial-revision markers for this owner/patient/dentition; do not use wall-clock max timestamp as the only identity. Pagination binds owner, patient, dentition, reader, day/at selection, ordering and epoch in the exact versioned cursor defined in history-read-contract.md. The epoch is consistency metadata, not authorization.
 
 Later pages and timeline/snapshot cross-reads include the epoch. If the visible revision set changed, return `409 history_changed`, retain the prior display with an explicit stale notice, and offer "Actualizar historial". Restart from the same selected day on explicit refresh. Never append a page from a different epoch or replace a past selection with current records to recover. This also catches an older-timestamp transaction that committed after a previous read. New-date selection can adopt a new epoch only as one complete read cycle.
 
@@ -144,7 +145,7 @@ History timeline: group loaded events by `clinical_date` newest first. Each date
 
 History inspection: reuse tooth anatomy and render-only popover content. Number, anatomy, historical state, surfaces, note from that revision, author/date and link to exact revision remain available. Omit Registrar, Editar, Guardar, Corregir, Deshacer, note composers and write callbacks. Tool intent is always null and preview pulses cannot imply application. The chart remains keyboard-inspectable; `disabled` must not disable read inspection. Use a capability prop/read-model adapter when needed rather than mounting `useDentalWorkspace`.
 
-Changes for day D show the actual created/edited/resolved/corrected actions on that date and affected resources. Do not label every recorded finding as a completed treatment. Audit list paginates independently of chart completeness and supports exact resource/revision inspection without changing as-of state.
+Changes for day D use the same event GET with day=D and an independent cursor/total; they include actual created/edited/resolved/corrected/deleted actions and affected resources even when D lies outside loaded timeline pages. Do not label every recorded finding as a completed treatment. Audit list paginates independently of chart completeness and supports exact resource/revision inspection without changing as-of state.
 
 ### 6. Modal and notes contract
 
@@ -216,6 +217,10 @@ Untouched behavior: auth, LLM, RAG, approvals, Drive, signup/rate limit, direct 
 
 ## Rollout and rollback
 
-Expand deletion-aware schema/read guards first, then enable delete commands, historical read endpoints and History; integrate Diagnosis summary and deletion UI before final overlay verification. Deletion markers/actions and active-key predicates expand first; new correction mutations retire after replacement journeys and legacy receipt tests pass. Rollback must retain a deletion-aware reader/guard floor; old binaries ignoring deleted_at are unsafe. Leave schema and original evidence intact. New History is additive; current diagnosis retains create/edit/resolve paths and adds explicit delete commands. Operational deployment and spec archival require their own later workflow.
+Expand deletion-aware schema/read guards first, then enable delete commands, historical read endpoints and History; integrate Diagnosis summary and deletion UI before final overlay verification. Deletion markers/actions and active-key predicates expand first; all correction POST operations retire before new delete writers; UI retirement follows replacement UI proof. Rollback must retain a deletion-aware reader/guard floor; old binaries ignoring deleted_at are unsafe. Leave schema and original evidence intact. New History is additive; current diagnosis retains create/edit/resolve paths and adds explicit delete commands. Use the coordinated demo cutover in deletion-design.md; operational execution and spec archival require their own later workflow.
 
 Escape is consumed by the topmost overlay: cancelling a nested confirmation must not also close its parent editor, discard its draft or disarm an underlying tool. Verify this explicitly rather than copying the reference event propagation.
+
+## Audit closure authority
+
+The user-confirmed demo cutover in deletion-design.md replaces the prior legacy correction-replay plan. Its exact hash, error precedence, no-plan-lock rejection and procedure-note locks govern new deletion writes. history-read-contract.md defines day events, response schemas, snapshot inclusion/counts, cursors and the volume gate. The normative deltas and tasks have been updated to match these decisions. Older audit reports remain dated evidence of the prior plan; audit/gap-closure.md is the current closure record.

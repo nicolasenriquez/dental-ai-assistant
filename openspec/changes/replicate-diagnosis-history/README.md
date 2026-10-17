@@ -2,7 +2,7 @@
 
 Plan an integrated Spanish Diagnosis and read-only temporal History workspace using the existing Dental AI Assistant chart, commands, notes and design system.
 
-Planning status: Implementation Ready after artifact validation recorded in `readiness.md`. Implementation is deferred.
+Planning status: Implementation Ready (95/100) after the five-gap closure and artifact validation recorded in [readiness.md](readiness.md). Implementation is deferred.
 
 Read in order:
 
@@ -18,3 +18,6 @@ The authored delta files under `specs/` are the normative change requirements. T
 7. [Final audit](audit/README.md): fresh reference evidence, critique and verification limits.
 8. [Acceptance matrix](audit/acceptance-matrix.md): required future target proofs.
 9. [Recovered reference](reference/README.md): original investigation text and unavailable-evidence notices.
+
+10. [Five-gap closure](audit/gap-closure.md): current decision record and revised readiness score.
+11. [Exact History reads](history-read-contract.md): selected-day API, state/count table, cursor schema and synthetic examples.

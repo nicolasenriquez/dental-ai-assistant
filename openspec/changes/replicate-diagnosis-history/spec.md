@@ -37,7 +37,7 @@ Diagnosis SHALL retain current anatomical charts, 32 permanent/20 primary FDI pi
 - **THEN** existing direct-apply/Confirmar semantics and retry-safe command identities remain, zero selected modal surfaces disable Confirmar and a saved-record edit still requires Guardar.
 
 ### Requirement: D3 Contextual notes through one owner
-Diagnosis SHALL expose contextual notes from grouped records through the existing note hook/composer and rail/Sheet. Procedure notes SHALL bind to the actual procedure; finding entry SHALL be labelled as patient/optional-tooth context rather than a fabricated per-condition note collection. Counts, templates, revisions and deletion semantics SHALL follow the existing note APIs. No new attachment or recall affordance SHALL be added.
+Diagnosis SHALL expose contextual notes from grouped records through the existing note hook/composer and rail/Sheet. Procedure notes SHALL bind to the actual procedure; finding entry SHALL be labelled as patient/optional-tooth context rather than a fabricated per-condition note collection. Counts, templates and revisions SHALL follow the existing note APIs; procedure-context writes SHALL obey deletion-design.md parent-lock and tombstone guards while general/tooth note policy remains unchanged. No new attachment or recall affordance SHALL be added.
 
 #### Scenario: Two findings on one tooth
 - **WHEN** either finding opens tooth-context notes
@@ -103,7 +103,7 @@ The workspace SHALL expose coherent small Interfaces for dental interaction, pre
 - **THEN** they resolve one clinical/visual registry and preserved historical aliases without contradictory labels, scope or marks.
 
 ### Requirement: W9 Verified retirement without historical loss
-The implementation SHALL perform the expand→migrate→contract cleanup in this change design and deletion-design after all replacement consumers pass the integrated journey. Superseded lower create-editor, forced focus, geometry and parallel palette/rail paths SHALL have zero active consumers and be removed. Historical conditions/general notes, IDs, revisions, legacy correction receipt replay/revision reads, new deletion retry and accessibility SHALL remain supported. This change SHALL NOT drop historical schema or depend on destructive migration rollback.
+The implementation SHALL perform the expand→migrate→contract cleanup in this change design and deletion-design after all replacement consumers pass the integrated journey. Superseded lower create-editor, forced focus, geometry and parallel palette/rail paths SHALL have zero active consumers and be removed. Historical conditions/general notes, IDs, revisions, legacy correction revision reads, new deletion retry and accessibility SHALL remain supported. This change SHALL NOT drop historical schema or depend on destructive migration rollback.
 
 #### Scenario: Retire old create interaction
 - **WHEN** integrated replacement tests pass and the removal slice is verified
@@ -124,17 +124,17 @@ The implementation SHALL perform the expand→migrate→contract cleanup in this
 
 ### Requirement: R1 Explicit error correction distinct from resolution
 **Reason**: The user replaced new recording-error removal/correction with explicit deletion, not entered_in_error.
-**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement evidence and exact committed receipt replay; reject new legacy correction operations with 410.
+**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement read evidence; all legacy correction POST operations return owned 410 without replay under X6 demo cutover.
 
 
 ### Requirement: R2 Atomic correction and protected ownership
 **Reason**: The user replaced new recording-error removal/correction with explicit deletion, not entered_in_error.
-**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement evidence and exact committed receipt replay; reject new legacy correction operations with 410.
+**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement read evidence; all legacy correction POST operations return owned 410 without replay under X6 demo cutover.
 
 
 ### Requirement: R3 Revision and correction retry identity
 **Reason**: The user replaced new recording-error removal/correction with explicit deletion, not entered_in_error.
-**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement evidence and exact committed receipt replay; reject new legacy correction operations with 410.
+**Migration**: Use patient-dental-record-deletion X1-X6. Preserve stored correction/replacement read evidence; all legacy correction POST operations return owned 410 without replay under X6 demo cutover.
 
 
 ## MODIFIED Requirements
@@ -188,11 +188,11 @@ The UI SHALL preserve base/local/current snapshots after409, block saving while 
 
 #### Scenario: Deleted or legacy terminal resource
 - **WHEN** the current source is deleted or entered_in_error
-- **THEN** new writes are unavailable, historical evidence remains reachable and any exact already committed operation can reconcile its original receipt before terminal rejection.
+- **THEN** new writes are unavailable, historical evidence remains reachable and an exact already committed active command can reconcile its original receipt before terminal rejection; retired correction POST calls always follow X6.
 
 
 ### Requirement: R9 Safe URL and draft continuity
-Ficha view changes SHALL persist existing tab=clinical, clinical=diagnosis|history|evolutions safe at date/dentition and focused condition UUID regardless of preexisting query parameters. Navigation SHALL preserve supported unrelated safe parameters and existing dirty guards. Clinical text or patient identifiers SHALL NOT enter URL/storage.
+Ficha view changes SHALL persist existing tab=clinical, clinical=diagnosis|history|evolutions with safe at date/dentition and focused condition UUID regardless of preexisting query parameters. Navigation SHALL preserve supported unrelated safe parameters and existing dirty guards. Clinical text or patient identifiers SHALL NOT enter URL/storage.
 
 #### Scenario: Bare ficha to diagnosis and reload
 - **WHEN** a bare ficha opens Clínica/Diagnóstico and a saved record, then reloads
@@ -264,7 +264,7 @@ The system SHALL define a selected YYYY-MM-DD as recorded knowledge before the n
 - **THEN** the system distinguishes an empty history from partial coverage, exposes only supported historical fields and does not infer missing past fields from current rows.
 
 ### Requirement: H3 Coherent bounded historical reads
-History and snapshot pages SHALL use bounded keyset pagination and a dataset epoch bound to owner/patient/dentition the revision set and coverage-relevant missing-initial-revision/orphan markers. Each response SHALL select events/snapshots/totals/coverage in one read-only repeatable-read transaction. A changed epoch SHALL produce 409 history_changed; no client SHALL merge pages from different epochs or patients.
+History and snapshot pages SHALL use bounded keyset pagination and a dataset epoch bound to owner/patient/dentition, the revision set and coverage-relevant missing-initial-revision/orphan markers. Each response SHALL select events/snapshots/totals/coverage in one read-only repeatable-read transaction. A changed epoch SHALL produce 409 history_changed; no client SHALL merge pages from different epochs or patients.
 
 #### Scenario: New commit between pages
 - **WHEN** another clinical revision commits between the first and subsequent read, including one with an earlier changed_at
@@ -294,7 +294,7 @@ The History component SHALL use shared anatomical/presentation modules through a
 - **THEN** at is removed, the committed current read is refreshed and History remains read-only without changing to Diagnosis.
 
 ### Requirement: H5 Navigable timeline and truthful counts
-History SHALL expose selectable recorded clinical days, an explicit current-state position, selected-day changes and a paginated audit list. Loaded date ranges SHALL be distinguished from complete history. Snapshot counts SHALL count unique kind/resource records; affected-tooth and affected-arch counts SHALL use distinct members. Deleted records SHALL contribute only to explicit deleted_records/audit totals, never current chart totals. Event totals SHALL count revisions and SHALL NOT be labelled as record totals.
+History SHALL expose selectable recorded clinical days, an explicit current-state position, selected-day changes and a paginated audit list. Loaded date ranges SHALL be distinguished from complete history. The event GET SHALL support an optional day filter with independent selected-day cursor/total and the same dataset epoch; exact dates SHALL not depend on loaded timeline pages. Snapshot items/counts SHALL follow history-read-contract.md: unique non-deleted kind/resource records; planned/existing/performed procedure marks count as chart eligible; affected-tooth/arch counts use distinct drawable scope; tombstones are excluded from snapshot items and counted only in deleted_records/audit. Deleted records SHALL contribute only to explicit deleted_records/audit totals, never current chart totals. Event totals SHALL count revisions and SHALL NOT be labelled as record totals.
 
 #### Scenario: Shared bridge identity
 - **WHEN** a reconstructed bridge spans three teeth
@@ -303,6 +303,14 @@ History SHALL expose selectable recorded clinical days, an explicit current-stat
 #### Scenario: Keyboard navigation and unloaded date
 - **WHEN** keyboard controls traverse the loaded timeline or an exact date link is outside the loaded event window
 - **THEN** the selected label is explicit, Home/End/Arrow behavior follows the loaded discrete set, older dates remain loadable and the exact requested snapshot loads independently of event-page position.
+
+#### Scenario: Selected day outside loaded timeline
+- **WHEN** the selected at date is outside loaded unfiltered event pages or contains more events than one page
+- **THEN** day=at directly returns only that day with an independent total/cursor, zero events is distinct from failed/unloaded reads, and cursor reuse across day/at/reader bindings fails 422.
+
+#### Scenario: Planned marks and tombstones
+- **WHEN** a selected snapshot contains a planned bridge and a deleted finding
+- **THEN** the bridge contributes one record and charted record plus its distinct member teeth; the tombstone is absent from items and chart, contributes one deleted_records, and remains inspectable through its event/revision.
 
 #### Scenario: Date with corrections
 - **WHEN** a selected day contains created/edited/resolved/corrected/deleted revisions
@@ -344,7 +352,7 @@ Delete SHALL identify the persisted resource, saved surfaces and complete multi-
 - **THEN** the confirmation names all members, the command targets the one procedure and successful deletion removes its marks across members while retaining unrelated records.
 
 ### Requirement: X3 Atomic owner-scoped idempotent deletion
-Deletion SHALL require operation_id and expected_revision, run owner/parent checks, resource lock, tombstone, deleted revision and durable receipt in one transaction. Exact replay SHALL return the same HTTP 200 receipt before terminal rejection; changed replay SHALL fail 409. New deletion of a stale/deleted/ineligible resource SHALL not overwrite newer data. Identity and actor authority SHALL come from the session and path.
+Deletion SHALL require operation_id and expected_revision, run owner/parent checks, resource lock, tombstone, deleted revision and durable receipt in one transaction. Active-command replay SHALL use the existing owner/operation namespace, canonical version-1 delete hash and operation advisory lock defined in deletion-design.md. Exact replay SHALL return the same HTTP 200 receipt before terminal rejection; changed replay SHALL fail 409. Retired condition-correction revision receipts SHALL not be imported or consulted. New deletion of a stale/deleted/ineligible resource SHALL not overwrite newer data. Identity and actor authority SHALL come from the session and path.
 
 #### Scenario: Lost response and repeated confirmation
 - **WHEN** identical concurrent requests or a retry after response loss use the same operation/body
@@ -378,16 +386,24 @@ Deletion SHALL retain embedded notes, linked notes, members, revisions and legac
 - **WHEN** existing entered_in_error/replacement data is read or the deletion writer must be rolled back
 - **THEN** legacy history is not relabelled/backfilled and the rollback floor understands deleted_at before any old writer can resume.
 
+#### Scenario: Protected procedures and note race
+- **WHEN** deletion races a protected procedure transition, an unrelated add-item command or a procedure-context note write
+- **THEN** linked/ancestral plan work is rejected without acquiring a plan lock, add-item creates a different planned UUID, and procedure FOR UPDATE versus note-context FOR KEY SHARE serializes deletion and note eligibility without cascading note loss.
+
 ### Requirement: X6 Retire new recording-error mutations
-The system SHALL replace active recording-error/removal and replacement-wizard callers with explicit deletion, including after-create undo. Legacy correction endpoints SHALL return 410 correction_workflow_retired for new operations, retain authorized exact committed receipt replay and reject changed replay without side effects. Existing historical corrections SHALL remain readable.
+The system SHALL replace active recording-error/removal and replacement-wizard callers with explicit deletion, including after-create undo. Under the user-confirmed demo cutover, both legacy correction POST endpoints SHALL check authentication/path/ownership then return 410 correction_workflow_retired without body parsing, receipt replay or writes. Historical correction records/revisions SHALL remain readable and unmodified. The implementation SHALL not reset the running database or build a cross-store compatibility bridge.
 
-#### Scenario: Old client starts a new correction
-- **WHEN** an old client submits a new correction operation after retirement
-- **THEN** it receives 410 with no new corrected/entered_in_error row/revision, and the command is not silently translated to deletion.
+#### Scenario: Old correction call with any operation
+- **WHEN** an authorized owned correction endpoint is called with a new, previously committed or mismatched operation payload
+- **THEN** it returns 410 without a new revision or receipt, no prior correction receipt is replayed and no request is silently translated to deletion.
+- **WHEN** the parent/resource is foreign or missing
+- **THEN** 404 discloses no receipt or resource metadata.
 
-#### Scenario: Already committed legacy receipt
-- **WHEN** an authorized identical legacy operation whose response was lost is replayed
-- **THEN** its original receipt is returned without another write; a changed payload for that operation returns 409.
+#### Scenario: Legacy namespace and demo cutover
+- **WHEN** an old condition-correction UUID exists only in the retired revision namespace
+- **THEN** new deletion identity is governed solely by patient_clinical_commands; reuse of a UUID already present in that active table conflicts unless its delete hash matches exactly.
+- **WHEN** the demo runtime is updated
+- **THEN** old writers stop, the complete deletion-aware application is deployed and clients reload; no production continuity, data reset or historical relabelling is inferred.
 
 # Capability: patient-dental-treatments
 

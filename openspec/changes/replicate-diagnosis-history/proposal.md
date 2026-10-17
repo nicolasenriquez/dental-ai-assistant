@@ -32,8 +32,8 @@ The reference investigation documents a useful Diagnosis/History workflow, but o
 
 ### Modified Capabilities
 
-- `dental-diagnosis-workspace`: temporal navigation, summary, notes and motion; replace error-based undo with confirmed deletion and retain legacy audit compatibility.
-- `odontogram-human-workflow`: retire new recording-error commands; support deleted/current reads, conflict recovery and historical correction receipt replay.
+- `dental-diagnosis-workspace`: temporal navigation, summary, notes and motion; replace error-based undo with confirmed deletion and retain legacy read evidence.
+- `odontogram-human-workflow`: retire all recording-error commands; support deleted/current reads, conflict recovery and historical correction revision reads; correction mutations return 410.
 - `patient-dental-treatments`: explicit deletion for eligible observed procedures with related notes and performed/plan evidence preserved.
 
 ## Out Of Scope
@@ -45,7 +45,7 @@ The reference investigation documents a useful Diagnosis/History workflow, but o
 
 ## Impact
 
-Extend PatientDetail/Diagnosis, add historical reads and explicit delete commands, typed clients, deletion markers and revision actions. Update current reads, identity uniqueness, Activity, linked-note access and write guards. Retire new correction mutations with 410 while preserving exact committed receipt replay and historical IDs. See deletion-design.md for schema, concurrency, UI and rollback implications.
+Extend PatientDetail/Diagnosis, add historical reads and explicit delete commands, typed clients, deletion markers and revision actions. Update current reads, identity uniqueness, Activity, linked-note access and write guards. Retire all correction POST operations with owned 410 stubs, including old receipt replay; retain historical IDs/revisions and existing active-command receipt formats. The user confirmed dental demo data, so no cross-store correction compatibility bridge or reset is required. See deletion-design.md for schema, concurrency, UI and rollback implications.
 
 ## Ownership and Test Seam
 
@@ -70,7 +70,7 @@ Contract tests precede each changed behavior. Mocked browser checks prove UI onl
 
 ## Execution Order Decision
 
-- Required: yes, six implementation slices with shared routing, chart and modal dependencies.
+- Required: yes, six implementation slices with shared routing, chart and modal dependencies. Backend correction retirement precedes deletion commands; deletion UI proof waits for complete History UI.
 - Deletion-compatible persistence precedes history projection and deletion UI. History reads precede History UI; Diagnosis summary is independent of those reads. Overlay integration follows both readers and the deletion journey.
 
 ## Notes
@@ -78,6 +78,16 @@ Contract tests precede each changed behavior. Mocked browser checks prove UI onl
 - Input: self-contained recovered source text in reference/ and fresh audit/evidence/ captures. Previous binary screenshots were unavailable; they are not counted as fresh proof.
 - Existing authority: PRODUCT.md, DESIGN.md, patient-workspace brief and current dental specs. This is functional integration, not a literal copy of reference bugs or unsupported product domains.
 - Scope decisions follow existing contracts: retain 12 findings/63 procedure variants rather than reduce to the reference's 72 observed cards; replace new recording-error removal with explicit deletion while retaining legacy audit evidence and retired-plan policies; history is knowledge recorded by a date, not a clinical effective-date assertion.
-- The latest user instruction explicitly changes removal semantics to Eliminar; historical deletion audit is retained without labelling the clinical record an error. No deletion is executed in this documentation audit. Any later request for recalls, attachments, whole-mouth encounter records or plan authoring reopens scope before tasks change.
+- The latest user instruction explicitly changes removal semantics to Eliminar and confirms disposable dental demo records. Retire legacy correction commands without receipt replay; preserve their stored read evidence. No production-client compatibility is required. Historical deletion audit is retained without labelling the clinical record an error. No deletion is executed in this documentation audit. Any later request for recalls, attachments, whole-mouth encounter records or plan authoring reopens scope before tasks change.
 - The active `refine-clinical-assistant-ux` change can touch PatientDetail and shared design files. Reconcile its relevant edits at task 0.2; do not normalize or execute that change here.
 - No tracker issues, implementation SDLC map, external publication or implementation delegation are part of this request.
+
+## Five audit gaps closed
+
+1. Retire correction mutations with one owned 410 response, without cross-store receipt replay or data conversion. New deletes reuse the active command store and its namespace; existing active hashes stay unchanged. Keep the database by default and use fresh isolated scratch fixtures for proof.
+2. Use operation advisory lock then source row lock. Reject plan-associated work without acquiring plan locks; the incumbent add-item command only creates new planned UUIDs. Lock procedure context before note writes so deletion cannot race a note through its terminal guard.
+3. Split backend retirement and UI checks into achievable green gates. The deletion browser slice waits for History UI; the validator checks these semantic dependencies as well as cycles.
+4. Add optional day filtering to the existing event GET, with independent selected-day pagination/counts and epoch binding. No third endpoint or browser scan of unrelated days.
+5. Fix snapshot inclusion, planned marks and count units in history-read-contract.md, with synthetic response/count examples. Tombstones stay out of snapshot items and remain in deletion counts and event history.
+
+Decisions are recorded in deletion-design.md and history-read-contract.md. audit/gap-closure.md maps the prior findings to normative requirements, tasks and future proof. This update changes planning artifacts only.

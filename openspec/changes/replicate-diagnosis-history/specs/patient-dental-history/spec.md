@@ -37,7 +37,7 @@ The system SHALL define a selected YYYY-MM-DD as recorded knowledge before the n
 - **THEN** the system distinguishes an empty history from partial coverage, exposes only supported historical fields and does not infer missing past fields from current rows.
 
 ### Requirement: H3 Coherent bounded historical reads
-History and snapshot pages SHALL use bounded keyset pagination and a dataset epoch bound to owner/patient/dentition the revision set and coverage-relevant missing-initial-revision/orphan markers. Each response SHALL select events/snapshots/totals/coverage in one read-only repeatable-read transaction. A changed epoch SHALL produce 409 history_changed; no client SHALL merge pages from different epochs or patients.
+History and snapshot pages SHALL use bounded keyset pagination and a dataset epoch bound to owner/patient/dentition, the revision set and coverage-relevant missing-initial-revision/orphan markers. Each response SHALL select events/snapshots/totals/coverage in one read-only repeatable-read transaction. A changed epoch SHALL produce 409 history_changed; no client SHALL merge pages from different epochs or patients.
 
 #### Scenario: New commit between pages
 - **WHEN** another clinical revision commits between the first and subsequent read, including one with an earlier changed_at
@@ -67,7 +67,7 @@ The History component SHALL use shared anatomical/presentation modules through a
 - **THEN** at is removed, the committed current read is refreshed and History remains read-only without changing to Diagnosis.
 
 ### Requirement: H5 Navigable timeline and truthful counts
-History SHALL expose selectable recorded clinical days, an explicit current-state position, selected-day changes and a paginated audit list. Loaded date ranges SHALL be distinguished from complete history. Snapshot counts SHALL count unique kind/resource records; affected-tooth and affected-arch counts SHALL use distinct members. Deleted records SHALL contribute only to explicit deleted_records/audit totals, never current chart totals. Event totals SHALL count revisions and SHALL NOT be labelled as record totals.
+History SHALL expose selectable recorded clinical days, an explicit current-state position, selected-day changes and a paginated audit list. Loaded date ranges SHALL be distinguished from complete history. The event GET SHALL support an optional day filter with independent selected-day cursor/total and the same dataset epoch; exact dates SHALL not depend on loaded timeline pages. Snapshot items/counts SHALL follow history-read-contract.md: unique non-deleted kind/resource records; planned/existing/performed procedure marks count as chart eligible; affected-tooth/arch counts use distinct drawable scope; tombstones are excluded from snapshot items and counted only in deleted_records/audit. Deleted records SHALL contribute only to explicit deleted_records/audit totals, never current chart totals. Event totals SHALL count revisions and SHALL NOT be labelled as record totals.
 
 #### Scenario: Shared bridge identity
 - **WHEN** a reconstructed bridge spans three teeth
@@ -76,6 +76,14 @@ History SHALL expose selectable recorded clinical days, an explicit current-stat
 #### Scenario: Keyboard navigation and unloaded date
 - **WHEN** keyboard controls traverse the loaded timeline or an exact date link is outside the loaded event window
 - **THEN** the selected label is explicit, Home/End/Arrow behavior follows the loaded discrete set, older dates remain loadable and the exact requested snapshot loads independently of event-page position.
+
+#### Scenario: Selected day outside loaded timeline
+- **WHEN** the selected at date is outside loaded unfiltered event pages or contains more events than one page
+- **THEN** day=at directly returns only that day with an independent total/cursor, zero events is distinct from failed/unloaded reads, and cursor reuse across day/at/reader bindings fails 422.
+
+#### Scenario: Planned marks and tombstones
+- **WHEN** a selected snapshot contains a planned bridge and a deleted finding
+- **THEN** the bridge contributes one record and charted record plus its distinct member teeth; the tombstone is absent from items and chart, contributes one deleted_records, and remains inspectable through its event/revision.
 
 #### Scenario: Date with corrections
 - **WHEN** a selected day contains created/edited/resolved/corrected/deleted revisions

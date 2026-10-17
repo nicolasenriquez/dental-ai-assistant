@@ -31,7 +31,7 @@ Diagnosis SHALL retain current anatomical charts, 32 permanent/20 primary FDI pi
 - **THEN** existing direct-apply/Confirmar semantics and retry-safe command identities remain, zero selected modal surfaces disable Confirmar and a saved-record edit still requires Guardar.
 
 ### Requirement: D3 Contextual notes through one owner
-Diagnosis SHALL expose contextual notes from grouped records through the existing note hook/composer and rail/Sheet. Procedure notes SHALL bind to the actual procedure; finding entry SHALL be labelled as patient/optional-tooth context rather than a fabricated per-condition note collection. Counts, templates, revisions and deletion semantics SHALL follow the existing note APIs. No new attachment or recall affordance SHALL be added.
+Diagnosis SHALL expose contextual notes from grouped records through the existing note hook/composer and rail/Sheet. Procedure notes SHALL bind to the actual procedure; finding entry SHALL be labelled as patient/optional-tooth context rather than a fabricated per-condition note collection. Counts, templates and revisions SHALL follow the existing note APIs; procedure-context writes SHALL obey deletion-design.md parent-lock and tombstone guards while general/tooth note policy remains unchanged. No new attachment or recall affordance SHALL be added.
 
 #### Scenario: Two findings on one tooth
 - **WHEN** either finding opens tooth-context notes
@@ -97,7 +97,7 @@ The workspace SHALL expose coherent small Interfaces for dental interaction, pre
 - **THEN** they resolve one clinical/visual registry and preserved historical aliases without contradictory labels, scope or marks.
 
 ### Requirement: W9 Verified retirement without historical loss
-The implementation SHALL perform the expand→migrate→contract cleanup in this change design and deletion-design after all replacement consumers pass the integrated journey. Superseded lower create-editor, forced focus, geometry and parallel palette/rail paths SHALL have zero active consumers and be removed. Historical conditions/general notes, IDs, revisions, legacy correction receipt replay/revision reads, new deletion retry and accessibility SHALL remain supported. This change SHALL NOT drop historical schema or depend on destructive migration rollback.
+The implementation SHALL perform the expand→migrate→contract cleanup in this change design and deletion-design after all replacement consumers pass the integrated journey. Superseded lower create-editor, forced focus, geometry and parallel palette/rail paths SHALL have zero active consumers and be removed. Historical conditions/general notes, IDs, revisions, legacy correction revision reads, new deletion retry and accessibility SHALL remain supported. This change SHALL NOT drop historical schema or depend on destructive migration rollback.
 
 #### Scenario: Retire old create interaction
 - **WHEN** integrated replacement tests pass and the removal slice is verified

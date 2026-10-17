@@ -25,7 +25,7 @@ Delete SHALL identify the persisted resource, saved surfaces and complete multi-
 - **THEN** the confirmation names all members, the command targets the one procedure and successful deletion removes its marks across members while retaining unrelated records.
 
 ### Requirement: X3 Atomic owner-scoped idempotent deletion
-Deletion SHALL require operation_id and expected_revision, run owner/parent checks, resource lock, tombstone, deleted revision and durable receipt in one transaction. Exact replay SHALL return the same HTTP 200 receipt before terminal rejection; changed replay SHALL fail 409. New deletion of a stale/deleted/ineligible resource SHALL not overwrite newer data. Identity and actor authority SHALL come from the session and path.
+Deletion SHALL require operation_id and expected_revision, run owner/parent checks, resource lock, tombstone, deleted revision and durable receipt in one transaction. Active-command replay SHALL use the existing owner/operation namespace, canonical version-1 delete hash and operation advisory lock defined in deletion-design.md. Exact replay SHALL return the same HTTP 200 receipt before terminal rejection; changed replay SHALL fail 409. Retired condition-correction revision receipts SHALL not be imported or consulted. New deletion of a stale/deleted/ineligible resource SHALL not overwrite newer data. Identity and actor authority SHALL come from the session and path.
 
 #### Scenario: Lost response and repeated confirmation
 - **WHEN** identical concurrent requests or a retry after response loss use the same operation/body
@@ -59,13 +59,21 @@ Deletion SHALL retain embedded notes, linked notes, members, revisions and legac
 - **WHEN** existing entered_in_error/replacement data is read or the deletion writer must be rolled back
 - **THEN** legacy history is not relabelled/backfilled and the rollback floor understands deleted_at before any old writer can resume.
 
+#### Scenario: Protected procedures and note race
+- **WHEN** deletion races a protected procedure transition, an unrelated add-item command or a procedure-context note write
+- **THEN** linked/ancestral plan work is rejected without acquiring a plan lock, add-item creates a different planned UUID, and procedure FOR UPDATE versus note-context FOR KEY SHARE serializes deletion and note eligibility without cascading note loss.
+
 ### Requirement: X6 Retire new recording-error mutations
-The system SHALL replace active recording-error/removal and replacement-wizard callers with explicit deletion, including after-create undo. Legacy correction endpoints SHALL return 410 correction_workflow_retired for new operations, retain authorized exact committed receipt replay and reject changed replay without side effects. Existing historical corrections SHALL remain readable.
+The system SHALL replace active recording-error/removal and replacement-wizard callers with explicit deletion, including after-create undo. Under the user-confirmed demo cutover, both legacy correction POST endpoints SHALL check authentication/path/ownership then return 410 correction_workflow_retired without body parsing, receipt replay or writes. Historical correction records/revisions SHALL remain readable and unmodified. The implementation SHALL not reset the running database or build a cross-store compatibility bridge.
 
-#### Scenario: Old client starts a new correction
-- **WHEN** an old client submits a new correction operation after retirement
-- **THEN** it receives 410 with no new corrected/entered_in_error row/revision, and the command is not silently translated to deletion.
+#### Scenario: Old correction call with any operation
+- **WHEN** an authorized owned correction endpoint is called with a new, previously committed or mismatched operation payload
+- **THEN** it returns 410 without a new revision or receipt, no prior correction receipt is replayed and no request is silently translated to deletion.
+- **WHEN** the parent/resource is foreign or missing
+- **THEN** 404 discloses no receipt or resource metadata.
 
-#### Scenario: Already committed legacy receipt
-- **WHEN** an authorized identical legacy operation whose response was lost is replayed
-- **THEN** its original receipt is returned without another write; a changed payload for that operation returns 409.
+#### Scenario: Legacy namespace and demo cutover
+- **WHEN** an old condition-correction UUID exists only in the retired revision namespace
+- **THEN** new deletion identity is governed solely by patient_clinical_commands; reuse of a UUID already present in that active table conflicts unless its delete hash matches exactly.
+- **WHEN** the demo runtime is updated
+- **THEN** old writers stop, the complete deletion-aware application is deployed and clients reload; no production continuity, data reset or historical relabelling is inferred.
