@@ -304,23 +304,22 @@ it('describes whole-tooth and optional-empty extents with the shared surface wor
 });
 
 it('marks entered_in_error records with a slash outside the concept geometry', () => {
+  const errorRecord: PatientCondition = {
+    ...record,
+    status: 'entered_in_error',
+    correction: {
+      operation_id: 'op',
+      condition_id: 'c',
+      correction_revision_id: 'rev',
+      reason: 'Incorrecta',
+      replacement_condition_id: null,
+      replacement_revision_id: null,
+    },
+  };
   const { container } = render(
     <PatientOdontogram
       dentition="permanent"
-      conditions={[
-        {
-          ...record,
-          status: 'entered_in_error',
-          correction: {
-            operation_id: 'op',
-            condition_id: 'c',
-            correction_revision_id: 'rev',
-            reason: 'Incorrecta',
-            replacement_condition_id: null,
-            replacement_revision_id: null,
-          },
-        },
-      ]}
+      conditions={[errorRecord]}
       labels={{}}
       catalog={normalizeConditionCatalog({
         version: 1,

@@ -777,3 +777,280 @@ describe('PatientDetail URL continuity (S6)', () => {
     expect(create).not.toHaveBeenCalled();
   });
 });
+
+describe('PatientDetail dental history (H2-H5, D1)', () => {
+  const datedDay = '2026-08-13';
+  const epoch = 'history-epoch-1';
+  const datedSnapshot: api.DentalHistorySnapshotItem = {
+    resource_kind: 'condition',
+    resource_id: '00000000-0000-4000-8000-000000000036',
+    revision: 1,
+    changed_at: '2026-08-13T15:00:00Z',
+    snapshot: {
+      dentition: 'permanent',
+      tooth_fdi: 36,
+      condition_code: 'caries',
+      surfaces: ['M'],
+      note: 'Nota histórica',
+      status: 'active',
+    },
+    chart_eligible: true,
+  };
+  const datedEvent: api.DentalHistoryEvent = {
+    event_id: '00000000-0000-4000-8000-0000000000e1',
+    resource_kind: 'condition',
+    resource_id: datedSnapshot.resource_id,
+    revision: 1,
+    action: 'created',
+    changed_at: '2026-08-13T15:00:00Z',
+    clinical_date: datedDay,
+    actor: { user_id: 'user-1', display_name: 'Dra. Alfa' },
+    before: null,
+    after: datedSnapshot.snapshot,
+  };
+
+  const historyUrl = (patientId = patient.id, at?: string) =>
+    `/patients/${patientId}?tab=clinical&clinical=history&dentition=permanent${at ? `&at=${at}` : ''}`;
+
+  function snapshotPage(
+    items: api.DentalHistorySnapshotItem[],
+    at: string | null = null,
+    nextCursor: string | null = null,
+  ): api.DentalHistorySnapshotPage {
+    return {
+      selection: { at, timezone: 'America/Santiago', cutoff_exclusive: null },
+      items,
+      next_cursor: nextCursor,
+      epoch,
+      read_at: '2026-10-17T12:00:00Z',
+      counts: {
+        records: items.length,
+        findings: items.length,
+        procedures: 0,
+        charted_records: items.length,
+        affected_teeth: items.length,
+        affected_arches: 0,
+        deleted_records: 0,
+      },
+      coverage: { state: 'complete', earliest_recorded_at: null, warnings: [] },
+    };
+  }
+
+  function eventsPage(
+    items: api.DentalHistoryEvent[],
+    nextCursor: string | null = null,
+  ): api.DentalHistoryEventsPage {
+    return {
+      selection: {
+        day: null,
+        timezone: 'America/Santiago',
+        start_inclusive: null,
+        cutoff_exclusive: null,
+      },
+      items,
+      next_cursor: nextCursor,
+      total_events: items.length,
+      epoch,
+      timezone: 'America/Santiago',
+      read_at: '2026-10-17T12:00:00Z',
+    };
+  }
+
+  function mockHistoryData() {
+    vi.spyOn(api, 'getClinicalPendingWork').mockResolvedValue({
+      items: [],
+      total: 0,
+      next_cursor: null,
+    });
+    vi.spyOn(api, 'getPatient').mockImplementation((id: string) =>
+      Promise.resolve({
+        ...patient,
+        id,
+        first_name: id === patient.id ? 'Ana' : 'Beto',
+        last_name: id === patient.id ? 'Perez' : 'Silva',
+        phone: null,
+        email: null,
+      }),
+    );
+    vi.spyOn(api, 'getPatientEvolutions').mockResolvedValue([]);
+    vi.spyOn(api, 'getConditionCatalog').mockResolvedValue({
+      version: 1,
+      conditions: [
+        {
+          code: 'caries',
+          label_es: 'Caries',
+          surface_codes: ['M', 'D', 'O', 'V', 'L'],
+        },
+      ],
+    });
+    vi.spyOn(api, 'getTreatmentCatalog').mockResolvedValue({
+      version: '1',
+      categories: [],
+      variants: [],
+      findings: [],
+    });
+    vi.spyOn(api, 'getPatientDentalHistory').mockResolvedValue(eventsPage([datedEvent]));
+    vi.spyOn(api, 'getPatientDentalHistorySnapshot').mockImplementation((_id, options) =>
+      Promise.resolve(snapshotPage([datedSnapshot], options.at ?? null)),
+    );
+  }
+
+  function renderHistory(paths: string | string[], initialIndex = 0) {
+    return render(
+      <TransitionGuardProvider>
+        <MemoryRouter
+          initialEntries={Array.isArray(paths) ? paths : [paths]}
+          initialIndex={initialIndex}
+        >
+          <Routes>
+            <Route path="/patients/:patientId" element={<PatientDetail />} />
+          </Routes>
+          <LocationProbe />
+        </MemoryRouter>
+      </TransitionGuardProvider>,
+    );
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('routes a historical deep link to Historial with its date and dentition intact', async () => {
+    mockHistoryData();
+    renderHistory(historyUrl(patient.id, datedDay));
+    expect(await screen.findByRole('button', { name: 'Historial' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(
+      (await screen.findAllByText(/Registros guardados hasta el 13 ago 2026/)).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: 'Diagnóstico manual' })).not.toBeInTheDocument();
+    const url = screen.getByTestId('location').textContent ?? '';
+    expect(url).toContain('clinical=history');
+    expect(url).toContain(`at=${datedDay}`);
+    expect(url).toContain('dentition=permanent');
+  });
+
+  it('keeps the historical date through refresh, back and forward', async () => {
+    mockHistoryData();
+    const view = renderHistory(historyUrl(patient.id, datedDay));
+    await screen.findAllByText(/Registros guardados hasta el 13 ago 2026/);
+    const url = screen.getByTestId('location').textContent ?? '';
+    view.unmount();
+    renderHistory(['/patients/patient-1', url], 1);
+    expect(await screen.findByRole('button', { name: 'Historial' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Atrás' }));
+    expect(await screen.findByRole('region', { name: 'Resumen del paciente' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Adelante' }));
+    expect(await screen.findByRole('button', { name: 'Historial' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(
+      (await screen.findAllByText(/Registros guardados hasta el 13 ago 2026/)).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('selects a dated timeline entry and returns to the current state', async () => {
+    mockHistoryData();
+    renderHistory(historyUrl(patient.id));
+    expect(await screen.findByRole('button', { name: 'Historial' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect((await screen.findAllByText('Estado actual')).length).toBeGreaterThan(0);
+    fireEvent.click(await screen.findByRole('button', { name: /13 ago 2026/ }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`at=${datedDay}`));
+    expect(
+      (await screen.findAllByText(/Registros guardados hasta el 13 ago 2026/)).length,
+    ).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Volver al estado actual' }));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).not.toContain('at='));
+    expect((await screen.findAllByText('Estado actual')).length).toBeGreaterThan(0);
+  });
+
+  it('renders no write controls and issues no mutation requests', async () => {
+    mockHistoryData();
+    const writes = [
+      vi.spyOn(api, 'createPatientCondition'),
+      vi.spyOn(api, 'updatePatientCondition'),
+      vi.spyOn(api, 'deletePatientCondition'),
+      vi.spyOn(api, 'createPatientTreatment'),
+      vi.spyOn(api, 'updatePatientTreatment'),
+      vi.spyOn(api, 'deletePatientTreatment'),
+      vi.spyOn(api, 'createPatientNote'),
+      vi.spyOn(api, 'updatePatientNote'),
+      vi.spyOn(api, 'createDentalClinicalNote'),
+      vi.spyOn(api, 'deleteDentalClinicalNote'),
+    ];
+    renderHistory(historyUrl(patient.id, datedDay));
+    expect(await screen.findByRole('button', { name: 'Historial' })).toBeVisible();
+    const panel = screen.getByRole('tabpanel', { name: 'Clínica' });
+    for (const writeControl of [
+      /Registrar/,
+      /Editar/,
+      /Guardar/,
+      /Corregir/,
+      /Deshacer/,
+      /Eliminar/,
+    ]) {
+      expect(within(panel).queryAllByRole('button', { name: writeControl })).toHaveLength(0);
+    }
+    fireEvent.click(await screen.findByRole('button', { name: /13 ago 2026/ }));
+    expect(writes.every((spy) => spy.mock.calls.length === 0)).toBe(true);
+  });
+
+  it('keeps the previous complete chart labelled when a later chart page fails', async () => {
+    mockHistoryData();
+    const snapshots = vi
+      .spyOn(api, 'getPatientDentalHistorySnapshot')
+      .mockImplementation((_id, options) => {
+        if (!options.at) return Promise.resolve(snapshotPage([datedSnapshot]));
+        if (options.cursor === 'page-2') return Promise.reject(new Error('offline'));
+        return Promise.resolve(snapshotPage([datedSnapshot], datedDay, 'page-2'));
+      });
+    renderHistory(historyUrl(patient.id));
+    expect(await screen.findByRole('button', { name: 'Historial' })).toBeVisible();
+    expect((await screen.findAllByText('Estado actual')).length).toBeGreaterThan(0);
+    fireEvent.click(await screen.findByRole('button', { name: /13 ago 2026/ }));
+    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(
+      await screen.findByRole('button', { name: /Reintentar|Actualizar historial/ }),
+    ).toBeVisible();
+    expect((await screen.findAllByText('Estado actual')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Registros guardados hasta el 13 ago 2026/)).not.toBeInTheDocument();
+    const before = snapshots.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: /Reintentar|Actualizar historial/ }));
+    await waitFor(() => expect(snapshots.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it('ignores a late history response from the previous patient', async () => {
+    mockHistoryData();
+    const snapshotCalls: string[] = [];
+    vi.mocked(api.getPatientDentalHistorySnapshot).mockImplementation((id) => {
+      snapshotCalls.push(id);
+      return Promise.resolve(snapshotPage([]));
+    });
+    let resolveLateEvents!: (page: api.DentalHistoryEventsPage) => void;
+    vi.mocked(api.getPatientDentalHistory).mockImplementation((id: string) =>
+      id === patient.id
+        ? new Promise((resolve) => {
+            resolveLateEvents = resolve;
+          })
+        : Promise.resolve(eventsPage([])),
+    );
+    renderHistory([historyUrl('patient-2'), historyUrl(patient.id)], 1);
+    expect(await screen.findByRole('heading', { name: 'Ana Perez' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Atrás' }));
+    expect(await screen.findByRole('heading', { name: 'Beto Silva' })).toBeVisible();
+    await waitFor(() => expect(snapshotCalls).toContain('patient-2'));
+    await act(async () => resolveLateEvents(eventsPage([datedEvent])));
+    expect(screen.getByRole('heading', { name: 'Beto Silva' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /13 ago 2026/ })).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('Dra. Alfa');
+  });
+});

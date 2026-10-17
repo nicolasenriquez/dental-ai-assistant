@@ -15,6 +15,7 @@ import { PatientWorkspace, type PatientWorkspaceDetailError } from '../component
 import { ContextualAssistant } from '../components/clinical-assistant/ContextualAssistant';
 import { PatientActivity } from '../components/patients/PatientActivity';
 import { PatientClinicalPlanHistory } from '../components/patients/PatientClinicalPlanHistory';
+import { PatientDentalHistory } from '../components/patients/PatientDentalHistory';
 import { PatientDiagnosis } from '../components/patients/PatientDiagnosis';
 import { PatientHeaderDisclosure } from '../components/patients/PatientHeaderDisclosure';
 import { PatientInformation } from '../components/patients/PatientInformation';
@@ -29,6 +30,7 @@ import { useOptionalTransitionGuard } from '../hooks/useTransitionGuard';
 import { getPatientAge } from '../lib/age';
 import {
   ApiError,
+  type Dentition,
   type EvolutionDetail,
   type EvolutionSummary,
   type Patient,
@@ -149,9 +151,13 @@ export function PatientDetail() {
           : 'summary',
     );
     setClinicalSection(
-      evolutionId || location.state?.preserveHistory || clinical === 'evolutions'
+      evolutionId || location.state?.preserveHistory
         ? 'evolutions'
-        : clinical === 'planning' || clinical === 'plans'
+        : clinical === 'evolutions' ||
+            clinical === 'diagnosis' ||
+            clinical === 'history' ||
+            clinical === 'planning' ||
+            clinical === 'plans'
           ? clinical
           : 'diagnosis',
     );
@@ -181,10 +187,38 @@ export function PatientDetail() {
       next.delete('dental_note');
       next.delete('plan');
       next.delete('history');
+      next.delete('at');
+      next.delete('dentition');
     } else if (!next.has('clinical')) {
       next.set('clinical', clinicalSection === 'evolutions' ? 'evolutions' : 'diagnosis');
     }
     return next.toString();
+  };
+  const publishHistory = (day: string | null, dentition?: Dentition): void => {
+    const next = new URLSearchParams(location.search);
+    next.set('tab', 'clinical');
+    next.set('clinical', 'history');
+    if (day) next.set('at', day);
+    else next.delete('at');
+    if (dentition) next.set('dentition', dentition);
+    if (next.toString() !== new URLSearchParams(location.search).toString()) {
+      navigate(`${location.pathname}?${next.toString()}`, { replace: true });
+    }
+  };
+  const publishHistoryDay = (day: string | null): void => publishHistory(day);
+  const publishHistoryDentition = (value: Dentition): void =>
+    publishHistory(new URLSearchParams(location.search).get('at'), value);
+  const leaveHistory = (): void => {
+    const change = (): void => {
+      const next = new URLSearchParams(location.search);
+      next.set('tab', 'clinical');
+      next.set('clinical', 'diagnosis');
+      next.delete('at');
+      next.delete('dentition');
+      navigate(`${location.pathname}?${next.toString()}`, { replace: true });
+    };
+    if (guard) guard.guardTransition(change);
+    else change();
   };
   const publishConditionFocus = (conditionId?: string): void => {
     const next = new URLSearchParams(location.search);
@@ -409,6 +443,8 @@ export function PatientDetail() {
                             next.set('clinical', 'diagnosis');
                             next.delete('plan');
                             next.delete('history');
+                            next.delete('at');
+                            next.delete('dentition');
                             if (clinicalSection !== 'diagnosis') {
                               next.delete('treatment');
                               next.delete('dental_note');
@@ -422,6 +458,33 @@ export function PatientDetail() {
                         }}
                       >
                         Diagnóstico
+                      </Button>
+                      <Button
+                        variant="clinicalSecondary"
+                        aria-pressed={clinicalSection === 'history'}
+                        className="aria-pressed:border-primary aria-pressed:bg-surface aria-pressed:font-semibold aria-pressed:text-foreground"
+                        onClick={() => {
+                          const change = (): void => {
+                            setClinicalSection('history');
+                            if (evolutionId) {
+                              navigate(`/patients/${patientId}?tab=clinical&clinical=history`);
+                              return;
+                            }
+                            const next = new URLSearchParams(location.search);
+                            next.set('tab', 'clinical');
+                            next.set('clinical', 'history');
+                            next.delete('condition');
+                            next.delete('treatment');
+                            next.delete('dental_note');
+                            next.delete('plan');
+                            next.delete('history');
+                            navigate(`${location.pathname}?${next.toString()}`, { replace: true });
+                          };
+                          if (guard) guard.guardTransition(change);
+                          else change();
+                        }}
+                      >
+                        Historial
                       </Button>
                       <Button
                         variant="clinicalSecondary"
@@ -439,6 +502,8 @@ export function PatientDetail() {
                             next.delete('dental_note');
                             next.delete('plan');
                             next.delete('history');
+                            next.delete('at');
+                            next.delete('dentition');
                             navigate(`${location.pathname}?${next.toString()}`, {
                               replace: true,
                             });
@@ -465,6 +530,16 @@ export function PatientDetail() {
                         focusedConditionId={
                           new URLSearchParams(location.search).get('condition') ?? undefined
                         }
+                      />
+                    ) : clinicalSection === 'history' ? (
+                      <PatientDentalHistory
+                        key={patient.id}
+                        patientId={patient.id}
+                        at={new URLSearchParams(location.search).get('at')}
+                        dentition={new URLSearchParams(location.search).get('dentition')}
+                        onSelectDay={publishHistoryDay}
+                        onSelectDentition={publishHistoryDentition}
+                        onLeave={leaveHistory}
                       />
                     ) : clinicalSection === 'planning' || clinicalSection === 'plans' ? (
                       <PatientClinicalPlanHistory

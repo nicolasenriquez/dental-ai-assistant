@@ -1,11 +1,6 @@
 import { useId } from 'react';
-import type {
-  PatientCondition,
-  PatientTreatment,
-  ToothSurface,
-  TreatmentCatalog,
-} from '../../lib/api';
-import { findingPaletteRole } from '../../lib/odontogramPresentation';
+import type { PatientTreatment, ToothSurface, TreatmentCatalog } from '../../lib/api';
+import { type ChartCondition, findingPaletteRole } from '../../lib/odontogramPresentation';
 import {
   surfacePosition,
   surfaceShapes,
@@ -17,7 +12,7 @@ import {
 interface ToothClinicalLayersProps {
   tooth: number;
   upper: boolean;
-  conditions: PatientCondition[];
+  conditions: ChartCondition[];
   treatments: PatientTreatment[];
   catalog?: TreatmentCatalog | null;
   preview?: string | null;

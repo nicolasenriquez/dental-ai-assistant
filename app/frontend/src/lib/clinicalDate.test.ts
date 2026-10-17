@@ -4,6 +4,7 @@ import {
   formatClinicalDateLong,
   formatClinicalDateShort,
   formatClinicalDateTime,
+  formatClinicalDayShort,
   formatClinicalTime,
   normalizeClinicalDateInput,
   parseClinicalDateInput,
@@ -35,6 +36,12 @@ describe('clinical date formatting', () => {
     expect(formatClinicalDateLong(value)).toContain('septiembre');
     expect(formatClinicalTime(value)).toContain('28');
     expect(formatClinicalTime(value)).not.toContain(':00');
+  });
+
+  it('formats a server clinical day without shifting through the browser timezone', () => {
+    expect(formatClinicalDayShort('2026-08-13')).toBe('13 ago 2026');
+    expect(formatClinicalDayShort('2026-01-02')).toBe('02 ene 2026');
+    expect(formatClinicalDayShort('no-una-fecha')).toBe('no-una-fecha');
   });
 
   it('validates a complete local date and 24-hour time before producing an instant', () => {

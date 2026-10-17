@@ -77,6 +77,15 @@ export function formatClinicalDateShort(value: string | Date): string {
   return `${partValue(parts, 'day')} ${shortMonths[date.getMonth()]} ${partValue(parts, 'year')}`;
 }
 
+// Server history dates are already America/Santiago calendar days; format their
+// parts directly so a bare YYYY-MM-DD never shifts through the browser timezone.
+export function formatClinicalDayShort(isoDay: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDay);
+  if (!match) return isoDay;
+  const [, year, month, day] = match;
+  return `${day} ${shortMonths[Number(month) - 1] ?? month} ${year}`;
+}
+
 export function formatClinicalDateLong(value: string | Date): string {
   return longDateFormatter.format(value instanceof Date ? value : new Date(value));
 }

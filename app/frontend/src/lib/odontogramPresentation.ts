@@ -1,11 +1,15 @@
 import type {
   ConditionCatalog,
   ConditionCatalogEntry,
+  ConditionSnapshot,
   Dentition,
   PatientTreatment,
   ToothSurface,
   TreatmentCatalog,
 } from './api';
+
+// Chart record without mutable workspace metadata: both current and historical readers render it.
+export type ChartCondition = ConditionSnapshot & { id: string };
 
 // Presentation only. Clinical labels and applicability always come from the server.
 const symbols: Record<string, string> = Object.fromEntries(

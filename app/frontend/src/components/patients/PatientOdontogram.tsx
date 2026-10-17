@@ -2,12 +2,12 @@ import { type MouseEvent, type ReactNode, useEffect, useId, useRef, useState } f
 import type {
   ConditionCatalog,
   Dentition,
-  PatientCondition,
   PatientTreatment,
   ToothSurface,
   TreatmentCatalog,
 } from '../../lib/api';
 import {
+  type ChartCondition,
   resolveCondition,
   surfaceDescription,
   treatmentStateLabel,
@@ -37,7 +37,7 @@ interface OdontogramProps {
   controls?: ReactNode;
   toolIndicator?: ReactNode;
   dentition: Dentition;
-  conditions: PatientCondition[];
+  conditions: ChartCondition[];
   treatments?: PatientTreatment[];
   treatmentCatalog?: TreatmentCatalog | null;
   labels: Record<string, string>;
