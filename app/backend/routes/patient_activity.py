@@ -73,6 +73,7 @@ def _item(row: dict[str, Any], patient: UUID) -> ActivityItem:
             "created": "Procedimiento registrado",
             "edited": "Procedimiento editado",
             "corrected": "Procedimiento corregido",
+            "deleted": "Procedimiento eliminado",
         }[action]
         href = f"/patients/{patient}?tab=clinical&clinical=diagnosis&treatment={resource}"
         if row.get("plan_id"):
@@ -110,6 +111,7 @@ def _item(row: dict[str, Any], patient: UUID) -> ActivityItem:
             "edited": "Condición editada",
             "resolved": "Condición resuelta",
             "corrected": "Condición corregida",
+            "deleted": "Condición eliminada",
         }[action]
         href = f"/patients/{patient}?tab=clinical&clinical=diagnosis&condition={resource}"
     actor = (

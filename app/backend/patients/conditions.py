@@ -219,14 +219,6 @@ class UpdateCondition(BaseModel):
         return self
 
 
-class CorrectCondition(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    operation_id: UUID
-    expected_revision: Annotated[int, Field(strict=True, ge=1)]
-    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
-    replacement: CreateCondition | None = None
-
-
 class CorrectionReceipt(BaseModel):
     operation_id: UUID
     condition_id: UUID

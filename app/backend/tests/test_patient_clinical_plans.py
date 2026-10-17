@@ -166,75 +166,16 @@ async def test_execution_partial_completion_replay_note_and_correction(plan_db, 
             },
         )
         corrected = await client.post(f"{treatment_path}/corrections", json=correction)
-        assert corrected.status_code == 201, corrected.text
-        assert corrected.json()["committed"]["state"] == "entered_in_error"
-        current = (await client.get(path)).json()
-        assert current["state"] == "completed" and current["revision"] == 7
-        assert current["items"][0]["stages"] == completed["items"][0]["stages"]
-        assert corrected.json()["committed_plan"] == current
-        original_history = (await client.get(f"{treatment_path}/revisions")).json()["items"]
+        assert corrected.status_code == 410, corrected.text
+        assert corrected.json()["detail"]["code"] == "correction_workflow_retired"
+        assert (await client.get(path)).json() == completed
         assert (
-            original_history[0]["after"]["execution"]["stages"] == completed["items"][0]["stages"]
-        )
-        replacement = (
             await client.get(
                 f"/api/patients/{patient}/dental-treatments/{correction['replacement']['id']}"
             )
-        ).json()
-        assert (
-            replacement["state"] == "performed" and replacement["provenance"] == "planned_in_clinic"
-        )
-        assert replacement["supersedes_id"] == item["treatment_id"]
-        replacement_history = (
-            await client.get(
-                f"/api/patients/{patient}/dental-treatments/{replacement['id']}/revisions"
-            )
-        ).json()
-        assert replacement_history["items"][0]["after"]["execution"]["plan_id"] == completed["id"]
-        assert (
-            await client.post(f"{treatment_path}/corrections", json=correction)
-        ).json() == corrected.json()
-        # Correct two successive replacements through the original aggregate item.
-        for plan_revision in (7, 8):
-            replacement_path = f"/api/patients/{patient}/dental-treatments/{replacement['id']}"
-            payload = command(
-                replacement["revision"],
-                expected_plan_revision=plan_revision,
-                reason="Nueva corrección",
-                replacement={**correction["replacement"], "id": str(uuid4())},
-            )
-            stale = await client.post(
-                f"{replacement_path}/corrections",
-                json={**payload, "expected_plan_revision": plan_revision - 1},
-            )
-            assert stale.status_code == 409
-            app.dependency_overrides[get_current_user] = lambda: {"id": str(plan_db[2])}
-            try:
-                assert (
-                    await client.post(f"{replacement_path}/corrections", json=payload)
-                ).status_code == 404
-            finally:
-                app.dependency_overrides[get_current_user] = lambda: {"id": str(owner)}
-            result = await client.post(f"{replacement_path}/corrections", json=payload)
-            assert result.status_code == 201, result.text
-            committed_plan = result.json()["committed_plan"]
-            assert committed_plan["revision"] == plan_revision + 1
-            assert committed_plan["items"][0]["treatment_id"] == item["treatment_id"]
-            assert committed_plan["items"][0]["stages"] == completed["items"][0]["stages"]
-            assert (
-                await client.post(f"{replacement_path}/corrections", json=payload)
-            ).json() == result.json()
-            history = (await client.get(f"{replacement_path}/revisions")).json()["items"]
-            assert history[0]["after"]["execution"]["stages"] == completed["items"][0]["stages"]
-            replacement = (
-                await client.get(
-                    f"/api/patients/{patient}/dental-treatments/{payload['replacement']['id']}"
-                )
-            ).json()
-            assert replacement["state"] == "performed"
-            assert replacement["provenance"] == "planned_in_clinic"
-        assert (await client.post(f"{path}/reopen", json=command(9))).status_code == 409
-        assert (await client.post(f"{path}/archive", json=command(9))).status_code == 200
+        ).status_code == 404
+        assert (await client.post(f"{path}/reopen", json=command(6))).status_code == 409
+        assert (await client.post(f"{path}/archive", json=command(6))).status_code == 200
     async with pool.acquire() as conn:
         assert (
             await conn.fetchval(
@@ -416,9 +357,7 @@ async def test_execution_denied_states_and_strict_payloads(plan_db, state):
         assert (await client.get(path)).json()["revision"] == 4
 
 
-async def test_execution_linked_correction_race_revision_and_rollback(plan_db, monkeypatch):
-    from backend.db import patient_clinical_plans_repo as repo
-
+async def test_retired_linked_correction_does_not_race_stage_execution(plan_db):
     _, _, _, patient = plan_db
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="https://testserver"
@@ -430,34 +369,24 @@ async def test_execution_linked_correction_race_revision_and_rollback(plan_db, m
         )
         assert (
             await client.post(correction_path, json=command(1, reason="Error"))
-        ).status_code == 422
+        ).status_code == 410
         assert (
             await client.post(
                 correction_path, json=command(1, reason="Error", expected_plan_revision=3)
             )
-        ).status_code == 409
+        ).status_code == 410
         payload = command(1, reason="Error", expected_plan_revision=4)
 
-        async def fail(*args, **kwargs):
-            raise RuntimeError("Injected linked correction history failure")
-
-        with monkeypatch.context() as patch:
-            patch.setattr(repo, "_revision", fail)
-            with pytest.raises(RuntimeError):
-                await client.post(correction_path, json=payload)
+        assert (await client.post(correction_path, json=payload)).status_code == 410
         assert (await client.get(path)).json() == plan
         endpoint = f"{path}/items/{item['id']}/stages/{item['stages'][0]['id']}/complete"
         results = await asyncio.gather(
             client.post(correction_path, json=payload), client.post(endpoint, json=command(4))
         )
-        assert sorted(r.status_code for r in results) in ([200, 409], [201, 409])
+        assert [r.status_code for r in results] == [410, 200]
         current = (await client.get(path)).json()
         assert current["state"] == "active" and current["revision"] == 5
-        if current["items"][0]["treatment"]["state"] == "entered_in_error":
-            assert (await client.post(endpoint, json=command(5))).status_code == 409
-            assert all(s["status"] == "pending" for s in current["items"][0]["stages"])
-        else:
-            assert current["items"][0]["stages"][0]["status"] == "completed"
+        assert current["items"][0]["stages"][0]["status"] == "completed"
 
 
 async def test_draft_atomic_authoring_reload_replay_owner(plan_db, monkeypatch) -> None:

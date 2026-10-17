@@ -5,8 +5,6 @@ from uuid import UUID
 
 from backend.db import patient_conditions_repo as repo
 from backend.patients.conditions import (
-    CorrectCondition,
-    CorrectionReceipt,
     CreateCondition,
     UpdateCondition,
 )
@@ -36,16 +34,3 @@ async def resolve(
 ) -> dict[str, Any]:
     # The existing PATCH contract permits note/surface changes together with resolution.
     return await edit(owner, patient, identifier, command)
-
-
-async def correct(
-    owner: UUID, patient: UUID, identifier: UUID, command: CorrectCondition
-) -> tuple[CorrectionReceipt, bool]:
-    # Normalize defaults/nulls, text and canonical surfaces once before immutable replay comparison.
-    normalized = {
-        "patient_id": str(patient),
-        "condition_id": str(identifier),
-        **command.model_dump(mode="json"),
-    }
-    receipt, created = await repo.correct_condition(owner, patient, identifier, normalized)
-    return CorrectionReceipt.model_validate(receipt), created

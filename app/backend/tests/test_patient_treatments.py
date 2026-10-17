@@ -125,14 +125,25 @@ async def test_treatment_authentication_and_strict_payloads(monkeypatch):
                 {"teeth": [{"tooth_fdi": 16, "surfaces": ["M", "M"]}]},
             ):
                 assert (await client.post(base, json={**body, **change})).status_code == 422
-            assert (
-                await client.post(
-                    f"{base}/{identifier}/corrections",
-                    json={"operation_id": str(uuid4()), "expected_revision": 1, "reason": " "},
-                )
-            ).status_code == 422
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_retired_correction_adapter_rejects_before_receipt_lookup(monkeypatch):
+    from backend.db import patient_treatments_repo
+
+    def forbidden():
+        raise AssertionError("Retired command reached the command store")
+
+    monkeypatch.setattr(patient_treatments_repo, "get_pg_pool", forbidden)
+    with pytest.raises(ValueError, match="Operación de procedimiento no admitida"):
+        await patient_treatments_repo.command(
+            uuid4(),
+            uuid4(),
+            uuid4(),
+            "correct",
+            {"operation_id": str(uuid4()), "expected_revision": 1, "reason": "Old retry"},
+        )
 
 
 @pytest.fixture
@@ -232,14 +243,15 @@ async def test_treatment_http_replay_conflict_correction_and_owner(treatment_db)
             "replacement": replacement,
         }
         result = await client.post(f"{path}/corrections", json=correction)
-        assert result.status_code == 201, result.text
-        assert (await client.post(f"{path}/corrections", json=correction)).json() == result.json()
+        assert result.status_code == 410, result.text
+        assert result.json()["detail"]["code"] == "correction_workflow_retired"
         original = (await client.get(path)).json()
-        assert original["state"] == "entered_in_error"
+        assert original["state"] == "existing"
         assert original["note"] == "Local draft"
-        assert original["replacement_id"] == replacement["id"]
+        assert original["replacement_id"] is None
+        assert (await client.get(f"{base}/{replacement['id']}")).status_code == 404
         history = (await client.get(f"{path}/revisions")).json()
-        assert history["total"] == 4
+        assert history["total"] == 3
         assert history["items"][0]["before"]["state"] == "existing"
         first_history = (await client.get(f"{path}/revisions", params={"limit": 1})).json()
         older = (
@@ -247,8 +259,8 @@ async def test_treatment_http_replay_conflict_correction_and_owner(treatment_db)
                 f"{path}/revisions", params={"limit": 1, "cursor": first_history["next_cursor"]}
             )
         ).json()
-        assert first_history["items"][0]["revision"] == 4
-        assert older["items"][0]["revision"] == 3
+        assert first_history["items"][0]["revision"] == 3
+        assert older["items"][0]["revision"] == 2
         app.dependency_overrides[get_current_user] = lambda: {"id": str(foreign)}
         for endpoint in (base, path, f"{path}/revisions"):
             assert (await client.get(endpoint)).status_code == 404
@@ -259,7 +271,7 @@ async def test_treatment_http_replay_conflict_correction_and_owner(treatment_db)
             await conn.fetchval(
                 "SELECT count(*) FROM patient_dental_treatments WHERE patient_id=$1", patient
             )
-            == 2
+            == 1
         )
         assert (
             await conn.fetchval(
@@ -358,7 +370,7 @@ async def test_treatment_atomic_failure_and_correction_collision(treatment_db, m
             },
         }
         path = f"{base}/{body['id']}"
-        assert (await client.post(f"{path}/corrections", json=correction)).status_code == 409
+        assert (await client.post(f"{path}/corrections", json=correction)).status_code == 410
         assert (await client.get(path)).json()["state"] == "existing"
         assert (await client.get(f"{path}/revisions")).json()["total"] == 1
 

@@ -14,9 +14,9 @@ from backend.db import patient_treatments_repo as repo
 from backend.patients import treatment_service
 from backend.patients.conditions import Dentition
 from backend.patients.cursors import decode_cursor_payload, encode_cursor_payload
+from backend.patients.deletion import DeleteDentalRecord, DeletionConflict, DentalDeletionReceipt
 from backend.patients.treatment_catalog import catalog
 from backend.patients.treatments import (
-    CorrectTreatment,
     CreateTreatment,
     EditTreatment,
     TreatmentConflict,
@@ -34,6 +34,8 @@ async def _owned(operation: Awaitable[T]) -> T:
         return await operation
     except LookupError:
         raise HTTPException(404, detail={"code": "not_found"}) from None
+    except DeletionConflict as error:
+        raise HTTPException(409, detail=error.detail) from None
     except TreatmentConflict as error:
         raise HTTPException(409, detail=error.detail) from None
     except ValueError as error:
@@ -127,15 +129,34 @@ async def edit(
     return dict(receipt)
 
 
-@router.post("/{patient_id}/dental-treatments/{treatment_id}/corrections", status_code=201)
-async def correct(
-    patient_id: UUID, treatment_id: UUID, body: CorrectTreatment, user: User, response: Response
-) -> dict[str, Any]:
-    receipt, created = await _owned(
-        treatment_service.execute(UUID(str(user["id"])), patient_id, treatment_id, body)
+@router.post(
+    "/{patient_id}/dental-treatments/{treatment_id}/delete", response_model=DentalDeletionReceipt
+)
+async def delete(
+    patient_id: UUID, treatment_id: UUID, body: DeleteDentalRecord, user: User
+) -> DentalDeletionReceipt:
+    receipt = await _owned(
+        repo.delete_treatment(
+            UUID(str(user["id"])),
+            patient_id,
+            treatment_id,
+            body.operation_id,
+            body.expected_revision,
+        )
     )
-    response.status_code = 201 if created else 200
-    return dict(receipt)
+    return DentalDeletionReceipt.model_validate(receipt)
+
+
+@router.post("/{patient_id}/dental-treatments/{treatment_id}/corrections")
+async def correct(patient_id: UUID, treatment_id: UUID, user: User) -> None:
+    await _owned(repo.get_treatment(UUID(str(user["id"])), patient_id, treatment_id))
+    raise HTTPException(
+        410,
+        detail={
+            "code": "correction_workflow_retired",
+            "message": "Este flujo fue retirado. Usa Eliminar desde el registro guardado.",
+        },
+    )
 
 
 @router.get("/{patient_id}/dental-treatments/{treatment_id}/revisions")

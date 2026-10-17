@@ -40,13 +40,16 @@ async def _record(
     result["entity_id"] = row["treatment_id"] or row["plan_id"] or patient
     result["linked_teeth"] = [row["tooth_fdi"]] if row["tooth_fdi"] else []
     result["entity_label"] = None
+    result["entity_deleted"] = False
     if row["treatment_id"]:
-        result["entity_label"] = await conn.fetchval(
-            "SELECT label_es FROM patient_dental_treatments WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3",
+        entity = await conn.fetchrow(
+            "SELECT label_es, deleted_at IS NOT NULL AS deleted FROM patient_dental_treatments WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3",
             row["treatment_id"],
             owner,
             patient,
         )
+        result["entity_label"] = entity["label_es"] if entity else None
+        result["entity_deleted"] = bool(entity and entity["deleted"])
         result["linked_teeth"] = [
             r["tooth_fdi"]
             for r in await conn.fetch(
@@ -72,6 +75,24 @@ async def get_note(owner: UUID, patient: UUID, identifier: UUID) -> dict[str, An
         return await _record(conn, owner, patient, identifier)
 
 
+async def _guard_treatment(
+    conn: Connection, owner: UUID, patient: UUID, identifier: UUID | None
+) -> None:
+    """Lock a contextual procedure and reject work on a tombstone before note row locks."""
+    if identifier is None:
+        return
+    row = await conn.fetchrow(
+        "SELECT deleted_at FROM patient_dental_treatments WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3 FOR KEY SHARE",
+        identifier,
+        owner,
+        patient,
+    )
+    if row is None:
+        raise LookupError
+    if row["deleted_at"] is not None:
+        raise TreatmentConflict("resource_read_only")
+
+
 async def command(
     owner: UUID, patient: UUID, identifier: UUID, action: str, body: dict[str, Any]
 ) -> tuple[dict[str, Any], bool]:
@@ -89,8 +110,9 @@ async def command(
     operation = UUID(body["operation_id"])
     async with get_pg_pool().acquire() as conn, conn.transaction():
         await _parent(conn, owner, patient)
+        existing = None
         if action != "create":
-            await _record(conn, owner, patient, identifier)
+            existing = await _record(conn, owner, patient, identifier)
         await conn.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", f"{owner}/{operation}"
         )
@@ -110,13 +132,8 @@ async def command(
             plan = entity if body["entity_kind"] == "plan" else None
             if body["entity_kind"] == "patient" and entity != patient:
                 raise LookupError
-            if treatment and not await conn.fetchval(
-                "SELECT id FROM patient_dental_treatments WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3 FOR KEY SHARE",
-                treatment,
-                owner,
-                patient,
-            ):
-                raise LookupError
+            if treatment:
+                await _guard_treatment(conn, owner, patient, treatment)
             if plan and not await conn.fetchval(
                 "SELECT id FROM patient_clinical_plans WHERE id=$1 AND owner_user_id=$2 AND patient_id=$3 FOR KEY SHARE",
                 plan,
@@ -140,6 +157,8 @@ async def command(
                 await _record(conn, owner, patient, identifier)
                 raise TreatmentConflict("idempotency_conflict")
         else:
+            assert existing is not None
+            await _guard_treatment(conn, owner, patient, existing["treatment_id"])
             before = await _record(conn, owner, patient, identifier, lock=True)
             if before["revision"] != body["expected_revision"] or before["deleted_at"]:
                 raise TreatmentConflict("revision_conflict", before)

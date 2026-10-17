@@ -19,9 +19,7 @@ from backend.patients.conditions import (
     ConditionRevisionsCursor,
     ConditionsCursor,
     ConditionStatus,
-    CorrectCondition,
     CorrectionMetadata,
-    CorrectionReceipt,
     CreateCondition,
     Dentition,
     Surface,
@@ -29,6 +27,7 @@ from backend.patients.conditions import (
     decode_cursor,
     encode_cursor,
 )
+from backend.patients.deletion import DeleteDentalRecord, DeletionConflict, DentalDeletionReceipt
 from backend.patients.schemas import Actor
 
 router = APIRouter(prefix="/patients", tags=["patient-conditions"])
@@ -45,6 +44,8 @@ class ConditionSnapshot(BaseModel):
     surfaces: list[Surface]
     note: str | None
     status: ConditionStatus
+    deleted_at: datetime | None = None
+    deleted_by_user_id: UUID | None = None
 
 
 class ConditionResponse(ConditionSnapshot):
@@ -63,7 +64,7 @@ class ConditionRevision(BaseModel):
     id: UUID
     condition_id: UUID
     revision: int
-    action: Literal["created", "edited", "resolved", "corrected"]
+    action: Literal["created", "edited", "resolved", "corrected", "deleted"]
     before: ConditionSnapshot | None
     after: ConditionSnapshot
     actor: Actor
@@ -103,6 +104,11 @@ async def _owned(operation: Awaitable[T]) -> T:
         raise HTTPException(
             404, detail={"code": "not_found", "message": "Registro no encontrado"}
         ) from None
+    except DeletionConflict as error:
+        detail = error.detail.copy()
+        if "latest" in detail:
+            detail["latest"] = _condition(detail["latest"]).model_dump(mode="json")
+        raise HTTPException(409, detail=detail) from None
     except ConditionConflict as error:
         detail = error.detail
         if error.existing:
@@ -212,19 +218,32 @@ async def update_condition(
     return _condition(await _owned(command(UUID(str(user["id"])), patient_id, condition_id, body)))
 
 
-@router.post(
-    "/{patient_id}/conditions/{condition_id}/corrections",
-    response_model=CorrectionReceipt,
-    status_code=201,
-)
-async def correct_condition(
-    patient_id: UUID, condition_id: UUID, body: CorrectCondition, user: User, response: Response
-) -> CorrectionReceipt:
-    receipt, created = await _owned(
-        condition_service.correct(UUID(str(user["id"])), patient_id, condition_id, body)
+@router.post("/{patient_id}/conditions/{condition_id}/delete", response_model=DentalDeletionReceipt)
+async def delete_condition(
+    patient_id: UUID, condition_id: UUID, body: DeleteDentalRecord, user: User
+) -> DentalDeletionReceipt:
+    receipt = await _owned(
+        repo.delete_condition(
+            UUID(str(user["id"])),
+            patient_id,
+            condition_id,
+            body.operation_id,
+            body.expected_revision,
+        )
     )
-    response.status_code = 201 if created else 200
-    return receipt
+    return DentalDeletionReceipt.model_validate(receipt)
+
+
+@router.post("/{patient_id}/conditions/{condition_id}/corrections")
+async def correct_condition(patient_id: UUID, condition_id: UUID, user: User) -> None:
+    await _owned(repo.get_condition(UUID(str(user["id"])), patient_id, condition_id))
+    raise HTTPException(
+        410,
+        detail={
+            "code": "correction_workflow_retired",
+            "message": "Este flujo fue retirado. Usa Eliminar desde el registro guardado.",
+        },
+    )
 
 
 @router.get("/{patient_id}/conditions/{condition_id}/revisions", response_model=RevisionsPage)

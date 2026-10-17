@@ -2,6 +2,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import {
   ApiError,
   createPatientTreatment,
+  deletePatientCondition,
+  deletePatientTreatment,
   getDentalClinicalNoteRevisions,
   getPatientTreatments,
   updatePatientTreatment,
@@ -33,6 +35,35 @@ it('sends frozen operation and revision through existing typed transport', async
   expect(fetch.mock.calls[1][1].body).toBe(fetch.mock.calls[0][1].body);
   await getPatientTreatments('patient', { cursor: 'opaque', dentition: 'primary' });
   expect(fetch.mock.calls[2][0]).toContain('cursor=opaque');
+});
+
+it.each([
+  [deletePatientCondition, 'conditions'],
+  [deletePatientTreatment, 'dental-treatments'],
+] as const)('sends exact delete identity through %s', async (remove, resource) => {
+  const receipt = {
+    operation_id: 'operation',
+    resource_kind: resource === 'conditions' ? 'condition' : 'procedure',
+    resource_id: 'record',
+    action: 'deleted',
+    revision: 2,
+    revision_id: 'revision',
+    deleted_at: '2026-10-17T12:00:00Z',
+    actor: { user_id: 'owner', display_name: null },
+  };
+  const fetch = vi
+    .fn()
+    .mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(receipt), { status: 200 })),
+    );
+  vi.stubGlobal('fetch', fetch);
+  const body = { operation_id: 'operation', expected_revision: 1 };
+  expect(await remove('patient', 'record', body)).toEqual(receipt);
+  expect(await remove('patient', 'record', body)).toEqual(receipt);
+  expect(fetch.mock.calls[0][0]).toBe(`/api/patients/patient/${resource}/record/delete`);
+  expect(fetch.mock.calls[0][1]).toMatchObject({ method: 'POST', credentials: 'include' });
+  expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(body);
+  expect(fetch.mock.calls[1][1].body).toBe(fetch.mock.calls[0][1].body);
 });
 
 it('preserves latest authorized snapshot in revision conflict', async () => {

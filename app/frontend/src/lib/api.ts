@@ -1090,7 +1090,23 @@ export interface ConditionCatalog {
   conditions: ConditionCatalogEntry[];
   categories?: { key: string; label_es: string }[];
 }
+export interface DeleteDentalRecord {
+  operation_id: string;
+  expected_revision: number;
+}
+export interface DentalDeletionReceipt {
+  operation_id: string;
+  resource_kind: 'condition' | 'procedure';
+  resource_id: string;
+  action: 'deleted';
+  revision: number;
+  revision_id: string;
+  deleted_at: string;
+  actor: PatientActor;
+}
 export interface ConditionSnapshot {
+  deleted_at?: string | null;
+  deleted_by_user_id?: string | null;
   dentition: Dentition;
   tooth_fdi: number;
   condition_code: string;
@@ -1113,7 +1129,7 @@ export interface PatientConditionRevision {
   id: string;
   condition_id: string;
   revision: number;
-  action: 'created' | 'edited' | 'resolved' | 'corrected';
+  action: 'created' | 'edited' | 'resolved' | 'corrected' | 'deleted';
   before: ConditionSnapshot | null;
   after: ConditionSnapshot;
   actor: PatientActor;
@@ -1217,6 +1233,17 @@ export function getPatientConditionRevisions(
   return request(`/patients/${patientId}/conditions/${conditionId}/revisions?${query}`);
 }
 
+export function deletePatientCondition(
+  patientId: string,
+  conditionId: string,
+  body: DeleteDentalRecord,
+): Promise<DentalDeletionReceipt> {
+  return request(`/patients/${patientId}/conditions/${conditionId}/delete`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function correctPatientCondition(
   patientId: string,
   conditionId: string,
@@ -1263,6 +1290,8 @@ export interface TreatmentInput {
   note?: string | null;
 }
 export interface PatientTreatment extends TreatmentInput {
+  deleted_at?: string | null;
+  deleted_by_user_id?: string | null;
   patient_id: string;
   catalog_version: string;
   label_es: string;
@@ -1308,7 +1337,7 @@ export interface CorrectPatientTreatment {
 export interface TreatmentRevision {
   id: string;
   revision: number;
-  action: 'created' | 'edited' | 'corrected';
+  action: 'created' | 'edited' | 'corrected' | 'deleted';
   before: PatientTreatment | null;
   after: PatientTreatment;
   reason: string | null;
@@ -1354,6 +1383,17 @@ export function updatePatientTreatment(
     body: JSON.stringify(body),
   });
 }
+export function deletePatientTreatment(
+  patientId: string,
+  id: string,
+  body: DeleteDentalRecord,
+): Promise<DentalDeletionReceipt> {
+  return request(`/patients/${patientId}/dental-treatments/${id}/delete`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function correctPatientTreatment(
   patientId: string,
   id: string,

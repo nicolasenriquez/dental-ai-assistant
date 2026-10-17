@@ -113,7 +113,7 @@ class _FakeConn:
     async def fetchval(self, *args, **kwargs):
         return 0
 
-    def transaction(self):
+    def transaction(self, **kwargs):
         return self
 
     async def __aenter__(self):
@@ -155,9 +155,12 @@ def patch_pg_pool(monkeypatch):
     from backend.db import (
         clinical_assistant_repo,
         clinical_pending_work_repo,
+        patient_activity_repo,
         patient_clinical_notes_repo,
         patient_clinical_plans_repo,
+        patient_conditions_repo,
         patient_notes_repo,
+        patient_treatments_repo,
     )
     from backend.db import evolution_exports_repo as evolution_exports_repo_mod
     from backend.db import evolutions_repo as evolutions_repo_mod
@@ -174,6 +177,9 @@ def patch_pg_pool(monkeypatch):
     monkeypatch.setattr(pg, "get_pg_pool", getter)
     monkeypatch.setattr(clinical_pending_work_repo, "get_pg_pool", getter)
     monkeypatch.setattr(patient_notes_repo, "get_pg_pool", getter)
+    monkeypatch.setattr(patient_conditions_repo, "get_pg_pool", getter)
+    monkeypatch.setattr(patient_treatments_repo, "get_pg_pool", getter)
+    monkeypatch.setattr(patient_activity_repo, "get_pg_pool", getter)
     monkeypatch.setattr(patient_clinical_plans_repo, "get_pg_pool", getter)
     monkeypatch.setattr(patient_clinical_notes_repo, "get_pg_pool", getter)
     monkeypatch.setattr(clinical_assistant_repo, "get_pg_pool", getter)
